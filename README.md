@@ -1,4 +1,4 @@
-# Mininet Agentic Interactive
+# Mininet AI
 
 An interactive control interface for Mininet using natural language, powered by [Agno](https://agno.com/) and [Ollama](https://ollama.com/).
 
