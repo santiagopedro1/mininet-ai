@@ -106,6 +106,24 @@ class CompilerTests(unittest.TestCase):
         with self.assertRaisesRegex(CompilationError, "unknown controller"):
             compile_experiment(Experiment.model_validate(snapshot))
 
+    def test_unknown_substrate_driver_is_rejected_by_registry(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot["substrate"]["driver"] = "missing-driver"
+
+        with self.assertRaisesRegex(
+            CompilationError, "unknown substrate driver.*available: fake"
+        ):
+            compile_experiment(Experiment.model_validate(snapshot))
+
+    def test_invalid_substrate_options_are_rejected_before_compilation(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot["substrate"]["options"] = {"unknown-option": True}
+
+        with self.assertRaisesRegex(
+            CompilationError, "options.unknown-option.*unknown fake substrate option"
+        ):
+            compile_experiment(Experiment.model_validate(snapshot))
+
     def test_adapter_cannot_be_reused_by_multiple_links(self) -> None:
         snapshot = compile_experiment(EXAMPLE).snapshot
         links = snapshot["substrate"]["topology"]["links"]
@@ -233,6 +251,11 @@ class CompilerTests(unittest.TestCase):
                     "name": "experimental",
                     "targets": ["switch"],
                     "runtimes": ["edge-runtime"],
+                    "observations": [
+                        "ovs.port-counters",
+                        "tc.queue-occupancy",
+                        "topology.neighbors",
+                    ],
                 }
             ]
         }

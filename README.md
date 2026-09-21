@@ -157,6 +157,22 @@ mininet_ai/
 └── cli.py            # validate, plan, and schema commands
 ```
 
+### Substrate driver contract
+
+Every substrate implements the versioned
+`mininet-ai/substrate/v1alpha1` planning contract. A driver publishes a
+manifest containing its supported resource kinds, attachment layers, runtimes,
+and observations, and provides validators for options, compiled resources, and
+agent bindings. The compiler resolves drivers through the public substrate
+registry instead of importing a concrete implementation.
+
+The fake driver is the reference implementation. New drivers should use
+`ManifestSubstrateDriver` for the shared validation behavior, register a factory
+with `register_substrate_driver`, and run the reusable
+`tests.substrates.contract.SubstrateDriverContract` test mixin. The future
+Mininet/OVS driver will implement this same planning contract before adding its
+runtime lifecycle operations.
+
 ## Roadmap
 
 ### Phase 1: Specification and compiler

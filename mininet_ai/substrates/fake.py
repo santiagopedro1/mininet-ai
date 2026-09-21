@@ -2,46 +2,23 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any
 
-from mininet_ai.specification.models import AttachmentLayer, ResourceKind
+from mininet_ai.specification.models import (
+    NAME_PATTERN,
+    AttachmentLayer,
+    ResourceKind,
+)
+from mininet_ai.substrates.protocol import (
+    LayerSupport,
+    ManifestSubstrateDriver,
+    SubstrateIssue,
+    SubstrateManifest,
+)
 
-
-_TARGETS: dict[AttachmentLayer, frozenset[ResourceKind]] = {
-    AttachmentLayer.GLOBAL: frozenset({ResourceKind.NETWORK}),
-    AttachmentLayer.MANAGEMENT: frozenset(
-        {
-            ResourceKind.NETWORK,
-            ResourceKind.REGION,
-            ResourceKind.CONTROLLER,
-            ResourceKind.CONTROLLER_DOMAIN,
-        }
-    ),
-    AttachmentLayer.CONTROL: frozenset(
-        {
-            ResourceKind.CONTROLLER,
-            ResourceKind.CONTROLLER_DOMAIN,
-            ResourceKind.SWITCH,
-        }
-    ),
-    AttachmentLayer.DATA: frozenset(
-        {ResourceKind.SWITCH, ResourceKind.PORT, ResourceKind.LINK, ResourceKind.FLOW}
-    ),
-    AttachmentLayer.HOST: frozenset({ResourceKind.HOST}),
-    AttachmentLayer.OBSERVER: frozenset(ResourceKind),
-}
-
-_RUNTIMES: dict[AttachmentLayer, frozenset[str]] = {
-    AttachmentLayer.GLOBAL: frozenset({"orchestrator", "process", "container"}),
-    AttachmentLayer.MANAGEMENT: frozenset({"orchestrator", "process", "container"}),
-    AttachmentLayer.CONTROL: frozenset(
-        {"controller-sidecar", "process", "container"}
-    ),
-    AttachmentLayer.DATA: frozenset({"device-sidecar", "process", "container"}),
-    AttachmentLayer.HOST: frozenset({"host-namespace", "process", "container"}),
-    AttachmentLayer.OBSERVER: frozenset({"orchestrator", "process", "container"}),
-}
 
 _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
     AttachmentLayer.GLOBAL: frozenset({"topology.resources", "topology.neighbors"}),
@@ -67,44 +44,217 @@ _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
 _OBSERVATIONS[AttachmentLayer.OBSERVER] = frozenset().union(*_OBSERVATIONS.values())
 
 
-class FakeSubstrateDriver:
-    """Compile-time model of a substrate; it never creates a network."""
+_LAYERS = MappingProxyType(
+    {
+        AttachmentLayer.GLOBAL: LayerSupport(
+            targets=frozenset({ResourceKind.NETWORK}),
+            runtimes=frozenset({"orchestrator", "process", "container"}),
+            observations=_OBSERVATIONS[AttachmentLayer.GLOBAL],
+        ),
+        AttachmentLayer.MANAGEMENT: LayerSupport(
+            targets=frozenset(
+                {
+                    ResourceKind.NETWORK,
+                    ResourceKind.REGION,
+                    ResourceKind.CONTROLLER,
+                    ResourceKind.CONTROLLER_DOMAIN,
+                }
+            ),
+            runtimes=frozenset({"orchestrator", "process", "container"}),
+            observations=_OBSERVATIONS[AttachmentLayer.MANAGEMENT],
+        ),
+        AttachmentLayer.CONTROL: LayerSupport(
+            targets=frozenset(
+                {
+                    ResourceKind.CONTROLLER,
+                    ResourceKind.CONTROLLER_DOMAIN,
+                    ResourceKind.SWITCH,
+                }
+            ),
+            runtimes=frozenset({"controller-sidecar", "process", "container"}),
+            observations=_OBSERVATIONS[AttachmentLayer.CONTROL],
+        ),
+        AttachmentLayer.DATA: LayerSupport(
+            targets=frozenset(
+                {
+                    ResourceKind.SWITCH,
+                    ResourceKind.PORT,
+                    ResourceKind.LINK,
+                    ResourceKind.FLOW,
+                }
+            ),
+            runtimes=frozenset({"device-sidecar", "process", "container"}),
+            observations=_OBSERVATIONS[AttachmentLayer.DATA],
+        ),
+        AttachmentLayer.HOST: LayerSupport(
+            targets=frozenset({ResourceKind.HOST}),
+            runtimes=frozenset({"host-namespace", "process", "container"}),
+            observations=_OBSERVATIONS[AttachmentLayer.HOST],
+        ),
+        AttachmentLayer.OBSERVER: LayerSupport(
+            targets=frozenset(ResourceKind),
+            runtimes=frozenset({"orchestrator", "process", "container"}),
+            observations=_OBSERVATIONS[AttachmentLayer.OBSERVER],
+        ),
+    }
+)
 
-    name = "fake"
+
+def _string_set(
+    value: object,
+    *,
+    path: str,
+    field_name: str,
+    issues: list[SubstrateIssue],
+    allow_empty: bool = False,
+) -> frozenset[str]:
+    if not isinstance(value, list) or (not value and not allow_empty):
+        qualifier = "a list" if allow_empty else "a non-empty list"
+        issues.append(
+            SubstrateIssue(
+                code="fake.options.invalid",
+                message=f"{field_name} must be {qualifier} of strings",
+                path=path,
+            )
+        )
+        return frozenset()
+    if any(not isinstance(item, str) or not item for item in value):
+        issues.append(
+            SubstrateIssue(
+                code="fake.options.invalid",
+                message=f"{field_name} must contain only non-empty strings",
+                path=path,
+            )
+        )
+        return frozenset()
+    return frozenset(value)
+
+
+def _parse_custom_layers(
+    options: Mapping[str, Any],
+) -> tuple[Mapping[str, LayerSupport], tuple[SubstrateIssue, ...]]:
+    issues: list[SubstrateIssue] = []
+    unknown = set(options) - {"custom-layers"}
+    for name in sorted(unknown):
+        issues.append(
+            SubstrateIssue(
+                code="fake.options.unknown",
+                message=f"unknown fake substrate option {name!r}",
+                path=f"options.{name}",
+            )
+        )
+
+    raw_layers = options.get("custom-layers", [])
+    if not isinstance(raw_layers, list):
+        return MappingProxyType({}), tuple(
+            issues
+            + [
+                SubstrateIssue(
+                    code="fake.options.invalid",
+                    message="custom-layers must be a list",
+                    path="options.custom-layers",
+                )
+            ]
+        )
+
+    custom_layers: dict[str, LayerSupport] = {}
+    for index, value in enumerate(raw_layers):
+        path = f"options.custom-layers.{index}"
+        if not isinstance(value, Mapping):
+            issues.append(
+                SubstrateIssue(
+                    code="fake.options.invalid",
+                    message="custom layer must be an object",
+                    path=path,
+                )
+            )
+            continue
+        name = value.get("name")
+        if not isinstance(name, str) or not re.fullmatch(NAME_PATTERN, name):
+            issues.append(
+                SubstrateIssue(
+                    code="fake.options.invalid",
+                    message="custom layer requires a valid name",
+                    path=f"{path}.name",
+                )
+            )
+            continue
+        if name in custom_layers:
+            issues.append(
+                SubstrateIssue(
+                    code="fake.options.duplicate-layer",
+                    message=f"custom layer {name!r} is declared more than once",
+                    path=f"{path}.name",
+                )
+            )
+            continue
+
+        unknown_fields = set(value) - {
+            "name",
+            "targets",
+            "runtimes",
+            "observations",
+        }
+        for field_name in sorted(unknown_fields):
+            issues.append(
+                SubstrateIssue(
+                    code="fake.options.unknown",
+                    message=f"unknown custom-layer field {field_name!r}",
+                    path=f"{path}.{field_name}",
+                )
+            )
+
+        raw_targets = _string_set(
+            value.get("targets"),
+            path=f"{path}.targets",
+            field_name="targets",
+            issues=issues,
+        )
+        targets: set[ResourceKind] = set()
+        for target in sorted(raw_targets):
+            try:
+                targets.add(ResourceKind(target))
+            except ValueError:
+                issues.append(
+                    SubstrateIssue(
+                        code="fake.options.unknown-resource-kind",
+                        message=f"unknown resource kind {target!r}",
+                        path=f"{path}.targets",
+                    )
+                )
+        runtimes = _string_set(
+            value.get("runtimes"),
+            path=f"{path}.runtimes",
+            field_name="runtimes",
+            issues=issues,
+        )
+        observations = _string_set(
+            value.get("observations", []),
+            path=f"{path}.observations",
+            field_name="observations",
+            issues=issues,
+            allow_empty=True,
+        )
+        custom_layers[name] = LayerSupport(
+            targets=frozenset(targets),
+            runtimes=runtimes,
+            observations=observations,
+        )
+    return MappingProxyType(custom_layers), tuple(issues)
+
+
+class FakeSubstrateDriver(ManifestSubstrateDriver):
+    """Manifest-backed compile-time substrate; it never creates a network."""
 
     def __init__(self, options: Mapping[str, Any] | None = None) -> None:
         self.options = dict(options or {})
+        custom_layers, self._option_issues = _parse_custom_layers(self.options)
+        self.manifest = SubstrateManifest(
+            name="fake",
+            resource_kinds=frozenset(ResourceKind),
+            layers=_LAYERS,
+            custom_layers=custom_layers,
+        )
 
-    def validate_attachment(
-        self,
-        *,
-        layer: AttachmentLayer,
-        custom_layer: str | None,
-        target_kind: ResourceKind,
-        runtime: str,
-    ) -> str | None:
-        if layer == AttachmentLayer.CUSTOM:
-            extensions = self.options.get("custom-layers", [])
-            extension = next(
-                (item for item in extensions if item.get("name") == custom_layer), None
-            )
-            if not extension:
-                return f"custom layer {custom_layer!r} is not registered by substrate fake"
-            if target_kind.value not in extension.get("targets", []):
-                return f"custom layer {custom_layer!r} cannot target {target_kind.value}"
-            if runtime not in extension.get("runtimes", []):
-                return f"custom layer {custom_layer!r} does not support runtime {runtime!r}"
-            return None
-
-        if target_kind not in _TARGETS[layer]:
-            return f"layer {layer.value!r} cannot target {target_kind.value!r} resources"
-        if runtime not in _RUNTIMES[layer]:
-            return f"layer {layer.value!r} does not support runtime {runtime!r}"
-        return None
-
-    def validate_observation(self, *, layer: AttachmentLayer, name: str) -> str | None:
-        if layer == AttachmentLayer.CUSTOM:
-            return None
-        if name not in _OBSERVATIONS[layer]:
-            return f"observation {name!r} is not available at layer {layer.value!r}"
-        return None
+    def validate_options(self) -> tuple[SubstrateIssue, ...]:
+        return self._option_issues

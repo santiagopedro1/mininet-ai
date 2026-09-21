@@ -47,7 +47,12 @@ from mininet_ai.specification.models import (
     ResourceKind,
     SwitchResource,
 )
-from mininet_ai.substrates.fake import FakeSubstrateDriver
+from mininet_ai.substrates import create_substrate_driver
+from mininet_ai.substrates.protocol import SubstrateDriver, SubstrateIssue
+
+
+def _format_substrate_issues(issues: Iterable[SubstrateIssue]) -> str:
+    return "; ".join(issue.format() for issue in issues)
 
 
 def _unique_by_name(items: Iterable[object], category: str) -> dict[str, object]:
@@ -509,7 +514,7 @@ def _compile_instances(
     resources: tuple[PlannedResource, ...],
     blueprints: dict[str, AgentBlueprint],
     capabilities: dict[str, CapabilityDefinition],
-    driver: FakeSubstrateDriver,
+    driver: SubstrateDriver,
 ) -> tuple[AgentInstance, ...]:
     _unique_by_name(loaded.experiment.agents, "agent deployment")
     instances: list[AgentInstance] = []
@@ -544,19 +549,28 @@ def _compile_instances(
             layer_name = deployment.placement.custom_layer or layer.value
             target_kind = targets[0].kind
 
-            error = driver.validate_attachment(
+            issues = driver.validate_attachment(
                 layer=layer,
                 custom_layer=deployment.placement.custom_layer,
                 target_kind=target_kind,
                 runtime=deployment.placement.runtime,
             )
-            if error:
-                raise CompilationError(f"agent {deployment.name!r}: {error}")
+            if issues:
+                raise CompilationError(
+                    f"agent {deployment.name!r}: {_format_substrate_issues(issues)}"
+                )
 
             for observation in deployment.observe:
-                error = driver.validate_observation(layer=layer, name=observation)
-                if error:
-                    raise CompilationError(f"agent {deployment.name!r}: {error}")
+                issues = driver.validate_observation(
+                    layer=layer,
+                    custom_layer=deployment.placement.custom_layer,
+                    name=observation,
+                )
+                if issues:
+                    raise CompilationError(
+                        f"agent {deployment.name!r}: "
+                        f"{_format_substrate_issues(issues)}"
+                    )
 
             privileges: set[str] = set()
             for capability_name in deployment.capabilities:
@@ -707,15 +721,27 @@ def compile_experiment(
         loaded = resolve_experiment(source)
     else:
         loaded = load_experiment(source)
-    if loaded.experiment.substrate.driver != "fake":
-        raise CompilationError(
-            f"unknown substrate driver {loaded.experiment.substrate.driver!r}; "
-            "Phase 1 provides only 'fake'"
+    try:
+        driver = create_substrate_driver(
+            loaded.experiment.substrate.driver,
+            loaded.experiment.substrate.options,
         )
+    except (LookupError, TypeError, ValueError) as error:
+        raise CompilationError(str(error)) from error
+    option_issues = driver.validate_options()
+    if option_issues:
+        raise CompilationError(
+            f"substrate {driver.name!r}: {_format_substrate_issues(option_issues)}"
+        )
+
     blueprints = _unique_by_name(loaded.blueprints, "blueprint")
     capabilities = _unique_by_name(loaded.capabilities, "capability")
     resources = _build_resources(loaded)
-    driver = FakeSubstrateDriver(loaded.experiment.substrate.options)
+    resource_issues = driver.validate_resources(resources)
+    if resource_issues:
+        raise CompilationError(
+            f"substrate {driver.name!r}: {_format_substrate_issues(resource_issues)}"
+        )
     instances = _compile_instances(
         loaded, resources, blueprints, capabilities, driver
     )
