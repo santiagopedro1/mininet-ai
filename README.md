@@ -173,6 +173,22 @@ with `register_substrate_driver`, and run the reusable
 Mininet/OVS driver will implement this same planning contract before adding its
 runtime lifecycle operations.
 
+### Golden deployment plans
+
+The acceptance experiment has a canonical deployment plan under `tests/golden`.
+Tests compare the complete compiled plan—including resolved resources, agent
+instances, coordination, policies, normalized specification, and digest—against
+this fixture. The source path is made repository-relative so the result is
+stable across machines.
+
+When an intentional compiler or schema change affects the plan, regenerate it
+explicitly and review the resulting Git diff before committing:
+
+```bash
+uv run python -m tests.update_golden_plans
+git diff -- tests/golden
+```
+
 ## Roadmap
 
 ### Phase 1: Specification and compiler
