@@ -147,6 +147,11 @@ Run the test suite:
 uv run python -m unittest discover -v
 ```
 
+Focused compiler suites under `tests/compiler` cover coordination expansion,
+reference validation, resource graph cycles, instance limits, observer safety,
+and external topology loading. The golden-plan test separately detects changes
+to the complete compiled contract.
+
 The code is organized by responsibility:
 
 ```text
