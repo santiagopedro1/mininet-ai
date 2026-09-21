@@ -6,10 +6,12 @@ network attachment are substrate/runtime concerns introduced in later phases.
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
+from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 API_VERSION = "mininet-ai/v1alpha1"
@@ -32,6 +34,7 @@ class Metadata(StrictModel):
 class ResourceKind(StrEnum):
     NETWORK = "network"
     REGION = "region"
+    CONTROLLER = "controller"
     CONTROLLER_DOMAIN = "controller-domain"
     SWITCH = "switch"
     HOST = "host"
@@ -40,29 +43,198 @@ class ResourceKind(StrEnum):
     FLOW = "flow"
 
 
-class Resource(StrictModel):
+class ResourceBase(StrictModel):
     name: Name
-    kind: ResourceKind
     labels: dict[str, str] = Field(default_factory=dict)
     parent: Name | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
+class NetworkResource(ResourceBase):
+    kind: Literal[ResourceKind.NETWORK]
+
+
+class RegionResource(ResourceBase):
+    kind: Literal[ResourceKind.REGION]
+
+
+class FlowResource(ResourceBase):
+    kind: Literal[ResourceKind.FLOW]
+
+
+class ControllerType(StrEnum):
+    BUILTIN = "builtin"
+    REMOTE = "remote"
+
+
+class ControllerProtocol(StrEnum):
+    TCP = "tcp"
+    SSL = "ssl"
+
+
+class ControllerResource(ResourceBase):
+    kind: Literal[ResourceKind.CONTROLLER]
+    type: ControllerType
+    address: IPv4Address | IPv6Address | None = None
+    protocol: ControllerProtocol = ControllerProtocol.TCP
+    port: int = Field(default=6653, ge=1, le=65535)
+
+    @model_validator(mode="after")
+    def remote_controller_has_address(self) -> ControllerResource:
+        if self.type == ControllerType.REMOTE and self.address is None:
+            raise ValueError("a remote controller requires an address")
+        return self
+
+
+class ControllerDomainResource(ResourceBase):
+    kind: Literal[ResourceKind.CONTROLLER_DOMAIN]
+    controllers: list[Name] = Field(min_length=1)
+
+
+class OpenFlowProtocol(StrEnum):
+    OPENFLOW_10 = "OpenFlow10"
+    OPENFLOW_11 = "OpenFlow11"
+    OPENFLOW_12 = "OpenFlow12"
+    OPENFLOW_13 = "OpenFlow13"
+    OPENFLOW_14 = "OpenFlow14"
+    OPENFLOW_15 = "OpenFlow15"
+
+
+class SwitchPort(StrictModel):
+    name: Name | None = None
+    number: int | Literal["auto"] = "auto"
+    mtu: int = Field(default=1500, ge=576, le=65535)
+
+    @field_validator("number")
+    @classmethod
+    def port_number_is_positive(cls, value: int | str) -> int | str:
+        if isinstance(value, int) and value < 1:
+            raise ValueError("switch port number must be positive")
+        return value
+
+
+MAC_ADDRESS_PATTERN = r"^(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$"
+MAC_PREFIX_PATTERN = r"^(?:[0-9a-fA-F]{2}:){2}[0-9a-fA-F]{2}$"
+
+
+def _mac_octets(value: str) -> tuple[int, ...]:
+    return tuple(int(part, 16) for part in value.split(":"))
+
+
+class HostInterface(StrictModel):
+    name: Name | None = None
+    ipv4: IPv4Interface | Literal["auto", "none"] = "auto"
+    mac: str = "auto"
+    mtu: int = Field(default=1500, ge=576, le=65535)
+
+    @field_validator("mac")
+    @classmethod
+    def valid_unicast_mac_or_auto(cls, value: str) -> str:
+        if value == "auto":
+            return value
+        if not re.fullmatch(MAC_ADDRESS_PATTERN, value):
+            raise ValueError("MAC must use six colon-separated hexadecimal octets")
+        normalized = value.lower()
+        if _mac_octets(normalized)[0] & 1:
+            raise ValueError("MAC must be a unicast address")
+        return normalized
+
+
+class SwitchFailMode(StrEnum):
+    STANDALONE = "standalone"
+    SECURE = "secure"
+
+
+class SwitchDatapath(StrEnum):
+    KERNEL = "kernel"
+    USERSPACE = "userspace"
+
+
+class SwitchResource(ResourceBase):
+    kind: Literal[ResourceKind.SWITCH]
+    fail_mode: SwitchFailMode = Field(default=SwitchFailMode.SECURE, alias="failMode")
+    datapath: SwitchDatapath = SwitchDatapath.KERNEL
+    controllers: list[Name] = Field(default_factory=list)
+    protocols: list[OpenFlowProtocol] = Field(default_factory=list)
+    ports: list[SwitchPort] = Field(default_factory=list)
+
+
+class HostResource(ResourceBase):
+    kind: Literal[ResourceKind.HOST]
+    interfaces: list[HostInterface] = Field(default_factory=list)
+    default_route: str | None = Field(default=None, alias="defaultRoute")
+
+
+TopologyResource = Annotated[
+    NetworkResource
+    | RegionResource
+    | ControllerResource
+    | ControllerDomainResource
+    | SwitchResource
+    | HostResource
+    | FlowResource,
+    Field(discriminator="kind"),
+]
+
+
+class IPv4Allocation(StrictModel):
+    subnet: IPv4Network = IPv4Network("10.0.0.0/24")
+    strategy: Literal["sequential"] = "sequential"
+
+
+class MACAllocation(StrictModel):
+    prefix: str = "02:00:00"
+    strategy: Literal["sequential"] = "sequential"
+
+    @field_validator("prefix")
+    @classmethod
+    def valid_local_unicast_prefix(cls, value: str) -> str:
+        if not re.fullmatch(MAC_PREFIX_PATTERN, value):
+            raise ValueError("MAC prefix must contain three hexadecimal octets")
+        normalized = value.lower()
+        first = _mac_octets(normalized)[0]
+        if first & 0b11 != 0b10:
+            raise ValueError("MAC prefix must be locally administered and unicast")
+        return normalized
+
+
+class Addressing(StrictModel):
+    ipv4: IPv4Allocation = Field(default_factory=IPv4Allocation)
+    mac: MACAllocation = Field(default_factory=MACAllocation)
+
+
+Duration = Annotated[
+    str,
+    Field(pattern=r"^(?:0|[0-9]+(?:\.[0-9]+)?)(?:us|ms|s)$"),
+]
+
+
+class LinkEndpoint(StrictModel):
+    node: Name
+    adapter: Name | None = None
+
+
 class Link(StrictModel):
     name: Name
-    endpoints: tuple[Name, Name]
+    endpoints: tuple[LinkEndpoint, LinkEndpoint]
     labels: dict[str, str] = Field(default_factory=dict)
     attributes: dict[str, Any] = Field(default_factory=dict)
+    bandwidth: float | None = Field(default=None, gt=0)
+    delay: Duration | None = None
+    jitter: Duration | None = None
+    loss: float = Field(default=0, ge=0, le=100)
+    max_queue_size: int | None = Field(default=None, alias="maxQueueSize", gt=0)
 
     @model_validator(mode="after")
     def endpoints_differ(self) -> Link:
-        if self.endpoints[0] == self.endpoints[1]:
-            raise ValueError("link endpoints must be different")
+        if self.endpoints[0].node == self.endpoints[1].node:
+            raise ValueError("link endpoint nodes must be different")
         return self
 
 
 class Topology(StrictModel):
-    resources: list[Resource] = Field(min_length=1)
+    addressing: Addressing = Field(default_factory=Addressing)
+    resources: list[TopologyResource] = Field(min_length=1)
     links: list[Link] = Field(default_factory=list)
 
 

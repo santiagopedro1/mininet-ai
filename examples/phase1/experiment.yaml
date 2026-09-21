@@ -7,35 +7,84 @@ metadata:
 substrate:
   driver: fake
   topology:
+    addressing:
+      ipv4:
+        subnet: 10.0.0.0/24
+        strategy: sequential
+      mac:
+        prefix: "02:00:00"
+        strategy: sequential
     resources:
       - name: network
         kind: network
+      - name: c0
+        kind: controller
+        parent: network
+        type: builtin
+        protocol: tcp
+        port: 6653
       - name: control-domain
         kind: controller-domain
         parent: network
+        controllers: [c0]
       - name: s1
         kind: switch
         parent: control-domain
         labels: {role: edge, region: west}
+        failMode: secure
+        datapath: kernel
+        controllers: [c0]
+        protocols: [OpenFlow13]
+        ports:
+          - {name: s1-eth1, number: 1}
+          - {name: s1-eth2, number: 2}
       - name: s2
         kind: switch
         parent: control-domain
         labels: {role: edge, region: east}
+        failMode: secure
+        datapath: kernel
+        controllers: [c0]
+        protocols: [OpenFlow13]
+        ports:
+          - {name: s2-eth1, number: 1}
+          - {name: s2-eth2, number: 2}
       - name: h1
         kind: host
         parent: network
         labels: {role: client}
+        interfaces:
+          - {name: h1-eth0, ipv4: auto, mac: auto, mtu: 1500}
       - name: h2
         kind: host
         parent: network
         labels: {role: client}
+        interfaces:
+          - {name: h2-eth0, ipv4: auto, mac: auto, mtu: 1500}
     links:
       - name: h1-s1
-        endpoints: [h1, s1]
+        endpoints:
+          - {node: h1, adapter: h1-eth0}
+          - {node: s1, adapter: s1-eth1}
+        bandwidth: 100
+        delay: 2ms
+        loss: 0
+        maxQueueSize: 1000
       - name: s1-s2
-        endpoints: [s1, s2]
+        endpoints:
+          - {node: s1, adapter: s1-eth2}
+          - {node: s2, adapter: s2-eth1}
+        bandwidth: 1000
+        delay: 1ms
+        jitter: 100us
+        loss: 0.1
       - name: s2-h2
-        endpoints: [s2, h2]
+        endpoints:
+          - {node: s2, adapter: s2-eth2}
+          - {node: h2, adapter: h2-eth0}
+        bandwidth: 100
+        delay: 2ms
+        loss: 0
 
 blueprints:
   - ./agent-blueprints/local-router.yaml

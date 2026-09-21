@@ -4,9 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import CompilationError
-from mininet_ai.specification.models import Experiment
+from mininet_ai.specification.models import Experiment, ResourceKind
 
 
 ROOT = Path(__file__).parents[1]
@@ -34,6 +36,142 @@ class CompilerTests(unittest.TestCase):
 
         self.assertEqual(first.digest, second.digest)
         self.assertEqual(first.model_dump(), second.model_dump())
+
+    def test_topology_compiles_to_mininet_ready_resources(self) -> None:
+        plan = compile_experiment(EXAMPLE)
+        resources = {resource.name: resource for resource in plan.resources}
+
+        self.assertEqual(len(resources), 16)
+        self.assertEqual(resources["c0"].kind, ResourceKind.CONTROLLER)
+        self.assertEqual(resources["c0"].port, 6653)
+        self.assertEqual(resources["control-domain"].controllers, ("c0",))
+        self.assertEqual(resources["s1"].fail_mode.value, "secure")
+        self.assertEqual(resources["s1"].controllers, ("c0",))
+        self.assertEqual(resources["s1"].protocols[0].value, "OpenFlow13")
+
+        self.assertEqual(resources["h1-eth0"].kind, ResourceKind.PORT)
+        self.assertEqual(resources["h1-eth0"].role, "host-interface")
+        self.assertEqual(resources["h1-eth0"].ipv4, "10.0.0.1/24")
+        self.assertEqual(resources["h1-eth0"].mac, "02:00:00:00:00:01")
+        self.assertEqual(resources["s1-eth2"].number, 2)
+
+        link = resources["s1-s2"]
+        self.assertEqual(link.endpoints, ("s1-eth2", "s2-eth1"))
+        self.assertEqual(link.bandwidth, 1000)
+        self.assertEqual(link.delay, "1ms")
+        self.assertEqual(link.jitter, "100us")
+        self.assertEqual(link.loss, 0.1)
+
+    def test_omitted_adapters_are_created_deterministically(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        topology = snapshot["substrate"]["topology"]
+        for resource in topology["resources"]:
+            if resource["kind"] == "host":
+                resource["interfaces"] = []
+            elif resource["kind"] == "switch":
+                resource["ports"] = []
+        for link in topology["links"]:
+            for endpoint in link["endpoints"]:
+                endpoint["adapter"] = None
+
+        plan = compile_experiment(Experiment.model_validate(snapshot))
+        resources = {resource.name: resource for resource in plan.resources}
+
+        self.assertEqual(resources["h1-s1"].endpoints, ("h1-eth0", "s1-eth1"))
+        self.assertEqual(resources["s1-s2"].endpoints, ("s1-eth2", "s2-eth1"))
+        self.assertEqual(resources["s2-h2"].endpoints, ("s2-eth2", "h2-eth0"))
+        self.assertEqual(resources["h2-eth0"].ipv4, "10.0.0.2/24")
+
+    def test_explicit_addresses_are_preserved_and_auto_allocation_skips_them(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        resources = snapshot["substrate"]["topology"]["resources"]
+        h1 = next(resource for resource in resources if resource["name"] == "h1")
+        h1["interfaces"][0]["ipv4"] = "10.0.0.10/24"
+        h1["interfaces"][0]["mac"] = "02:00:00:00:00:aa"
+
+        plan = compile_experiment(Experiment.model_validate(snapshot))
+        planned = {resource.name: resource for resource in plan.resources}
+
+        self.assertEqual(planned["h1-eth0"].ipv4, "10.0.0.10/24")
+        self.assertEqual(planned["h1-eth0"].mac, "02:00:00:00:00:aa")
+        self.assertEqual(planned["h2-eth0"].ipv4, "10.0.0.1/24")
+        self.assertEqual(planned["h2-eth0"].mac, "02:00:00:00:00:01")
+
+    def test_unknown_controller_is_rejected(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        resources = snapshot["substrate"]["topology"]["resources"]
+        switch = next(resource for resource in resources if resource["name"] == "s1")
+        switch["controllers"] = ["missing-controller"]
+
+        with self.assertRaisesRegex(CompilationError, "unknown controller"):
+            compile_experiment(Experiment.model_validate(snapshot))
+
+    def test_adapter_cannot_be_reused_by_multiple_links(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        links = snapshot["substrate"]["topology"]["links"]
+        links[1]["endpoints"][0]["adapter"] = "s1-eth1"
+
+        with self.assertRaisesRegex(CompilationError, "more than one link"):
+            compile_experiment(Experiment.model_validate(snapshot))
+
+    def test_explicit_address_must_belong_to_allocation_subnet(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        resources = snapshot["substrate"]["topology"]["resources"]
+        host = next(resource for resource in resources if resource["name"] == "h1")
+        host["interfaces"][0]["ipv4"] = "192.168.1.10/24"
+
+        with self.assertRaisesRegex(CompilationError, "outside 10.0.0.0/24"):
+            compile_experiment(Experiment.model_validate(snapshot))
+
+    def test_duplicate_ip_and_mac_allocations_are_rejected(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        hosts = [
+            resource
+            for resource in snapshot["substrate"]["topology"]["resources"]
+            if resource["kind"] == "host"
+        ]
+        for host in hosts:
+            host["interfaces"][0]["ipv4"] = "10.0.0.10/24"
+            host["interfaces"][0]["mac"] = "02:00:00:00:00:10"
+
+        with self.assertRaisesRegex(CompilationError, "share address"):
+            compile_experiment(Experiment.model_validate(snapshot))
+
+        hosts[1]["interfaces"][0]["ipv4"] = "10.0.0.11/24"
+        with self.assertRaisesRegex(CompilationError, "share MAC"):
+            compile_experiment(Experiment.model_validate(snapshot))
+
+    def test_remote_controller_and_link_constraints_are_schema_validated(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        resources = snapshot["substrate"]["topology"]["resources"]
+        controller = next(
+            resource for resource in resources if resource["kind"] == "controller"
+        )
+        controller["type"] = "remote"
+        controller["address"] = None
+
+        with self.assertRaisesRegex(ValidationError, "requires an address"):
+            Experiment.model_validate(snapshot)
+
+        controller["address"] = "127.0.0.1"
+        snapshot["substrate"]["topology"]["links"][0]["loss"] = 101
+        with self.assertRaisesRegex(ValidationError, "less than or equal to 100"):
+            Experiment.model_validate(snapshot)
+
+    def test_topology_neighbor_coordination_uses_port_owners(self) -> None:
+        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot["coordination"] = {
+            "mode": "distributed",
+            "peers": "topology-neighbors",
+        }
+
+        plan = compile_experiment(Experiment.model_validate(snapshot))
+        edges = {(edge.source, edge.target) for edge in plan.coordination.edges}
+
+        self.assertIn(("switch-router@s1", "switch-router@s2"), edges)
+        self.assertIn(("switch-router@s2", "switch-router@s1"), edges)
+        self.assertIn(("host-router@h1", "switch-router@s1"), edges)
+        self.assertIn(("switch-router@s2", "host-router@h2"), edges)
 
     def test_python_specification_api_compiles_normalized_snapshot(self) -> None:
         yaml_plan = compile_experiment(EXAMPLE)

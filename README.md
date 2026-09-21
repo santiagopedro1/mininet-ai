@@ -70,9 +70,38 @@ metadata:
 substrate:
   driver: fake
   topology:
+    addressing:
+      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
+      mac: {prefix: "02:00:00", strategy: sequential}
     resources:
       - {name: network, kind: network}
-      - {name: s1, kind: switch, parent: network, labels: {role: edge}}
+      - name: c0
+        kind: controller
+        parent: network
+        type: builtin
+        port: 6653
+      - name: s1
+        kind: switch
+        parent: network
+        labels: {role: edge}
+        failMode: secure
+        controllers: [c0]
+        protocols: [OpenFlow13]
+        ports:
+          - {name: s1-eth1, number: 1}
+      - name: h1
+        kind: host
+        parent: network
+        interfaces:
+          - {name: h1-eth0, ipv4: auto, mac: auto}
+    links:
+      - name: h1-s1
+        endpoints:
+          - {node: h1, adapter: h1-eth0}
+          - {node: s1, adapter: s1-eth1}
+        bandwidth: 100
+        delay: 2ms
+        loss: 0
 
 blueprints:
   - ./agent-blueprints/local-router.yaml
@@ -92,6 +121,11 @@ agents:
 coordination:
   mode: independent
 ```
+
+IP addresses and MAC addresses are assigned to host interfaces. Links connect
+concrete host interfaces and switch ports, and their bandwidth is expressed in
+Mbps. An endpoint may omit `adapter`; the compiler will then allocate a stable
+interface or port name and number before producing the deployment plan.
 
 See [the complete Phase 1 example](examples/phase1/experiment.yaml) for external blueprints, typed capabilities, links, multiple layers, and safety policies.
 

@@ -11,10 +11,19 @@ from mininet_ai.specification.models import AttachmentLayer, ResourceKind
 _TARGETS: dict[AttachmentLayer, frozenset[ResourceKind]] = {
     AttachmentLayer.GLOBAL: frozenset({ResourceKind.NETWORK}),
     AttachmentLayer.MANAGEMENT: frozenset(
-        {ResourceKind.NETWORK, ResourceKind.REGION, ResourceKind.CONTROLLER_DOMAIN}
+        {
+            ResourceKind.NETWORK,
+            ResourceKind.REGION,
+            ResourceKind.CONTROLLER,
+            ResourceKind.CONTROLLER_DOMAIN,
+        }
     ),
     AttachmentLayer.CONTROL: frozenset(
-        {ResourceKind.CONTROLLER_DOMAIN, ResourceKind.SWITCH}
+        {
+            ResourceKind.CONTROLLER,
+            ResourceKind.CONTROLLER_DOMAIN,
+            ResourceKind.SWITCH,
+        }
     ),
     AttachmentLayer.DATA: frozenset(
         {ResourceKind.SWITCH, ResourceKind.PORT, ResourceKind.LINK, ResourceKind.FLOW}

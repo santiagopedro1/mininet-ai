@@ -6,6 +6,8 @@ import hashlib
 import json
 import re
 from collections import defaultdict
+from dataclasses import dataclass
+from ipaddress import IPv4Address, IPv4Interface
 from pathlib import Path
 from typing import Iterable
 
@@ -15,7 +17,16 @@ from mininet_ai.compiler.models import (
     CoordinationEdge,
     CoordinationPlan,
     DeploymentPlan,
+    PlannedController,
+    PlannedControllerDomain,
+    PlannedFlow,
+    PlannedHost,
+    PlannedLink,
+    PlannedNetwork,
+    PlannedPort,
     PlannedResource,
+    PlannedRegion,
+    PlannedSwitch,
 )
 from mininet_ai.errors import CompilationError
 from mininet_ai.specification.loader import LoadedExperiment, load_experiment
@@ -25,9 +36,16 @@ from mininet_ai.specification.models import (
     AttachmentLayer,
     CapabilityDefinition,
     Cardinality,
+    ControllerDomainResource,
+    ControllerResource,
     CoordinationMode,
     Experiment,
+    FlowResource,
+    HostResource,
+    NetworkResource,
+    RegionResource,
     ResourceKind,
+    SwitchResource,
 )
 from mininet_ai.substrates.fake import FakeSubstrateDriver
 
@@ -42,15 +60,63 @@ def _unique_by_name(items: Iterable[object], category: str) -> dict[str, object]
     return result
 
 
-def _build_resources(loaded: LoadedExperiment) -> tuple[PlannedResource, ...]:
-    resources: dict[str, PlannedResource] = {}
-    for resource in loaded.topology.resources:
-        if resource.name in resources:
-            raise CompilationError(f"duplicate resource name: {resource.name!r}")
-        resources[resource.name] = PlannedResource(**resource.model_dump())
+@dataclass
+class _AdapterDraft:
+    name: str
+    owner: str
+    role: str
+    number: int
+    mtu: int
+    ipv4_setting: IPv4Interface | str | None = None
+    mac_setting: str | None = None
+    ipv4: str | None = None
+    mac: str | None = None
 
+
+def _planned_node(resource: object) -> PlannedResource:
+    common = {
+        "name": resource.name,
+        "kind": resource.kind,
+        "labels": resource.labels,
+        "parent": resource.parent,
+        "attributes": resource.attributes,
+    }
+    if isinstance(resource, NetworkResource):
+        return PlannedNetwork(**common)
+    if isinstance(resource, RegionResource):
+        return PlannedRegion(**common)
+    if isinstance(resource, FlowResource):
+        return PlannedFlow(**common)
+    if isinstance(resource, ControllerResource):
+        return PlannedController(
+            **common,
+            controller_type=resource.type,
+            address=str(resource.address) if resource.address else None,
+            protocol=resource.protocol,
+            port=resource.port,
+        )
+    if isinstance(resource, ControllerDomainResource):
+        return PlannedControllerDomain(
+            **common, controllers=tuple(resource.controllers)
+        )
+    if isinstance(resource, SwitchResource):
+        return PlannedSwitch(
+            **common,
+            fail_mode=resource.fail_mode,
+            datapath=resource.datapath,
+            controllers=tuple(resource.controllers),
+            protocols=tuple(resource.protocols),
+        )
+    if isinstance(resource, HostResource):
+        return PlannedHost(**common, default_route=resource.default_route)
+    raise CompilationError(f"unsupported resource type: {type(resource).__name__}")
+
+
+def _validate_resource_graph(
+    loaded: LoadedExperiment, nodes: dict[str, object], reserved_names: set[str]
+) -> None:
     for resource in loaded.topology.resources:
-        if resource.parent and resource.parent not in resources:
+        if resource.parent and resource.parent not in nodes:
             raise CompilationError(
                 f"resource {resource.name!r} has unknown parent {resource.parent!r}"
             )
@@ -72,21 +138,309 @@ def _build_resources(loaded: LoadedExperiment) -> tuple[PlannedResource, ...]:
             current = parents[current]
 
     for link in loaded.topology.links:
-        if link.name in resources:
+        if link.name in reserved_names:
             raise CompilationError(f"duplicate resource name: {link.name!r}")
-        for endpoint in link.endpoints:
-            if endpoint not in resources:
+        reserved_names.add(link.name)
+
+    for resource in loaded.topology.resources:
+        if not isinstance(resource, (ControllerDomainResource, SwitchResource)):
+            continue
+        for controller_name in resource.controllers:
+            controller = nodes.get(controller_name)
+            if controller is None:
                 raise CompilationError(
-                    f"link {link.name!r} has unknown endpoint {endpoint!r}"
+                    f"resource {resource.name!r} references unknown controller "
+                    f"{controller_name!r}"
                 )
-        resources[link.name] = PlannedResource(
-            name=link.name,
-            kind=ResourceKind.LINK,
-            labels=link.labels,
-            attributes=link.attributes,
-            endpoints=link.endpoints,
+            if not isinstance(controller, ControllerResource):
+                raise CompilationError(
+                    f"resource {resource.name!r} controller reference "
+                    f"{controller_name!r} is not a controller"
+                )
+
+
+def _declare_adapters(
+    loaded: LoadedExperiment,
+    reserved_names: set[str],
+) -> tuple[dict[str, _AdapterDraft], dict[str, list[_AdapterDraft]]]:
+    adapters: dict[str, _AdapterDraft] = {}
+    by_owner: dict[str, list[_AdapterDraft]] = defaultdict(list)
+
+    def register(adapter: _AdapterDraft) -> None:
+        if adapter.name in reserved_names:
+            raise CompilationError(f"duplicate resource or adapter name: {adapter.name!r}")
+        reserved_names.add(adapter.name)
+        adapters[adapter.name] = adapter
+        by_owner[adapter.owner].append(adapter)
+
+    for resource in loaded.topology.resources:
+        if isinstance(resource, HostResource):
+            for number, interface in enumerate(resource.interfaces):
+                register(
+                    _AdapterDraft(
+                        name=interface.name or f"{resource.name}-eth{number}",
+                        owner=resource.name,
+                        role="host-interface",
+                        number=number,
+                        mtu=interface.mtu,
+                        ipv4_setting=interface.ipv4,
+                        mac_setting=interface.mac,
+                    )
+                )
+        elif isinstance(resource, SwitchResource):
+            explicit_numbers = [
+                port.number for port in resource.ports if isinstance(port.number, int)
+            ]
+            if len(explicit_numbers) != len(set(explicit_numbers)):
+                raise CompilationError(
+                    f"switch {resource.name!r} has duplicate port numbers"
+                )
+            used_numbers = set(explicit_numbers)
+            next_number = 1
+            for port in resource.ports:
+                if isinstance(port.number, int):
+                    number = port.number
+                else:
+                    while next_number in used_numbers:
+                        next_number += 1
+                    number = next_number
+                    used_numbers.add(number)
+                    next_number += 1
+                register(
+                    _AdapterDraft(
+                        name=port.name or f"{resource.name}-eth{number}",
+                        owner=resource.name,
+                        role="switch-port",
+                        number=number,
+                        mtu=port.mtu,
+                    )
+                )
+    return adapters, by_owner
+
+
+def _create_automatic_adapter(
+    node: object,
+    adapters: dict[str, _AdapterDraft],
+    by_owner: dict[str, list[_AdapterDraft]],
+    reserved_names: set[str],
+) -> _AdapterDraft:
+    used_numbers = {adapter.number for adapter in by_owner[node.name]}
+    number = 0 if isinstance(node, HostResource) else 1
+    while number in used_numbers:
+        number += 1
+    name = f"{node.name}-eth{number}"
+    if name in reserved_names:
+        raise CompilationError(
+            f"cannot generate adapter {name!r}; the name is already in use"
         )
-    return tuple(sorted(resources.values(), key=lambda item: (item.kind.value, item.name)))
+    if isinstance(node, HostResource):
+        adapter = _AdapterDraft(
+            name=name,
+            owner=node.name,
+            role="host-interface",
+            number=number,
+            mtu=1500,
+            ipv4_setting="auto",
+            mac_setting="auto",
+        )
+    else:
+        adapter = _AdapterDraft(
+            name=name,
+            owner=node.name,
+            role="switch-port",
+            number=number,
+            mtu=1500,
+        )
+    reserved_names.add(name)
+    adapters[name] = adapter
+    by_owner[node.name].append(adapter)
+    return adapter
+
+
+def _resolve_links(
+    loaded: LoadedExperiment,
+    nodes: dict[str, object],
+    adapters: dict[str, _AdapterDraft],
+    by_owner: dict[str, list[_AdapterDraft]],
+    reserved_names: set[str],
+) -> list[PlannedLink]:
+    used_adapters: set[str] = set()
+    links: list[PlannedLink] = []
+    for link in loaded.topology.links:
+        endpoints: list[str] = []
+        for endpoint in link.endpoints:
+            node = nodes.get(endpoint.node)
+            if node is None:
+                raise CompilationError(
+                    f"link {link.name!r} has unknown endpoint node {endpoint.node!r}"
+                )
+            if not isinstance(node, (HostResource, SwitchResource)):
+                raise CompilationError(
+                    f"link {link.name!r} endpoint {endpoint.node!r} is not a host "
+                    "or switch"
+                )
+            if endpoint.adapter:
+                adapter = adapters.get(endpoint.adapter)
+                if adapter is None:
+                    raise CompilationError(
+                        f"link {link.name!r} references unknown adapter "
+                        f"{endpoint.adapter!r}"
+                    )
+                if adapter.owner != endpoint.node:
+                    raise CompilationError(
+                        f"adapter {adapter.name!r} does not belong to "
+                        f"{endpoint.node!r}"
+                    )
+            else:
+                adapter = next(
+                    (
+                        candidate
+                        for candidate in by_owner[endpoint.node]
+                        if candidate.name not in used_adapters
+                    ),
+                    None,
+                )
+                if adapter is None:
+                    adapter = _create_automatic_adapter(
+                        node, adapters, by_owner, reserved_names
+                    )
+            if adapter.name in used_adapters:
+                raise CompilationError(
+                    f"adapter {adapter.name!r} is used by more than one link"
+                )
+            used_adapters.add(adapter.name)
+            endpoints.append(adapter.name)
+
+        links.append(
+            PlannedLink(
+                name=link.name,
+                kind=ResourceKind.LINK,
+                labels=link.labels,
+                attributes=link.attributes,
+                endpoints=(endpoints[0], endpoints[1]),
+                bandwidth=link.bandwidth,
+                delay=link.delay,
+                jitter=link.jitter,
+                loss=link.loss,
+                max_queue_size=link.max_queue_size,
+            )
+        )
+    return links
+
+
+def _allocate_addresses(
+    loaded: LoadedExperiment, adapters: dict[str, _AdapterDraft]
+) -> None:
+    host_adapters = sorted(
+        (adapter for adapter in adapters.values() if adapter.role == "host-interface"),
+        key=lambda adapter: adapter.name,
+    )
+    subnet = loaded.topology.addressing.ipv4.subnet
+    used_ips: dict[IPv4Address, str] = {}
+
+    for adapter in host_adapters:
+        setting = adapter.ipv4_setting
+        if not isinstance(setting, IPv4Interface):
+            continue
+        address = setting.ip
+        if address not in subnet:
+            raise CompilationError(
+                f"interface {adapter.name!r} address {address} is outside {subnet}"
+            )
+        if address in {subnet.network_address, subnet.broadcast_address}:
+            raise CompilationError(
+                f"interface {adapter.name!r} uses reserved address {address}"
+            )
+        if address in used_ips:
+            raise CompilationError(
+                f"interfaces {used_ips[address]!r} and {adapter.name!r} share "
+                f"address {address}"
+            )
+        used_ips[address] = adapter.name
+        adapter.ipv4 = str(setting)
+
+    candidate = int(subnet.network_address) + 1
+    last = int(subnet.broadcast_address) - 1
+    for adapter in host_adapters:
+        if adapter.ipv4_setting == "none":
+            continue
+        if adapter.ipv4 is not None:
+            continue
+        while candidate <= last and IPv4Address(candidate) in used_ips:
+            candidate += 1
+        if candidate > last:
+            raise CompilationError(f"IPv4 allocation pool {subnet} is exhausted")
+        address = IPv4Address(candidate)
+        adapter.ipv4 = f"{address}/{subnet.prefixlen}"
+        used_ips[address] = adapter.name
+        candidate += 1
+
+    used_macs: dict[str, str] = {}
+    for adapter in host_adapters:
+        setting = adapter.mac_setting
+        if not setting or setting == "auto":
+            continue
+        normalized = setting.lower()
+        if normalized in used_macs:
+            raise CompilationError(
+                f"interfaces {used_macs[normalized]!r} and {adapter.name!r} share "
+                f"MAC {normalized}"
+            )
+        used_macs[normalized] = adapter.name
+        adapter.mac = normalized
+
+    prefix = loaded.topology.addressing.mac.prefix
+    for adapter in host_adapters:
+        if adapter.mac is not None:
+            continue
+        suffix = 1
+        while suffix <= 0xFFFFFF:
+            candidate_mac = prefix + ":" + ":".join(
+                f"{octet:02x}"
+                for octet in suffix.to_bytes(3, byteorder="big")
+            )
+            if candidate_mac not in used_macs:
+                break
+            suffix += 1
+        if suffix > 0xFFFFFF:
+            raise CompilationError(f"MAC allocation prefix {prefix} is exhausted")
+        adapter.mac = candidate_mac
+        used_macs[candidate_mac] = adapter.name
+
+
+def _build_resources(loaded: LoadedExperiment) -> tuple[PlannedResource, ...]:
+    nodes: dict[str, object] = {}
+    for resource in loaded.topology.resources:
+        if resource.name in nodes:
+            raise CompilationError(f"duplicate resource name: {resource.name!r}")
+        nodes[resource.name] = resource
+
+    reserved_names = set(nodes)
+    _validate_resource_graph(loaded, nodes, reserved_names)
+    adapters, by_owner = _declare_adapters(loaded, reserved_names)
+    links = _resolve_links(
+        loaded, nodes, adapters, by_owner, reserved_names
+    )
+    _allocate_addresses(loaded, adapters)
+
+    resources: list[PlannedResource] = [
+        _planned_node(resource) for resource in loaded.topology.resources
+    ]
+    resources.extend(
+        PlannedPort(
+            name=adapter.name,
+            kind=ResourceKind.PORT,
+            parent=adapter.owner,
+            role=adapter.role,
+            number=adapter.number,
+            ipv4=adapter.ipv4,
+            mac=adapter.mac,
+            mtu=adapter.mtu,
+        )
+        for adapter in adapters.values()
+    )
+    resources.extend(links)
+    return tuple(sorted(resources, key=lambda item: (item.kind.value, item.name)))
 
 
 def _select(deployment: AgentDeployment, resources: tuple[PlannedResource, ...]) -> list[PlannedResource]:
@@ -292,10 +646,17 @@ def _coordination(
             for index, source in enumerate(instances):
                 pairs.extend((source, target) for target in instances[index + 1 :])
         else:
-            links = [resource for resource in resources if resource.endpoints]
-            neighbors = {
-                frozenset(resource.endpoints) for resource in links if resource.endpoints
-            }
+            resources_by_name = {resource.name: resource for resource in resources}
+            links = [
+                resource for resource in resources if isinstance(resource, PlannedLink)
+            ]
+            neighbors: set[frozenset[str]] = set()
+            for link in links:
+                endpoint_nodes = []
+                for endpoint in link.endpoints:
+                    resource = resources_by_name[endpoint]
+                    endpoint_nodes.append(resource.parent or resource.name)
+                neighbors.add(frozenset(endpoint_nodes))
             for index, source in enumerate(instances):
                 for target in instances[index + 1 :]:
                     if any(
