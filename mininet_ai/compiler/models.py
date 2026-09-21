@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from mininet_ai.specification.models import (
     AttachmentLayer,
+    API_VERSION,
     ControllerProtocol,
     ControllerType,
     CoordinationMode,
@@ -19,6 +20,9 @@ from mininet_ai.specification.models import (
     SwitchDatapath,
     SwitchFailMode,
 )
+
+
+DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha1:deployment-plan"
 
 
 class PlannedResourceBase(StrictModel):
@@ -130,12 +134,21 @@ class CoordinationPlan(StrictModel):
 
 
 class DeploymentPlan(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha1"] = Field(alias="apiVersion")
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": DEPLOYMENT_PLAN_SCHEMA_ID,
+        },
+    )
+
+    api_version: Literal[API_VERSION] = Field(alias="apiVersion")
     kind: Literal["DeploymentPlan"] = "DeploymentPlan"
     metadata: Metadata
-    source: str
-    digest: str
-    substrate: str
+    source: str = Field(min_length=1)
+    digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    substrate: str = Field(min_length=1)
     resources: tuple[PlannedResource, ...]
     agents: tuple[AgentInstance, ...]
     coordination: CoordinationPlan

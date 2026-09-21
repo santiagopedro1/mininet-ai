@@ -53,6 +53,16 @@ Print one of the public JSON Schemas:
 uv run mininet-ai schema experiment
 uv run mininet-ai schema agent-blueprint
 uv run mininet-ai schema capability
+uv run mininet-ai schema deployment-plan
+```
+
+Schemas are emitted as JSON Schema Draft 2020-12 documents. The deployment-plan
+schema has the stable versioned identifier
+`urn:mininet-ai:schema:v1alpha1:deployment-plan` and can be saved for external
+validation or tooling:
+
+```bash
+uv run mininet-ai schema deployment-plan > deployment-plan.schema.json
 ```
 
 The example compiles one reusable blueprint into a singleton global agent, one controller-domain agent, two switch-local agents, and two host agents.

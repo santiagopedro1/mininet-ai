@@ -37,6 +37,7 @@ class SchemaName(StrEnum):
     EXPERIMENT = "experiment"
     AGENT_BLUEPRINT = "agent-blueprint"
     CAPABILITY = "capability"
+    DEPLOYMENT_PLAN = "deployment-plan"
 
 
 def _compile_or_exit(path: Path) -> DeploymentPlan:
@@ -121,6 +122,7 @@ def print_schema(
         SchemaName.EXPERIMENT: Experiment,
         SchemaName.AGENT_BLUEPRINT: AgentBlueprint,
         SchemaName.CAPABILITY: CapabilityDefinition,
+        SchemaName.DEPLOYMENT_PLAN: DeploymentPlan,
     }
     console.print_json(json.dumps(models[name].model_json_schema(by_alias=True)))
 
