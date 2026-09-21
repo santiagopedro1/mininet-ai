@@ -1,122 +1,144 @@
 # Mininet AI
 
-An interactive control interface for Mininet using natural language, powered by [Agno](https://agno.com/) and [Ollama](https://ollama.com/).
+Mininet AI is a declarative experiment compiler and multi-layer runtime for agentic networking research. Users choose where agents attach to an emulated network, what resources they can observe and change, where they execute, and how they coordinate.
 
-This project demonstrates how to use an agentic team to manage and query a simulated software-defined network. Users can interact with the network using simple English commands to perform routing analysis, connectivity tests, and monitor switch statistics.
+The project is being built as an experiment framework rather than a collection of predefined agents. Experiments should be reproducible, inspectable, and portable across networking substrates.
 
-## Features
+## Current capabilities
 
-- **Natural Language Interface**: Control your Mininet topology using plain English.
-- **Agentic Team Coordination**: Uses a Coordinator-Worker pattern to delegate tasks.
-- **Path Computation**: Deterministic shortest-path calculation using NetworkX.
-- **Real Connectivity Tests**: Execution of actual `ping` commands within the Mininet namespace.
-- **Switch Statistics**: Real-time querying of interface statistics (`rx_bytes`, `tx_bytes`) from simulated switches.
-- **Local Model Support**: Runs entirely locally using Ollama.
+Phase 1 introduces the `mininet-ai/v1alpha1` public contract and a compiler that operates without root access or a running Mininet network:
 
-## Architecture
+- Strict schemas for experiments, agent blueprints, placements, capabilities, topology resources, coordination, policies, and resource limits.
+- YAML documents and Python-created specifications.
+- Inline definitions or external YAML references resolved relative to the experiment file.
+- Target selectors by resource kind, explicit name, and labels.
+- Singleton, per-target, and per-group agent expansion.
+- Global, management, control, data, host, observer, and registered custom attachment layers.
+- Compile-time substrate, observation, runtime, and capability compatibility checks.
+- Least-privilege calculation from capability effects.
+- Centralized, hierarchical, distributed, and independent coordination plans.
+- Deterministic deployment plans containing the normalized experiment snapshot and a SHA-256 digest.
+- A fake substrate that validates experiments without changing the host system.
 
-The system uses the Agno framework to build a multi-agent team:
-
-- **Coordinator**: Orchestrates user requests and delegates to specific agents.
-- **NetworkOps Agent**: Handles network-wide operations like connectivity tests.
-- **Switch Agents**: Each switch (`s1`, `s2`, `s3`) has its own agent that provides local insights and statistics.
-- **Routing Tool**: A shared tool for global path computation.
-
-## Prerequisites
-
-- **Python**: 3.14+ (as specified in `pyproject.toml`)
-- **Mininet**: Must be installed on the host system.
-- **Ollama**: Running locally with the required models.
-- **Sudo**: Mininet requires root privileges to create network namespaces.
+Logical placement is intentionally separate from physical execution. For example, an agent may be attached to the data plane of a switch while its model executes in an external process. The attachment controls its network scope and available capabilities.
 
 ## Installation
 
-1. **Clone the repository**:
+Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
 
-   ```bash
-   git clone <repository-url>
-   cd mininet-agentic-interactive
-   ```
-
-2. **Install dependencies**:
-   It is recommended to use `uv` or a virtual environment:
-
-   ```bash
-   uv sync
-   ```
-
-3. **Configure Ollama**:
-   Ensure Ollama is running and download the models specified in `config.py`:
-   ```bash
-   ollama pull qwen3.5:9b
-   ollama pull qwen3.5:2b
-   ```
-
-## Configuration
-
-Edit `config.py` to change the Ollama URL or the models used by the agents:
-
-```python
-OLLAMA_BASE_URL = "http://localhost:11434"
-COORDINATOR_MODEL = "qwen3.5:9b"
-WORKER_MODEL = "qwen3.5:2b"
+```bash
+uv sync
 ```
+
+Phase 1 does not require Mininet, root privileges, or a model provider.
 
 ## Usage
 
-Run the interactive loop with `sudo` (required by Mininet):
+Validate the acceptance experiment:
 
 ```bash
-sudo uv run main.py
+uv run mininet-ai validate examples/phase1/experiment.yaml
 ```
 
-### Example Commands
+Inspect its deployment plan as a table or JSON:
 
-- `Set up a network topology with 2 hosts and 3 switches.`
-- `Ping from h1 to h2`
-- `What are the stats for switch s1?`
-- `How can I go from s1 to h2?`
-- `Show me the current network topology.`
+```bash
+uv run mininet-ai plan examples/phase1/experiment.yaml
+uv run mininet-ai plan examples/phase1/experiment.yaml --format json
+```
 
-## Creating a Custom Topology
+Print one of the public JSON Schemas:
 
-You can define and provision custom network topologies programmatically using the `tools.net_management` module.
+```bash
+uv run mininet-ai schema experiment
+uv run mininet-ai schema agent-blueprint
+uv run mininet-ai schema capability
+```
 
-### Example
+The example compiles one reusable blueprint into a singleton global agent, one controller-domain agent, two switch-local agents, and two host agents.
 
-The following script sets up a diamond switch topology connecting two end hosts (`h1` and `h2`):
+## Specification overview
 
-```python
-from tools.net_management import add_host, add_switch, add_link, deploy_topology
+An experiment declares its topology, reusable agent blueprints, capabilities, and concrete placements:
 
-def setup_topo():
-    # 1. Define hosts
-    add_host("h1")
-    add_host("h2")
+```yaml
+apiVersion: mininet-ai/v1alpha1
+kind: Experiment
+metadata:
+  name: distributed-routing
 
-    # 2. Define switches
-    add_switch("s1")
-    add_switch("s2")
-    add_switch("s3")
-    add_switch("s4")
+substrate:
+  driver: fake
+  topology:
+    resources:
+      - {name: network, kind: network}
+      - {name: s1, kind: switch, parent: network, labels: {role: edge}}
 
-    # 3. Define links
-    add_link("h1", "s1")
-    add_link("s1", "s2")
-    add_link("s1", "s3")
-    add_link("s2", "s4")
-    add_link("s3", "s4")
-    add_link("s4", "h2")
+blueprints:
+  - ./agent-blueprints/local-router.yaml
 
-    # 4. Build and deploy
-    deploy_topology()
+agents:
+  - name: switch-router
+    blueprint: local-router
+    placement:
+      layer: data
+      targets:
+        kind: switch
+        matchLabels: {role: edge}
+      cardinality: per-target
+      runtime: device-sidecar
+    observe: [ovs.port-counters, topology.neighbors]
 
-if __name__ == "__main__":
-    setup_topo()
+coordination:
+  mode: independent
+```
+
+See [the complete Phase 1 example](examples/phase1/experiment.yaml) for external blueprints, typed capabilities, links, multiple layers, and safety policies.
+
+## Development
+
+Run the test suite:
+
+```bash
+uv run python -m unittest discover -v
+```
+
+The code is organized by responsibility:
+
+```text
+mininet_ai/
+├── specification/   # Versioned user-facing models and YAML loading
+├── compiler/        # Specification to deterministic deployment plan
+├── substrates/      # Substrate contracts and the Phase 1 fake driver
+└── cli.py            # validate, plan, and schema commands
 ```
 
 ## Roadmap
 
-- **Import and share topologies**: Let users describe a complete Mininet network, including hosts, switches, and links, in a portable file format such as YAML, then load it with a single command.
-- **Evolve into a true framework**: Make it easier for users to integrate custom agents and agent teams with Mininet-AI through clear extension points, reusable components, and straightforward configuration.
-- **Integrate skills**: Add support for reusable skills that extend agents with specialized Mininet workflows and domain capabilities.
+### Phase 1: Specification and compiler
+
+Define versioned experiment, agent, placement, capability, coordination, policy, and topology schemas. Validate and compile them into deterministic deployment plans using a fake substrate.
+
+### Phase 2: Mininet and OVS substrate
+
+Add deterministic network creation and teardown, resource discovery, normalized telemetry, and core OVS, OpenFlow, traffic-control, link, and host-process actions behind a substrate interface.
+
+### Phase 3: User-defined agents and capabilities
+
+Provide a stable SDK, capability registry, plugin loading, structured action proposals, policy enforcement, and adapters for user-authored declarative and code-based agents.
+
+### Phase 4: Continuous runtime
+
+Introduce event-driven agent lifecycles, triggers, scoped observations, memory, supervision, failure recovery, action execution, and a persistent experiment run ledger.
+
+### Phase 5: Coordination architectures
+
+Support centralized, hierarchical, and peer-to-peer agent graphs, message channels, intent routing, and conflict arbitration for concurrent actions.
+
+### Phase 6: Placement and isolation
+
+Turn logical placements into isolated processes, namespaces, containers, controller-side runtimes, host runtimes, and device-local sidecars with explicit privilege boundaries.
+
+### Phase 7: Programmable targets and research harness
+
+Add P4 and SmartNIC adapters, fault injection, workloads, replay, benchmark definitions, experiment comparisons, and reproducible evaluation reports.

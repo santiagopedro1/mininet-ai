@@ -1,0 +1,15 @@
+apiVersion: mininet-ai/v1alpha1
+kind: AgentBlueprint
+metadata:
+  name: local-router
+  description: One reusable behavior compiled at several attachment layers.
+implementation:
+  type: declarative
+model:
+  provider: ollama
+  name: llama3.1:8b
+reasoning:
+  instructions: Observe the assigned scope and propose safe routing changes.
+  timeout: 20s
+loop:
+  phases: [perceive, analyze, plan, propose-action, verify-result]
