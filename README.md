@@ -65,6 +65,12 @@ validation or tooling:
 uv run mininet-ai schema deployment-plan > deployment-plan.schema.json
 ```
 
+The `v1alpha1` identifier denotes a specific machine-readable contract, even
+while the project is in alpha. Compatible additions may retain it; changes that
+invalidate existing documents or alter their compiled representation require a
+new contract version. See [Compatibility and versioning](docs/compatibility.md)
+for the complete rules and review checklist.
+
 The example compiles one reusable blueprint into a singleton global agent, one controller-domain agent, two switch-local agents, and two host agents.
 
 ## Specification overview
@@ -193,6 +199,9 @@ explicitly and review the resulting Git diff before committing:
 uv run python -m tests.update_golden_plans
 git diff -- tests/golden
 ```
+
+The classification and migration requirements for such changes are defined in
+[Compatibility and versioning](docs/compatibility.md).
 
 ## Roadmap
 
