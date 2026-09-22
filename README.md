@@ -203,6 +203,36 @@ git diff -- tests/golden
 The classification and migration requirements for such changes are defined in
 [Compatibility and versioning](docs/compatibility.md).
 
+### Mininet cleanup acceptance
+
+Phase 2 development should run inside a disposable VM. Before starting an
+experiment, capture its clean networking state:
+
+```bash
+sudo scripts/check-mininet-cleanup.sh snapshot
+```
+
+After both a normal teardown and a deliberately interrupted experiment, verify
+that the machine returned to that baseline:
+
+```bash
+sudo scripts/check-mininet-cleanup.sh check
+```
+
+If the interrupted experiment leaves resources behind, test the recovery path
+and verify it in one step:
+
+```bash
+sudo scripts/check-mininet-cleanup.sh recover
+```
+
+`recover` invokes `mn -c`, which may remove every Mininet/OVS topology on the
+machine. Use it only in the isolated Phase 2 VM. The comparison covers OVS
+bridges and ports, namespaces, veth and Mininet-style interfaces, Linux
+bridges, qdiscs, Mininet/controller processes, runtime registry files, and
+Mininet temporary files. Use `snapshot --force` only when intentionally
+accepting a new clean baseline.
+
 ## Roadmap
 
 ### Phase 1: Specification and compiler
