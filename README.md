@@ -200,7 +200,7 @@ The check runs the project suite inside the VM, verifies Mininet/OVS access,
 executes a `pingall` smoke test, and restores the clean networking baseline.
 It invokes `mn -c`, so use it only with the disposable Phase 2 VM.
 
-### Substrate driver contract
+### Substrate contracts
 
 Every substrate implements the versioned
 `mininet-ai/substrate/v1alpha1` planning contract. A driver publishes a
@@ -212,9 +212,17 @@ registry instead of importing a concrete implementation.
 The fake driver is the reference implementation. New drivers should use
 `ManifestSubstrateDriver` for the shared validation behavior, register a factory
 with `register_substrate_driver`, and run the reusable
-`tests.substrates.contract.SubstrateDriverContract` test mixin. The future
-Mininet/OVS driver will implement this same planning contract before adding its
-runtime lifecycle operations.
+`tests.substrates.contract.SubstrateDriverContract` test mixin.
+
+Stateful execution uses the separate
+`mininet-ai/substrate-runtime/v1alpha1` lifecycle contract. Its five operations
+are `deploy`, `inspect`, `observe`, `execute`, and `teardown`; deployment must
+roll back on failure, and teardown must be idempotent and limited to resources
+owned by the run. Runtime adapters register independently with
+`register_substrate_runtime`. `FakeSubstrateRuntime` is the in-memory reference
+adapter, and `tests.substrates.runtime_contract.SubstrateRuntimeContract`
+provides reusable conformance tests. The Mininet/OVS implementation will use
+this same interface without introducing privileged work into compilation.
 
 ### Golden deployment plans
 

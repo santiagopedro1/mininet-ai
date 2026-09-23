@@ -7,7 +7,7 @@ driver contract.
 
 ## Versioned contracts
 
-Phase 1 defines two contract families:
+The project currently defines three contract families:
 
 - `mininet-ai/v1alpha1` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
@@ -16,6 +16,10 @@ Phase 1 defines two contract families:
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
+- `mininet-ai/substrate-runtime/v1alpha1` covers the stateful lifecycle
+  interface implemented by executable substrate adapters: deploy, inspect,
+  observe, execute, and teardown. It is separate from the planning contract so
+  compiling an experiment never requires privileged networking access.
 
 The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing
@@ -61,10 +65,12 @@ their complete shape and because their normalized snapshot contributes to the
 digest. A deliberate bug fix that changes a plan for previously valid input is
 therefore a contract change and needs a new version plus migration guidance.
 
-Changes to the driver protocol or the meaning of its manifest require a new
-substrate contract version, such as `mininet-ai/substrate/v1alpha2`. Merely
-adding a driver implementation or changing which optional features a specific
-driver advertises does not.
+Changes to the planning driver protocol or the meaning of its manifest require
+a new substrate contract version, such as `mininet-ai/substrate/v1alpha2`.
+Changes to runtime operations, lifecycle semantics, or their serialized models
+require a new runtime contract version, such as
+`mininet-ai/substrate-runtime/v1alpha2`. Merely adding an implementation or
+changing which optional features a specific adapter advertises does not.
 
 When a contract is promoted to beta or stable, use a new version such as
 `v1beta1` or `v1`. Supporting an older version alongside the new one is an
@@ -79,8 +85,8 @@ as an implementation diff:
 1. Classify the change as compatible or versioned using the rules above, and
    record the reasoning in the change description.
 2. For a versioned change, update the document `apiVersion`, deployment-plan
-   schema ID, and relevant tests together. Update the substrate version only
-   when its independent driver contract changes.
+   schema ID, and relevant tests together. Update the planning or runtime
+   substrate version only when that independent contract changes.
 3. Add focused tests for schema validation, references, normalization, and
    compilation behavior affected by the change.
 4. Run the full test suite and compile the Phase 1 example through the CLI.
