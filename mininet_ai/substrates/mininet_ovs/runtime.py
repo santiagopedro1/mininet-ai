@@ -24,6 +24,11 @@ from mininet_ai.substrates.mininet_ovs.driver import (
     MininetOVSDriver,
     parse_default_route,
 )
+from mininet_ai.substrates.mininet_ovs.observations import (
+    MininetOVSObservations,
+    ObservationCollectionError,
+    ObservationProvider,
+)
 from mininet_ai.substrates.mininet_ovs.state import (
     STATE_API_VERSION,
     PersistedRun,
@@ -63,6 +68,7 @@ if TYPE_CHECKING:
 Clock = Callable[[], datetime]
 RunIdFactory = Callable[[], str]
 Recovery = Callable[["DeploymentPlan", tuple[ProcessOwner, ...]], None]
+ObservationFactory = Callable[["DeploymentPlan", Any], ObservationProvider]
 
 
 def _utc_now() -> datetime:
@@ -114,6 +120,7 @@ class _MininetRun:
     info: RunInfo
     plan: DeploymentPlan
     network: Any
+    observations: ObservationProvider
     resources: tuple[LiveResource, ...]
 
 
@@ -123,6 +130,12 @@ def _interface_exists(name: str) -> bool:
     except OSError:
         return False
     return True
+
+
+def _observation_provider(
+    plan: DeploymentPlan, network: Any
+) -> MininetOVSObservations:
+    return MininetOVSObservations(plan, network)
 
 
 def _live_resources(
@@ -160,6 +173,7 @@ class MininetOVSRuntime:
         state_store: RunStateStore | None = None,
         owner: ProcessOwner | None = None,
         recovery: Recovery | None = None,
+        observation_factory: ObservationFactory = _observation_provider,
     ) -> None:
         if connect_timeout_seconds <= 0:
             raise ValueError("connect_timeout_seconds must be positive")
@@ -170,6 +184,7 @@ class MininetOVSRuntime:
         self._state_store = state_store or RunStateStore()
         self._owner = owner or ProcessOwner.current()
         self._recovery = recovery or self._recover_owned_resources
+        self._observation_factory = observation_factory
         self._runs: dict[str, _MininetRun] = {}
 
     def deploy(self, plan: DeploymentPlan) -> RunInfo:
@@ -196,6 +211,22 @@ class MininetOVSRuntime:
             process_groups = self._network_process_groups(network)
             self._write_state(info, plan, process_groups)
             self._start_network(plan, network)
+            observations = self._observation_factory(plan, network)
+            resources = observations.snapshot()
+            unavailable = sorted(
+                resource.name
+                for resource in resources
+                if resource.state
+                in {
+                    ResourceOperationalState.DOWN,
+                    ResourceOperationalState.FAILED,
+                }
+            )
+            if unavailable:
+                raise RuntimeError(
+                    "deployed resources are not operational: "
+                    + ", ".join(unavailable)
+                )
             info = info.model_copy(update={"state": RunState.RUNNING})
             self._write_state(info, plan, process_groups)
         except Exception as error:
@@ -227,7 +258,8 @@ class MininetOVSRuntime:
             info=info,
             plan=plan,
             network=network,
-            resources=_live_resources(plan.resources, ResourceOperationalState.UP),
+            observations=observations,
+            resources=resources,
         )
         return info
 
@@ -235,6 +267,20 @@ class MininetOVSRuntime:
         run = self._runs.get(run_id)
         if run is None:
             return self._inspect_persisted(run_id)
+        try:
+            run.resources = run.observations.snapshot()
+        except ObservationCollectionError as error:
+            raise RuntimeOperationError(
+                f"could not inspect Mininet/OVS run {run_id!r}: {error}",
+                code=error.code,
+                run_id=run_id,
+            ) from error
+        except Exception as error:
+            raise RuntimeOperationError(
+                f"could not inspect Mininet/OVS run {run_id!r}: {error}",
+                code="runtime.observation.failed",
+                run_id=run_id,
+            ) from error
         return RuntimeSnapshot(
             run=run.info,
             observed_at=self._clock(),
@@ -245,22 +291,27 @@ class MininetOVSRuntime:
         self, run_id: str, query: ObservationQuery
     ) -> ObservationResult:
         run = self._require_running(run_id)
-        resources = {resource.name: resource for resource in run.resources}
-        self._require_targets(run_id, query.targets, set(resources))
-        if query.name != "topology.resources":
+        resources = {resource.name for resource in run.resources}
+        self._require_targets(run_id, query.targets, resources)
+        try:
+            values = run.observations.collect(query)
+        except ObservationCollectionError as error:
             raise RuntimeOperationError(
-                f"observation {query.name!r} is not implemented yet",
-                code="runtime.observation.unsupported",
+                str(error),
+                code=error.code,
                 run_id=run_id,
-            )
+            ) from error
+        except Exception as error:
+            raise RuntimeOperationError(
+                f"could not collect observation {query.name!r}: {error}",
+                code="runtime.observation.failed",
+                run_id=run_id,
+            ) from error
         return ObservationResult(
             run_id=run_id,
             query=query,
             observed_at=self._clock(),
-            values={
-                target: resources[target].model_dump(mode="json")
-                for target in query.targets
-            },
+            values=values,
         )
 
     def execute(self, run_id: str, request: ActionRequest) -> ActionResult:

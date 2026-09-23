@@ -11,12 +11,17 @@ from mininet_ai.errors import RuntimeOperationError
 from mininet_ai.substrates import (
     ActionRequest,
     ActionStatus,
+    LiveResource,
     MininetOVSRuntime,
+    ObservationQuery,
     ResourceOperationalState,
     RunState,
     create_substrate_runtime,
 )
 from mininet_ai.substrates.mininet_ovs.runtime import _MininetBindings
+from mininet_ai.substrates.mininet_ovs.observations import (
+    ObservationCollectionError,
+)
 from mininet_ai.substrates.mininet_ovs.state import ProcessOwner, RunStateStore
 from tests.compiler.helpers import example_snapshot, experiment_from
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
@@ -133,6 +138,53 @@ class UnhealthyRecordingNetwork(RecordingNetwork):
     wait_result = False
 
 
+class RecordingObservations:
+    def __init__(self, plan, network) -> None:
+        self.plan = plan
+        self.network = network
+
+    def snapshot(self) -> tuple[LiveResource, ...]:
+        return tuple(
+            LiveResource(
+                name=resource.name,
+                kind=resource.kind,
+                state=ResourceOperationalState.UP,
+                attributes=resource.model_dump(
+                    mode="json",
+                    by_alias=True,
+                    exclude={"name", "kind"},
+                    exclude_none=True,
+                ),
+            )
+            for resource in self.plan.resources
+        )
+
+    def collect(self, query: ObservationQuery) -> dict[str, Any]:
+        return {
+            target: {"observation": query.name}
+            for target in query.targets
+        }
+
+
+class FailingObservations(RecordingObservations):
+    def collect(self, query: ObservationQuery) -> dict[str, Any]:
+        raise ObservationCollectionError(
+            "scripted collection failure",
+            code="runtime.observation.invalid-output",
+        )
+
+
+class DegradedObservations(RecordingObservations):
+    def snapshot(self) -> tuple[LiveResource, ...]:
+        resources = super().snapshot()
+        return (
+            resources[0].model_copy(
+                update={"state": ResourceOperationalState.DOWN}
+            ),
+            *resources[1:],
+        )
+
+
 def bindings(network_class: type = RecordingNetwork) -> _MininetBindings:
     return _MininetBindings(
         network_class=network_class,
@@ -164,6 +216,7 @@ def recording_runtime(
     state_store: RunStateStore | None = None,
     owner: ProcessOwner | None = None,
     recovery=None,
+    observation_factory=RecordingObservations,
 ) -> MininetOVSRuntime:
     if state_store is None:
         state_store = temporary_store(test_case)
@@ -174,6 +227,7 @@ def recording_runtime(
         state_store=state_store,
         owner=owner,
         recovery=recovery,
+        observation_factory=observation_factory,
     )
 
 
@@ -254,6 +308,18 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         with self.assertRaises(RuntimeOperationError) as missing:
             runtime.inspect("mininet-test-run")
         self.assertEqual(missing.exception.code, "runtime.run.unknown")
+
+    def test_failed_resource_discovery_rolls_back_the_deployment(self) -> None:
+        runtime = recording_runtime(
+            self,
+            observation_factory=DegradedObservations,
+        )
+
+        with self.assertRaises(RuntimeOperationError) as context:
+            runtime.deploy(self.plan)
+
+        self.assertEqual(context.exception.code, "runtime.deploy.failed")
+        self.assertTrue(RecordingNetwork.instances[-1].stopped)
 
     def test_default_routes_are_executed_as_validated_argument_lists(self) -> None:
         snapshot = example_snapshot()
@@ -410,6 +476,28 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertEqual(result.status, ActionStatus.REJECTED)
         self.assertFalse(result.changed)
         self.assertEqual(result.issue.code, "runtime.action.unsupported")
+
+    def test_observation_failures_keep_the_provider_error_code(self) -> None:
+        runtime = recording_runtime(
+            self,
+            observation_factory=FailingObservations,
+        )
+        run = runtime.deploy(self.plan)
+
+        with self.assertRaises(RuntimeOperationError) as context:
+            runtime.observe(
+                run.id,
+                ObservationQuery(
+                    name="ovs.port-counters",
+                    targets=("s1",),
+                ),
+            )
+
+        self.assertEqual(
+            context.exception.code,
+            "runtime.observation.invalid-output",
+        )
+        self.assertEqual(context.exception.run_id, run.id)
 
 
 if __name__ == "__main__":

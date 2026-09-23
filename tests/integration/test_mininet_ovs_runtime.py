@@ -8,7 +8,11 @@ from multiprocessing.connection import Connection
 from pathlib import Path
 
 from mininet_ai.compiler import compile_experiment
-from mininet_ai.substrates import MininetOVSRuntime, ResourceOperationalState
+from mininet_ai.substrates import (
+    MininetOVSRuntime,
+    ObservationQuery,
+    ResourceOperationalState,
+)
 
 
 ROOT = Path(__file__).parents[2]
@@ -107,6 +111,48 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
             self.assertIn("htb", qdiscs)
             self.assertIn("netem", qdiscs)
             self.assertIn("delay 1ms", qdiscs)
+
+            observations = {
+                name: runtime.observe(
+                    run.id,
+                    ObservationQuery(name=name, targets=(target,)),
+                ).values[target]
+                for name, target in (
+                    ("topology.resources", "s1"),
+                    ("topology.neighbors", "s1"),
+                    ("controller.events", "c0"),
+                    ("openflow.flows", "s1"),
+                    ("ovs.port-counters", "s1"),
+                    ("tc.queue-occupancy", "s1"),
+                    ("host.interfaces", "h1"),
+                    ("host.processes", "h1"),
+                    ("host.reachability", "h1"),
+                )
+            }
+            self.assertEqual(observations["topology.resources"]["state"], "up")
+            self.assertEqual(
+                len(observations["topology.neighbors"]["links"]), 2
+            )
+            self.assertIn("events", observations["controller.events"])
+            self.assertIn("switches", observations["openflow.flows"])
+            self.assertEqual(
+                len(observations["ovs.port-counters"]["ports"]), 2
+            )
+            self.assertEqual(
+                len(observations["tc.queue-occupancy"]["ports"]), 2
+            )
+            self.assertEqual(
+                observations["host.interfaces"]["interfaces"][0]["state"],
+                "UP",
+            )
+            self.assertTrue(observations["host.processes"]["processes"])
+            self.assertEqual(
+                observations["host.reachability"]["probes"][0]["destination"],
+                "h2",
+            )
+            self.assertTrue(
+                observations["host.reachability"]["probes"][0]["reachable"]
+            )
         finally:
             if run is not None:
                 runtime.teardown(run.id)

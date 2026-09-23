@@ -1,7 +1,7 @@
 """Rootless planning validation for the Mininet/OVS substrate.
 
 This module deliberately does not import Mininet or execute host commands. It
-describes what the future privileged runtime can deploy and rejects plans that
+describes what the privileged runtime can deploy and rejects plans that
 cannot be represented safely by Linux interfaces, Open vSwitch, and ``tc``.
 """
 
@@ -45,10 +45,14 @@ MININET_TC_BANDWIDTH_MAX_MBPS = 1_000
 
 _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
     AttachmentLayer.GLOBAL: frozenset(
-        {"topology.resources", "topology.neighbors"}
+        {"topology.resources", "topology.neighbors", "host.reachability"}
     ),
     AttachmentLayer.MANAGEMENT: frozenset(
-        {"topology.resources", "topology.neighbors", "controller.events"}
+        {
+            "topology.resources",
+            "topology.neighbors",
+            "controller.events",
+        }
     ),
     AttachmentLayer.CONTROL: frozenset(
         {
@@ -67,7 +71,12 @@ _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
         }
     ),
     AttachmentLayer.HOST: frozenset(
-        {"topology.neighbors", "host.interfaces", "host.processes"}
+        {
+            "topology.neighbors",
+            "host.interfaces",
+            "host.processes",
+            "host.reachability",
+        }
     ),
 }
 _OBSERVATIONS[AttachmentLayer.OBSERVER] = frozenset().union(

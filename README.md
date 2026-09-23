@@ -238,9 +238,14 @@ targets only the processes, bridges, interfaces, and temporary files named by
 that deployment plan. See the
 [Phase 2 acceptance experiment](examples/phase2/experiment.yaml).
 
-The live runtime currently exposes topology-resource inspection and returns a
-typed rejection for actions. Resource discovery, telemetry, and substrate
-actions are added in the following Phase 2 commits.
+The live runtime refreshes resource operational state during inspection and
+normalizes all observations advertised by the driver: topology resources and
+neighbors, controller events, OpenFlow flows, OVS port counters, traffic-control
+queue state, host interfaces and processes, and active host reachability.
+Observation targets are checked against the requested telemetry scope, and
+command or parser failures return typed runtime errors. Actions still return a
+typed rejection until substrate mutation support lands in the next Phase 2
+commit.
 
 ### Golden deployment plans
 
