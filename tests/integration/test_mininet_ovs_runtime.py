@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import multiprocessing
 import os
 import subprocess
 import unittest
+from multiprocessing.connection import Connection
 from pathlib import Path
 
 from mininet_ai.compiler import compile_experiment
@@ -23,8 +25,47 @@ def command(*arguments: str, check: bool = True) -> subprocess.CompletedProcess[
     )
 
 
+def deploy_and_exit_without_teardown(connection: Connection) -> None:
+    plan = compile_experiment(EXPERIMENT)
+    runtime = MininetOVSRuntime(run_id_factory=lambda: "live-crash-recovery")
+    run = runtime.deploy(plan)
+    connection.send(run.id)
+    connection.close()
+    os._exit(0)
+
+
 @unittest.skipUnless(LIVE_TESTS, "set MININET_AI_LIVE_TESTS=1 inside the Phase 2 VM")
 class LiveMininetOVSRuntimeTests(unittest.TestCase):
+    def test_fresh_runtime_recovers_a_crashed_owner(self) -> None:
+        read_connection, write_connection = multiprocessing.Pipe(duplex=False)
+        process = multiprocessing.Process(
+            target=deploy_and_exit_without_teardown,
+            args=(write_connection,),
+        )
+        process.start()
+        write_connection.close()
+        self.assertTrue(read_connection.poll(30))
+        run_id = read_connection.recv()
+        read_connection.close()
+        process.join(timeout=30)
+
+        self.assertEqual(process.exitcode, 0)
+        self.assertEqual(run_id, "live-crash-recovery")
+        command("ovs-vsctl", "br-exists", "s1")
+
+        runtime = MininetOVSRuntime()
+        snapshot = runtime.inspect(run_id)
+        self.assertEqual(snapshot.run.issue.code, "runtime.run.orphaned")
+
+        result = runtime.teardown(run_id)
+
+        self.assertEqual(result.run.state.value, "stopped")
+        self.assertNotEqual(
+            command("ovs-vsctl", "br-exists", "s1", check=False).returncode,
+            0,
+        )
+        self.assertFalse(Path("/run/mininet-ai/mininet-ovs.json").exists())
+
     def test_deploys_inspects_and_tears_down_real_topology(self) -> None:
         plan = compile_experiment(EXPERIMENT)
         runtime = MininetOVSRuntime(run_id_factory=lambda: "live-acceptance")

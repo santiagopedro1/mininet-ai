@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from mininet_ai.compiler import compile_experiment
@@ -10,9 +12,12 @@ from mininet_ai.substrates import (
     ActionRequest,
     ActionStatus,
     MininetOVSRuntime,
+    ResourceOperationalState,
+    RunState,
     create_substrate_runtime,
 )
 from mininet_ai.substrates.mininet_ovs.runtime import _MininetBindings
+from mininet_ai.substrates.mininet_ovs.state import ProcessOwner, RunStateStore
 from tests.compiler.helpers import example_snapshot, experiment_from
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
 
@@ -145,19 +150,36 @@ def mininet_plan():
     return compile_experiment(experiment_from(snapshot))
 
 
+def temporary_store(test_case: unittest.TestCase) -> RunStateStore:
+    temporary = TemporaryDirectory()
+    test_case.addCleanup(temporary.cleanup)
+    root = Path(temporary.name)
+    return RunStateStore(root / "state", root / "runtime.lock")
+
+
 def recording_runtime(
+    test_case: unittest.TestCase,
     network_class: type = RecordingNetwork,
+    *,
+    state_store: RunStateStore | None = None,
+    owner: ProcessOwner | None = None,
+    recovery=None,
 ) -> MininetOVSRuntime:
+    if state_store is None:
+        state_store = temporary_store(test_case)
     return MininetOVSRuntime(
         clock=IncrementingClock(),
         run_id_factory=lambda: "mininet-test-run",
         bindings_factory=lambda: bindings(network_class),
+        state_store=state_store,
+        owner=owner,
+        recovery=recovery,
     )
 
 
 class MininetRuntimeContractTests(SubstrateRuntimeContract, unittest.TestCase):
     def make_runtime(self) -> MininetOVSRuntime:
-        return recording_runtime()
+        return recording_runtime(self)
 
     def make_plan(self):
         return mininet_plan()
@@ -175,7 +197,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertIsInstance(runtime, MininetOVSRuntime)
 
     def test_deploy_translates_the_complete_plan_deterministically(self) -> None:
-        runtime = recording_runtime()
+        runtime = recording_runtime(self)
 
         runtime.deploy(self.plan)
         network = RecordingNetwork.instances[-1]
@@ -222,7 +244,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertTrue(all(calls == [("mtu", "1500")] for calls in mtu_calls))
 
     def test_failed_health_check_rolls_back_all_created_resources(self) -> None:
-        runtime = recording_runtime(UnhealthyRecordingNetwork)
+        runtime = recording_runtime(self, UnhealthyRecordingNetwork)
 
         with self.assertRaises(RuntimeOperationError) as context:
             runtime.deploy(self.plan)
@@ -241,7 +263,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
             "defaultRoute"
         ] = "via 10.0.0.254 dev h1-eth0"
         plan = compile_experiment(experiment_from(snapshot))
-        runtime = recording_runtime()
+        runtime = recording_runtime(self)
 
         runtime.deploy(plan)
 
@@ -262,7 +284,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         )
 
     def test_only_one_live_network_may_be_owned_by_a_runtime(self) -> None:
-        runtime = recording_runtime()
+        runtime = recording_runtime(self)
         first = runtime.deploy(self.plan)
 
         with self.assertRaises(RuntimeOperationError) as context:
@@ -272,8 +294,108 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertEqual(context.exception.run_id, first.id)
         self.assertEqual(len(RecordingNetwork.instances), 1)
 
+    def test_running_state_is_persisted_until_normal_teardown(self) -> None:
+        store = temporary_store(self)
+        runtime = recording_runtime(self, state_store=store)
+
+        run = runtime.deploy(self.plan)
+        record = store.read()
+
+        self.assertIsNotNone(record)
+        self.assertEqual(record.run, run)
+        self.assertEqual(record.plan["digest"], self.plan.digest)
+        self.assertTrue(store.acquired)
+
+        runtime.teardown(run.id)
+
+        self.assertFalse(store.acquired)
+        self.assertFalse(store.state_path.exists())
+
+    def test_a_second_process_cannot_deploy_while_owner_lock_is_held(self) -> None:
+        store = temporary_store(self)
+        owner = recording_runtime(self, state_store=store)
+        run = owner.deploy(self.plan)
+        contender_store = RunStateStore(store.state_directory, store.lock_path)
+        contender = recording_runtime(self, state_store=contender_store)
+
+        with self.assertRaises(RuntimeOperationError) as context:
+            contender.deploy(self.plan)
+
+        self.assertEqual(context.exception.code, "runtime.run.active")
+        self.assertEqual(context.exception.run_id, run.id)
+
+    def test_fresh_runtime_can_inspect_a_run_while_owner_holds_lock(self) -> None:
+        store = temporary_store(self)
+        owner = recording_runtime(self, state_store=store)
+        run = owner.deploy(self.plan)
+        viewer = recording_runtime(
+            self,
+            state_store=RunStateStore(store.state_directory, store.lock_path),
+        )
+
+        snapshot = viewer.inspect(run.id)
+
+        self.assertEqual(snapshot.run.state, RunState.RUNNING)
+        self.assertTrue(
+            all(
+                resource.state == ResourceOperationalState.UP
+                for resource in snapshot.resources
+            )
+        )
+
+    def test_orphaned_run_is_inspectable_and_recovered_by_run_id(self) -> None:
+        store = temporary_store(self)
+        original = recording_runtime(self, state_store=store)
+        run = original.deploy(self.plan)
+        record = store.read()
+        self.assertIsNotNone(record)
+        store.release()
+        recoveries = []
+        recovered = recording_runtime(
+            self,
+            state_store=store,
+            recovery=lambda plan, groups: recoveries.append((plan, groups)),
+        )
+
+        snapshot = recovered.inspect(run.id)
+        result = recovered.teardown(run.id)
+
+        self.assertEqual(snapshot.run.state, RunState.FAILED)
+        self.assertEqual(snapshot.run.issue.code, "runtime.run.orphaned")
+        self.assertTrue(
+            all(
+                resource.state == ResourceOperationalState.UNKNOWN
+                for resource in snapshot.resources
+            )
+        )
+        self.assertEqual(len(recoveries), 1)
+        self.assertEqual(recoveries[0][0], self.plan)
+        self.assertEqual(result.run.state, RunState.STOPPED)
+        self.assertFalse(store.state_path.exists())
+
+    def test_new_deploy_requires_explicit_recovery_of_an_orphan(self) -> None:
+        store = temporary_store(self)
+        original = recording_runtime(self, state_store=store)
+        orphan = original.deploy(self.plan)
+        record = store.read()
+        self.assertIsNotNone(record)
+        store.release()
+        dead_owner = ProcessOwner.current().model_copy(
+            update={"start_ticks": ProcessOwner.current().start_ticks + 1}
+        )
+        store.acquire()
+        store.write(record.model_copy(update={"owner": dead_owner}))
+        store.release()
+        replacement = recording_runtime(self, state_store=store)
+
+        with self.assertRaises(RuntimeOperationError) as context:
+            replacement.deploy(self.plan)
+
+        self.assertEqual(context.exception.code, "runtime.run.orphaned")
+        self.assertEqual(context.exception.run_id, orphan.id)
+
     def test_actions_are_typed_rejections_until_action_support_lands(self) -> None:
-        runtime = recording_runtime()
+        runtime = recording_runtime(self)
         run = runtime.deploy(self.plan)
 
         result = runtime.execute(

@@ -221,8 +221,8 @@ roll back on failure, and teardown must be idempotent and limited to resources
 owned by the run. Runtime adapters register independently with
 `register_substrate_runtime`. `FakeSubstrateRuntime` is the in-memory reference
 adapter, and `tests.substrates.runtime_contract.SubstrateRuntimeContract`
-provides reusable conformance tests. The Mininet/OVS implementation will use
-this same interface without introducing privileged work into compilation.
+provides reusable conformance tests. The Mininet/OVS implementation uses this
+same interface without introducing privileged work into compilation.
 
 `MininetOVSDriver` is the rootless, compiler-facing adapter for Phase 2. Select
 it with `substrate.driver: mininet-ovs`. It validates the planned OVS bridges,
@@ -230,7 +230,12 @@ Linux interface names, OpenFlow port numbers, controller configuration, and
 traffic-control parameters. `MininetOVSRuntime` then creates the accepted plan
 with explicit controller assignments, OVS modes and protocols, interface
 addresses and MTUs, and TC link shaping. Deployment rolls back on failure and
-normal teardown is idempotent. See the
+normal teardown is idempotent. It writes an atomic ownership record under
+`/run/mininet-ai`, holds an exclusive process-lifetime lock, and rejects a new
+deployment while a live or orphaned run exists. A fresh runtime can inspect an
+orphan and recover it by calling `teardown` with the recorded run ID; recovery
+targets only the processes, bridges, interfaces, and temporary files named by
+that deployment plan. See the
 [Phase 2 acceptance experiment](examples/phase2/experiment.yaml).
 
 The live runtime currently exposes topology-resource inspection and returns a
@@ -272,15 +277,18 @@ that the machine returned to that baseline:
 sudo scripts/check-mininet-cleanup.sh check
 ```
 
-If the interrupted experiment leaves resources behind, test the recovery path
-and verify it in one step:
+The live integration suite deliberately crashes a runtime owner and verifies
+that a fresh runtime's `teardown(run_id)` restores the baseline. If targeted
+recovery itself fails and leaves resources behind, restore the disposable VM
+with the emergency cleanup path:
 
 ```bash
 sudo scripts/check-mininet-cleanup.sh recover
 ```
 
 `recover` invokes `mn -c`, which may remove every Mininet/OVS topology on the
-machine. Use it only in the isolated Phase 2 VM. The comparison covers OVS
+machine; it is a test-environment fallback, not the runtime recovery mechanism.
+Use it only in the isolated Phase 2 VM. The comparison covers OVS
 bridges and ports, namespaces, veth and Mininet-style interfaces, Linux
 bridges, qdiscs, Mininet/controller processes, runtime registry files, and
 Mininet temporary files. Use `snapshot --force` only when intentionally

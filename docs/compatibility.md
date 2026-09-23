@@ -7,7 +7,7 @@ driver contract.
 
 ## Versioned contracts
 
-The project currently defines three contract families:
+The project currently defines four contract families:
 
 - `mininet-ai/v1alpha1` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
@@ -20,6 +20,10 @@ The project currently defines three contract families:
   interface implemented by executable substrate adapters: deploy, inspect,
   observe, execute, and teardown. It is separate from the planning contract so
   compiling an experiment never requires privileged networking access.
+- `mininet-ai/runtime-state/v1alpha1` covers the private, on-host ownership
+  record used to inspect and recover an interrupted Mininet/OVS run. It is
+  versioned so a newer runtime never guesses how to clean up an incompatible
+  record.
 
 The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing
@@ -71,6 +75,8 @@ Changes to runtime operations, lifecycle semantics, or their serialized models
 require a new runtime contract version, such as
 `mininet-ai/substrate-runtime/v1alpha2`. Merely adding an implementation or
 changing which optional features a specific adapter advertises does not.
+Changes to persisted ownership fields or their recovery meaning require a new
+runtime-state version, such as `mininet-ai/runtime-state/v1alpha2`.
 
 When a contract is promoted to beta or stable, use a new version such as
 `v1beta1` or `v1`. Supporting an older version alongside the new one is an
