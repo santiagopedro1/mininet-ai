@@ -1,14 +1,25 @@
 [project]
-name = "mininet-agentic-interactive"
+name = "mininet-ai"
 version = "0.1.0"
-description = "Add your description here"
+description = "A declarative experiment compiler and runtime for agentic networks"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-	"agno>=2.6.4",
-	"mininet>=2.3.0.dev6",
-	"networkx>=3.6.1",
-	"ollama>=0.6.1",
-	"openai>=2.33.0",
+	"pydantic>=2.13.3",
+	"pyyaml>=6.0.3",
 	"rich>=15.0.0",
+	"typer>=0.25.0",
 ]
+
+[project.scripts]
+mininet-ai = "mininet_ai.cli:app"
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["setuptools>=82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["mininet_ai*"]

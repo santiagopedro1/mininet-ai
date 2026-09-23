@@ -1,0 +1,727 @@
+{
+  "agents": [
+    {
+      "attachment": {
+        "layer": "control",
+        "runtime": "controller-sidecar",
+        "target-kind": "controller-domain",
+        "targets": [
+          "control-domain"
+        ]
+      },
+      "blueprint": "local-router",
+      "capabilities": [],
+      "deployment": "control-router",
+      "id": "control-router@control-domain",
+      "observes": [
+        "controller.events",
+        "topology.resources"
+      ],
+      "priority": 0,
+      "privileges": []
+    },
+    {
+      "attachment": {
+        "layer": "global",
+        "runtime": "orchestrator",
+        "target-kind": "network",
+        "targets": [
+          "network"
+        ]
+      },
+      "blueprint": "local-router",
+      "capabilities": [],
+      "deployment": "global-router",
+      "id": "global-router",
+      "observes": [
+        "topology.resources"
+      ],
+      "priority": 0,
+      "privileges": []
+    },
+    {
+      "attachment": {
+        "layer": "host",
+        "runtime": "host-namespace",
+        "target-kind": "host",
+        "targets": [
+          "h1"
+        ]
+      },
+      "blueprint": "local-router",
+      "capabilities": [],
+      "deployment": "host-router",
+      "id": "host-router@h1",
+      "observes": [
+        "host.interfaces"
+      ],
+      "priority": 0,
+      "privileges": []
+    },
+    {
+      "attachment": {
+        "layer": "host",
+        "runtime": "host-namespace",
+        "target-kind": "host",
+        "targets": [
+          "h2"
+        ]
+      },
+      "blueprint": "local-router",
+      "capabilities": [],
+      "deployment": "host-router",
+      "id": "host-router@h2",
+      "observes": [
+        "host.interfaces"
+      ],
+      "priority": 0,
+      "privileges": []
+    },
+    {
+      "attachment": {
+        "layer": "data",
+        "runtime": "device-sidecar",
+        "target-kind": "switch",
+        "targets": [
+          "s1"
+        ]
+      },
+      "blueprint": "local-router",
+      "capabilities": [
+        "openflow.flow.install"
+      ],
+      "deployment": "switch-router",
+      "id": "switch-router@s1",
+      "observes": [
+        "ovs.port-counters",
+        "tc.queue-occupancy",
+        "topology.neighbors"
+      ],
+      "priority": 0,
+      "privileges": [
+        "dataplane.write"
+      ]
+    },
+    {
+      "attachment": {
+        "layer": "data",
+        "runtime": "device-sidecar",
+        "target-kind": "switch",
+        "targets": [
+          "s2"
+        ]
+      },
+      "blueprint": "local-router",
+      "capabilities": [
+        "openflow.flow.install"
+      ],
+      "deployment": "switch-router",
+      "id": "switch-router@s2",
+      "observes": [
+        "ovs.port-counters",
+        "tc.queue-occupancy",
+        "topology.neighbors"
+      ],
+      "priority": 0,
+      "privileges": [
+        "dataplane.write"
+      ]
+    }
+  ],
+  "apiVersion": "mininet-ai/v1alpha1",
+  "coordination": {
+    "edges": [],
+    "mode": "independent"
+  },
+  "digest": "sha256:a8b7179566a85b8cd0880f81d0b7d949c778665515fa20996ab996d58a09db0e",
+  "kind": "DeploymentPlan",
+  "metadata": {
+    "description": "Phase 1 acceptance experiment using one blueprint at four layers.",
+    "labels": {},
+    "name": "multi-layer-placement"
+  },
+  "policies": {
+    "conflicting-actions": "reject",
+    "require-postcondition-check": true
+  },
+  "resources": [
+    {
+      "attributes": {},
+      "kind": "controller",
+      "labels": {},
+      "name": "c0",
+      "parent": "network",
+      "port": 6653,
+      "protocol": "tcp",
+      "type": "builtin"
+    },
+    {
+      "attributes": {},
+      "controllers": [
+        "c0"
+      ],
+      "kind": "controller-domain",
+      "labels": {},
+      "name": "control-domain",
+      "parent": "network"
+    },
+    {
+      "attributes": {},
+      "kind": "host",
+      "labels": {
+        "role": "client"
+      },
+      "name": "h1",
+      "parent": "network"
+    },
+    {
+      "attributes": {},
+      "kind": "host",
+      "labels": {
+        "role": "client"
+      },
+      "name": "h2",
+      "parent": "network"
+    },
+    {
+      "attributes": {},
+      "bandwidth": 100.0,
+      "delay": "2ms",
+      "endpoints": [
+        "h1-eth0",
+        "s1-eth1"
+      ],
+      "kind": "link",
+      "labels": {},
+      "loss": 0.0,
+      "maxQueueSize": 1000,
+      "name": "h1-s1"
+    },
+    {
+      "attributes": {},
+      "bandwidth": 1000.0,
+      "delay": "1ms",
+      "endpoints": [
+        "s1-eth2",
+        "s2-eth1"
+      ],
+      "jitter": "100us",
+      "kind": "link",
+      "labels": {},
+      "loss": 0.1,
+      "name": "s1-s2"
+    },
+    {
+      "attributes": {},
+      "bandwidth": 100.0,
+      "delay": "2ms",
+      "endpoints": [
+        "s2-eth2",
+        "h2-eth0"
+      ],
+      "kind": "link",
+      "labels": {},
+      "loss": 0.0,
+      "name": "s2-h2"
+    },
+    {
+      "attributes": {},
+      "kind": "network",
+      "labels": {},
+      "name": "network"
+    },
+    {
+      "attributes": {},
+      "ipv4": "10.0.0.1/24",
+      "kind": "port",
+      "labels": {},
+      "mac": "02:00:00:00:00:01",
+      "mtu": 1500,
+      "name": "h1-eth0",
+      "number": 0,
+      "parent": "h1",
+      "role": "host-interface"
+    },
+    {
+      "attributes": {},
+      "ipv4": "10.0.0.2/24",
+      "kind": "port",
+      "labels": {},
+      "mac": "02:00:00:00:00:02",
+      "mtu": 1500,
+      "name": "h2-eth0",
+      "number": 0,
+      "parent": "h2",
+      "role": "host-interface"
+    },
+    {
+      "attributes": {},
+      "kind": "port",
+      "labels": {},
+      "mtu": 1500,
+      "name": "s1-eth1",
+      "number": 1,
+      "parent": "s1",
+      "role": "switch-port"
+    },
+    {
+      "attributes": {},
+      "kind": "port",
+      "labels": {},
+      "mtu": 1500,
+      "name": "s1-eth2",
+      "number": 2,
+      "parent": "s1",
+      "role": "switch-port"
+    },
+    {
+      "attributes": {},
+      "kind": "port",
+      "labels": {},
+      "mtu": 1500,
+      "name": "s2-eth1",
+      "number": 1,
+      "parent": "s2",
+      "role": "switch-port"
+    },
+    {
+      "attributes": {},
+      "kind": "port",
+      "labels": {},
+      "mtu": 1500,
+      "name": "s2-eth2",
+      "number": 2,
+      "parent": "s2",
+      "role": "switch-port"
+    },
+    {
+      "attributes": {},
+      "controllers": [
+        "c0"
+      ],
+      "datapath": "kernel",
+      "failMode": "secure",
+      "kind": "switch",
+      "labels": {
+        "region": "west",
+        "role": "edge"
+      },
+      "name": "s1",
+      "parent": "control-domain",
+      "protocols": [
+        "OpenFlow13"
+      ]
+    },
+    {
+      "attributes": {},
+      "controllers": [
+        "c0"
+      ],
+      "datapath": "kernel",
+      "failMode": "secure",
+      "kind": "switch",
+      "labels": {
+        "region": "east",
+        "role": "edge"
+      },
+      "name": "s2",
+      "parent": "control-domain",
+      "protocols": [
+        "OpenFlow13"
+      ]
+    }
+  ],
+  "snapshot": {
+    "agents": [
+      {
+        "blueprint": "local-router",
+        "capabilities": [],
+        "name": "global-router",
+        "observe": [
+          "topology.resources"
+        ],
+        "placement": {
+          "cardinality": "singleton",
+          "custom-layer": null,
+          "groupBy": null,
+          "layer": "global",
+          "runtime": "orchestrator",
+          "targets": {
+            "kind": "network",
+            "matchLabels": {},
+            "names": [
+              "network"
+            ]
+          }
+        },
+        "priority": 0
+      },
+      {
+        "blueprint": "local-router",
+        "capabilities": [],
+        "name": "control-router",
+        "observe": [
+          "topology.resources",
+          "controller.events"
+        ],
+        "placement": {
+          "cardinality": "per-target",
+          "custom-layer": null,
+          "groupBy": null,
+          "layer": "control",
+          "runtime": "controller-sidecar",
+          "targets": {
+            "kind": "controller-domain",
+            "matchLabels": {},
+            "names": []
+          }
+        },
+        "priority": 0
+      },
+      {
+        "blueprint": "local-router",
+        "capabilities": [
+          "openflow.flow.install"
+        ],
+        "name": "switch-router",
+        "observe": [
+          "ovs.port-counters",
+          "tc.queue-occupancy",
+          "topology.neighbors"
+        ],
+        "placement": {
+          "cardinality": "per-target",
+          "custom-layer": null,
+          "groupBy": null,
+          "layer": "data",
+          "runtime": "device-sidecar",
+          "targets": {
+            "kind": "switch",
+            "matchLabels": {
+              "role": "edge"
+            },
+            "names": []
+          }
+        },
+        "priority": 0
+      },
+      {
+        "blueprint": "local-router",
+        "capabilities": [],
+        "name": "host-router",
+        "observe": [
+          "host.interfaces"
+        ],
+        "placement": {
+          "cardinality": "per-target",
+          "custom-layer": null,
+          "groupBy": null,
+          "layer": "host",
+          "runtime": "host-namespace",
+          "targets": {
+            "kind": "host",
+            "matchLabels": {
+              "role": "client"
+            },
+            "names": []
+          }
+        },
+        "priority": 0
+      }
+    ],
+    "apiVersion": "mininet-ai/v1alpha1",
+    "blueprints": [
+      {
+        "apiVersion": "mininet-ai/v1alpha1",
+        "implementation": {
+          "entrypoint": null,
+          "type": "declarative"
+        },
+        "kind": "AgentBlueprint",
+        "loop": {
+          "phases": [
+            "perceive",
+            "analyze",
+            "plan",
+            "propose-action",
+            "verify-result"
+          ]
+        },
+        "memory": {},
+        "metadata": {
+          "description": "One reusable behavior compiled at several attachment layers.",
+          "labels": {},
+          "name": "local-router"
+        },
+        "model": {
+          "name": "llama3.1:8b",
+          "parameters": {},
+          "provider": "ollama"
+        },
+        "reasoning": {
+          "instructions": "Observe the assigned scope and propose safe routing changes.",
+          "output-schema": null,
+          "timeout": "20s"
+        }
+      }
+    ],
+    "capabilityDefinitions": [
+      {
+        "apiVersion": "mininet-ai/v1alpha1",
+        "effects": [
+          "dataplane.write"
+        ],
+        "input-schema": {
+          "required": [
+            "match",
+            "actions"
+          ],
+          "type": "object"
+        },
+        "kind": "Capability",
+        "layers": [
+          "control",
+          "data"
+        ],
+        "metadata": {
+          "description": "Propose installation of an OpenFlow entry.",
+          "labels": {},
+          "name": "openflow.flow.install"
+        },
+        "output-schema": {
+          "type": "object"
+        },
+        "provider": "fake.openflow",
+        "reversible": true,
+        "targets": [
+          "switch"
+        ]
+      }
+    ],
+    "coordination": {
+      "coordinator": null,
+      "mode": "independent",
+      "peers": null,
+      "relationships": []
+    },
+    "kind": "Experiment",
+    "metadata": {
+      "description": "Phase 1 acceptance experiment using one blueprint at four layers.",
+      "labels": {},
+      "name": "multi-layer-placement"
+    },
+    "policies": {
+      "conflicting-actions": "reject",
+      "require-postcondition-check": true
+    },
+    "resourceLimits": {
+      "max-instances": 20
+    },
+    "substrate": {
+      "driver": "fake",
+      "options": {},
+      "topology": {
+        "addressing": {
+          "ipv4": {
+            "strategy": "sequential",
+            "subnet": "10.0.0.0/24"
+          },
+          "mac": {
+            "prefix": "02:00:00",
+            "strategy": "sequential"
+          }
+        },
+        "links": [
+          {
+            "attributes": {},
+            "bandwidth": 100.0,
+            "delay": "2ms",
+            "endpoints": [
+              {
+                "adapter": "h1-eth0",
+                "node": "h1"
+              },
+              {
+                "adapter": "s1-eth1",
+                "node": "s1"
+              }
+            ],
+            "jitter": null,
+            "labels": {},
+            "loss": 0.0,
+            "maxQueueSize": 1000,
+            "name": "h1-s1"
+          },
+          {
+            "attributes": {},
+            "bandwidth": 1000.0,
+            "delay": "1ms",
+            "endpoints": [
+              {
+                "adapter": "s1-eth2",
+                "node": "s1"
+              },
+              {
+                "adapter": "s2-eth1",
+                "node": "s2"
+              }
+            ],
+            "jitter": "100us",
+            "labels": {},
+            "loss": 0.1,
+            "maxQueueSize": null,
+            "name": "s1-s2"
+          },
+          {
+            "attributes": {},
+            "bandwidth": 100.0,
+            "delay": "2ms",
+            "endpoints": [
+              {
+                "adapter": "s2-eth2",
+                "node": "s2"
+              },
+              {
+                "adapter": "h2-eth0",
+                "node": "h2"
+              }
+            ],
+            "jitter": null,
+            "labels": {},
+            "loss": 0.0,
+            "maxQueueSize": null,
+            "name": "s2-h2"
+          }
+        ],
+        "resources": [
+          {
+            "attributes": {},
+            "kind": "network",
+            "labels": {},
+            "name": "network",
+            "parent": null
+          },
+          {
+            "address": null,
+            "attributes": {},
+            "kind": "controller",
+            "labels": {},
+            "name": "c0",
+            "parent": "network",
+            "port": 6653,
+            "protocol": "tcp",
+            "type": "builtin"
+          },
+          {
+            "attributes": {},
+            "controllers": [
+              "c0"
+            ],
+            "kind": "controller-domain",
+            "labels": {},
+            "name": "control-domain",
+            "parent": "network"
+          },
+          {
+            "attributes": {},
+            "controllers": [
+              "c0"
+            ],
+            "datapath": "kernel",
+            "failMode": "secure",
+            "kind": "switch",
+            "labels": {
+              "region": "west",
+              "role": "edge"
+            },
+            "name": "s1",
+            "parent": "control-domain",
+            "ports": [
+              {
+                "mtu": 1500,
+                "name": "s1-eth1",
+                "number": 1
+              },
+              {
+                "mtu": 1500,
+                "name": "s1-eth2",
+                "number": 2
+              }
+            ],
+            "protocols": [
+              "OpenFlow13"
+            ]
+          },
+          {
+            "attributes": {},
+            "controllers": [
+              "c0"
+            ],
+            "datapath": "kernel",
+            "failMode": "secure",
+            "kind": "switch",
+            "labels": {
+              "region": "east",
+              "role": "edge"
+            },
+            "name": "s2",
+            "parent": "control-domain",
+            "ports": [
+              {
+                "mtu": 1500,
+                "name": "s2-eth1",
+                "number": 1
+              },
+              {
+                "mtu": 1500,
+                "name": "s2-eth2",
+                "number": 2
+              }
+            ],
+            "protocols": [
+              "OpenFlow13"
+            ]
+          },
+          {
+            "attributes": {},
+            "defaultRoute": null,
+            "interfaces": [
+              {
+                "ipv4": "auto",
+                "mac": "auto",
+                "mtu": 1500,
+                "name": "h1-eth0"
+              }
+            ],
+            "kind": "host",
+            "labels": {
+              "role": "client"
+            },
+            "name": "h1",
+            "parent": "network"
+          },
+          {
+            "attributes": {},
+            "defaultRoute": null,
+            "interfaces": [
+              {
+                "ipv4": "auto",
+                "mac": "auto",
+                "mtu": 1500,
+                "name": "h2-eth0"
+              }
+            ],
+            "kind": "host",
+            "labels": {
+              "role": "client"
+            },
+            "name": "h2",
+            "parent": "network"
+          }
+        ]
+      }
+    }
+  },
+  "source": "examples/phase1/experiment.yaml",
+  "substrate": "fake"
+}

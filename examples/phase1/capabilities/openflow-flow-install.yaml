@@ -1,0 +1,15 @@
+apiVersion: mininet-ai/v1alpha1
+kind: Capability
+metadata:
+  name: openflow.flow.install
+  description: Propose installation of an OpenFlow entry.
+targets: [switch]
+layers: [control, data]
+effects: [dataplane.write]
+input-schema:
+  type: object
+  required: [match, actions]
+output-schema:
+  type: object
+reversible: true
+provider: fake.openflow
