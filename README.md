@@ -168,6 +168,38 @@ mininet_ai/
 └── cli.py            # validate, plan, and schema commands
 ```
 
+### Phase 2 development VM
+
+Phase 2 uses a disposable Ubuntu VM because Mininet and Open vSwitch require
+Linux networking privileges. Create or reprovision it from the host:
+
+```bash
+vagrant up --provision
+```
+
+Provisioning installs a pinned `uv`, Mininet, and Open vSwitch, then creates a
+VM-local environment at `/home/vagrant/.venvs/mininet-ai`. The environment is
+kept outside `/vagrant` so it never conflicts with the host's `.venv`, and it
+includes Ubuntu's system packages so Python can import Mininet. Run project
+commands inside the VM through the checked-in wrapper:
+
+```bash
+vagrant ssh
+cd /vagrant
+scripts/vm-run.sh python -m unittest discover -v
+scripts/vm-run.sh mininet-ai validate examples/phase1/experiment.yaml
+```
+
+From the host, run the complete environment check with:
+
+```bash
+scripts/test-phase2-vm.sh
+```
+
+The check runs the project suite inside the VM, verifies Mininet/OVS access,
+executes a `pingall` smoke test, and restores the clean networking baseline.
+It invokes `mn -c`, so use it only with the disposable Phase 2 VM.
+
 ### Substrate driver contract
 
 Every substrate implements the versioned
