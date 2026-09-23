@@ -227,8 +227,15 @@ this same interface without introducing privileged work into compilation.
 `MininetOVSDriver` is the rootless, compiler-facing adapter for Phase 2. Select
 it with `substrate.driver: mininet-ovs`. It validates the planned OVS bridges,
 Linux interface names, OpenFlow port numbers, controller configuration, and
-traffic-control parameters, but does not create a live network. Live deployment
-belongs to the runtime adapter added in the following commits.
+traffic-control parameters. `MininetOVSRuntime` then creates the accepted plan
+with explicit controller assignments, OVS modes and protocols, interface
+addresses and MTUs, and TC link shaping. Deployment rolls back on failure and
+normal teardown is idempotent. See the
+[Phase 2 acceptance experiment](examples/phase2/experiment.yaml).
+
+The live runtime currently exposes topology-resource inspection and returns a
+typed rejection for actions. Resource discovery, telemetry, and substrate
+actions are added in the following Phase 2 commits.
 
 ### Golden deployment plans
 

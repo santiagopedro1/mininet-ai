@@ -1,0 +1,54 @@
+apiVersion: mininet-ai/v1alpha1
+kind: Experiment
+metadata:
+  name: mininet-ovs-smoke
+  description: Deterministic Phase 2 live-topology acceptance experiment.
+
+substrate:
+  driver: mininet-ovs
+  topology:
+    addressing:
+      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
+      mac: {prefix: "02:00:00", strategy: sequential}
+    resources:
+      - {name: network, kind: network}
+      - name: c0
+        kind: controller
+        parent: network
+        type: builtin
+        port: 6653
+      - name: s1
+        kind: switch
+        parent: network
+        failMode: secure
+        datapath: kernel
+        controllers: [c0]
+        protocols: [OpenFlow13]
+        ports:
+          - {name: s1-eth1, number: 1}
+          - {name: s1-eth2, number: 2}
+      - name: h1
+        kind: host
+        parent: network
+        interfaces:
+          - {name: h1-eth0, ipv4: auto, mac: auto}
+      - name: h2
+        kind: host
+        parent: network
+        interfaces:
+          - {name: h2-eth0, ipv4: auto, mac: auto}
+    links:
+      - name: h1-s1
+        endpoints:
+          - {node: h1, adapter: h1-eth0}
+          - {node: s1, adapter: s1-eth1}
+        bandwidth: 100
+        delay: 1ms
+        loss: 0.1
+      - name: s1-h2
+        endpoints:
+          - {node: s1, adapter: s1-eth2}
+          - {node: h2, adapter: h2-eth0}
+        bandwidth: 100
+        delay: 1ms
+        loss: 0.1

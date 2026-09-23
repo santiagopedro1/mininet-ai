@@ -112,6 +112,35 @@ class MininetOVSDriverTests(unittest.TestCase):
         ):
             compile_experiment(experiment_from(snapshot))
 
+    def test_declared_ports_must_be_attached_to_links(self) -> None:
+        snapshot = example_snapshot()
+        snapshot["substrate"]["driver"] = "mininet-ovs"
+        resources = snapshot["substrate"]["topology"]["resources"]
+        named(resources, "s1")["ports"].append(
+            {"name": "s1-eth3", "number": 3}
+        )
+
+        with self.assertRaisesRegex(
+            CompilationError, "port 's1-eth3' is not attached to a link"
+        ):
+            compile_experiment(experiment_from(snapshot))
+
+    def test_controller_addresses_and_host_routes_must_be_mininet_safe(self) -> None:
+        snapshot = example_snapshot()
+        snapshot["substrate"]["driver"] = "mininet-ovs"
+        resources = snapshot["substrate"]["topology"]["resources"]
+        controller = named(resources, "c0")
+        controller["type"] = "remote"
+        controller["address"] = "2001:db8::1"
+        named(resources, "h1")["defaultRoute"] = "via 10.0.0.254; touch /tmp/x"
+
+        with self.assertRaises(CompilationError) as context:
+            compile_experiment(experiment_from(snapshot))
+
+        message = str(context.exception)
+        self.assertIn("require an IPv4 address", message)
+        self.assertIn("default route must use", message)
+
 
 if __name__ == "__main__":
     unittest.main()

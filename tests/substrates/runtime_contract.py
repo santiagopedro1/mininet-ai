@@ -61,8 +61,9 @@ class SubstrateRuntimeContract:
 
         self.assertEqual(observation.run_id, run.id)
         self.assertIn(target, observation.values)
-        self.assertEqual(action.status, ActionStatus.SUCCEEDED)
-        self.assertTrue(action.changed)
+        self.assertEqual(action.run_id, run.id)
+        self.assertEqual(action.request_id, "contract-action")
+        self.assertIsInstance(action.status, ActionStatus)
 
     def test_teardown_is_idempotent(self) -> None:
         runtime = self.make_runtime()

@@ -7,11 +7,14 @@ cannot be represented safely by Linux interfaces, Open vSwitch, and ``tc``.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
+from ipaddress import ip_address
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, cast
 
 from mininet_ai.specification.models import (
+    NAME_PATTERN,
     AttachmentLayer,
     ControllerProtocol,
     ControllerType,
@@ -27,6 +30,7 @@ from mininet_ai.substrates.protocol import (
 if TYPE_CHECKING:
     from mininet_ai.compiler.models import (
         PlannedController,
+        PlannedHost,
         PlannedLink,
         PlannedPort,
         PlannedResource,
@@ -158,6 +162,42 @@ def _interface_name_issue(
     )
 
 
+def parse_default_route(value: str) -> tuple[str, ...]:
+    """Parse the safe subset accepted by Mininet host route configuration."""
+
+    tokens = tuple(value.split())
+    if len(tokens) == 1 and re.fullmatch(NAME_PATTERN, tokens[0]):
+        return ("dev", tokens[0])
+
+    valid_shapes = {
+        ("via", "address"),
+        ("dev", "interface"),
+        ("via", "address", "dev", "interface"),
+        ("dev", "interface", "via", "address"),
+    }
+    shape = tuple(
+        "address"
+        if index > 0 and tokens[index - 1] == "via"
+        else "interface"
+        if index > 0 and tokens[index - 1] == "dev"
+        else token
+        for index, token in enumerate(tokens)
+    )
+    if shape not in valid_shapes:
+        raise ValueError("default route must use 'via ADDRESS' and/or 'dev INTERFACE'")
+
+    for index, token in enumerate(tokens):
+        if index > 0 and tokens[index - 1] == "via":
+            try:
+                ip_address(token)
+            except ValueError as error:
+                raise ValueError(f"invalid default-route address {token!r}") from error
+        elif index > 0 and tokens[index - 1] == "dev":
+            if not re.fullmatch(NAME_PATTERN, token):
+                raise ValueError(f"invalid default-route interface {token!r}")
+    return tokens
+
+
 class MininetOVSDriver(ManifestSubstrateDriver):
     """Compile-time capabilities and constraints for Mininet with OVS."""
 
@@ -184,6 +224,17 @@ class MininetOVSDriver(ManifestSubstrateDriver):
     ) -> tuple[SubstrateIssue, ...]:
         issues = list(super().validate_resources(resources))
         local_controllers: dict[int, tuple[int, str]] = {}
+        ports_by_owner: dict[str, set[str]] = {}
+        for resource in resources:
+            if resource.kind == ResourceKind.PORT:
+                port = cast("PlannedPort", resource)
+                ports_by_owner.setdefault(port.parent or "", set()).add(port.name)
+        linked_ports = {
+            endpoint
+            for resource in resources
+            if resource.kind == ResourceKind.LINK
+            for endpoint in cast("PlannedLink", resource).endpoints
+        }
 
         for index, resource in enumerate(resources):
             if resource.kind == ResourceKind.SWITCH:
@@ -209,9 +260,30 @@ class MininetOVSDriver(ManifestSubstrateDriver):
                             field="number",
                         )
                     )
+                if port.name not in linked_ports:
+                    issues.append(
+                        _issue(
+                            "resource.unlinked-port",
+                            (
+                                f"port {port.name!r} is not attached to a link; "
+                                "Mininet creates interfaces from links"
+                            ),
+                            index=index,
+                            field="name",
+                        )
+                    )
 
             elif resource.kind == ResourceKind.CONTROLLER:
                 controller = cast("PlannedController", resource)
+                if controller.address is not None and ":" in controller.address:
+                    issues.append(
+                        _issue(
+                            "resource.controller-address",
+                            "Mininet controllers currently require an IPv4 address",
+                            index=index,
+                            field="address",
+                        )
+                    )
                 if controller.protocol == ControllerProtocol.SSL:
                     issues.append(
                         _issue(
@@ -240,6 +312,36 @@ class MininetOVSDriver(ManifestSubstrateDriver):
                         )
                     else:
                         local_controllers[controller.port] = (index, controller.name)
+
+            elif resource.kind == ResourceKind.HOST:
+                host = cast("PlannedHost", resource)
+                if host.default_route is not None:
+                    try:
+                        route = parse_default_route(host.default_route)
+                    except ValueError as error:
+                        issues.append(
+                            _issue(
+                                "resource.default-route",
+                                str(error),
+                                index=index,
+                                field="defaultRoute",
+                            )
+                        )
+                    else:
+                        if "dev" in route:
+                            interface = route[route.index("dev") + 1]
+                            if interface not in ports_by_owner.get(host.name, set()):
+                                issues.append(
+                                    _issue(
+                                        "resource.default-route",
+                                        (
+                                            f"default-route interface {interface!r} "
+                                            f"does not belong to host {host.name!r}"
+                                        ),
+                                        index=index,
+                                        field="defaultRoute",
+                                    )
+                                )
 
             elif resource.kind == ResourceKind.LINK:
                 link = cast("PlannedLink", resource)

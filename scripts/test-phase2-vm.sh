@@ -11,7 +11,7 @@ fi
 
 cd "${ROOT_DIRECTORY}"
 
-printf '%s\n' 'Running Phase 1 tests in the Phase 2 VM...'
+printf '%s\n' 'Running project tests in the Phase 2 VM...'
 vagrant ssh -c '
     set -eu
     cd /vagrant
@@ -34,6 +34,10 @@ vagrant ssh -c '
     sudo mn -c
     sudo scripts/check-mininet-cleanup.sh snapshot --force
     cleanup_required=1
+    sudo env MININET_AI_LIVE_TESTS=1 \
+        scripts/vm-run.sh python -m unittest \
+        tests.integration.test_mininet_ovs_runtime -v
+    sudo scripts/check-mininet-cleanup.sh check
     sudo mn --test pingall
     sudo scripts/check-mininet-cleanup.sh recover
     cleanup_required=0

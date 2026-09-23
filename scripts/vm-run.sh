@@ -21,7 +21,7 @@ if [[ ! -x "${VM_ENVIRONMENT}/bin/python" ]]; then
     exit 1
 fi
 
-export PATH="${VM_ENVIRONMENT}/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH="${VM_ENVIRONMENT}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export UV_CACHE_DIR="/home/vagrant/.cache/uv"
 export UV_PROJECT_ENVIRONMENT="${VM_ENVIRONMENT}"
 export VIRTUAL_ENV="${VM_ENVIRONMENT}"

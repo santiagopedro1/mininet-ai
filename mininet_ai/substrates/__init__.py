@@ -5,7 +5,7 @@ from typing import Any
 
 from mininet_ai.substrates.fake import FakeSubstrateDriver
 from mininet_ai.substrates.fake_runtime import FakeSubstrateRuntime
-from mininet_ai.substrates.mininet_ovs import MininetOVSDriver
+from mininet_ai.substrates.mininet_ovs import MininetOVSDriver, MininetOVSRuntime
 from mininet_ai.substrates.protocol import (
     SUBSTRATE_CONTRACT_VERSION,
     LayerSupport,
@@ -39,6 +39,7 @@ substrate_registry.register("fake", FakeSubstrateDriver)
 substrate_registry.register("mininet-ovs", MininetOVSDriver)
 runtime_registry = RuntimeRegistry()
 runtime_registry.register("fake", FakeSubstrateRuntime)
+runtime_registry.register("mininet-ovs", MininetOVSRuntime)
 
 
 def register_substrate_driver(name: str, factory: SubstrateFactory) -> None:
@@ -79,6 +80,7 @@ __all__ = [
     "LiveResource",
     "ManifestSubstrateDriver",
     "MininetOVSDriver",
+    "MininetOVSRuntime",
     "ObservationQuery",
     "ObservationResult",
     "ResourceOperationalState",

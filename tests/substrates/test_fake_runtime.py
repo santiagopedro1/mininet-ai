@@ -54,7 +54,7 @@ class FakeRuntimeTests(unittest.TestCase):
         runtime = create_substrate_runtime("fake")
 
         self.assertIsInstance(runtime, FakeSubstrateRuntime)
-        self.assertEqual(runtime_registry.names, ("fake",))
+        self.assertEqual(runtime_registry.names, ("fake", "mininet-ovs"))
 
     def test_registry_rejects_invalid_factories(self) -> None:
         registry = RuntimeRegistry()
