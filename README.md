@@ -224,6 +224,12 @@ adapter, and `tests.substrates.runtime_contract.SubstrateRuntimeContract`
 provides reusable conformance tests. The Mininet/OVS implementation will use
 this same interface without introducing privileged work into compilation.
 
+`MininetOVSDriver` is the rootless, compiler-facing adapter for Phase 2. Select
+it with `substrate.driver: mininet-ovs`. It validates the planned OVS bridges,
+Linux interface names, OpenFlow port numbers, controller configuration, and
+traffic-control parameters, but does not create a live network. Live deployment
+belongs to the runtime adapter added in the following commits.
+
 ### Golden deployment plans
 
 The acceptance experiment has a canonical deployment plan under `tests/golden`.
