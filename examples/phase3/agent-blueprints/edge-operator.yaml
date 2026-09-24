@@ -1,0 +1,25 @@
+apiVersion: mininet-ai/v1alpha1
+kind: AgentBlueprint
+metadata:
+  name: edge-operator
+  description: Deterministic offline agent used by the Phase 3 acceptance test.
+implementation:
+  type: declarative
+model:
+  provider: mock
+  name: deterministic
+  parameters:
+    response:
+      message: Inspect telemetry and apply the declared safe change.
+      proposals:
+        - id: read-s1
+          capability: example.telemetry.read
+          target: s1
+          arguments: {}
+        - id: update-s1
+          capability: example.action.apply
+          target: s1
+          arguments: {enabled: true}
+reasoning:
+  instructions: Use only the capabilities and target in the supplied context.
+  timeout: 2s

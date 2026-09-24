@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from typer.testing import CliRunner
@@ -9,6 +11,7 @@ from typer.testing import CliRunner
 from mininet_ai.cli import app
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import FakeSubstrateRuntime, RunState
+from tests.agents.test_runtime import configured_plan
 from tests.compiler.helpers import example_snapshot, experiment_from
 
 
@@ -160,6 +163,127 @@ class RuntimeCLITests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 1)
         self.assertIn("runtime.run.unknown", result.output)
+
+    def test_invoke_runs_one_agent_and_writes_audit_json_lines(self) -> None:
+        plan = configured_plan(
+            {
+                "message": "install a safe rule",
+                "proposals": [
+                    {
+                        "id": "proposal-1",
+                        "capability": "openflow.flow.install",
+                        "target": "s1",
+                        "arguments": {"match": "ip", "actions": "normal"},
+                    }
+                ],
+            }
+        )
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-agent-run")
+        run = runtime.deploy(plan)
+        with TemporaryDirectory() as temporary:
+            audit_path = Path(temporary) / "audit" / "events.jsonl"
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "invoke",
+                        "experiment.yaml",
+                        run.id,
+                        "switch-router@s1",
+                        "--intent",
+                        "repair forwarding",
+                        "--audit-log",
+                        str(audit_path),
+                        "--format",
+                        "json",
+                    ],
+                )
+
+            self.assertEqual(result.exit_code, 0, result.output)
+            payload = json.loads(result.output)
+            self.assertEqual(payload["status"], "succeeded")
+            self.assertEqual(payload["actionResults"][0]["status"], "succeeded")
+            records = [
+                json.loads(line)
+                for line in audit_path.read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(records[0]["type"], "agent.invocation.started")
+            self.assertEqual(
+                records[-1]["type"],
+                "capability.execution.completed",
+            )
+
+    def test_invoke_prints_failed_result_and_returns_nonzero(self) -> None:
+        plan = configured_plan({"metadata": {}})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-failed-agent")
+        run = runtime.deploy(plan)
+        with TemporaryDirectory() as temporary:
+            audit_path = Path(temporary) / "audit.jsonl"
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "invoke",
+                        "experiment.yaml",
+                        run.id,
+                        "switch-router@s1",
+                        "--intent",
+                        "inspect",
+                        "--audit-log",
+                        str(audit_path),
+                        "--format",
+                        "json",
+                    ],
+                )
+
+        self.assertEqual(result.exit_code, 1)
+        payload = json.loads(result.output)
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["issue"]["code"], "agent.response.invalid")
+
+    def test_invoke_discovers_plugins_only_when_requested(self) -> None:
+        plan = configured_plan({"message": "done"})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-plugins")
+        run = runtime.deploy(plan)
+        with TemporaryDirectory() as temporary:
+            audit_path = Path(temporary) / "audit.jsonl"
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+                patch("mininet_ai.cli.discover_plugins", return_value=()) as discover,
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "invoke",
+                        "experiment.yaml",
+                        run.id,
+                        "switch-router@s1",
+                        "--intent",
+                        "inspect",
+                        "--audit-log",
+                        str(audit_path),
+                        "--discover-plugins",
+                    ],
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        discover.assert_called_once()
 
 
 if __name__ == "__main__":

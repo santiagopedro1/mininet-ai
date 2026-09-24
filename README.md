@@ -22,6 +22,68 @@ Phase 1 introduces the `mininet-ai/v1alpha1` public contract and a compiler that
 
 Logical placement is intentionally separate from physical execution. For example, an agent may be attached to the data plane of a switch while its model executes in an external process. The attachment controls its network scope and available capabilities.
 
+The Phase 3 foundation adds the independent
+`mininet-ai/agent-runtime/v1alpha1` SDK contract. It defines scoped invocation
+context, model requests and responses, structured action proposals, normalized
+invocation results, and provider protocols. An execution catalog resolves each
+compiled agent to its normalized blueprint, capability definitions, and policy
+without changing the deployment-plan format.
+
+Agent, capability, and model adapters use explicit provider registries. Optional
+packages expose versioned descriptors through the `mininet_ai.agents`,
+`mininet_ai.capabilities`, or `mininet_ai.models` Python entry-point groups.
+Discovery is opt-in and transactional: compiling or validating an experiment
+does not import plugins, and a failed discovery leaves existing registrations
+unchanged.
+
+`CapabilityEngine` is the single execution seam for agent proposals. Before a
+provider can run, it verifies the compiled agent identity and scope, assigned
+capability, target kind, attachment layer, and effects; validates input against
+JSON Schema; and then validates and normalizes provider output. Authorization
+violations are rejected without invoking plugin code, while provider and output
+failures use typed action results.
+
+Built-in capability adapters connect authorized proposals to substrate actions
+or observations, local executables, and HTTP services. External adapters use a
+versioned JSON request containing the scoped context and proposal, and require a
+`CapabilityOutcome` response. Process adapters never invoke a shell, use a
+minimal explicit environment, bound output, enforce deadlines, and terminate
+the complete process group. HTTP adapters reject embedded URL credentials,
+disable redirects, and bound response bodies.
+
+Built-in model adapters normalize OpenAI-compatible chat completions and
+Ollama chat responses into the same `ModelResponse` contract. Calls are always
+non-streaming and use the shared bounded HTTP transport. OpenAI-compatible
+parameters are sent as top-level request fields; Ollama parameters are sent as
+`options`. When a response schema is requested, the adapter sends the backend's
+structured-output setting, parses strict JSON, and validates the result locally
+before returning it. Credentials belong in adapter configuration or plugin
+code, not experiment documents or endpoint URLs.
+
+Declarative agent adapters turn a compiled blueprint and scoped `AgentContext`
+into one structured model request, then require a valid `AgentResponse` before
+any proposal reaches the capability engine. Python agents use an explicit
+`module:callable` entrypoint with the same context and response contracts.
+Entrypoints are imported only when their provider is constructed, never during
+validation or compilation. They currently run as trusted code in the
+orchestrator process; process and namespace isolation belong to Phase 6.
+
+Audit decorators record agent invocations, complete model prompts and normalized
+responses, token usage, action proposals, results, and typed failures as
+versioned JSON events. The JSON Lines sink serializes concurrent appenders,
+limits individual event size, and creates owner-only files. Audit records can
+contain prompts and observations and must therefore be treated as sensitive
+experiment artifacts. Writes are synchronous: failure to record a start event
+prevents the wrapped operation from running instead of silently losing audit
+coverage.
+
+`OneShotAgentRuntime` connects those seams for manual invocations. It verifies
+that the supplied deployment plan matches a running substrate, collects only
+declared observations, invokes the selected agent and model providers, and
+passes every proposal through capability authorization. Ollama,
+OpenAI-compatible, deterministic mock, and substrate-backed providers are
+built in; installed provider plugins are loaded only when explicitly enabled.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -72,6 +134,18 @@ new contract version. See [Compatibility and versioning](docs/compatibility.md)
 for the complete rules and review checklist.
 
 The example compiles one reusable blueprint into a singleton global agent, one controller-domain agent, two switch-local agents, and two host agents.
+
+Phase 3 has a separate rootless acceptance example containing user-authored
+telemetry and action plugins, a deterministic declarative agent, and an
+out-of-scope action check:
+
+```bash
+uv run mininet-ai validate examples/phase3/experiment.yaml
+uv run python -m examples.phase3
+uv run pytest -q tests/acceptance/test_phase3.py
+```
+
+See [the Phase 3 example](examples/phase3/README.md) for its extension layout.
 
 ## Specification overview
 
@@ -162,9 +236,16 @@ The code is organized by responsibility:
 
 ```text
 mininet_ai/
+├── agents/          # Declarative and Python agent adapters
+├── audit/           # Versioned runtime events, sinks, and decorators
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
+├── capabilities/    # Proposal authorization, validation, and execution
+├── models/          # Normalized model-backend adapters
+├── plugins/         # Explicit provider registries and entry-point discovery
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
+├── sdk/             # Agent, model, and capability runtime contracts
+├── transports/      # Bounded I/O shared by external adapters
 └── cli.py            # compile-time and live-runtime commands
 ```
 
@@ -276,6 +357,24 @@ sudo scripts/vm-run.sh mininet-ai status <run-id>
 sudo scripts/vm-run.sh mininet-ai topology <run-id>
 sudo scripts/vm-run.sh mininet-ai stop <run-id>
 ```
+
+Invoke one compiled agent from another terminal while its matching experiment
+is running:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai invoke experiment.yaml <run-id> \
+  switch-router@s1 --intent "Inspect forwarding and repair it safely"
+```
+
+The command refuses a plan whose digest differs from the deployed run. It
+prints a normalized `AgentInvocationResult` and appends prompts, token usage,
+proposals, and action results to `.mininet-ai/audit.jsonl` by default. Use
+`--format json`, `--audit-log PATH`, or `--model-endpoint URL` when needed.
+OpenAI-compatible credentials are read from `OPENAI_API_KEY`; select another
+environment variable with `--model-api-key-env`. Add `--discover-plugins` to
+explicitly load installed provider entry points. Capabilities implemented by
+the active substrate use provider `substrate.action` or
+`substrate.observation`.
 
 `status` and `topology` accept `--format json`. `stop` signals only the owner
 whose PID, boot identity, and process start time match the protected run-state

@@ -7,7 +7,7 @@ driver contract.
 
 ## Versioned contracts
 
-The project currently defines four contract families:
+The project currently defines six contract families:
 
 - `mininet-ai/v1alpha1` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
@@ -24,6 +24,19 @@ The project currently defines four contract families:
   record used to inspect and recover an interrupted Mininet/OVS run. It is
   versioned so a newer runtime never guesses how to clean up an incompatible
   record.
+- `mininet-ai/agent-runtime/v1alpha1` covers the SDK seam used by agent,
+  capability, and model-provider adapters, including scoped invocation context,
+  action proposals, normalized model responses, invocation results, versioned
+  provider descriptors, registry semantics, and the JSON protocol used by
+  external capability processes and services. OpenAI-compatible and Ollama
+  wire formats are adapter details normalized into this contract; they are not
+  additional public contract families. Declarative agents emit the normalized
+  `AgentResponse` shape, and Python entrypoints receive `AgentContext` and must
+  return that same shape. The agent-runtime contract is independent of
+  experiment and substrate contract versions.
+- `mininet-ai/audit/v1alpha1` covers correlated JSON audit records for agent,
+  model, and capability execution. It is versioned separately so storage and
+  analysis tools can evolve without changing provider contracts.
 
 The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing
@@ -90,6 +103,8 @@ require a new runtime contract version, such as
 changing which optional features a specific adapter advertises does not.
 Changes to persisted ownership fields or their recovery meaning require a new
 runtime-state version, such as `mininet-ai/runtime-state/v1alpha2`.
+Changes to the SDK provider protocols or serialized agent-runtime models require
+a new agent-runtime version, such as `mininet-ai/agent-runtime/v1alpha2`.
 
 When a contract is promoted to beta or stable, use a new version such as
 `v1beta1` or `v1`. Supporting an older version alongside the new one is an

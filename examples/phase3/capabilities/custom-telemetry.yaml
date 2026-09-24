@@ -1,0 +1,19 @@
+apiVersion: mininet-ai/v1alpha1
+kind: Capability
+metadata:
+  name: example.telemetry.read
+  description: Return the already-scoped topology observation for one target.
+targets: [switch]
+layers: [data]
+effects: []
+input-schema:
+  type: object
+  maxProperties: 0
+output-schema:
+  type: object
+  required: [target, observation]
+  properties:
+    target: {type: string}
+    observation: {type: object}
+  additionalProperties: false
+provider: example.telemetry
