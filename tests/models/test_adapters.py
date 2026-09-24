@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from mininet_ai.models import (
+    DeterministicModelProvider,
     OllamaModelProvider,
     OpenAICompatibleModelProvider,
 )
@@ -45,6 +46,23 @@ def request(**updates) -> ModelRequest:
 
 
 class ModelAdapterTests(unittest.TestCase):
+    def test_deterministic_provider_returns_configured_structured_output(
+        self,
+    ) -> None:
+        provider = DeterministicModelProvider()
+
+        response = provider.generate(
+            request(parameters={"response": {"message": "done"}})
+        )
+
+        self.assertEqual(response.structured_output, {"message": "done"})
+        with self.assertRaises(ModelProviderError) as missing:
+            provider.generate(request(parameters={}))
+        self.assertEqual(
+            missing.exception.code,
+            "model.deterministic.response-missing",
+        )
+
     def test_adapters_satisfy_the_model_provider_protocol(self) -> None:
         self.assertIsInstance(OpenAICompatibleModelProvider(), ModelProvider)
         self.assertIsInstance(OllamaModelProvider(), ModelProvider)

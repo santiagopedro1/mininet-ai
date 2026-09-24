@@ -1,0 +1,413 @@
+"""Bounded orchestration for one manually requested agent invocation."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from pydantic import JsonValue, TypeAdapter, ValidationError
+
+from mininet_ai.agents.providers import (
+    DeclarativeAgentProvider,
+    PythonAgentProvider,
+)
+from mininet_ai.audit import (
+    AuditEventType,
+    AuditRecorder,
+    AuditedCapabilityExecutor,
+    AuditedModelProvider,
+)
+from mininet_ai.capabilities import (
+    CapabilityEngine,
+    SubstrateActionProvider,
+    SubstrateObservationProvider,
+)
+from mininet_ai.compiler import DeploymentPlan
+from mininet_ai.errors import AgentRuntimeError
+from mininet_ai.models import (
+    DeterministicModelProvider,
+    OllamaModelProvider,
+    OpenAICompatibleModelProvider,
+)
+from mininet_ai.plugins import (
+    ProviderKind,
+    ProviderPlugin,
+    ProviderRegistries,
+)
+from mininet_ai.sdk import (
+    AgentContext,
+    AgentInvocationResult,
+    AgentProvider,
+    AgentResponse,
+    AgentRuntimeIssue,
+    ExecutionCatalog,
+    InvocationStatus,
+)
+from mininet_ai.sdk.catalog import AgentExecutionDefinition
+from mininet_ai.substrates import (
+    ActionResult,
+    ActionStatus,
+    ObservationQuery,
+    RunState,
+    SubstrateRuntime,
+)
+
+
+Clock = Callable[[], datetime]
+InvocationIdFactory = Callable[[], str]
+_JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _invocation_id() -> str:
+    return f"invoke-{uuid4()}"
+
+
+def register_builtin_providers(
+    registries: ProviderRegistries,
+    substrate: SubstrateRuntime,
+    *,
+    model_endpoint: str | None = None,
+    openai_api_key: str | None = None,
+) -> None:
+    """Register providers that ship with the core package."""
+
+    registries.models.register(
+        "mock",
+        ProviderPlugin(
+            kind=ProviderKind.MODEL,
+            factory=lambda configuration: DeterministicModelProvider(),
+        ),
+    )
+    registries.models.register(
+        "ollama",
+        ProviderPlugin(
+            kind=ProviderKind.MODEL,
+            factory=lambda configuration: OllamaModelProvider(
+                endpoint=model_endpoint or "http://127.0.0.1:11434/api/chat"
+            ),
+        ),
+    )
+    registries.models.register(
+        "openai-compatible",
+        ProviderPlugin(
+            kind=ProviderKind.MODEL,
+            factory=lambda configuration: OpenAICompatibleModelProvider(
+                endpoint=(
+                    model_endpoint
+                    or "https://api.openai.com/v1/chat/completions"
+                ),
+                api_key=openai_api_key,
+            ),
+        ),
+    )
+    substrate_action = ProviderPlugin(
+        kind=ProviderKind.CAPABILITY,
+        factory=lambda definition: SubstrateActionProvider(definition, substrate),
+    )
+    registries.capabilities.register("substrate.action", substrate_action)
+    registries.capabilities.register(
+        "substrate.observation",
+        ProviderPlugin(
+            kind=ProviderKind.CAPABILITY,
+            factory=lambda definition: SubstrateObservationProvider(
+                definition,
+                substrate,
+            ),
+        ),
+    )
+    if substrate.name == "fake":
+        registries.capabilities.register("fake.openflow", substrate_action)
+
+
+class OneShotAgentRuntime:
+    """Observe, invoke, authorize, execute, and normalize one agent run."""
+
+    def __init__(
+        self,
+        plan: DeploymentPlan,
+        substrate: SubstrateRuntime,
+        registries: ProviderRegistries,
+        *,
+        audit: AuditRecorder | None = None,
+        clock: Clock = _utc_now,
+        invocation_id_factory: InvocationIdFactory = _invocation_id,
+    ) -> None:
+        self._catalog = ExecutionCatalog(plan)
+        self._substrate = substrate
+        self._registries = registries
+        self._audit = audit
+        self._clock = clock
+        self._invocation_id_factory = invocation_id_factory
+        capability_engine = CapabilityEngine(
+            self._catalog,
+            registries.capabilities,
+            clock=clock,
+        )
+        self._capabilities = (
+            AuditedCapabilityExecutor(capability_engine, audit)
+            if audit is not None
+            else capability_engine
+        )
+
+    def invoke(
+        self,
+        run_id: str,
+        agent_id: str,
+        intent: str,
+    ) -> AgentInvocationResult:
+        started_at = self._clock()
+        invocation_id = self._invocation_id_factory()
+        if not intent:
+            raise AgentRuntimeError(
+                "agent intent cannot be empty",
+                code="agent.intent.invalid",
+                agent_id=agent_id,
+                invocation_id=invocation_id,
+            )
+        if not invocation_id:
+            raise AgentRuntimeError(
+                "invocation id factory returned an empty value",
+                code="agent.invocation.invalid-id",
+                agent_id=agent_id,
+            )
+        definition = self._catalog.resolve(agent_id)
+        snapshot = self._substrate.inspect(run_id)
+        if snapshot.run.id != run_id:
+            raise AgentRuntimeError(
+                "substrate returned state for a different run",
+                code="agent.run.invalid-identity",
+                agent_id=agent_id,
+                invocation_id=invocation_id,
+            )
+        if snapshot.run.plan_digest != self._catalog.plan_digest:
+            raise AgentRuntimeError(
+                f"run {run_id!r} was not deployed from the supplied plan",
+                code="agent.run.plan-mismatch",
+                agent_id=agent_id,
+                invocation_id=invocation_id,
+            )
+        if snapshot.run.state != RunState.RUNNING:
+            raise AgentRuntimeError(
+                f"run {run_id!r} is {snapshot.run.state.value}, not running",
+                code="agent.run.not-running",
+                agent_id=agent_id,
+                invocation_id=invocation_id,
+            )
+        observations = self._observe(run_id, definition)
+        context = self._context(
+            definition,
+            invocation_id=invocation_id,
+            run_id=run_id,
+            intent=intent,
+            invoked_at=started_at,
+            observations=observations,
+        )
+        if self._audit is not None:
+            self._audit.record(
+                AuditEventType.AGENT_STARTED,
+                context,
+                {"context": context.model_dump(mode="json", by_alias=True)},
+            )
+        try:
+            provider = self._agent_provider(definition, context)
+            response = provider.invoke(context)
+        except Exception as error:
+            if self._audit is not None:
+                self._audit.record(
+                    AuditEventType.AGENT_FAILED,
+                    context,
+                    self._error_data(error),
+                )
+            return self._failure(context, started_at, error)
+        if self._audit is not None:
+            self._audit.record(
+                AuditEventType.AGENT_COMPLETED,
+                context,
+                {"response": response.model_dump(mode="json", by_alias=True)},
+            )
+
+        action_results = tuple(
+            self._capabilities.execute(context, proposal)
+            for proposal in response.proposals
+        )
+        return self._result(context, started_at, response, action_results)
+
+    def _observe(
+        self,
+        run_id: str,
+        definition: AgentExecutionDefinition,
+    ) -> dict[str, JsonValue]:
+        observations: dict[str, JsonValue] = {}
+        for name in definition.instance.observes:
+            query = ObservationQuery(
+                name=name,
+                targets=definition.instance.attachment.targets,
+            )
+            result = self._substrate.observe(
+                run_id,
+                query,
+            )
+            if result.run_id != run_id or result.query != query:
+                raise AgentRuntimeError(
+                    f"observation {name!r} returned mismatched identity",
+                    code="agent.observation.invalid-identity",
+                    agent_id=definition.instance.id,
+                )
+            try:
+                observations[name] = _JSON_OBJECT.validate_python(result.values)
+            except (TypeError, ValueError, ValidationError) as error:
+                raise AgentRuntimeError(
+                    f"observation {name!r} returned non-JSON data: {error}",
+                    code="agent.observation.invalid",
+                    agent_id=definition.instance.id,
+                ) from error
+        return observations
+
+    @staticmethod
+    def _context(
+        definition: AgentExecutionDefinition,
+        *,
+        invocation_id: str,
+        run_id: str,
+        intent: str,
+        invoked_at: datetime,
+        observations: dict[str, JsonValue],
+    ) -> AgentContext:
+        instance = definition.instance
+        attachment = instance.attachment
+        return AgentContext(
+            invocationId=invocation_id,
+            runId=run_id,
+            agentId=instance.id,
+            deployment=instance.deployment,
+            layer=attachment.layer,
+            customLayer=attachment.custom_layer,
+            targetKind=attachment.target_kind,
+            targets=attachment.targets,
+            capabilities=instance.capabilities,
+            observations=observations,
+            intent=intent,
+            priority=instance.priority,
+            invokedAt=invoked_at,
+        )
+
+    def _agent_provider(
+        self,
+        definition: AgentExecutionDefinition,
+        context: AgentContext,
+    ) -> AgentProvider:
+        implementation = definition.blueprint.implementation
+        if implementation.type == "declarative":
+            model_configuration = definition.blueprint.model
+            if model_configuration is None:
+                raise AgentRuntimeError(
+                    "declarative agent has no model configuration",
+                    code="agent.configuration.model-missing",
+                    agent_id=definition.instance.id,
+                    invocation_id=context.invocation_id,
+                )
+            model = self._registries.models.create(
+                model_configuration.provider,
+                model_configuration,
+            )
+            if self._audit is not None:
+                model = AuditedModelProvider(model, self._audit, context)
+            return DeclarativeAgentProvider(definition, model)
+
+        entrypoint = implementation.entrypoint
+        if entrypoint is not None and ":" not in entrypoint:
+            return self._registries.agents.create(entrypoint, definition)
+        return PythonAgentProvider(definition)
+
+    def _result(
+        self,
+        context: AgentContext,
+        started_at: datetime,
+        response: AgentResponse,
+        action_results: tuple[ActionResult, ...],
+    ) -> AgentInvocationResult:
+        unsuccessful = next(
+            (
+                result
+                for result in action_results
+                if result.status != ActionStatus.SUCCEEDED
+            ),
+            None,
+        )
+        if unsuccessful is None:
+            return AgentInvocationResult(
+                invocationId=context.invocation_id,
+                runId=context.run_id,
+                agentId=context.agent_id,
+                status=InvocationStatus.SUCCEEDED,
+                startedAt=started_at,
+                completedAt=self._clock(),
+                response=response,
+                actionResults=action_results,
+            )
+        issue = unsuccessful.issue
+        if issue is None:
+            raise AssertionError("unsuccessful action result has no issue")
+        status = (
+            InvocationStatus.REJECTED
+            if unsuccessful.status == ActionStatus.REJECTED
+            else InvocationStatus.FAILED
+        )
+        return AgentInvocationResult(
+            invocationId=context.invocation_id,
+            runId=context.run_id,
+            agentId=context.agent_id,
+            status=status,
+            startedAt=started_at,
+            completedAt=self._clock(),
+            response=response,
+            actionResults=action_results,
+            issue=AgentRuntimeIssue(
+                code=issue.code,
+                message=issue.message,
+                agentId=context.agent_id,
+                target=issue.target,
+            ),
+        )
+
+    def _failure(
+        self,
+        context: AgentContext,
+        started_at: datetime,
+        error: Exception,
+    ) -> AgentInvocationResult:
+        return AgentInvocationResult(
+            invocationId=context.invocation_id,
+            runId=context.run_id,
+            agentId=context.agent_id,
+            status=InvocationStatus.FAILED,
+            startedAt=started_at,
+            completedAt=self._clock(),
+            issue=AgentRuntimeIssue(
+                code=self._error_code(error),
+                message=str(error) or type(error).__name__,
+                agentId=context.agent_id,
+            ),
+        )
+
+    @staticmethod
+    def _error_code(error: Exception) -> str:
+        code = getattr(error, "code", None)
+        if isinstance(code, str) and code:
+            return code
+        if isinstance(error, TimeoutError):
+            return "agent.invocation.timeout"
+        return "agent.invocation.failed"
+
+    @classmethod
+    def _error_data(cls, error: Exception) -> dict[str, JsonValue]:
+        return {
+            "code": cls._error_code(error),
+            "errorType": type(error).__name__,
+            "message": str(error) or type(error).__name__,
+        }

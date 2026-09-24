@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import signal
 import threading
 from enum import StrEnum
@@ -14,8 +15,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
-from mininet_ai.errors import MininetAIError, RuntimeOperationError
+from mininet_ai.errors import MininetAIError
+from mininet_ai.plugins import ProviderRegistries, discover_plugins
+from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification import (
     AgentBlueprint,
     CapabilityDefinition,
@@ -96,13 +101,32 @@ def _operation_or_exit(operation):
     try:
         return operation()
     except MininetAIError as error:
-        code = f" ({error.code})" if isinstance(error, RuntimeOperationError) else ""
+        error_code = getattr(error, "code", None)
+        code = f" ({error_code})" if error_code else ""
         error_console.print(f"[bold red]Error{code}:[/bold red] {error}")
         raise typer.Exit(code=1) from error
 
 
 def _print_json(model) -> None:
     console.print_json(model.model_dump_json(by_alias=True, exclude_none=True))
+
+
+def _print_invocation(result: AgentInvocationResult, audit_log: Path) -> None:
+    color = "green" if result.status == InvocationStatus.SUCCEEDED else "red"
+    console.print(
+        f"[{color}]{result.status.value.title()}[/{color}] "
+        f"{result.invocation_id} for {result.agent_id}"
+    )
+    if result.response is not None and result.response.message is not None:
+        console.print(result.response.message)
+    for action in result.action_results:
+        console.print(
+            f"  {action.request_id}: {action.status.value}"
+            + (f" ({action.issue.code})" if action.issue is not None else "")
+        )
+    if result.issue is not None:
+        console.print(f"Issue: {result.issue.code}: {result.issue.message}")
+    console.print(f"Audit: {audit_log}")
 
 
 @app.command()
@@ -295,6 +319,77 @@ def stop(
         f"[green]Stopped[/green] {result.run.id}; "
         f"released {len(result.released_resources)} resources"
     )
+
+
+@app.command()
+def invoke(
+    experiment: Path = typer.Argument(
+        ..., exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
+    ),
+    run_id: str = typer.Argument(..., help="Running substrate identifier."),
+    agent_id: str = typer.Argument(..., help="Compiled agent instance identifier."),
+    intent: str = typer.Option(..., "--intent", "-i", help="One-shot agent intent."),
+    audit_log: Path = typer.Option(
+        Path(".mininet-ai/audit.jsonl"),
+        "--audit-log",
+        help="Append-only JSONL audit destination.",
+    ),
+    discover: bool = typer.Option(
+        False,
+        "--discover-plugins",
+        help="Load installed agent, model, and capability entry points.",
+    ),
+    model_endpoint: str | None = typer.Option(
+        None,
+        "--model-endpoint",
+        help="Override the selected built-in HTTP model endpoint.",
+    ),
+    model_api_key_env: str = typer.Option(
+        "OPENAI_API_KEY",
+        "--model-api-key-env",
+        help="Environment variable containing an OpenAI-compatible API key.",
+    ),
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.TEXT,
+        "--format",
+        "-f",
+        help="Invocation result format.",
+    ),
+) -> None:
+    """Invoke one compiled agent against an already-running experiment."""
+
+    deployment_plan = _compile_or_exit(experiment)
+    substrate = _runtime_or_exit(deployment_plan.substrate)
+    registries = ProviderRegistries()
+    register_builtin_providers(
+        registries,
+        substrate,
+        model_endpoint=model_endpoint,
+        openai_api_key=os.environ.get(model_api_key_env),
+    )
+    if discover:
+        _operation_or_exit(lambda: discover_plugins(registries))
+    try:
+        audit_log.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    except OSError as error:
+        error_console.print(
+            f"[bold red]Error:[/bold red] cannot create audit directory: {error}"
+        )
+        raise typer.Exit(code=1) from error
+    recorder = AuditRecorder(JsonLinesAuditSink(audit_log, sync=True))
+    runtime = OneShotAgentRuntime(
+        deployment_plan,
+        substrate,
+        registries,
+        audit=recorder,
+    )
+    result = _operation_or_exit(lambda: runtime.invoke(run_id, agent_id, intent))
+    if output_format == OutputFormat.JSON:
+        _print_json(result)
+    else:
+        _print_invocation(result, audit_log)
+    if result.status != InvocationStatus.SUCCEEDED:
+        raise typer.Exit(code=1)
 
 
 @app.command("schema")

@@ -12,3 +12,6 @@ wheels/
 donotpush/
 
 .vagrant/
+
+# Local runtime artifacts
+.mininet-ai/

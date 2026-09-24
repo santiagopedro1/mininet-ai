@@ -123,6 +123,20 @@ def _reject_json_constant(value: str) -> None:
     raise ValueError(f"invalid JSON constant {value}")
 
 
+class DeterministicModelProvider:
+    """Return configured structured output without network access."""
+
+    contract_version = AGENT_RUNTIME_CONTRACT_VERSION
+
+    def generate(self, request: ModelRequest) -> ModelResponse:
+        if "response" not in request.parameters:
+            raise ModelProviderError(
+                "deterministic model requires a 'response' parameter",
+                code="model.deterministic.response-missing",
+            )
+        return ModelResponse(structuredOutput=request.parameters["response"])
+
+
 class _HttpModelProvider:
     contract_version = AGENT_RUNTIME_CONTRACT_VERSION
 

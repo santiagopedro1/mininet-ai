@@ -77,6 +77,13 @@ experiment artifacts. Writes are synchronous: failure to record a start event
 prevents the wrapped operation from running instead of silently losing audit
 coverage.
 
+`OneShotAgentRuntime` connects those seams for manual invocations. It verifies
+that the supplied deployment plan matches a running substrate, collects only
+declared observations, invokes the selected agent and model providers, and
+passes every proposal through capability authorization. Ollama,
+OpenAI-compatible, deterministic mock, and substrate-backed providers are
+built in; installed provider plugins are loaded only when explicitly enabled.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -338,6 +345,24 @@ sudo scripts/vm-run.sh mininet-ai status <run-id>
 sudo scripts/vm-run.sh mininet-ai topology <run-id>
 sudo scripts/vm-run.sh mininet-ai stop <run-id>
 ```
+
+Invoke one compiled agent from another terminal while its matching experiment
+is running:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai invoke experiment.yaml <run-id> \
+  switch-router@s1 --intent "Inspect forwarding and repair it safely"
+```
+
+The command refuses a plan whose digest differs from the deployed run. It
+prints a normalized `AgentInvocationResult` and appends prompts, token usage,
+proposals, and action results to `.mininet-ai/audit.jsonl` by default. Use
+`--format json`, `--audit-log PATH`, or `--model-endpoint URL` when needed.
+OpenAI-compatible credentials are read from `OPENAI_API_KEY`; select another
+environment variable with `--model-api-key-env`. Add `--discover-plugins` to
+explicitly load installed provider entry points. Capabilities implemented by
+the active substrate use provider `substrate.action` or
+`substrate.observation`.
 
 `status` and `topology` accept `--format json`. `stop` signals only the owner
 whose PID, boot identity, and process start time match the protected run-state
