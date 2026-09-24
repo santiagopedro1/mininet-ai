@@ -93,6 +93,15 @@ payloads have typed models. `InMemoryRuntimeEventBus` provides bounded,
 thread-safe FIFO delivery: a full or closed bus rejects publication explicitly,
 and closure wakes blocked consumers after already queued events are drained.
 
+`SQLiteRunLedger` persists the reproducibility manifest and append-only history
+for experiment runs. A manifest captures the normalized specification, complete
+deployment plan, plugin versions and source digests, and runtime configuration.
+Records receive durable per-run sequence numbers and can be read forward from a
+cursor after restart. Runtime-event and audit-sink adapters preserve their
+original versioned records, including invocation, model, capability, and timing
+data. Ledger files must be owner-only regular files; unsupported database
+versions and unsafe paths are rejected instead of being rewritten.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
