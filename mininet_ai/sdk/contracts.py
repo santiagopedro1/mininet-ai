@@ -121,6 +121,16 @@ class ModelResponse(StrictModel):
         return self
 
 
+class ModelProviderError(Exception):
+    """Typed failure raised while invoking or normalizing a model backend."""
+
+    def __init__(self, message: str, *, code: str) -> None:
+        if not message or not code:
+            raise ValueError("model provider errors require a code and message")
+        super().__init__(message)
+        self.code = code
+
+
 class ActionProposal(StrictModel):
     id: str = Field(min_length=1)
     capability: str = Field(min_length=1)

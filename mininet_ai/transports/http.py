@@ -62,7 +62,7 @@ class HttpxJsonTransport:
                 ) as response:
                     if not 200 <= response.status_code < 300:
                         raise HttpTransportError(
-                            f"HTTP service returned status {response.status_code}",
+                            f"HTTP endpoint returned status {response.status_code}",
                             code="http-status",
                         )
                     body = bytearray()
@@ -74,12 +74,12 @@ class HttpxJsonTransport:
                                 code="response-too-large",
                             )
         except httpx.TimeoutException as error:
-            raise TimeoutError("HTTP capability request timed out") from error
+            raise TimeoutError("HTTP request timed out") from error
         except HttpTransportError:
             raise
         except httpx.HTTPError as error:
             raise HttpTransportError(
-                f"HTTP capability request failed: {error}",
+                f"HTTP request failed: {error}",
                 code="request-failed",
             ) from error
 
@@ -90,7 +90,7 @@ class HttpxJsonTransport:
             )
         except (UnicodeDecodeError, ValueError) as error:
             raise HttpTransportError(
-                f"HTTP service returned invalid JSON: {error}",
+                f"HTTP endpoint returned invalid JSON: {error}",
                 code="invalid-json",
             ) from error
 

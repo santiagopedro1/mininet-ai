@@ -51,6 +51,15 @@ minimal explicit environment, bound output, enforce deadlines, and terminate
 the complete process group. HTTP adapters reject embedded URL credentials,
 disable redirects, and bound response bodies.
 
+Built-in model adapters normalize OpenAI-compatible chat completions and
+Ollama chat responses into the same `ModelResponse` contract. Calls are always
+non-streaming and use the shared bounded HTTP transport. OpenAI-compatible
+parameters are sent as top-level request fields; Ollama parameters are sent as
+`options`. When a response schema is requested, the adapter sends the backend's
+structured-output setting, parses strict JSON, and validates the result locally
+before returning it. Credentials belong in adapter configuration or plugin
+code, not experiment documents or endpoint URLs.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -194,6 +203,7 @@ mininet_ai/
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
 ├── capabilities/    # Proposal authorization, validation, and execution
+├── models/          # Normalized model-backend adapters
 ├── plugins/         # Explicit provider registries and entry-point discovery
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
 ├── sdk/             # Agent, model, and capability runtime contracts
