@@ -7,7 +7,7 @@ driver contract.
 
 ## Versioned contracts
 
-Phase 1 defines two contract families:
+The project currently defines four contract families:
 
 - `mininet-ai/v1alpha1` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
@@ -16,11 +16,32 @@ Phase 1 defines two contract families:
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
+- `mininet-ai/substrate-runtime/v1alpha1` covers the stateful lifecycle
+  interface implemented by executable substrate adapters: deploy, inspect,
+  observe, execute, and teardown. It is separate from the planning contract so
+  compiling an experiment never requires privileged networking access.
+- `mininet-ai/runtime-state/v1alpha2` covers the private, on-host ownership
+  record used to inspect and recover an interrupted Mininet/OVS run. It is
+  versioned so a newer runtime never guesses how to clean up an incompatible
+  record.
 
 The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing
 version may change silently. A consumer can use the version field or schema ID
 to select the exact contract it understands.
+
+### Runtime-state v1alpha1 to v1alpha2
+
+`v1alpha2` adds a separate, bounded stopped-run record so repeated `stop` and
+later `status` calls remain idempotent across CLI processes. The active-run
+record keeps the `v1alpha1` shape; readers continue to accept it and rewrite it
+as `v1alpha2` on the next state update. Stopped-run records exist only in
+`v1alpha2` and are discarded when the next deployment is claimed.
+
+Old active records therefore need no manual conversion. Operators should use
+the normal targeted `stop RUN_ID` recovery before upgrading when practical;
+if an old active record remains, the new runtime can inspect and recover it
+using its recorded owner, plan, and process groups.
 
 ## Changes allowed within `v1alpha1`
 
@@ -61,10 +82,14 @@ their complete shape and because their normalized snapshot contributes to the
 digest. A deliberate bug fix that changes a plan for previously valid input is
 therefore a contract change and needs a new version plus migration guidance.
 
-Changes to the driver protocol or the meaning of its manifest require a new
-substrate contract version, such as `mininet-ai/substrate/v1alpha2`. Merely
-adding a driver implementation or changing which optional features a specific
-driver advertises does not.
+Changes to the planning driver protocol or the meaning of its manifest require
+a new substrate contract version, such as `mininet-ai/substrate/v1alpha2`.
+Changes to runtime operations, lifecycle semantics, or their serialized models
+require a new runtime contract version, such as
+`mininet-ai/substrate-runtime/v1alpha2`. Merely adding an implementation or
+changing which optional features a specific adapter advertises does not.
+Changes to persisted ownership fields or their recovery meaning require a new
+runtime-state version, such as `mininet-ai/runtime-state/v1alpha2`.
 
 When a contract is promoted to beta or stable, use a new version such as
 `v1beta1` or `v1`. Supporting an older version alongside the new one is an
@@ -79,8 +104,8 @@ as an implementation diff:
 1. Classify the change as compatible or versioned using the rules above, and
    record the reasoning in the change description.
 2. For a versioned change, update the document `apiVersion`, deployment-plan
-   schema ID, and relevant tests together. Update the substrate version only
-   when its independent driver contract changes.
+   schema ID, and relevant tests together. Update the planning or runtime
+   substrate version only when that independent contract changes.
 3. Add focused tests for schema validation, references, normalization, and
    compilation behavior affected by the change.
 4. Run the full test suite and compile the Phase 1 example through the CLI.

@@ -6,10 +6,11 @@ import hashlib
 import json
 import re
 from collections import defaultdict
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Interface
 from pathlib import Path
-from typing import Iterable
+from typing import Literal
 
 from mininet_ai.compiler.models import (
     AgentInstance,
@@ -24,8 +25,8 @@ from mininet_ai.compiler.models import (
     PlannedLink,
     PlannedNetwork,
     PlannedPort,
-    PlannedResource,
     PlannedRegion,
+    PlannedResource,
     PlannedSwitch,
 )
 from mininet_ai.errors import CompilationError
@@ -46,6 +47,7 @@ from mininet_ai.specification.models import (
     RegionResource,
     ResourceKind,
     SwitchResource,
+    TopologyResource,
 )
 from mininet_ai.substrates import create_substrate_driver
 from mininet_ai.substrates.protocol import SubstrateDriver, SubstrateIssue
@@ -55,10 +57,18 @@ def _format_substrate_issues(issues: Iterable[SubstrateIssue]) -> str:
     return "; ".join(issue.format() for issue in issues)
 
 
-def _unique_by_name(items: Iterable[object], category: str) -> dict[str, object]:
-    result: dict[str, object] = {}
+_AdapterRole = Literal["host-interface", "switch-port"]
+_CoordinationRelationship = Literal["coordinates", "parent", "peer"]
+
+
+def _unique_by_name[_NamedItem](
+    items: Iterable[_NamedItem],
+    category: str,
+    key: Callable[[_NamedItem], str],
+) -> dict[str, _NamedItem]:
+    result: dict[str, _NamedItem] = {}
     for item in items:
-        name = getattr(getattr(item, "metadata", item), "name")
+        name = key(item)
         if name in result:
             raise CompilationError(f"duplicate {category} name: {name!r}")
         result[name] = item
@@ -69,7 +79,7 @@ def _unique_by_name(items: Iterable[object], category: str) -> dict[str, object]
 class _AdapterDraft:
     name: str
     owner: str
-    role: str
+    role: _AdapterRole
     number: int
     mtu: int
     ipv4_setting: IPv4Interface | str | None = None
@@ -78,7 +88,7 @@ class _AdapterDraft:
     mac: str | None = None
 
 
-def _planned_node(resource: object) -> PlannedResource:
+def _planned_node(resource: TopologyResource) -> PlannedResource:
     common = {
         "name": resource.name,
         "kind": resource.kind,
@@ -95,7 +105,7 @@ def _planned_node(resource: object) -> PlannedResource:
     if isinstance(resource, ControllerResource):
         return PlannedController(
             **common,
-            controller_type=resource.type,
+            type=resource.type,
             address=str(resource.address) if resource.address else None,
             protocol=resource.protocol,
             port=resource.port,
@@ -107,18 +117,20 @@ def _planned_node(resource: object) -> PlannedResource:
     if isinstance(resource, SwitchResource):
         return PlannedSwitch(
             **common,
-            fail_mode=resource.fail_mode,
+            failMode=resource.fail_mode,
             datapath=resource.datapath,
             controllers=tuple(resource.controllers),
             protocols=tuple(resource.protocols),
         )
     if isinstance(resource, HostResource):
-        return PlannedHost(**common, default_route=resource.default_route)
+        return PlannedHost(**common, defaultRoute=resource.default_route)
     raise CompilationError(f"unsupported resource type: {type(resource).__name__}")
 
 
 def _validate_resource_graph(
-    loaded: LoadedExperiment, nodes: dict[str, object], reserved_names: set[str]
+    loaded: LoadedExperiment,
+    nodes: dict[str, TopologyResource],
+    reserved_names: set[str],
 ) -> None:
     for resource in loaded.topology.resources:
         if resource.parent and resource.parent not in nodes:
@@ -224,7 +236,7 @@ def _declare_adapters(
 
 
 def _create_automatic_adapter(
-    node: object,
+    node: HostResource | SwitchResource,
     adapters: dict[str, _AdapterDraft],
     by_owner: dict[str, list[_AdapterDraft]],
     reserved_names: set[str],
@@ -264,7 +276,7 @@ def _create_automatic_adapter(
 
 def _resolve_links(
     loaded: LoadedExperiment,
-    nodes: dict[str, object],
+    nodes: dict[str, TopologyResource],
     adapters: dict[str, _AdapterDraft],
     by_owner: dict[str, list[_AdapterDraft]],
     reserved_names: set[str],
@@ -327,7 +339,7 @@ def _resolve_links(
                 delay=link.delay,
                 jitter=link.jitter,
                 loss=link.loss,
-                max_queue_size=link.max_queue_size,
+                maxQueueSize=link.max_queue_size,
             )
         )
     return links
@@ -398,23 +410,21 @@ def _allocate_addresses(
     for adapter in host_adapters:
         if adapter.mac is not None:
             continue
-        suffix = 1
-        while suffix <= 0xFFFFFF:
+        for suffix in range(1, 0x1000000):
             candidate_mac = prefix + ":" + ":".join(
                 f"{octet:02x}"
                 for octet in suffix.to_bytes(3, byteorder="big")
             )
             if candidate_mac not in used_macs:
                 break
-            suffix += 1
-        if suffix > 0xFFFFFF:
+        else:
             raise CompilationError(f"MAC allocation prefix {prefix} is exhausted")
         adapter.mac = candidate_mac
         used_macs[candidate_mac] = adapter.name
 
 
 def _build_resources(loaded: LoadedExperiment) -> tuple[PlannedResource, ...]:
-    nodes: dict[str, object] = {}
+    nodes: dict[str, TopologyResource] = {}
     for resource in loaded.topology.resources:
         if resource.name in nodes:
             raise CompilationError(f"duplicate resource name: {resource.name!r}")
@@ -516,7 +526,11 @@ def _compile_instances(
     capabilities: dict[str, CapabilityDefinition],
     driver: SubstrateDriver,
 ) -> tuple[AgentInstance, ...]:
-    _unique_by_name(loaded.experiment.agents, "agent deployment")
+    _unique_by_name(
+        loaded.experiment.agents,
+        "agent deployment",
+        lambda deployment: deployment.name,
+    )
     instances: list[AgentInstance] = []
     seen_ids: set[str] = set()
 
@@ -626,7 +640,7 @@ def _coordination(
     for instance in instances:
         by_deployment[instance.deployment].append(instance)
     known = set(by_deployment)
-    edges: set[tuple[str, str, str]] = set()
+    edges: set[tuple[str, str, _CoordinationRelationship]] = set()
 
     if spec.mode == CoordinationMode.CENTRALIZED:
         if spec.coordinator not in known:
@@ -734,8 +748,16 @@ def compile_experiment(
             f"substrate {driver.name!r}: {_format_substrate_issues(option_issues)}"
         )
 
-    blueprints = _unique_by_name(loaded.blueprints, "blueprint")
-    capabilities = _unique_by_name(loaded.capabilities, "capability")
+    blueprints = _unique_by_name(
+        loaded.blueprints,
+        "blueprint",
+        lambda blueprint: blueprint.metadata.name,
+    )
+    capabilities = _unique_by_name(
+        loaded.capabilities,
+        "capability",
+        lambda capability: capability.metadata.name,
+    )
     resources = _build_resources(loaded)
     resource_issues = driver.validate_resources(resources)
     if resource_issues:

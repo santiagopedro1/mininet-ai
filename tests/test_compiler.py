@@ -3,13 +3,13 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import CompilationError
 from mininet_ai.specification.models import Experiment, ResourceKind
-
 
 ROOT = Path(__file__).parents[1]
 EXAMPLE = ROOT / "examples" / "phase1" / "experiment.yaml"
@@ -39,7 +39,9 @@ class CompilerTests(unittest.TestCase):
 
     def test_topology_compiles_to_mininet_ready_resources(self) -> None:
         plan = compile_experiment(EXAMPLE)
-        resources = {resource.name: resource for resource in plan.resources}
+        resources: dict[str, Any] = {
+            resource.name: resource for resource in plan.resources
+        }
 
         self.assertEqual(len(resources), 16)
         self.assertEqual(resources["c0"].kind, ResourceKind.CONTROLLER)
@@ -75,7 +77,9 @@ class CompilerTests(unittest.TestCase):
                 endpoint["adapter"] = None
 
         plan = compile_experiment(Experiment.model_validate(snapshot))
-        resources = {resource.name: resource for resource in plan.resources}
+        resources: dict[str, Any] = {
+            resource.name: resource for resource in plan.resources
+        }
 
         self.assertEqual(resources["h1-s1"].endpoints, ("h1-eth0", "s1-eth1"))
         self.assertEqual(resources["s1-s2"].endpoints, ("s1-eth2", "s2-eth1"))
@@ -90,7 +94,9 @@ class CompilerTests(unittest.TestCase):
         h1["interfaces"][0]["mac"] = "02:00:00:00:00:aa"
 
         plan = compile_experiment(Experiment.model_validate(snapshot))
-        planned = {resource.name: resource for resource in plan.resources}
+        planned: dict[str, Any] = {
+            resource.name: resource for resource in plan.resources
+        }
 
         self.assertEqual(planned["h1-eth0"].ipv4, "10.0.0.10/24")
         self.assertEqual(planned["h1-eth0"].mac, "02:00:00:00:00:aa")

@@ -21,5 +21,10 @@ package = true
 requires = ["setuptools>=82.0.1"]
 build-backend = "setuptools.build_meta"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
 [tool.setuptools.packages.find]
 include = ["mininet_ai*"]

@@ -69,7 +69,7 @@ class FakeSubstrateTests(unittest.TestCase):
         driver = substrate_registry.create("fake")
 
         self.assertIsInstance(driver, FakeSubstrateDriver)
-        self.assertEqual(substrate_registry.names, ("fake",))
+        self.assertEqual(substrate_registry.names, ("fake", "mininet-ovs"))
 
     def test_registry_rejects_duplicates_and_unknown_names(self) -> None:
         registry = SubstrateRegistry()

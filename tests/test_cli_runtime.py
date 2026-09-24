@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+import json
+import unittest
+from unittest.mock import patch
+
+from typer.testing import CliRunner
+
+from mininet_ai.cli import app
+from mininet_ai.compiler import compile_experiment
+from mininet_ai.substrates import FakeSubstrateRuntime, RunState
+from tests.compiler.helpers import example_snapshot, experiment_from
+
+
+def fake_plan():
+    return compile_experiment(experiment_from(example_snapshot()))
+
+
+class StoppableFakeRuntime(FakeSubstrateRuntime):
+    def __init__(self) -> None:
+        super().__init__(run_id_factory=lambda: "cli-stop-run")
+        self.stop_requests: list[tuple[str, float]] = []
+
+    def request_stop(self, run_id: str, *, timeout_seconds: float = 30):
+        self.stop_requests.append((run_id, timeout_seconds))
+        return self.teardown(run_id)
+
+
+class RuntimeCLITests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.runner = CliRunner()
+        self.plan = fake_plan()
+
+    def test_run_dry_run_prints_plan_without_constructing_runtime(self) -> None:
+        with (
+            patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
+            patch("mininet_ai.cli.create_substrate_runtime") as create,
+        ):
+            result = self.runner.invoke(
+                app,
+                ["run", "experiment.yaml", "--dry-run", "--format", "json"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(json.loads(result.output)["kind"], "DeploymentPlan")
+        create.assert_not_called()
+
+    def test_run_owns_runtime_until_signal_latch_then_tears_down(self) -> None:
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-run")
+        with (
+            patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
+            patch(
+                "mininet_ai.cli.create_substrate_runtime",
+                return_value=runtime,
+            ),
+            patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+        ):
+            result = self.runner.invoke(app, ["run", "experiment.yaml"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Running cli-run", result.output)
+        self.assertIn("Stopped cli-run", result.output)
+        self.assertEqual(runtime.inspect("cli-run").run.state, RunState.STOPPED)
+
+    def test_run_tears_down_if_reporting_the_started_run_fails(self) -> None:
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-broken-output")
+        with (
+            patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
+            patch(
+                "mininet_ai.cli.create_substrate_runtime",
+                return_value=runtime,
+            ),
+            patch("mininet_ai.cli.console.print", side_effect=BrokenPipeError),
+        ):
+            result = self.runner.invoke(app, ["run", "experiment.yaml"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(
+            runtime.inspect("cli-broken-output").run.state,
+            RunState.STOPPED,
+        )
+
+    def test_status_supports_text_and_machine_readable_output(self) -> None:
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-status")
+        run = runtime.deploy(self.plan)
+        with patch(
+            "mininet_ai.cli.create_substrate_runtime",
+            return_value=runtime,
+        ):
+            text_result = self.runner.invoke(
+                app,
+                ["status", run.id, "--substrate", "fake"],
+            )
+            json_result = self.runner.invoke(
+                app,
+                [
+                    "status",
+                    run.id,
+                    "--substrate",
+                    "fake",
+                    "--format",
+                    "json",
+                ],
+            )
+
+        self.assertEqual(text_result.exit_code, 0, text_result.output)
+        self.assertIn("State: running", text_result.output)
+        self.assertEqual(json.loads(json_result.output)["run"]["id"], run.id)
+
+    def test_topology_prints_normalized_resources(self) -> None:
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-topology")
+        run = runtime.deploy(self.plan)
+        with patch(
+            "mininet_ai.cli.create_substrate_runtime",
+            return_value=runtime,
+        ):
+            result = self.runner.invoke(
+                app,
+                ["topology", run.id, "--substrate", "fake"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Resource", result.output)
+        self.assertIn("network", result.output)
+        self.assertIn("switch", result.output)
+
+    def test_stop_uses_external_stop_interface_when_available(self) -> None:
+        runtime = StoppableFakeRuntime()
+        run = runtime.deploy(self.plan)
+        with patch(
+            "mininet_ai.cli.create_substrate_runtime",
+            return_value=runtime,
+        ):
+            result = self.runner.invoke(
+                app,
+                [
+                    "stop",
+                    run.id,
+                    "--substrate",
+                    "fake",
+                    "--timeout",
+                    "4.5",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(runtime.stop_requests, [(run.id, 4.5)])
+        self.assertEqual(runtime.inspect(run.id).run.state, RunState.STOPPED)
+
+    def test_runtime_errors_are_reported_with_code_and_nonzero_exit(self) -> None:
+        runtime = FakeSubstrateRuntime()
+        with patch(
+            "mininet_ai.cli.create_substrate_runtime",
+            return_value=runtime,
+        ):
+            result = self.runner.invoke(
+                app,
+                ["status", "missing", "--substrate", "fake"],
+            )
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("runtime.run.unknown", result.output)
+
+
+if __name__ == "__main__":
+    unittest.main()

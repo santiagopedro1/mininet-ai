@@ -144,7 +144,10 @@ emit_runtime_file_state() {
     if [[ -d /run/mininet-ai ]]; then
         while IFS= read -r path; do
             printf 'runtime-file\t%s\n' "${path}"
-        done < <(find /run/mininet-ai -mindepth 1 -print)
+        done < <(
+            find /run/mininet-ai -mindepth 1 \
+                ! -name 'mininet-ovs.stopped.json' -print
+        )
     fi
 
     while IFS= read -r path; do
@@ -222,6 +225,22 @@ check() {
     return 1
 }
 
+clear_runtime_state() {
+    local state_file=/run/mininet-ai/mininet-ovs.json
+    local stopped_file=/run/mininet-ai/mininet-ovs.stopped.json
+
+    if [[ -e "${state_file}" ]]; then
+        unlink "${state_file}" || fail "could not remove ${state_file}"
+    fi
+    if [[ -e "${stopped_file}" ]]; then
+        unlink "${stopped_file}" || fail "could not remove ${stopped_file}"
+    fi
+    if [[ -d /run/mininet-ai ]]; then
+        rmdir /run/mininet-ai ||
+            fail "runtime state directory contains unexpected files"
+    fi
+}
+
 main() {
     local action=${1:-}
     local baseline=${MININET_AI_CLEANUP_BASELINE:-${DEFAULT_BASELINE}}
@@ -286,6 +305,7 @@ main() {
             require_command mn
             printf '%s\n' 'Running destructive Mininet cleanup: mn -c'
             mn -c || cleanup_status=$?
+            clear_runtime_state
             check "${baseline}" || return 1
             if (( cleanup_status != 0 )); then
                 fail "mn -c exited with status ${cleanup_status}"

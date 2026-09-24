@@ -165,10 +165,42 @@ mininet_ai/
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
-└── cli.py            # validate, plan, and schema commands
+└── cli.py            # compile-time and live-runtime commands
 ```
 
-### Substrate driver contract
+### Phase 2 development VM
+
+Phase 2 uses a disposable Ubuntu VM because Mininet and Open vSwitch require
+Linux networking privileges. Create or reprovision it from the host:
+
+```bash
+vagrant up --provision
+```
+
+Provisioning installs a pinned `uv`, Mininet, and Open vSwitch, then creates a
+VM-local environment at `/home/vagrant/.venvs/mininet-ai`. The environment is
+kept outside `/vagrant` so it never conflicts with the host's `.venv`, and it
+includes Ubuntu's system packages so Python can import Mininet. Run project
+commands inside the VM through the checked-in wrapper:
+
+```bash
+vagrant ssh
+cd /vagrant
+scripts/vm-run.sh python -m unittest discover -v
+scripts/vm-run.sh mininet-ai validate examples/phase1/experiment.yaml
+```
+
+From the host, run the complete environment check with:
+
+```bash
+scripts/test-phase2-vm.sh
+```
+
+The check runs the project suite inside the VM, verifies Mininet/OVS access,
+executes a `pingall` smoke test, and restores the clean networking baseline.
+It invokes `mn -c`, so use it only with the disposable Phase 2 VM.
+
+### Substrate contracts
 
 Every substrate implements the versioned
 `mininet-ai/substrate/v1alpha1` planning contract. A driver publishes a
@@ -180,9 +212,76 @@ registry instead of importing a concrete implementation.
 The fake driver is the reference implementation. New drivers should use
 `ManifestSubstrateDriver` for the shared validation behavior, register a factory
 with `register_substrate_driver`, and run the reusable
-`tests.substrates.contract.SubstrateDriverContract` test mixin. The future
-Mininet/OVS driver will implement this same planning contract before adding its
-runtime lifecycle operations.
+`tests.substrates.contract.SubstrateDriverContract` test mixin.
+
+Stateful execution uses the separate
+`mininet-ai/substrate-runtime/v1alpha1` lifecycle contract. Its five operations
+are `deploy`, `inspect`, `observe`, `execute`, and `teardown`; deployment must
+roll back on failure, and teardown must be idempotent and limited to resources
+owned by the run. Runtime adapters register independently with
+`register_substrate_runtime`. `FakeSubstrateRuntime` is the in-memory reference
+adapter, and `tests.substrates.runtime_contract.SubstrateRuntimeContract`
+provides reusable conformance tests. The Mininet/OVS implementation uses this
+same interface without introducing privileged work into compilation.
+
+`MininetOVSDriver` is the rootless, compiler-facing adapter for Phase 2. Select
+it with `substrate.driver: mininet-ovs`. It validates the planned OVS bridges,
+Linux interface names, OpenFlow port numbers, controller configuration, and
+traffic-control parameters. `MininetOVSRuntime` then creates the accepted plan
+with explicit controller assignments, OVS modes and protocols, interface
+addresses and MTUs, and TC link shaping. Deployment rolls back on failure and
+normal teardown is idempotent. It writes an atomic ownership record under
+`/run/mininet-ai`, holds an exclusive process-lifetime lock, and rejects a new
+deployment while a live or orphaned run exists. A fresh runtime can inspect an
+orphan and recover it by calling `teardown` with the recorded run ID; recovery
+targets only the processes, bridges, interfaces, and temporary files named by
+that deployment plan. A bounded stopped-run record makes repeated teardown and
+`stop` requests idempotent until the next deployment. See the
+[Phase 2 acceptance experiment](examples/phase2/experiment.yaml).
+
+The live runtime refreshes resource operational state during inspection and
+normalizes all observations advertised by the driver: topology resources and
+neighbors, controller events, OpenFlow flows, OVS port counters, traffic-control
+queue state, host interfaces and processes, and active host reachability.
+Observation targets are checked against the requested telemetry scope, and
+command or parser failures return typed runtime errors. The runtime also
+supports typed `link.enable`, `link.disable`, and `link.configure` mutations;
+`openflow.flow.install` and `openflow.flow.remove`; and managed
+`host.process.start` and `host.process.stop` operations. Action parameters and
+target kinds are validated before mutation, link-state changes roll back a
+partially updated endpoint, and processes started by a run are stopped during
+teardown. Every operation returns a normalized succeeded, rejected, or failed
+result and refreshes the live resource snapshot after success.
+
+### Runtime CLI
+
+Preview a deployment without requiring root or changing networking state:
+
+```bash
+mininet-ai run examples/phase2/experiment.yaml --dry-run
+```
+
+Live Mininet/OVS runs are foreground-owned so the process holding Mininet's
+Python objects also owns cleanup. Start a run in one VM terminal and copy the
+reported run ID:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml
+```
+
+Inspect or stop it from another VM terminal:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai status <run-id>
+sudo scripts/vm-run.sh mininet-ai topology <run-id>
+sudo scripts/vm-run.sh mininet-ai stop <run-id>
+```
+
+`status` and `topology` accept `--format json`. `stop` signals only the owner
+whose PID, boot identity, and process start time match the protected run-state
+record; the foreground owner then performs normal teardown. `Ctrl+C` in the
+owner terminal follows the same path. If the owner has already crashed, `stop`
+uses the recorded ownership data to recover only that run's resources.
 
 ### Golden deployment plans
 
@@ -219,15 +318,18 @@ that the machine returned to that baseline:
 sudo scripts/check-mininet-cleanup.sh check
 ```
 
-If the interrupted experiment leaves resources behind, test the recovery path
-and verify it in one step:
+The live integration suite deliberately crashes a runtime owner and verifies
+that a fresh runtime's `teardown(run_id)` restores the baseline. If targeted
+recovery itself fails and leaves resources behind, restore the disposable VM
+with the emergency cleanup path:
 
 ```bash
 sudo scripts/check-mininet-cleanup.sh recover
 ```
 
 `recover` invokes `mn -c`, which may remove every Mininet/OVS topology on the
-machine. Use it only in the isolated Phase 2 VM. The comparison covers OVS
+machine; it is a test-environment fallback, not the runtime recovery mechanism.
+Use it only in the isolated Phase 2 VM. The comparison covers OVS
 bridges and ports, namespaces, veth and Mininet-style interfaces, Linux
 bridges, qdiscs, Mininet/controller processes, runtime registry files, and
 Mininet temporary files. Use `snapshot --force` only when intentionally
