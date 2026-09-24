@@ -546,6 +546,27 @@ def _compile_instances(
                 f"agent {deployment.name!r} references unknown capabilities: "
                 + ", ".join(sorted(missing))
             )
+        policy_observations = [
+            policy.observation for policy in deployment.observation_policies
+        ]
+        duplicate_policies = sorted(
+            observation
+            for observation in set(policy_observations)
+            if policy_observations.count(observation) > 1
+        )
+        if duplicate_policies:
+            raise CompilationError(
+                f"agent {deployment.name!r} has duplicate observation policies: "
+                + ", ".join(duplicate_policies)
+            )
+        undeclared_policies = sorted(
+            set(policy_observations) - set(deployment.observe)
+        )
+        if undeclared_policies:
+            raise CompilationError(
+                "observation policy references undeclared observation "
+                f"{undeclared_policies[0]!r}"
+            )
 
         selected = _select(deployment, resources)
         if (
@@ -599,6 +620,19 @@ def _compile_instances(
                         f"agent {deployment.name!r}: capability {capability_name!r} "
                         f"is not available at layer {layer_name!r}"
                     )
+                for postcondition in capability.postconditions:
+                    issues = driver.validate_observation(
+                        layer=layer,
+                        custom_layer=deployment.placement.custom_layer,
+                        name=postcondition.observation,
+                    )
+                    if issues:
+                        raise CompilationError(
+                            f"agent {deployment.name!r}: capability "
+                            f"{capability_name!r} postcondition observation "
+                            f"{postcondition.observation!r}: "
+                            f"{_format_substrate_issues(issues)}"
+                        )
                 privileges.update(capability.effects)
 
             instances.append(
@@ -619,6 +653,10 @@ def _compile_instances(
                     capabilities=tuple(sorted(set(deployment.capabilities))),
                     privileges=tuple(sorted(privileges)),
                     priority=deployment.priority,
+                    triggers=tuple(deployment.triggers),
+                    observationPolicies=tuple(deployment.observation_policies),
+                    memory=blueprints[deployment.blueprint].memory,
+                    execution=deployment.execution,
                 )
             )
 
@@ -781,5 +819,6 @@ def compile_experiment(
         agents=instances,
         coordination=coordination,
         policies=loaded.experiment.policies,
+        resourceLimits=loaded.experiment.resource_limits,
         snapshot=snapshot,
     )

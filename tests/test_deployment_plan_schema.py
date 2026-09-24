@@ -34,6 +34,10 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
         self.assertIn("PlannedController", schema["$defs"])
         self.assertIn("PlannedPort", schema["$defs"])
         self.assertIn("PlannedLink", schema["$defs"])
+        self.assertIn("EventTrigger", schema["$defs"])
+        self.assertIn("ObservationPolicy", schema["$defs"])
+        self.assertIn("MemoryConfiguration", schema["$defs"])
+        self.assertIn("ExecutionConfiguration", schema["$defs"])
 
     def test_compiled_plan_round_trips_through_public_model(self) -> None:
         original = compile_experiment(EXAMPLE)
@@ -43,6 +47,25 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
         )
 
         self.assertEqual(restored, original)
+
+    def test_additive_runtime_fields_preserve_older_plan_payloads(self) -> None:
+        payload = compile_experiment(EXAMPLE).model_dump(
+            mode="json",
+            by_alias=True,
+        )
+        payload.pop("resourceLimits")
+        for agent in payload["agents"]:
+            agent.pop("execution")
+            agent.pop("memory")
+            agent.pop("observationPolicies")
+            agent.pop("triggers")
+
+        restored = DeploymentPlan.model_validate(payload)
+
+        self.assertEqual(restored.resource_limits.max_concurrent_invocations, 32)
+        self.assertTrue(
+            all(agent.triggers[0].type == "manual" for agent in restored.agents)
+        )
 
     def test_cli_exposes_deployment_plan_schema(self) -> None:
         result = CliRunner().invoke(app, ["schema", "deployment-plan"])

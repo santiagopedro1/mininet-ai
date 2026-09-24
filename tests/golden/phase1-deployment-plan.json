@@ -12,13 +12,32 @@
       "blueprint": "local-router",
       "capabilities": [],
       "deployment": "control-router",
+      "execution": {
+        "actionTimeout": "30s",
+        "maxConcurrency": 1,
+        "overflow": "reject",
+        "queueCapacity": 64,
+        "restart": {
+          "backoff": "1s",
+          "maxAttempts": 0,
+          "policy": "never"
+        }
+      },
       "id": "control-router@control-domain",
+      "memory": {},
+      "observationPolicies": [],
       "observes": [
         "controller.events",
         "topology.resources"
       ],
       "priority": 0,
-      "privileges": []
+      "privileges": [],
+      "triggers": [
+        {
+          "name": "manual",
+          "type": "manual"
+        }
+      ]
     },
     {
       "attachment": {
@@ -32,12 +51,31 @@
       "blueprint": "local-router",
       "capabilities": [],
       "deployment": "global-router",
+      "execution": {
+        "actionTimeout": "30s",
+        "maxConcurrency": 1,
+        "overflow": "reject",
+        "queueCapacity": 64,
+        "restart": {
+          "backoff": "1s",
+          "maxAttempts": 0,
+          "policy": "never"
+        }
+      },
       "id": "global-router",
+      "memory": {},
+      "observationPolicies": [],
       "observes": [
         "topology.resources"
       ],
       "priority": 0,
-      "privileges": []
+      "privileges": [],
+      "triggers": [
+        {
+          "name": "manual",
+          "type": "manual"
+        }
+      ]
     },
     {
       "attachment": {
@@ -51,12 +89,31 @@
       "blueprint": "local-router",
       "capabilities": [],
       "deployment": "host-router",
+      "execution": {
+        "actionTimeout": "30s",
+        "maxConcurrency": 1,
+        "overflow": "reject",
+        "queueCapacity": 64,
+        "restart": {
+          "backoff": "1s",
+          "maxAttempts": 0,
+          "policy": "never"
+        }
+      },
       "id": "host-router@h1",
+      "memory": {},
+      "observationPolicies": [],
       "observes": [
         "host.interfaces"
       ],
       "priority": 0,
-      "privileges": []
+      "privileges": [],
+      "triggers": [
+        {
+          "name": "manual",
+          "type": "manual"
+        }
+      ]
     },
     {
       "attachment": {
@@ -70,12 +127,31 @@
       "blueprint": "local-router",
       "capabilities": [],
       "deployment": "host-router",
+      "execution": {
+        "actionTimeout": "30s",
+        "maxConcurrency": 1,
+        "overflow": "reject",
+        "queueCapacity": 64,
+        "restart": {
+          "backoff": "1s",
+          "maxAttempts": 0,
+          "policy": "never"
+        }
+      },
       "id": "host-router@h2",
+      "memory": {},
+      "observationPolicies": [],
       "observes": [
         "host.interfaces"
       ],
       "priority": 0,
-      "privileges": []
+      "privileges": [],
+      "triggers": [
+        {
+          "name": "manual",
+          "type": "manual"
+        }
+      ]
     },
     {
       "attachment": {
@@ -91,7 +167,20 @@
         "openflow.flow.install"
       ],
       "deployment": "switch-router",
+      "execution": {
+        "actionTimeout": "30s",
+        "maxConcurrency": 1,
+        "overflow": "reject",
+        "queueCapacity": 64,
+        "restart": {
+          "backoff": "1s",
+          "maxAttempts": 0,
+          "policy": "never"
+        }
+      },
       "id": "switch-router@s1",
+      "memory": {},
+      "observationPolicies": [],
       "observes": [
         "ovs.port-counters",
         "tc.queue-occupancy",
@@ -100,6 +189,12 @@
       "priority": 0,
       "privileges": [
         "dataplane.write"
+      ],
+      "triggers": [
+        {
+          "name": "manual",
+          "type": "manual"
+        }
       ]
     },
     {
@@ -116,7 +211,20 @@
         "openflow.flow.install"
       ],
       "deployment": "switch-router",
+      "execution": {
+        "actionTimeout": "30s",
+        "maxConcurrency": 1,
+        "overflow": "reject",
+        "queueCapacity": 64,
+        "restart": {
+          "backoff": "1s",
+          "maxAttempts": 0,
+          "policy": "never"
+        }
+      },
       "id": "switch-router@s2",
+      "memory": {},
+      "observationPolicies": [],
       "observes": [
         "ovs.port-counters",
         "tc.queue-occupancy",
@@ -125,6 +233,12 @@
       "priority": 0,
       "privileges": [
         "dataplane.write"
+      ],
+      "triggers": [
+        {
+          "name": "manual",
+          "type": "manual"
+        }
       ]
     }
   ],
@@ -133,7 +247,7 @@
     "edges": [],
     "mode": "independent"
   },
-  "digest": "sha256:a8b7179566a85b8cd0880f81d0b7d949c778665515fa20996ab996d58a09db0e",
+  "digest": "sha256:f74086785e28ebc3112e48b6d9ad59090bf6a6fd4156ea0e4ab1d53cd9dc5dca",
   "kind": "DeploymentPlan",
   "metadata": {
     "description": "Phase 1 acceptance experiment using one blueprint at four layers.",
@@ -143,6 +257,11 @@
   "policies": {
     "conflicting-actions": "reject",
     "require-postcondition-check": true
+  },
+  "resourceLimits": {
+    "max-concurrent-invocations": 32,
+    "max-instances": 20,
+    "max-queued-events": 4096
   },
   "resources": [
     {
@@ -336,7 +455,19 @@
       {
         "blueprint": "local-router",
         "capabilities": [],
+        "execution": {
+          "actionTimeout": "30s",
+          "maxConcurrency": 1,
+          "overflow": "reject",
+          "queueCapacity": 64,
+          "restart": {
+            "backoff": "1s",
+            "maxAttempts": 0,
+            "policy": "never"
+          }
+        },
         "name": "global-router",
+        "observationPolicies": [],
         "observe": [
           "topology.resources"
         ],
@@ -354,12 +485,30 @@
             ]
           }
         },
-        "priority": 0
+        "priority": 0,
+        "triggers": [
+          {
+            "name": "manual",
+            "type": "manual"
+          }
+        ]
       },
       {
         "blueprint": "local-router",
         "capabilities": [],
+        "execution": {
+          "actionTimeout": "30s",
+          "maxConcurrency": 1,
+          "overflow": "reject",
+          "queueCapacity": 64,
+          "restart": {
+            "backoff": "1s",
+            "maxAttempts": 0,
+            "policy": "never"
+          }
+        },
         "name": "control-router",
+        "observationPolicies": [],
         "observe": [
           "topology.resources",
           "controller.events"
@@ -376,14 +525,32 @@
             "names": []
           }
         },
-        "priority": 0
+        "priority": 0,
+        "triggers": [
+          {
+            "name": "manual",
+            "type": "manual"
+          }
+        ]
       },
       {
         "blueprint": "local-router",
         "capabilities": [
           "openflow.flow.install"
         ],
+        "execution": {
+          "actionTimeout": "30s",
+          "maxConcurrency": 1,
+          "overflow": "reject",
+          "queueCapacity": 64,
+          "restart": {
+            "backoff": "1s",
+            "maxAttempts": 0,
+            "policy": "never"
+          }
+        },
         "name": "switch-router",
+        "observationPolicies": [],
         "observe": [
           "ovs.port-counters",
           "tc.queue-occupancy",
@@ -403,12 +570,30 @@
             "names": []
           }
         },
-        "priority": 0
+        "priority": 0,
+        "triggers": [
+          {
+            "name": "manual",
+            "type": "manual"
+          }
+        ]
       },
       {
         "blueprint": "local-router",
         "capabilities": [],
+        "execution": {
+          "actionTimeout": "30s",
+          "maxConcurrency": 1,
+          "overflow": "reject",
+          "queueCapacity": 64,
+          "restart": {
+            "backoff": "1s",
+            "maxAttempts": 0,
+            "policy": "never"
+          }
+        },
         "name": "host-router",
+        "observationPolicies": [],
         "observe": [
           "host.interfaces"
         ],
@@ -426,7 +611,13 @@
             "names": []
           }
         },
-        "priority": 0
+        "priority": 0,
+        "triggers": [
+          {
+            "name": "manual",
+            "type": "manual"
+          }
+        ]
       }
     ],
     "apiVersion": "mininet-ai/v1alpha1",
@@ -447,7 +638,11 @@
             "verify-result"
           ]
         },
-        "memory": {},
+        "memory": {
+          "conversation": null,
+          "local": null,
+          "shared": null
+        },
         "metadata": {
           "description": "One reusable behavior compiled at several attachment layers.",
           "labels": {},
@@ -491,8 +686,10 @@
         "output-schema": {
           "type": "object"
         },
+        "postconditions": [],
         "provider": "fake.openflow",
         "reversible": true,
+        "rollback": null,
         "targets": [
           "switch"
         ]
@@ -515,7 +712,9 @@
       "require-postcondition-check": true
     },
     "resourceLimits": {
-      "max-instances": 20
+      "max-concurrent-invocations": 32,
+      "max-instances": 20,
+      "max-queued-events": 4096
     },
     "substrate": {
       "driver": "fake",

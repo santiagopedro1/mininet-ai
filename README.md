@@ -219,6 +219,47 @@ interface or port name and number before producing the deployment plan.
 
 See [the complete Phase 1 example](examples/phase1/experiment.yaml) for external blueprints, typed capabilities, links, multiple layers, and safety policies.
 
+Phase 4 continuous-runtime declarations are also part of the compiled contract.
+An agent deployment can select manual, interval, and normalized event triggers,
+bind aggregation and detector policies to its declared observations, and set
+bounded queue, concurrency, overflow, and restart behavior:
+
+```yaml
+agents:
+  - name: switch-router
+    # placement, observe, and capabilities omitted
+    triggers:
+      - {type: manual, name: operator}
+      - {type: interval, name: periodic-health, every: 5s}
+      - type: event
+        name: queue-alert
+        event: queue.threshold-exceeded
+        cooldown: 10s
+    observationPolicies:
+      - observation: tc.queue-occupancy
+        every: 1s
+        window: 10s
+        aggregation: mean
+        detectors:
+          - type: threshold
+            name: queue-high
+            event: queue.threshold-exceeded
+            path: queue.depth
+            operator: gte
+            value: 80
+    execution:
+      queueCapacity: 16
+      maxConcurrency: 1
+      overflow: coalesce
+      restart: {policy: on-failure, maxAttempts: 3, backoff: 2s}
+```
+
+Blueprint memory is typed as local structured state, bounded conversation
+history, and optional shared deployment/run scopes. Capability definitions may
+declare typed postcondition observations and rollback timeouts. At this stage
+the compiler validates and normalizes those declarations; subsequent Phase 4
+commits provide their runtime behavior.
+
 ## Development
 
 Run the test suite:
