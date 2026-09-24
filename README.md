@@ -22,6 +22,13 @@ Phase 1 introduces the `mininet-ai/v1alpha1` public contract and a compiler that
 
 Logical placement is intentionally separate from physical execution. For example, an agent may be attached to the data plane of a switch while its model executes in an external process. The attachment controls its network scope and available capabilities.
 
+The Phase 3 foundation adds the independent
+`mininet-ai/agent-runtime/v1alpha1` SDK contract. It defines scoped invocation
+context, model requests and responses, structured action proposals, normalized
+invocation results, and provider protocols. An execution catalog resolves each
+compiled agent to its normalized blueprint, capability definitions, and policy
+without changing the deployment-plan format.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -165,6 +172,7 @@ mininet_ai/
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
+├── sdk/             # Agent, model, and capability runtime contracts
 └── cli.py            # compile-time and live-runtime commands
 ```
 
