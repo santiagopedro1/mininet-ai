@@ -3,20 +3,19 @@ from __future__ import annotations
 import json
 import unittest
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import RuntimeOperationError
 from mininet_ai.substrates import (
     FakeSubstrateRuntime,
     ObservationQuery,
-    RunState,
     RuntimeRegistry,
     create_substrate_runtime,
     runtime_registry,
 )
 from tests.golden_plans import GOLDEN_CASES
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
-
 
 EXAMPLE = GOLDEN_CASES["phase1"][0]
 
@@ -58,7 +57,7 @@ class FakeRuntimeTests(unittest.TestCase):
 
     def test_registry_rejects_invalid_factories(self) -> None:
         registry = RuntimeRegistry()
-        registry.register("invalid", lambda: object())
+        registry.register("invalid", cast(Any, lambda: object()))
 
         with self.assertRaisesRegex(TypeError, "does not satisfy the contract"):
             registry.create("invalid")

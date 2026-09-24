@@ -8,7 +8,6 @@ from pydantic import ConfigDict, Field
 
 from mininet_ai.specification.models import (
     AttachmentLayer,
-    API_VERSION,
     ControllerProtocol,
     ControllerType,
     CoordinationMode,
@@ -20,7 +19,6 @@ from mininet_ai.specification.models import (
     SwitchDatapath,
     SwitchFailMode,
 )
-
 
 DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha1:deployment-plan"
 
@@ -143,7 +141,7 @@ class DeploymentPlan(StrictModel):
         },
     )
 
-    api_version: Literal[API_VERSION] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha1"] = Field(alias="apiVersion")
     kind: Literal["DeploymentPlan"] = "DeploymentPlan"
     metadata: Metadata
     source: str = Field(min_length=1)

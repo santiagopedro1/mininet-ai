@@ -143,20 +143,25 @@ class SubstrateRuntime(Protocol):
 
     def deploy(self, plan: DeploymentPlan) -> RunInfo:
         """Deploy a validated plan and return its running identity."""
+        ...
 
     def inspect(self, run_id: str) -> RuntimeSnapshot:
         """Return lifecycle and normalized live-resource state for a run."""
+        ...
 
     def observe(
         self, run_id: str, query: ObservationQuery
     ) -> ObservationResult:
         """Read a normalized observation from a running run."""
+        ...
 
     def execute(self, run_id: str, request: ActionRequest) -> ActionResult:
         """Execute one typed substrate action against a running run."""
+        ...
 
     def teardown(self, run_id: str) -> TeardownResult:
         """Release run-owned resources; repeated calls are successful no-ops."""
+        ...
 
 
 @runtime_checkable
@@ -167,3 +172,4 @@ class ExternallyStoppableRuntime(SubstrateRuntime, Protocol):
         self, run_id: str, *, timeout_seconds: float = 30
     ) -> TeardownResult:
         """Request owner teardown and wait for the run to stop."""
+        ...

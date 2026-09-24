@@ -10,7 +10,7 @@ import subprocess
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, NoReturn, Protocol, cast
 
 from mininet_ai.specification.models import ResourceKind
 from mininet_ai.substrates.runtime import ActionRequest, ActionStatus
@@ -56,15 +56,19 @@ class ActionExecutionError(Exception):
 class ActionProvider(Protocol):
     def execute(self, request: ActionRequest) -> ActionOutcome:
         """Validate and execute one substrate mutation."""
+        ...
 
     def close(self) -> None:
         """Stop processes started through this provider."""
+        ...
 
     def owned_pids(self) -> tuple[int, ...]:
         """Return live process leaders that recovery must own."""
+        ...
 
     def release_pids(self, pids: tuple[int, ...]) -> None:
         """Stop newly owned processes after persistence fails."""
+        ...
 
 
 @dataclass
@@ -672,7 +676,7 @@ class MininetOVSActions:
             )
 
     @staticmethod
-    def _reject(message: str) -> None:
+    def _reject(message: str) -> NoReturn:
         raise ActionExecutionError(
             message,
             code="runtime.action.invalid-parameters",

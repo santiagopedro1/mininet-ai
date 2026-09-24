@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import unittest
+from typing import TYPE_CHECKING
+
+from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.errors import RuntimeOperationError
 from mininet_ai.substrates import (
     RUNTIME_CONTRACT_VERSION,
@@ -12,12 +16,19 @@ from mininet_ai.substrates import (
     SubstrateRuntime,
 )
 
+if TYPE_CHECKING:
+    class _TestCase(unittest.TestCase):
+        pass
+else:
+    class _TestCase:
+        pass
 
-class SubstrateRuntimeContract:
+
+class SubstrateRuntimeContract(_TestCase):
     def make_runtime(self) -> SubstrateRuntime:
         raise NotImplementedError
 
-    def make_plan(self):
+    def make_plan(self) -> DeploymentPlan:
         raise NotImplementedError
 
     def test_runtime_satisfies_versioned_protocol(self) -> None:

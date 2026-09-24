@@ -14,9 +14,12 @@ from pydantic import Field
 from mininet_ai.specification.models import StrictModel
 from mininet_ai.substrates.runtime import RunInfo
 
-
-STATE_API_VERSION = "mininet-ai/runtime-state/v1alpha2"
-LEGACY_STATE_API_VERSION = "mininet-ai/runtime-state/v1alpha1"
+STATE_API_VERSION: Literal["mininet-ai/runtime-state/v1alpha2"] = (
+    "mininet-ai/runtime-state/v1alpha2"
+)
+LEGACY_STATE_API_VERSION: Literal["mininet-ai/runtime-state/v1alpha1"] = (
+    "mininet-ai/runtime-state/v1alpha1"
+)
 DEFAULT_STATE_DIRECTORY = Path("/run/mininet-ai")
 DEFAULT_LOCK_PATH = Path("/run/lock/mininet-ai-runtime.lock")
 
@@ -82,7 +85,9 @@ class PersistedRun(StrictModel):
 
 
 class PersistedStoppedRun(StrictModel):
-    api_version: Literal[STATE_API_VERSION] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/runtime-state/v1alpha2"] = Field(
+        alias="apiVersion"
+    )
     run: RunInfo
     plan: dict[str, Any]
 

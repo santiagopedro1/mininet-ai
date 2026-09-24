@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 from uuid import uuid4
 
 from mininet_ai.errors import RuntimeOperationError
@@ -105,9 +105,14 @@ def _load_mininet_bindings() -> _MininetBindings:
             code="runtime.permission.denied",
         )
     try:
-        from mininet.link import TCLink
-        from mininet.net import Mininet
-        from mininet.node import Host, OVSController, OVSSwitch, RemoteController
+        from mininet.link import TCLink  # pyright: ignore[reportMissingImports]
+        from mininet.net import Mininet  # pyright: ignore[reportMissingImports]
+        from mininet.node import (  # pyright: ignore[reportMissingImports]
+            Host,
+            OVSController,
+            OVSSwitch,
+            RemoteController,
+        )
     except ImportError as error:
         raise RuntimeOperationError(
             "Mininet is not installed in the runtime environment",
@@ -1165,7 +1170,7 @@ class MininetOVSRuntime:
     @staticmethod
     def _raise_unknown_run(
         run_id: str, *, cause: Exception | None = None
-    ) -> None:
+    ) -> NoReturn:
         error = RuntimeOperationError(
             f"unknown substrate run {run_id!r}",
             code="runtime.run.unknown",

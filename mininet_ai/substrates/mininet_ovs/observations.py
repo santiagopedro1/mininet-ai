@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from ipaddress import ip_interface
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, NoReturn, Protocol, cast
 
 from mininet_ai.specification.models import ControllerType, ResourceKind
 from mininet_ai.substrates.runtime import (
@@ -74,14 +74,17 @@ class CommandExecutor(Protocol):
         timeout_seconds: float = 10,
     ) -> CommandResult:
         """Run one command in the root or a Mininet node namespace."""
+        ...
 
 
 class ObservationProvider(Protocol):
     def snapshot(self) -> tuple[LiveResource, ...]:
         """Discover the current operational state of planned resources."""
+        ...
 
     def collect(self, query: ObservationQuery) -> dict[str, Any]:
         """Collect one normalized observation for each requested target."""
+        ...
 
 
 class LocalCommandExecutor:
@@ -309,7 +312,9 @@ class MininetOVSObservations:
             return False
         return True
 
-    def _node(self, name: str) -> Any | None:
+    def _node(self, name: str | None) -> Any | None:
+        if name is None:
+            return None
         try:
             return self._network.get(name)
         except (KeyError, TypeError):
@@ -723,7 +728,13 @@ class MininetOVSObservations:
                 f"host {host_name!r} has no planned IPv4 address",
                 code="runtime.observation.invalid-target",
             )
-        return str(ip_interface(ports[0].ipv4).ip)
+        address = ports[0].ipv4
+        if address is None:
+            raise ObservationCollectionError(
+                f"host {host_name!r} has no planned IPv4 address",
+                code="runtime.observation.invalid-target",
+            )
+        return str(ip_interface(address).ip)
 
     @staticmethod
     def _parse_processes(output: str) -> list[dict[str, Any]]:
@@ -824,7 +835,7 @@ class MininetOVSObservations:
         return value
 
     @staticmethod
-    def _invalid_target(name: str, target: str, expected: str) -> None:
+    def _invalid_target(name: str, target: str, expected: str) -> NoReturn:
         raise ObservationCollectionError(
             f"observation {name!r} cannot target {target!r}; expected {expected}",
             code="runtime.observation.invalid-target",

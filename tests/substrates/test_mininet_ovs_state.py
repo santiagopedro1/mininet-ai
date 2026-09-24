@@ -9,8 +9,8 @@ from tempfile import TemporaryDirectory
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import RunInfo, RunState
 from mininet_ai.substrates.mininet_ovs.state import (
-    STATE_API_VERSION,
     LEGACY_STATE_API_VERSION,
+    STATE_API_VERSION,
     PersistedRun,
     PersistedStoppedRun,
     ProcessOwner,
@@ -66,9 +66,12 @@ class RunStateStoreTests(unittest.TestCase):
         legacy = self.store.read()
 
         self.assertIsNotNone(legacy)
+        assert legacy is not None
         self.assertEqual(legacy.api_version, LEGACY_STATE_API_VERSION)
         self.store.write(legacy.model_copy(update={"api_version": STATE_API_VERSION}))
-        self.assertEqual(self.store.read().api_version, STATE_API_VERSION)
+        rewritten = self.store.read()
+        assert rewritten is not None
+        self.assertEqual(rewritten.api_version, STATE_API_VERSION)
 
     def test_lock_excludes_a_second_store_until_release(self) -> None:
         other = RunStateStore(self.store.state_directory, self.store.lock_path)

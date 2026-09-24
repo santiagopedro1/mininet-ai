@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from mininet_ai.compiler import compile_experiment
+from mininet_ai.compiler.models import PlannedSwitch
 from mininet_ai.errors import CompilationError
 from mininet_ai.specification.models import Experiment
 from mininet_ai.substrates import MininetOVSDriver, substrate_registry
@@ -59,6 +60,7 @@ class MininetOVSDriverTests(unittest.TestCase):
         plan = compile_experiment(experiment_from(snapshot))
 
         switch = next(resource for resource in plan.resources if resource.name == "s1")
+        assert isinstance(switch, PlannedSwitch)
         self.assertEqual(switch.datapath.value, "userspace")
 
     def test_unsupported_controller_and_tc_combinations_are_rejected(self) -> None:

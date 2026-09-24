@@ -447,6 +447,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         record = store.read()
 
         self.assertIsNotNone(record)
+        assert record is not None
         self.assertEqual(record.run, run)
         self.assertEqual(record.plan["digest"], self.plan.digest)
         self.assertTrue(store.acquired)
@@ -527,6 +528,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         result = recovered.teardown(run.id)
 
         self.assertEqual(snapshot.run.state, RunState.FAILED)
+        assert snapshot.run.issue is not None
         self.assertEqual(snapshot.run.issue.code, "runtime.run.orphaned")
         self.assertTrue(
             all(
@@ -545,6 +547,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         orphan = original.deploy(self.plan)
         record = store.read()
         self.assertIsNotNone(record)
+        assert record is not None
         store.release()
         dead_owner = ProcessOwner.current().model_copy(
             update={"start_ticks": ProcessOwner.current().start_ticks + 1}
@@ -641,6 +644,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
 
         self.assertEqual(result.status, ActionStatus.REJECTED)
         self.assertFalse(result.changed)
+        assert result.issue is not None
         self.assertEqual(result.issue.code, "runtime.action.invalid-parameters")
 
     def test_new_process_is_released_when_ownership_cannot_be_persisted(

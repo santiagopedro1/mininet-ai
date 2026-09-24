@@ -19,7 +19,6 @@ from mininet_ai.substrates import (
     ResourceOperationalState,
 )
 
-
 ROOT = Path(__file__).parents[2]
 EXPERIMENT = ROOT / "examples" / "phase2" / "experiment.yaml"
 LIVE_TESTS = os.environ.get("MININET_AI_LIVE_TESTS") == "1"
@@ -85,6 +84,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                         break
                 time.sleep(0.1)
             self.assertIsNotNone(run_id, "run command did not become ready")
+            assert run_id is not None
 
             status = command(
                 sys.executable,
@@ -196,6 +196,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
 
         runtime = MininetOVSRuntime()
         snapshot = runtime.inspect(run_id)
+        assert snapshot.run.issue is not None
         self.assertEqual(snapshot.run.issue.code, "runtime.run.orphaned")
 
         result = runtime.teardown(run_id)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,6 @@ from mininet_ai.substrates.mininet_ovs.observations import (
     ObservationCollectionError,
 )
 from tests.substrates.test_mininet_ovs_runtime import mininet_plan
-
 
 ROOT = Path(__file__).parents[2]
 PHASE2_EXPERIMENT = ROOT / "examples" / "phase2" / "experiment.yaml"
@@ -53,7 +53,14 @@ class ScriptedExecutor:
             returncode=returncode,
         )
 
-    def run(self, arguments, *, node: Any | None = None) -> CommandResult:
+    def run(
+        self,
+        arguments: Sequence[str],
+        *,
+        node: Any | None = None,
+        timeout_seconds: float = 10,
+    ) -> CommandResult:
+        del timeout_seconds
         key = (getattr(node, "name", None), tuple(arguments))
         self.calls.append(key)
         try:

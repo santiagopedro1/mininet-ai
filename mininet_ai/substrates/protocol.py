@@ -55,16 +55,20 @@ class SubstrateManifest:
 class SubstrateDriver(Protocol):
     """Required Phase 1 interface for every substrate implementation."""
 
-    name: str
+    @property
+    def name(self) -> str: ...
+
     manifest: SubstrateManifest
 
     def validate_options(self) -> tuple[SubstrateIssue, ...]:
         """Validate driver-specific options supplied by the experiment."""
+        ...
 
     def validate_resources(
         self, resources: Sequence[PlannedResource]
     ) -> tuple[SubstrateIssue, ...]:
         """Validate the concrete resource graph against substrate support."""
+        ...
 
     def validate_attachment(
         self,
@@ -75,11 +79,13 @@ class SubstrateDriver(Protocol):
         runtime: str,
     ) -> tuple[SubstrateIssue, ...]:
         """Validate one logical agent attachment."""
+        ...
 
     def validate_observation(
         self, *, layer: AttachmentLayer, custom_layer: str | None, name: str
     ) -> tuple[SubstrateIssue, ...]:
         """Validate one observation binding."""
+        ...
 
 
 class ManifestSubstrateDriver:

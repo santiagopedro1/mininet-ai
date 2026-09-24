@@ -6,15 +6,25 @@ implement ``make_driver``. This keeps compiler-facing behavior consistent.
 
 from __future__ import annotations
 
-from mininet_ai.specification.models import AttachmentLayer, ResourceKind
+import unittest
+from typing import TYPE_CHECKING
+
+from mininet_ai.specification.models import AttachmentLayer
 from mininet_ai.substrates import (
     SUBSTRATE_CONTRACT_VERSION,
     SubstrateDriver,
     SubstrateIssue,
 )
 
+if TYPE_CHECKING:
+    class _TestCase(unittest.TestCase):
+        pass
+else:
+    class _TestCase:
+        pass
 
-class SubstrateDriverContract:
+
+class SubstrateDriverContract(_TestCase):
     def make_driver(self) -> SubstrateDriver:
         raise NotImplementedError
 

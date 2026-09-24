@@ -8,7 +8,7 @@ import threading
 from enum import StrEnum
 from pathlib import Path
 from types import FrameType
-from typing import Self
+from typing import Self, cast
 
 import typer
 from rich.console import Console
@@ -27,7 +27,6 @@ from mininet_ai.substrates import (
     SubstrateRuntime,
     create_substrate_runtime,
 )
-
 
 app = typer.Typer(
     name="mininet-ai",
@@ -59,7 +58,9 @@ class _SignalLatch:
 
     def __enter__(self) -> Self:
         for number in (signal.SIGINT, signal.SIGTERM):
-            self._previous[number] = signal.getsignal(number)
+            self._previous[number] = cast(
+                signal.Handlers, signal.getsignal(number)
+            )
             signal.signal(number, self._request_stop)
         return self
 
