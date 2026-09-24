@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import multiprocessing
 import os
 import subprocess
+import sys
+import time
 import unittest
 from multiprocessing.connection import Connection
 from pathlib import Path
@@ -42,6 +45,89 @@ def deploy_and_exit_without_teardown(connection: Connection) -> None:
 
 @unittest.skipUnless(LIVE_TESTS, "set MININET_AI_LIVE_TESTS=1 inside the Phase 2 VM")
 class LiveMininetOVSRuntimeTests(unittest.TestCase):
+    def test_cli_runs_inspects_and_cooperatively_stops_owner(self) -> None:
+        state_path = Path("/run/mininet-ai/mininet-ovs.json")
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "mininet_ai.cli",
+                "run",
+                str(EXPERIMENT),
+            ],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        run_id = None
+        try:
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    output, error = process.communicate()
+                    self.fail(f"run command exited early: {output}\n{error}")
+                if state_path.exists():
+                    state = json.loads(state_path.read_text(encoding="utf-8"))
+                    if state["run"]["state"] == "running":
+                        run_id = state["run"]["id"]
+                        break
+                time.sleep(0.1)
+            self.assertIsNotNone(run_id, "run command did not become ready")
+
+            status = command(
+                sys.executable,
+                "-m",
+                "mininet_ai.cli",
+                "status",
+                run_id,
+                "--format",
+                "json",
+            )
+            topology = command(
+                sys.executable,
+                "-m",
+                "mininet_ai.cli",
+                "topology",
+                run_id,
+                "--format",
+                "json",
+            )
+            stopped = command(
+                sys.executable,
+                "-m",
+                "mininet_ai.cli",
+                "stop",
+                run_id,
+                "--timeout",
+                "15",
+            )
+
+            self.assertEqual(json.loads(status.stdout)["run"]["state"], "running")
+            resources = json.loads(topology.stdout)["resources"]
+            self.assertTrue(any(item["name"] == "s1" for item in resources))
+            self.assertIn(f"Stopped {run_id}", stopped.stdout)
+            output, error = process.communicate(timeout=15)
+            self.assertEqual(process.returncode, 0, f"{output}\n{error}")
+            self.assertIn(f"Stopped {run_id}", output)
+            self.assertFalse(state_path.exists())
+            self.assertNotEqual(
+                command(
+                    "ovs-vsctl", "br-exists", "s1", check=False
+                ).returncode,
+                0,
+            )
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+            if state_path.exists() and run_id is not None:
+                MininetOVSRuntime().teardown(run_id)
+
     def test_fresh_runtime_recovers_a_crashed_owner(self) -> None:
         read_connection, write_connection = multiprocessing.Pipe(duplex=False)
         process = multiprocessing.Process(

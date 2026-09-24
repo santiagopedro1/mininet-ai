@@ -157,3 +157,13 @@ class SubstrateRuntime(Protocol):
 
     def teardown(self, run_id: str) -> TeardownResult:
         """Release run-owned resources; repeated calls are successful no-ops."""
+
+
+@runtime_checkable
+class ExternallyStoppableRuntime(SubstrateRuntime, Protocol):
+    """Optional interface for asking a separate owner process to stop a run."""
+
+    def request_stop(
+        self, run_id: str, *, timeout_seconds: float = 30
+    ) -> TeardownResult:
+        """Request owner teardown and wait for the run to stop."""

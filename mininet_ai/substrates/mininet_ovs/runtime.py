@@ -433,6 +433,79 @@ class MininetOVSRuntime:
         )
         return TeardownResult(run=run.info, released_resources=released)
 
+    def request_stop(
+        self, run_id: str, *, timeout_seconds: float = 30
+    ) -> TeardownResult:
+        """Ask the verified owner process to tear down an active run."""
+
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        if run_id in self._runs:
+            return self.teardown(run_id)
+        try:
+            record = self._state_store.read()
+        except StateStoreError as error:
+            raise RuntimeOperationError(
+                f"could not read Mininet/OVS runtime state: {error}",
+                code="runtime.state.failed",
+                run_id=run_id,
+            ) from error
+        if record is None or record.run.id != run_id:
+            self._raise_unknown_run(run_id)
+
+        if not record.owner.is_alive() or not self._state_store.is_locked():
+            return self.teardown(run_id)
+        try:
+            os.kill(record.owner.pid, signal.SIGTERM)
+        except PermissionError as error:
+            raise RuntimeOperationError(
+                f"permission denied signaling owner of run {run_id!r}",
+                code="runtime.permission.denied",
+                run_id=run_id,
+            ) from error
+        except ProcessLookupError:
+            return self.teardown(run_id)
+
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            time.sleep(0.05)
+            try:
+                current = self._state_store.read()
+            except StateStoreError as error:
+                raise RuntimeOperationError(
+                    f"could not read Mininet/OVS runtime state: {error}",
+                    code="runtime.state.failed",
+                    run_id=run_id,
+                ) from error
+            if current is None:
+                stopped = record.run.model_copy(
+                    update={
+                        "state": RunState.STOPPED,
+                        "stopped_at": self._clock(),
+                        "issue": None,
+                    }
+                )
+                plan = self._plan_from_record(record)
+                return TeardownResult(
+                    run=stopped,
+                    released_resources=tuple(
+                        resource.name for resource in plan.resources
+                    ),
+                )
+            if current.run.id != run_id:
+                raise RuntimeOperationError(
+                    f"runtime state changed while stopping run {run_id!r}",
+                    code="runtime.state.changed",
+                    run_id=run_id,
+                )
+            if not current.owner.is_alive():
+                return self.teardown(run_id)
+        raise RuntimeOperationError(
+            f"timed out waiting for run {run_id!r} to stop",
+            code="runtime.stop.timeout",
+            run_id=run_id,
+        )
+
     def _claim_run(self, info: RunInfo, plan: DeploymentPlan) -> None:
         try:
             self._state_store.acquire()

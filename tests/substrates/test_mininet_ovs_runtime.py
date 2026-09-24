@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import signal
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from unittest.mock import patch
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import RuntimeOperationError
@@ -495,6 +497,52 @@ class MininetOVSRuntimeTests(unittest.TestCase):
 
         self.assertEqual(context.exception.code, "runtime.run.orphaned")
         self.assertEqual(context.exception.run_id, orphan.id)
+
+    def test_external_stop_signals_verified_owner_and_waits_for_cleanup(self) -> None:
+        store = temporary_store(self)
+        owner = recording_runtime(self, state_store=store)
+        run = owner.deploy(self.plan)
+        controller = recording_runtime(
+            self,
+            state_store=RunStateStore(store.state_directory, store.lock_path),
+        )
+        signals = []
+
+        def stop_owner(pid: int, number: int) -> None:
+            signals.append((pid, number))
+            owner.teardown(run.id)
+
+        with patch(
+            "mininet_ai.substrates.mininet_ovs.runtime.os.kill",
+            side_effect=stop_owner,
+        ):
+            result = controller.request_stop(run.id)
+
+        self.assertEqual(signals, [(ProcessOwner.current().pid, signal.SIGTERM)])
+        self.assertEqual(result.run.state, RunState.STOPPED)
+        self.assertFalse(store.state_path.exists())
+
+    def test_external_stop_has_typed_timeout(self) -> None:
+        store = temporary_store(self)
+        owner = recording_runtime(self, state_store=store)
+        run = owner.deploy(self.plan)
+        controller = recording_runtime(
+            self,
+            state_store=RunStateStore(store.state_directory, store.lock_path),
+        )
+
+        with (
+            patch("mininet_ai.substrates.mininet_ovs.runtime.os.kill"),
+            patch(
+                "mininet_ai.substrates.mininet_ovs.runtime.time.monotonic",
+                side_effect=[0, 31],
+            ),
+        ):
+            with self.assertRaises(RuntimeOperationError) as context:
+                controller.request_stop(run.id, timeout_seconds=30)
+
+        self.assertEqual(context.exception.code, "runtime.stop.timeout")
+        owner.teardown(run.id)
 
     def test_actions_delegate_to_provider_and_refresh_live_resources(self) -> None:
         runtime = recording_runtime(self)

@@ -165,7 +165,7 @@ mininet_ai/
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
-└── cli.py            # validate, plan, and schema commands
+└── cli.py            # compile-time and live-runtime commands
 ```
 
 ### Phase 2 development VM
@@ -251,6 +251,36 @@ target kinds are validated before mutation, link-state changes roll back a
 partially updated endpoint, and processes started by a run are stopped during
 teardown. Every operation returns a normalized succeeded, rejected, or failed
 result and refreshes the live resource snapshot after success.
+
+### Runtime CLI
+
+Preview a deployment without requiring root or changing networking state:
+
+```bash
+mininet-ai run examples/phase2/experiment.yaml --dry-run
+```
+
+Live Mininet/OVS runs are foreground-owned so the process holding Mininet's
+Python objects also owns cleanup. Start a run in one VM terminal and copy the
+reported run ID:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml
+```
+
+Inspect or stop it from another VM terminal:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai status <run-id>
+sudo scripts/vm-run.sh mininet-ai topology <run-id>
+sudo scripts/vm-run.sh mininet-ai stop <run-id>
+```
+
+`status` and `topology` accept `--format json`. `stop` signals only the owner
+whose PID, boot identity, and process start time match the protected run-state
+record; the foreground owner then performs normal teardown. `Ctrl+C` in the
+owner terminal follows the same path. If the owner has already crashed, `stop`
+uses the recorded ownership data to recover only that run's resources.
 
 ### Golden deployment plans
 
