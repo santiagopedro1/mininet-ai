@@ -29,6 +29,13 @@ invocation results, and provider protocols. An execution catalog resolves each
 compiled agent to its normalized blueprint, capability definitions, and policy
 without changing the deployment-plan format.
 
+Agent, capability, and model adapters use explicit provider registries. Optional
+packages expose versioned descriptors through the `mininet_ai.agents`,
+`mininet_ai.capabilities`, or `mininet_ai.models` Python entry-point groups.
+Discovery is opt-in and transactional: compiling or validating an experiment
+does not import plugins, and a failed discovery leaves existing registrations
+unchanged.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -171,6 +178,7 @@ The code is organized by responsibility:
 mininet_ai/
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
+├── plugins/         # Explicit provider registries and entry-point discovery
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
 ├── sdk/             # Agent, model, and capability runtime contracts
 └── cli.py            # compile-time and live-runtime commands
