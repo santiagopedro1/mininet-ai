@@ -18,6 +18,7 @@ from mininet_ai.sdk.contracts import (
     AgentContext,
     CapabilityOutcome,
     CapabilityProvider,
+    CapabilityProviderError,
 )
 from mininet_ai.specification.models import CapabilityDefinition
 from mininet_ai.substrates.runtime import (
@@ -81,6 +82,12 @@ class CapabilityEngine:
                 )
             provider = self._providers.create(capability.provider, capability)
             raw_outcome = provider.execute(context, proposal)
+            provider_result = self._provider_result(context, proposal, raw_outcome)
+            if (
+                provider_result is not None
+                and provider_result.status != ActionStatus.SUCCEEDED
+            ):
+                return provider_result
             outcome = self._normalize_outcome(raw_outcome)
             self._validate_schema(
                 capability.output_schema,
@@ -111,6 +118,17 @@ class CapabilityEngine:
                     target=proposal.target,
                 ),
             )
+        except CapabilityProviderError as error:
+            return self._result(
+                context,
+                proposal,
+                status=error.status,
+                issue=RuntimeIssue(
+                    code=error.code,
+                    message=str(error),
+                    target=proposal.target,
+                ),
+            )
         except TimeoutError as error:
             return self._result(
                 context,
@@ -134,6 +152,8 @@ class CapabilityEngine:
                 ),
             )
 
+        if provider_result is not None:
+            return provider_result
         return self._result(
             context,
             proposal,
@@ -250,8 +270,17 @@ class CapabilityEngine:
 
     @staticmethod
     def _normalize_outcome(
-        raw: CapabilityOutcome | Mapping[str, JsonValue],
+        raw: CapabilityOutcome | Mapping[str, JsonValue] | ActionResult,
     ) -> CapabilityOutcome:
+        if isinstance(raw, ActionResult):
+            try:
+                return CapabilityOutcome(changed=raw.changed, output=raw.output)
+            except ValueError as error:
+                raise _CapabilityError(
+                    ActionStatus.FAILED,
+                    "capability.output.invalid",
+                    f"capability provider returned invalid JSON output: {error}",
+                ) from error
         if isinstance(raw, CapabilityOutcome):
             return raw
         if not isinstance(raw, Mapping):
@@ -269,6 +298,22 @@ class CapabilityEngine:
                 f"capability provider returned invalid JSON output: {error}",
             ) from error
         return CapabilityOutcome(output=output)
+
+    @staticmethod
+    def _provider_result(
+        context: AgentContext,
+        proposal: ActionProposal,
+        raw: CapabilityOutcome | Mapping[str, JsonValue] | ActionResult,
+    ) -> ActionResult | None:
+        if not isinstance(raw, ActionResult):
+            return None
+        if raw.run_id != context.run_id or raw.request_id != proposal.id:
+            raise _CapabilityError(
+                ActionStatus.FAILED,
+                "capability.result.invalid-identity",
+                "capability provider returned a result for another run or request",
+            )
+        return raw
 
     def _result(
         self,

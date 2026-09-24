@@ -43,6 +43,14 @@ JSON Schema; and then validates and normalizes provider output. Authorization
 violations are rejected without invoking plugin code, while provider and output
 failures use typed action results.
 
+Built-in capability adapters connect authorized proposals to substrate actions
+or observations, local executables, and HTTP services. External adapters use a
+versioned JSON request containing the scoped context and proposal, and require a
+`CapabilityOutcome` response. Process adapters never invoke a shell, use a
+minimal explicit environment, bound output, enforce deadlines, and terminate
+the complete process group. HTTP adapters reject embedded URL credentials,
+disable redirects, and bound response bodies.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -189,6 +197,7 @@ mininet_ai/
 ├── plugins/         # Explicit provider registries and entry-point discovery
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
 ├── sdk/             # Agent, model, and capability runtime contracts
+├── transports/      # Bounded I/O shared by external adapters
 └── cli.py            # compile-time and live-runtime commands
 ```
 

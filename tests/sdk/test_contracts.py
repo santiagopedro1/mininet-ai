@@ -15,6 +15,7 @@ from mininet_ai.sdk import (
     AgentRuntimeIssue,
     CapabilityOutcome,
     CapabilityProvider,
+    CapabilityProviderError,
     InvocationStatus,
     ModelMessage,
     ModelProvider,
@@ -24,6 +25,7 @@ from mininet_ai.sdk import (
     TokenUsage,
 )
 from mininet_ai.specification.models import AttachmentLayer, ResourceKind
+from mininet_ai.substrates import ActionStatus
 
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -175,6 +177,22 @@ class AgentRuntimeContractTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValidationError, "targets must be unique"):
             AgentContext.model_validate(payload)
+
+    def test_provider_errors_require_a_failure_status_and_identity(self) -> None:
+        cases = (
+            {"message": "", "code": "capability.failed"},
+            {"message": "failed", "code": ""},
+            {
+                "message": "failed",
+                "code": "capability.failed",
+                "status": ActionStatus.SUCCEEDED,
+            },
+        )
+
+        for parameters in cases:
+            with self.subTest(parameters=parameters):
+                with self.assertRaises(ValueError):
+                    CapabilityProviderError(**parameters)
 
 
 if __name__ == "__main__":

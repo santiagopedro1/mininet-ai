@@ -27,8 +27,9 @@ The project currently defines five contract families:
 - `mininet-ai/agent-runtime/v1alpha1` covers the SDK seam used by agent,
   capability, and model-provider adapters, including scoped invocation context,
   action proposals, normalized model responses, invocation results, versioned
-  provider descriptors, and registry semantics. It is independent of
-  experiment and substrate contract versions.
+  provider descriptors, registry semantics, and the JSON protocol used by
+  external capability processes and services. It is independent of experiment
+  and substrate contract versions.
 
 The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing

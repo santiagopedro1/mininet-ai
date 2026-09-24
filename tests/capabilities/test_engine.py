@@ -12,10 +12,11 @@ from mininet_ai.sdk import (
     ActionProposal,
     AgentContext,
     CapabilityOutcome,
+    CapabilityProviderError,
     ExecutionCatalog,
 )
 from mininet_ai.specification.models import AttachmentLayer, ResourceKind
-from mininet_ai.substrates import ActionStatus
+from mininet_ai.substrates import ActionResult, ActionStatus, RuntimeIssue
 from tests.compiler.helpers import EXAMPLE
 
 
@@ -201,14 +202,72 @@ class CapabilityEngineTests(unittest.TestCase):
         cases = (
             (RuntimeError("provider crashed"), "capability.execution.failed"),
             (TimeoutError("deadline exceeded"), "capability.timeout"),
+            (
+                CapabilityProviderError(
+                    "remote denied the request",
+                    code="capability.remote.denied",
+                    status=ActionStatus.REJECTED,
+                ),
+                "capability.remote.denied",
+            ),
         )
 
         for failure, code in cases:
             with self.subTest(code=code):
                 self.provider.result = failure
                 result = self.engine.execute(self.context(), self.proposal())
-                self.assertEqual(result.status, ActionStatus.FAILED)
+                expected_status = (
+                    ActionStatus.REJECTED
+                    if isinstance(failure, CapabilityProviderError)
+                    else ActionStatus.FAILED
+                )
+                self.assertEqual(result.status, expected_status)
                 self.assertEqual(result.issue.code, code)
+
+    def test_successful_substrate_result_output_must_be_json(self) -> None:
+        self.provider.result = ActionResult(
+            run_id="run-1",
+            request_id="proposal-1",
+            status=ActionStatus.SUCCEEDED,
+            completed_at=NOW,
+            output={"invalid": object()},
+        )
+
+        result = self.engine.execute(self.context(), self.proposal())
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertEqual(result.issue.code, "capability.output.invalid")
+
+    def test_substrate_action_results_are_preserved(self) -> None:
+        substrate_result = ActionResult(
+            run_id="run-1",
+            request_id="proposal-1",
+            status=ActionStatus.REJECTED,
+            completed_at=NOW,
+            issue=RuntimeIssue(
+                code="runtime.action.denied",
+                message="substrate rejected the action",
+                target="s1",
+            ),
+        )
+        self.provider.result = substrate_result
+
+        result = self.engine.execute(self.context(), self.proposal())
+
+        self.assertIs(result, substrate_result)
+
+    def test_provider_result_identity_must_match_the_proposal(self) -> None:
+        self.provider.result = ActionResult(
+            run_id="another-run",
+            request_id="another-request",
+            status=ActionStatus.SUCCEEDED,
+            completed_at=NOW,
+        )
+
+        result = self.engine.execute(self.context(), self.proposal())
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertEqual(result.issue.code, "capability.result.invalid-identity")
 
     def test_unknown_provider_is_a_typed_failure(self) -> None:
         engine = CapabilityEngine(

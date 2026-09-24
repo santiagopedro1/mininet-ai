@@ -13,7 +13,7 @@ from mininet_ai.specification.models import (
     ResourceKind,
     StrictModel,
 )
-from mininet_ai.substrates.runtime import ActionResult
+from mininet_ai.substrates.runtime import ActionResult, ActionStatus
 
 
 AGENT_RUNTIME_CONTRACT_VERSION = "mininet-ai/agent-runtime/v1alpha1"
@@ -137,6 +137,25 @@ class CapabilityOutcome(StrictModel):
     output: dict[str, JsonValue] = Field(default_factory=dict)
 
 
+class CapabilityProviderError(Exception):
+    """Typed failure raised by a capability adapter for the engine to return."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+        status: ActionStatus = ActionStatus.FAILED,
+    ) -> None:
+        if not message or not code:
+            raise ValueError("capability provider errors require a code and message")
+        if status == ActionStatus.SUCCEEDED:
+            raise ValueError("a capability provider error cannot be successful")
+        super().__init__(message)
+        self.code = code
+        self.status = status
+
+
 class AgentResponse(StrictModel):
     message: str | None = Field(default=None, min_length=1)
     proposals: tuple[ActionProposal, ...] = ()
@@ -212,6 +231,6 @@ class CapabilityProvider(Protocol):
         self,
         context: AgentContext,
         proposal: ActionProposal,
-    ) -> CapabilityOutcome | Mapping[str, JsonValue]:
+    ) -> CapabilityOutcome | Mapping[str, JsonValue] | ActionResult:
         """Execute one already-authorized proposal."""
         ...
