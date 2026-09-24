@@ -181,6 +181,16 @@ class AgentResponse(StrictModel):
         return self
 
 
+class AgentProviderError(Exception):
+    """Typed failure raised while constructing or invoking an agent adapter."""
+
+    def __init__(self, message: str, *, code: str) -> None:
+        if not message or not code:
+            raise ValueError("agent provider errors require a code and message")
+        super().__init__(message)
+        self.code = code
+
+
 class AgentInvocationResult(StrictModel):
     invocation_id: str = Field(alias="invocationId", min_length=1)
     run_id: str = Field(alias="runId", min_length=1)

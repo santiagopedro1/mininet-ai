@@ -11,6 +11,7 @@ from mininet_ai.sdk import (
     AgentContext,
     AgentInvocationResult,
     AgentProvider,
+    AgentProviderError,
     AgentResponse,
     AgentRuntimeIssue,
     CapabilityOutcome,
@@ -199,6 +200,10 @@ class AgentRuntimeContractTests(unittest.TestCase):
             ModelProviderError("", code="model.failed")
         with self.assertRaises(ValueError):
             ModelProviderError("failed", code="")
+        with self.assertRaises(ValueError):
+            AgentProviderError("", code="agent.failed")
+        with self.assertRaises(ValueError):
+            AgentProviderError("failed", code="")
 
 
 if __name__ == "__main__":

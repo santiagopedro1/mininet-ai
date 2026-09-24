@@ -60,6 +60,14 @@ structured-output setting, parses strict JSON, and validates the result locally
 before returning it. Credentials belong in adapter configuration or plugin
 code, not experiment documents or endpoint URLs.
 
+Declarative agent adapters turn a compiled blueprint and scoped `AgentContext`
+into one structured model request, then require a valid `AgentResponse` before
+any proposal reaches the capability engine. Python agents use an explicit
+`module:callable` entrypoint with the same context and response contracts.
+Entrypoints are imported only when their provider is constructed, never during
+validation or compilation. They currently run as trusted code in the
+orchestrator process; process and namespace isolation belong to Phase 6.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -200,6 +208,7 @@ The code is organized by responsibility:
 
 ```text
 mininet_ai/
+├── agents/          # Declarative and Python agent adapters
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
 ├── capabilities/    # Proposal authorization, validation, and execution

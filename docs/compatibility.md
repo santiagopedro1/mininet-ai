@@ -30,8 +30,10 @@ The project currently defines five contract families:
   provider descriptors, registry semantics, and the JSON protocol used by
   external capability processes and services. OpenAI-compatible and Ollama
   wire formats are adapter details normalized into this contract; they are not
-  additional public contract families. The agent-runtime contract is
-  independent of experiment and substrate contract versions.
+  additional public contract families. Declarative agents emit the normalized
+  `AgentResponse` shape, and Python entrypoints receive `AgentContext` and must
+  return that same shape. The agent-runtime contract is independent of
+  experiment and substrate contract versions.
 
 The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing
