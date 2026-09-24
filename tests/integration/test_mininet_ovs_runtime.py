@@ -9,6 +9,8 @@ from pathlib import Path
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import (
+    ActionRequest,
+    ActionStatus,
     MininetOVSRuntime,
     ObservationQuery,
     ResourceOperationalState,
@@ -153,6 +155,108 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
             self.assertTrue(
                 observations["host.reachability"]["probes"][0]["reachable"]
             )
+
+            disabled = runtime.execute(
+                run.id,
+                ActionRequest(
+                    id="disable-host-link",
+                    name="link.disable",
+                    target="h1-s1",
+                ),
+            )
+            self.assertEqual(disabled.status, ActionStatus.SUCCEEDED)
+            disabled_snapshot = runtime.inspect(run.id)
+            disabled_link = next(
+                resource
+                for resource in disabled_snapshot.resources
+                if resource.name == "h1-s1"
+            )
+            self.assertEqual(disabled_link.state, ResourceOperationalState.DOWN)
+
+            enabled = runtime.execute(
+                run.id,
+                ActionRequest(
+                    id="enable-host-link",
+                    name="link.enable",
+                    target="h1-s1",
+                ),
+            )
+            self.assertEqual(enabled.status, ActionStatus.SUCCEEDED)
+
+            configured = runtime.execute(
+                run.id,
+                ActionRequest(
+                    id="reshape-host-link",
+                    name="link.configure",
+                    target="h1-s1",
+                    parameters={"bandwidth": 50, "delay": "2ms", "loss": 0},
+                ),
+            )
+            self.assertEqual(configured.status, ActionStatus.SUCCEEDED)
+            changed_qdiscs = command(
+                "tc", "qdisc", "show", "dev", "s1-eth1"
+            ).stdout
+            self.assertIn("delay 2ms", changed_qdiscs)
+
+            installed = runtime.execute(
+                run.id,
+                ActionRequest(
+                    id="install-test-flow",
+                    name="openflow.flow.install",
+                    target="s1",
+                    parameters={
+                        "cookie": "0x1234",
+                        "priority": 100,
+                        "match": {"in_port": 1},
+                        "actions": "output:2",
+                    },
+                ),
+            )
+            self.assertEqual(installed.status, ActionStatus.SUCCEEDED)
+            flow_dump = command(
+                "ovs-ofctl", "-O", "OpenFlow13", "dump-flows", "s1"
+            ).stdout
+            self.assertIn("cookie=0x1234", flow_dump)
+
+            removed = runtime.execute(
+                run.id,
+                ActionRequest(
+                    id="remove-test-flow",
+                    name="openflow.flow.remove",
+                    target="s1",
+                    parameters={
+                        "cookie": "0x1234",
+                        "cookieMask": "0xffffffffffffffff",
+                        "match": "",
+                    },
+                ),
+            )
+            self.assertEqual(removed.status, ActionStatus.SUCCEEDED)
+            flow_dump = command(
+                "ovs-ofctl", "-O", "OpenFlow13", "dump-flows", "s1"
+            ).stdout
+            self.assertNotIn("cookie=0x1234", flow_dump)
+
+            started = runtime.execute(
+                run.id,
+                ActionRequest(
+                    id="managed-sleeper",
+                    name="host.process.start",
+                    target="h1",
+                    parameters={"command": "sleep", "arguments": ["30"]},
+                ),
+            )
+            self.assertEqual(started.status, ActionStatus.SUCCEEDED)
+            stopped = runtime.execute(
+                run.id,
+                ActionRequest(
+                    id="stop-managed-sleeper",
+                    name="host.process.stop",
+                    target="h1",
+                    parameters={"processId": "managed-sleeper"},
+                ),
+            )
+            self.assertEqual(stopped.status, ActionStatus.SUCCEEDED)
         finally:
             if run is not None:
                 runtime.teardown(run.id)

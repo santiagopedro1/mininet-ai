@@ -20,6 +20,11 @@ from mininet_ai.specification.models import (
     ResourceKind,
     SwitchDatapath,
 )
+from mininet_ai.substrates.mininet_ovs.actions import (
+    ActionExecutionError,
+    ActionProvider,
+    MininetOVSActions,
+)
 from mininet_ai.substrates.mininet_ovs.driver import (
     MininetOVSDriver,
     parse_default_route,
@@ -69,6 +74,7 @@ Clock = Callable[[], datetime]
 RunIdFactory = Callable[[], str]
 Recovery = Callable[["DeploymentPlan", tuple[ProcessOwner, ...]], None]
 ObservationFactory = Callable[["DeploymentPlan", Any], ObservationProvider]
+ActionFactory = Callable[["DeploymentPlan", Any], ActionProvider]
 
 
 def _utc_now() -> datetime:
@@ -121,6 +127,7 @@ class _MininetRun:
     plan: DeploymentPlan
     network: Any
     observations: ObservationProvider
+    actions: ActionProvider
     resources: tuple[LiveResource, ...]
 
 
@@ -136,6 +143,10 @@ def _observation_provider(
     plan: DeploymentPlan, network: Any
 ) -> MininetOVSObservations:
     return MininetOVSObservations(plan, network)
+
+
+def _action_provider(plan: DeploymentPlan, network: Any) -> MininetOVSActions:
+    return MininetOVSActions(plan, network)
 
 
 def _live_resources(
@@ -174,6 +185,7 @@ class MininetOVSRuntime:
         owner: ProcessOwner | None = None,
         recovery: Recovery | None = None,
         observation_factory: ObservationFactory = _observation_provider,
+        action_factory: ActionFactory = _action_provider,
     ) -> None:
         if connect_timeout_seconds <= 0:
             raise ValueError("connect_timeout_seconds must be positive")
@@ -185,6 +197,7 @@ class MininetOVSRuntime:
         self._owner = owner or ProcessOwner.current()
         self._recovery = recovery or self._recover_owned_resources
         self._observation_factory = observation_factory
+        self._action_factory = action_factory
         self._runs: dict[str, _MininetRun] = {}
 
     def deploy(self, plan: DeploymentPlan) -> RunInfo:
@@ -212,6 +225,7 @@ class MininetOVSRuntime:
             self._write_state(info, plan, process_groups)
             self._start_network(plan, network)
             observations = self._observation_factory(plan, network)
+            actions = self._action_factory(plan, network)
             resources = observations.snapshot()
             unavailable = sorted(
                 resource.name
@@ -259,6 +273,7 @@ class MininetOVSRuntime:
             plan=plan,
             network=network,
             observations=observations,
+            actions=actions,
             resources=resources,
         )
         return info
@@ -321,16 +336,40 @@ class MininetOVSRuntime:
             (request.target,),
             {resource.name for resource in run.resources},
         )
+        try:
+            outcome = run.actions.execute(request)
+            run.resources = run.observations.snapshot()
+        except ActionExecutionError as error:
+            return ActionResult(
+                run_id=run_id,
+                request_id=request.id,
+                status=error.status,
+                completed_at=self._clock(),
+                issue=RuntimeIssue(
+                    code=error.code,
+                    message=str(error),
+                    target=request.target,
+                ),
+            )
+        except Exception as error:
+            return ActionResult(
+                run_id=run_id,
+                request_id=request.id,
+                status=ActionStatus.FAILED,
+                completed_at=self._clock(),
+                issue=RuntimeIssue(
+                    code="runtime.action.failed",
+                    message=str(error),
+                    target=request.target,
+                ),
+            )
         return ActionResult(
             run_id=run_id,
             request_id=request.id,
-            status=ActionStatus.REJECTED,
+            status=ActionStatus.SUCCEEDED,
             completed_at=self._clock(),
-            issue=RuntimeIssue(
-                code="runtime.action.unsupported",
-                message=f"action {request.name!r} is not implemented yet",
-                target=request.target,
-            ),
+            changed=outcome.changed,
+            output=outcome.output,
         )
 
     def teardown(self, run_id: str) -> TeardownResult:
@@ -347,6 +386,7 @@ class MininetOVSRuntime:
                 run.plan,
                 self._network_process_groups(run.network),
             )
+            run.actions.close()
             run.network.stop()
             self._remove_owned_artifacts(run.plan)
             self._state_store.clear()

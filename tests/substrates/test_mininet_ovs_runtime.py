@@ -18,10 +18,14 @@ from mininet_ai.substrates import (
     RunState,
     create_substrate_runtime,
 )
-from mininet_ai.substrates.mininet_ovs.runtime import _MininetBindings
+from mininet_ai.substrates.mininet_ovs.actions import (
+    ActionExecutionError,
+    ActionOutcome,
+)
 from mininet_ai.substrates.mininet_ovs.observations import (
     ObservationCollectionError,
 )
+from mininet_ai.substrates.mininet_ovs.runtime import _MininetBindings
 from mininet_ai.substrates.mininet_ovs.state import ProcessOwner, RunStateStore
 from tests.compiler.helpers import example_snapshot, experiment_from
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
@@ -185,6 +189,35 @@ class DegradedObservations(RecordingObservations):
         )
 
 
+class RecordingActions:
+    instances = []
+
+    def __init__(self, plan, network) -> None:
+        self.plan = plan
+        self.network = network
+        self.requests: list[ActionRequest] = []
+        self.closed = False
+        type(self).instances.append(self)
+
+    def execute(self, request: ActionRequest) -> ActionOutcome:
+        self.requests.append(request)
+        return ActionOutcome(
+            changed=True,
+            output={"action": request.name, "target": request.target},
+        )
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class RejectingActions(RecordingActions):
+    def execute(self, request: ActionRequest) -> ActionOutcome:
+        raise ActionExecutionError(
+            "scripted action rejection",
+            code="runtime.action.invalid-parameters",
+        )
+
+
 def bindings(network_class: type = RecordingNetwork) -> _MininetBindings:
     return _MininetBindings(
         network_class=network_class,
@@ -217,6 +250,7 @@ def recording_runtime(
     owner: ProcessOwner | None = None,
     recovery=None,
     observation_factory=RecordingObservations,
+    action_factory=RecordingActions,
 ) -> MininetOVSRuntime:
     if state_store is None:
         state_store = temporary_store(test_case)
@@ -228,6 +262,7 @@ def recording_runtime(
         owner=owner,
         recovery=recovery,
         observation_factory=observation_factory,
+        action_factory=action_factory,
     )
 
 
@@ -243,6 +278,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
         RecordingNetwork.instances.clear()
         UnhealthyRecordingNetwork.instances.clear()
+        RecordingActions.instances.clear()
         self.plan = mininet_plan()
 
     def test_registry_constructs_runtime_without_importing_mininet(self) -> None:
@@ -460,7 +496,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertEqual(context.exception.code, "runtime.run.orphaned")
         self.assertEqual(context.exception.run_id, orphan.id)
 
-    def test_actions_are_typed_rejections_until_action_support_lands(self) -> None:
+    def test_actions_delegate_to_provider_and_refresh_live_resources(self) -> None:
         runtime = recording_runtime(self)
         run = runtime.deploy(self.plan)
 
@@ -473,9 +509,37 @@ class MininetOVSRuntimeTests(unittest.TestCase):
             ),
         )
 
+        self.assertEqual(result.status, ActionStatus.SUCCEEDED)
+        self.assertTrue(result.changed)
+        self.assertIsNone(result.issue)
+        self.assertEqual(result.output["action"], "link.disable")
+        self.assertEqual(len(RecordingActions.instances[-1].requests), 1)
+
+    def test_action_provider_rejections_keep_the_typed_issue(self) -> None:
+        runtime = recording_runtime(self, action_factory=RejectingActions)
+        run = runtime.deploy(self.plan)
+
+        result = runtime.execute(
+            run.id,
+            ActionRequest(
+                id="bad-change",
+                name="link.configure",
+                target="h1-s1",
+                parameters={"loss": 101},
+            ),
+        )
+
         self.assertEqual(result.status, ActionStatus.REJECTED)
         self.assertFalse(result.changed)
-        self.assertEqual(result.issue.code, "runtime.action.unsupported")
+        self.assertEqual(result.issue.code, "runtime.action.invalid-parameters")
+
+    def test_teardown_closes_action_provider_before_network(self) -> None:
+        runtime = recording_runtime(self)
+        run = runtime.deploy(self.plan)
+
+        runtime.teardown(run.id)
+
+        self.assertTrue(RecordingActions.instances[-1].closed)
 
     def test_observation_failures_keep_the_provider_error_code(self) -> None:
         runtime = recording_runtime(

@@ -67,7 +67,11 @@ class CommandResult:
 
 class CommandExecutor(Protocol):
     def run(
-        self, arguments: Sequence[str], *, node: Any | None = None
+        self,
+        arguments: Sequence[str],
+        *,
+        node: Any | None = None,
+        timeout_seconds: float = 10,
     ) -> CommandResult:
         """Run one command in the root or a Mininet node namespace."""
 
@@ -84,7 +88,11 @@ class LocalCommandExecutor:
     """Production command adapter for the orchestrator and Mininet nodes."""
 
     def run(
-        self, arguments: Sequence[str], *, node: Any | None = None
+        self,
+        arguments: Sequence[str],
+        *,
+        node: Any | None = None,
+        timeout_seconds: float = 10,
     ) -> CommandResult:
         if node is not None:
             output, error, status = node.pexec(list(arguments))
@@ -93,7 +101,7 @@ class LocalCommandExecutor:
             arguments,
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=timeout_seconds,
             check=False,
         )
         return CommandResult(

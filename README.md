@@ -243,9 +243,14 @@ normalizes all observations advertised by the driver: topology resources and
 neighbors, controller events, OpenFlow flows, OVS port counters, traffic-control
 queue state, host interfaces and processes, and active host reachability.
 Observation targets are checked against the requested telemetry scope, and
-command or parser failures return typed runtime errors. Actions still return a
-typed rejection until substrate mutation support lands in the next Phase 2
-commit.
+command or parser failures return typed runtime errors. The runtime also
+supports typed `link.enable`, `link.disable`, and `link.configure` mutations;
+`openflow.flow.install` and `openflow.flow.remove`; and managed
+`host.process.start` and `host.process.stop` operations. Action parameters and
+target kinds are validated before mutation, link-state changes roll back a
+partially updated endpoint, and processes started by a run are stopped during
+teardown. Every operation returns a normalized succeeded, rejected, or failed
+result and refreshes the live resource snapshot after success.
 
 ### Golden deployment plans
 
