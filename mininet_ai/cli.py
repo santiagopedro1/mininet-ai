@@ -20,6 +20,7 @@ from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.errors import MininetAIError
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
+from mininet_ai.runtime import RuntimeEvent
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification import (
     AgentBlueprint,
@@ -52,6 +53,7 @@ class SchemaName(StrEnum):
     AGENT_BLUEPRINT = "agent-blueprint"
     CAPABILITY = "capability"
     DEPLOYMENT_PLAN = "deployment-plan"
+    RUNTIME_EVENT = "runtime-event"
 
 
 class _SignalLatch:
@@ -405,6 +407,7 @@ def print_schema(
         SchemaName.AGENT_BLUEPRINT: AgentBlueprint,
         SchemaName.CAPABILITY: CapabilityDefinition,
         SchemaName.DEPLOYMENT_PLAN: DeploymentPlan,
+        SchemaName.RUNTIME_EVENT: RuntimeEvent,
     }
     console.print_json(json.dumps(models[name].model_json_schema(by_alias=True)))
 

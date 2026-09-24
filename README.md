@@ -84,6 +84,15 @@ passes every proposal through capability authorization. Ollama,
 OpenAI-compatible, deterministic mock, and substrate-backed providers are
 built in; installed provider plugins are loaded only when explicitly enabled.
 
+The Phase 4 runtime-event contract provides one immutable, versioned envelope
+for manual intents, interval ticks, normalized observations, agent lifecycle
+changes, runtime failures, and plugin-defined event names. Each event carries
+run and event identity, source ordering, occurrence and observation timestamps,
+correlation and causation identifiers, and a JSON payload. Standard event
+payloads have typed models. `InMemoryRuntimeEventBus` provides bounded,
+thread-safe FIFO delivery: a full or closed bus rejects publication explicitly,
+and closure wakes blocked consumers after already queued events are drained.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -116,6 +125,7 @@ uv run mininet-ai schema experiment
 uv run mininet-ai schema agent-blueprint
 uv run mininet-ai schema capability
 uv run mininet-ai schema deployment-plan
+uv run mininet-ai schema runtime-event
 ```
 
 Schemas are emitted as JSON Schema Draft 2020-12 documents. The deployment-plan
@@ -284,6 +294,7 @@ mininet_ai/
 ├── capabilities/    # Proposal authorization, validation, and execution
 ├── models/          # Normalized model-backend adapters
 ├── plugins/         # Explicit provider registries and entry-point discovery
+├── runtime/         # Continuous runtime events and bounded delivery
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
 ├── sdk/             # Agent, model, and capability runtime contracts
 ├── transports/      # Bounded I/O shared by external adapters
