@@ -33,10 +33,12 @@ from mininet_ai.substrates.mininet_ovs.observations import (
     MininetOVSObservations,
     ObservationCollectionError,
     ObservationProvider,
+    discover_attached_network,
 )
 from mininet_ai.substrates.mininet_ovs.state import (
     STATE_API_VERSION,
     PersistedRun,
+    PersistedStoppedRun,
     ProcessOwner,
     RunStateStore,
     StateLockHeld,
@@ -74,6 +76,7 @@ Clock = Callable[[], datetime]
 RunIdFactory = Callable[[], str]
 Recovery = Callable[["DeploymentPlan", tuple[ProcessOwner, ...]], None]
 ObservationFactory = Callable[["DeploymentPlan", Any], ObservationProvider]
+PersistedObservationFactory = Callable[["DeploymentPlan"], ObservationProvider]
 ActionFactory = Callable[["DeploymentPlan", Any], ActionProvider]
 
 
@@ -149,6 +152,12 @@ def _action_provider(plan: DeploymentPlan, network: Any) -> MininetOVSActions:
     return MininetOVSActions(plan, network)
 
 
+def _persisted_observation_provider(
+    plan: DeploymentPlan,
+) -> MininetOVSObservations:
+    return MininetOVSObservations(plan, discover_attached_network(plan))
+
+
 def _live_resources(
     resources: tuple[PlannedResource, ...], state: ResourceOperationalState
 ) -> tuple[LiveResource, ...]:
@@ -185,6 +194,9 @@ class MininetOVSRuntime:
         owner: ProcessOwner | None = None,
         recovery: Recovery | None = None,
         observation_factory: ObservationFactory = _observation_provider,
+        persisted_observation_factory: PersistedObservationFactory = (
+            _persisted_observation_provider
+        ),
         action_factory: ActionFactory = _action_provider,
     ) -> None:
         if connect_timeout_seconds <= 0:
@@ -197,6 +209,7 @@ class MininetOVSRuntime:
         self._owner = owner or ProcessOwner.current()
         self._recovery = recovery or self._recover_owned_resources
         self._observation_factory = observation_factory
+        self._persisted_observation_factory = persisted_observation_factory
         self._action_factory = action_factory
         self._runs: dict[str, _MininetRun] = {}
 
@@ -337,7 +350,26 @@ class MininetOVSRuntime:
             {resource.name for resource in run.resources},
         )
         try:
+            previous_pids = set(run.actions.owned_pids())
             outcome = run.actions.execute(request)
+            current_pids = set(run.actions.owned_pids())
+            if current_pids != previous_pids:
+                try:
+                    self._write_state(
+                        run.info,
+                        run.plan,
+                        self._owned_process_groups(run),
+                    )
+                except Exception as error:
+                    newly_owned = tuple(sorted(current_pids - previous_pids))
+                    try:
+                        run.actions.release_pids(newly_owned)
+                    except Exception as cleanup_error:
+                        raise RuntimeError(
+                            f"{error}; process rollback also failed: "
+                            f"{cleanup_error}"
+                        ) from error
+                    raise
             run.resources = run.observations.snapshot()
         except ActionExecutionError as error:
             return ActionResult(
@@ -384,11 +416,32 @@ class MininetOVSRuntime:
             self._write_state(
                 run.info,
                 run.plan,
-                self._network_process_groups(run.network),
+                self._owned_process_groups(run),
             )
-            run.actions.close()
-            run.network.stop()
-            self._remove_owned_artifacts(run.plan)
+            cleanup_errors = []
+            for operation in (
+                run.actions.close,
+                run.network.stop,
+                lambda: self._remove_owned_artifacts(run.plan),
+            ):
+                try:
+                    operation()
+                except Exception as error:
+                    cleanup_errors.append(error)
+            if cleanup_errors:
+                raise RuntimeError(
+                    "; ".join(str(error) for error in cleanup_errors)
+                )
+            stopped_info = run.info.model_copy(
+                update={"state": RunState.STOPPED, "stopped_at": self._clock()}
+            )
+            self._state_store.write_stopped(
+                PersistedStoppedRun(
+                    apiVersion=STATE_API_VERSION,
+                    run=stopped_info,
+                    plan=run.plan.model_dump(mode="json", by_alias=True),
+                )
+            )
             self._state_store.clear()
         except Exception as error:
             failed_info = run.info.model_copy(
@@ -411,7 +464,7 @@ class MininetOVSRuntime:
                 self._write_state(
                     failed_info,
                     run.plan,
-                    self._network_process_groups(run.network),
+                    self._owned_process_groups(run),
                 )
             except StateStoreError:
                 pass
@@ -423,9 +476,7 @@ class MininetOVSRuntime:
             ) from error
         self._state_store.release()
 
-        run.info = run.info.model_copy(
-            update={"state": RunState.STOPPED, "stopped_at": self._clock()}
-        )
+        run.info = stopped_info
         released = tuple(resource.name for resource in run.resources)
         run.resources = tuple(
             resource.model_copy(update={"state": ResourceOperationalState.STOPPED})
@@ -450,7 +501,9 @@ class MininetOVSRuntime:
                 code="runtime.state.failed",
                 run_id=run_id,
             ) from error
-        if record is None or record.run.id != run_id:
+        if record is None:
+            return self.teardown(run_id)
+        if record.run.id != run_id:
             self._raise_unknown_run(run_id)
 
         if not record.owner.is_alive() or not self._state_store.is_locked():
@@ -519,6 +572,7 @@ class MininetOVSRuntime:
                     code="runtime.run.orphaned",
                     run_id=existing.run.id,
                 )
+            self._state_store.clear_stopped()
             self._write_state(info, plan, ())
         except StateLockHeld as error:
             existing = self._read_state_for_error()
@@ -595,13 +649,26 @@ class MininetOVSRuntime:
     def _inspect_persisted(self, run_id: str) -> RuntimeSnapshot:
         try:
             record = self._state_store.read()
+            stopped_record = self._state_store.read_stopped()
         except StateStoreError as error:
             raise RuntimeOperationError(
                 f"could not inspect Mininet/OVS runtime state: {error}",
                 code="runtime.state.failed",
                 run_id=run_id,
             ) from error
-        if record is None or record.run.id != run_id:
+        if record is None:
+            if stopped_record is None or stopped_record.run.id != run_id:
+                self._raise_unknown_run(run_id)
+            plan = self._plan_from_stopped_record(stopped_record)
+            return RuntimeSnapshot(
+                run=stopped_record.run,
+                observed_at=self._clock(),
+                resources=_live_resources(
+                    plan.resources,
+                    ResourceOperationalState.STOPPED,
+                ),
+            )
+        if record.run.id != run_id:
             self._raise_unknown_run(run_id)
 
         try:
@@ -617,11 +684,26 @@ class MininetOVSRuntime:
             ) from error
         if owner_active:
             info = record.run
-            resource_state = (
-                ResourceOperationalState.UP
-                if info.state == RunState.RUNNING
-                else ResourceOperationalState.UNKNOWN
-            )
+            if info.state == RunState.RUNNING:
+                try:
+                    resources = self._persisted_observation_factory(plan).snapshot()
+                except ObservationCollectionError as error:
+                    raise RuntimeOperationError(
+                        f"could not inspect Mininet/OVS run {run_id!r}: {error}",
+                        code=error.code,
+                        run_id=run_id,
+                    ) from error
+                except Exception as error:
+                    raise RuntimeOperationError(
+                        f"could not inspect Mininet/OVS run {run_id!r}: {error}",
+                        code="runtime.observation.failed",
+                        run_id=run_id,
+                    ) from error
+            else:
+                resources = _live_resources(
+                    plan.resources,
+                    ResourceOperationalState.UNKNOWN,
+                )
         else:
             info = record.run.model_copy(
                 update={
@@ -632,11 +714,14 @@ class MininetOVSRuntime:
                     ),
                 }
             )
-            resource_state = ResourceOperationalState.UNKNOWN
+            resources = _live_resources(
+                plan.resources,
+                ResourceOperationalState.UNKNOWN,
+            )
         return RuntimeSnapshot(
             run=info,
             observed_at=self._clock(),
-            resources=_live_resources(plan.resources, resource_state),
+            resources=resources,
         )
 
     def _recover_persisted(self, run_id: str) -> TeardownResult:
@@ -658,10 +743,32 @@ class MininetOVSRuntime:
 
         try:
             record = self._state_store.read()
-            if record is None or record.run.id != run_id:
+            if record is None:
+                stopped_record = self._state_store.read_stopped()
+                if stopped_record is None or stopped_record.run.id != run_id:
+                    self._raise_unknown_run(run_id)
+                return TeardownResult(
+                    run=stopped_record.run,
+                    already_stopped=True,
+                )
+            if record.run.id != run_id:
                 self._raise_unknown_run(run_id)
             plan = self._plan_from_record(record)
             self._recovery(plan, record.process_groups)
+            stopped = record.run.model_copy(
+                update={
+                    "state": RunState.STOPPED,
+                    "stopped_at": self._clock(),
+                    "issue": None,
+                }
+            )
+            self._state_store.write_stopped(
+                PersistedStoppedRun(
+                    apiVersion=STATE_API_VERSION,
+                    run=stopped,
+                    plan=record.plan,
+                )
+            )
             self._state_store.clear()
         except RuntimeOperationError:
             raise
@@ -680,13 +787,6 @@ class MininetOVSRuntime:
         finally:
             self._state_store.release()
 
-        stopped = record.run.model_copy(
-            update={
-                "state": RunState.STOPPED,
-                "stopped_at": self._clock(),
-                "issue": None,
-            }
-        )
         return TeardownResult(
             run=stopped,
             released_resources=tuple(resource.name for resource in plan.resources),
@@ -694,6 +794,14 @@ class MininetOVSRuntime:
 
     @staticmethod
     def _plan_from_record(record: PersistedRun) -> DeploymentPlan:
+        from mininet_ai.compiler.models import DeploymentPlan
+
+        return DeploymentPlan.model_validate(record.plan)
+
+    @staticmethod
+    def _plan_from_stopped_record(
+        record: PersistedStoppedRun,
+    ) -> DeploymentPlan:
         from mininet_ai.compiler.models import DeploymentPlan
 
         return DeploymentPlan.model_validate(record.plan)
@@ -754,6 +862,20 @@ class MininetOVSRuntime:
             except (OSError, IndexError, ValueError):
                 continue
         return tuple(identities)
+
+    def _owned_process_groups(
+        self, run: _MininetRun
+    ) -> tuple[ProcessOwner, ...]:
+        identities = {
+            owner.pid: owner
+            for owner in self._network_process_groups(run.network)
+        }
+        for pid in run.actions.owned_pids():
+            try:
+                identities[pid] = ProcessOwner.for_pid(pid)
+            except (OSError, IndexError, ValueError):
+                continue
+        return tuple(identities[pid] for pid in sorted(identities))
 
     @staticmethod
     def _preflight_interfaces(plan: DeploymentPlan) -> None:

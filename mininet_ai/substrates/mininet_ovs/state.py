@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import fcntl
 import os
 import tempfile
@@ -14,7 +15,8 @@ from mininet_ai.specification.models import StrictModel
 from mininet_ai.substrates.runtime import RunInfo
 
 
-STATE_API_VERSION = "mininet-ai/runtime-state/v1alpha1"
+STATE_API_VERSION = "mininet-ai/runtime-state/v1alpha2"
+LEGACY_STATE_API_VERSION = "mininet-ai/runtime-state/v1alpha1"
 DEFAULT_STATE_DIRECTORY = Path("/run/mininet-ai")
 DEFAULT_LOCK_PATH = Path("/run/lock/mininet-ai-runtime.lock")
 
@@ -67,13 +69,22 @@ class ProcessOwner(StrictModel):
 
 
 class PersistedRun(StrictModel):
-    api_version: Literal[STATE_API_VERSION] = Field(alias="apiVersion")
+    api_version: Literal[
+        "mininet-ai/runtime-state/v1alpha1",
+        "mininet-ai/runtime-state/v1alpha2",
+    ] = Field(alias="apiVersion")
     run: RunInfo
     owner: ProcessOwner
     plan: dict[str, Any]
     process_groups: tuple[ProcessOwner, ...] = Field(
         default=(), alias="processGroups"
     )
+
+
+class PersistedStoppedRun(StrictModel):
+    api_version: Literal[STATE_API_VERSION] = Field(alias="apiVersion")
+    run: RunInfo
+    plan: dict[str, Any]
 
 
 class RunStateStore:
@@ -86,6 +97,7 @@ class RunStateStore:
     ) -> None:
         self.state_directory = Path(state_directory)
         self.state_path = self.state_directory / "mininet-ovs.json"
+        self.stopped_path = self.state_directory / "mininet-ovs.stopped.json"
         self.lock_path = Path(lock_path)
         self._lock_stream: TextIO | None = None
 
@@ -143,6 +155,16 @@ class RunStateStore:
             ) from error
 
     def write(self, record: PersistedRun) -> None:
+        self._write_json(self.state_path, record)
+
+    def write_stopped(self, record: PersistedStoppedRun) -> None:
+        self._write_json(self.stopped_path, record)
+
+    def _write_json(
+        self,
+        destination: Path,
+        record: PersistedRun | PersistedStoppedRun,
+    ) -> None:
         self._require_lock()
         self.state_directory.mkdir(mode=0o750, parents=True, exist_ok=True)
         os.chmod(self.state_directory, 0o750)
@@ -159,7 +181,7 @@ class RunStateStore:
                 stream.write("\n")
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(temporary, self.state_path)
+            os.replace(temporary, destination)
             directory = os.open(self.state_directory, os.O_RDONLY | os.O_DIRECTORY)
             try:
                 os.fsync(directory)
@@ -168,8 +190,33 @@ class RunStateStore:
         except OSError as error:
             temporary.unlink(missing_ok=True)
             raise StateStoreError(
-                f"could not write runtime state {self.state_path}: {error}"
+                f"could not write runtime state {destination}: {error}"
             ) from error
+
+    def read_stopped(self) -> PersistedStoppedRun | None:
+        if not self.stopped_path.exists():
+            return None
+        try:
+            return PersistedStoppedRun.model_validate_json(
+                self.stopped_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as error:
+            raise StateStoreError(
+                f"invalid stopped-run state file {self.stopped_path}: {error}"
+            ) from error
+
+    def clear_stopped(self) -> None:
+        self._require_lock()
+        try:
+            self.stopped_path.unlink(missing_ok=True)
+            self.state_directory.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError as error:
+            if error.errno != errno.ENOTEMPTY:
+                raise StateStoreError(
+                    f"could not remove stopped-run state: {error}"
+                ) from error
 
     def clear(self) -> None:
         self._require_lock()
@@ -183,10 +230,11 @@ class RunStateStore:
         except FileNotFoundError:
             pass
         except OSError as error:
-            raise StateStoreError(
-                f"could not remove runtime state directory "
-                f"{self.state_directory}: {error}"
-            ) from error
+            if error.errno != errno.ENOTEMPTY:
+                raise StateStoreError(
+                    f"could not remove runtime state directory "
+                    f"{self.state_directory}: {error}"
+                ) from error
 
     def _require_lock(self) -> None:
         if not self.acquired:

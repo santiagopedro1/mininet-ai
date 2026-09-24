@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
 import unittest
 from typing import Any
+from unittest.mock import call, patch
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import ActionRequest, ActionStatus
@@ -125,6 +128,12 @@ def mininet_plan():
 
 class MininetOVSActionsTests(unittest.TestCase):
     def setUp(self) -> None:
+        process_group = patch(
+            "mininet_ai.substrates.mininet_ovs.actions.os.getpgid",
+            return_value=os.getpgrp(),
+        )
+        process_group.start()
+        self.addCleanup(process_group.stop)
         self.plan = mininet_plan()
         self.network = RecordingNetwork(self.plan)
         self.executor = RecordingExecutor()
@@ -261,6 +270,94 @@ class MininetOVSActionsTests(unittest.TestCase):
         self.assertTrue(stopped.changed)
         self.assertEqual(stopped.output["returnCode"], -15)
         self.assertTrue(self.network.get("h1").processes[0].terminated)
+
+    def test_host_process_stop_signals_the_managed_process_group(self) -> None:
+        self.execute(
+            "host.process.start",
+            "h1",
+            {"command": "sleep", "arguments": ["30"]},
+            request_id="tree",
+        )
+        process = self.network.get("h1").processes[0]
+
+        group_running = True
+
+        def mark_stopped(group: int, number: int) -> None:
+            nonlocal group_running
+            self.assertEqual(group, 4321)
+            if number == signal.SIGTERM:
+                process.returncode = -15
+                group_running = False
+            elif number == 0 and not group_running:
+                raise ProcessLookupError
+
+        with (
+            patch(
+                "mininet_ai.substrates.mininet_ovs.actions.os.getpgid",
+                return_value=4321,
+            ),
+            patch(
+                "mininet_ai.substrates.mininet_ovs.actions.os.killpg",
+                side_effect=mark_stopped,
+            ) as kill_group,
+        ):
+            stopped = self.execute(
+                "host.process.stop",
+                "h1",
+                {"processId": "tree"},
+                request_id="stop-tree",
+            )
+
+        self.assertTrue(stopped.changed)
+        kill_group.assert_any_call(4321, signal.SIGTERM)
+        self.assertNotIn(
+            call(4321, signal.SIGKILL),
+            kill_group.call_args_list,
+        )
+
+    def test_host_process_stop_kills_descendants_that_ignore_sigterm(self) -> None:
+        self.execute(
+            "host.process.start",
+            "h1",
+            {"command": "sleep", "arguments": ["30"]},
+            request_id="tree",
+        )
+        process = self.network.get("h1").processes[0]
+        group_running = True
+
+        def signal_group(group: int, number: int) -> None:
+            nonlocal group_running
+            self.assertEqual(group, 4321)
+            if number == signal.SIGTERM:
+                process.returncode = -15
+            elif number == signal.SIGKILL:
+                group_running = False
+            elif number == 0 and not group_running:
+                raise ProcessLookupError
+
+        with (
+            patch(
+                "mininet_ai.substrates.mininet_ovs.actions.os.getpgid",
+                return_value=4321,
+            ),
+            patch(
+                "mininet_ai.substrates.mininet_ovs.actions.os.killpg",
+                side_effect=signal_group,
+            ) as kill_group,
+            patch(
+                "mininet_ai.substrates.mininet_ovs.actions.time.monotonic",
+                side_effect=[0, 31, 31],
+            ),
+        ):
+            self.execute(
+                "host.process.stop",
+                "h1",
+                {"processId": "tree"},
+                request_id="stop-tree",
+            )
+
+        kill_group.assert_any_call(4321, signal.SIGTERM)
+        kill_group.assert_any_call(4321, signal.SIGKILL)
 
     def test_close_stops_every_running_managed_process(self) -> None:
         self.execute(

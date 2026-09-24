@@ -191,11 +191,11 @@ def run(
     runtime = _runtime_or_exit(deployment_plan.substrate)
     with _SignalLatch() as stop_latch:
         run_info = _operation_or_exit(lambda: runtime.deploy(deployment_plan))
-        console.print(
-            f"[green]Running[/green] {run_info.id} on {run_info.substrate}. "
-            "Press Ctrl+C to stop."
-        )
         try:
+            console.print(
+                f"[green]Running[/green] {run_info.id} on {run_info.substrate}. "
+                "Press Ctrl+C to stop."
+            )
             stop_latch.wait()
         finally:
             result = _operation_or_exit(lambda: runtime.teardown(run_info.id))

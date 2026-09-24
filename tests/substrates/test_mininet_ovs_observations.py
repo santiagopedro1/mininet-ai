@@ -282,6 +282,18 @@ class MininetOVSObservationTests(unittest.TestCase):
             ],
         )
 
+    def test_controller_event_command_failures_are_typed(self) -> None:
+        self.executor.add(
+            ("tail", "-n", "100", "/tmp/c0.log"),
+            stderr="permission denied",
+            returncode=1,
+        )
+
+        with self.assertRaises(ObservationCollectionError) as context:
+            self.observe("controller.events", "c0")
+
+        self.assertEqual(context.exception.code, "runtime.observation.failed")
+
     def test_invalid_target_and_parameters_have_stable_error_codes(self) -> None:
         with self.assertRaises(ObservationCollectionError) as target:
             self.observe("host.interfaces", "s1")

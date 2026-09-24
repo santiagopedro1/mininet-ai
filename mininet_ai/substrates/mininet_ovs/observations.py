@@ -7,7 +7,7 @@ import math
 import os
 import re
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from ipaddress import ip_interface
 from pathlib import Path
@@ -95,8 +95,19 @@ class LocalCommandExecutor:
         timeout_seconds: float = 10,
     ) -> CommandResult:
         if node is not None:
-            output, error, status = node.pexec(list(arguments))
-            return CommandResult(output, error, status)
+            process = node.popen(
+                list(arguments),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                output, error = process.communicate(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+                raise
+            return CommandResult(output, error, process.returncode)
         completed = subprocess.run(
             arguments,
             capture_output=True,
@@ -109,6 +120,55 @@ class LocalCommandExecutor:
             completed.stderr,
             completed.returncode,
         )
+
+
+class AttachedNode:
+    """Minimal Mininet-node adapter reconstructed from a live namespace PID."""
+
+    def __init__(self, name: str, pid: int) -> None:
+        self.name = name
+        self.pid = pid
+
+    def popen(self, arguments: Sequence[str], **parameters: Any):
+        return subprocess.Popen(
+            ["mnexec", "-a", str(self.pid), *arguments],
+            **parameters,
+        )
+
+
+class AttachedNetwork:
+    """Read-only node lookup used by a process that does not own Mininet."""
+
+    def __init__(self, nodes: Mapping[str, AttachedNode]) -> None:
+        self._nodes = dict(nodes)
+
+    def get(self, name: str) -> AttachedNode:
+        return self._nodes[name]
+
+
+def discover_attached_network(plan: DeploymentPlan) -> AttachedNetwork:
+    """Find live Mininet node shells by their exact process marker."""
+
+    markers = {
+        f"mininet:{resource.name}".encode(): resource.name
+        for resource in plan.resources
+        if resource.kind
+        in {ResourceKind.CONTROLLER, ResourceKind.SWITCH, ResourceKind.HOST}
+    }
+    nodes: dict[str, AttachedNode] = {}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            arguments = (entry / "cmdline").read_bytes().rstrip(b"\0").split(b"\0")
+        except (FileNotFoundError, PermissionError):
+            continue
+        for argument in arguments:
+            name = markers.get(argument)
+            if name is not None:
+                nodes[name] = AttachedNode(name, int(entry.name))
+                break
+    return AttachedNetwork(nodes)
 
 
 class ObservationCollectionError(Exception):
@@ -352,9 +412,10 @@ class MininetOVSObservations:
                 if controller.controller_type != ControllerType.BUILTIN:
                     continue
                 path = str(Path("/tmp") / f"{controller.name}.log")
-                result = self._run(("tail", "-n", str(limit), path))
-                if result.returncode != 0:
-                    continue
+                result = self._checked(
+                    ("tail", "-n", str(limit), path),
+                    subject=controller.name,
+                )
                 events.extend(
                     {"controller": controller.name, "message": line}
                     for line in result.stdout.splitlines()

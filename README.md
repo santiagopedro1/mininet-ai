@@ -235,7 +235,8 @@ normal teardown is idempotent. It writes an atomic ownership record under
 deployment while a live or orphaned run exists. A fresh runtime can inspect an
 orphan and recover it by calling `teardown` with the recorded run ID; recovery
 targets only the processes, bridges, interfaces, and temporary files named by
-that deployment plan. See the
+that deployment plan. A bounded stopped-run record makes repeated teardown and
+`stop` requests idempotent until the next deployment. See the
 [Phase 2 acceptance experiment](examples/phase2/experiment.yaml).
 
 The live runtime refreshes resource operational state during inspection and

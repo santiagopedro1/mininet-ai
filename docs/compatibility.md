@@ -20,7 +20,7 @@ The project currently defines four contract families:
   interface implemented by executable substrate adapters: deploy, inspect,
   observe, execute, and teardown. It is separate from the planning contract so
   compiling an experiment never requires privileged networking access.
-- `mininet-ai/runtime-state/v1alpha1` covers the private, on-host ownership
+- `mininet-ai/runtime-state/v1alpha2` covers the private, on-host ownership
   record used to inspect and recover an interrupted Mininet/OVS run. It is
   versioned so a newer runtime never guesses how to clean up an incompatible
   record.
@@ -29,6 +29,19 @@ The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing
 version may change silently. A consumer can use the version field or schema ID
 to select the exact contract it understands.
+
+### Runtime-state v1alpha1 to v1alpha2
+
+`v1alpha2` adds a separate, bounded stopped-run record so repeated `stop` and
+later `status` calls remain idempotent across CLI processes. The active-run
+record keeps the `v1alpha1` shape; readers continue to accept it and rewrite it
+as `v1alpha2` on the next state update. Stopped-run records exist only in
+`v1alpha2` and are discarded when the next deployment is claimed.
+
+Old active records therefore need no manual conversion. Operators should use
+the normal targeted `stop RUN_ID` recovery before upgrading when practical;
+if an old active record remains, the new runtime can inspect and recover it
+using its recorded owner, plan, and process groups.
 
 ## Changes allowed within `v1alpha1`
 

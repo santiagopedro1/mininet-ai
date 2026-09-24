@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,7 +10,9 @@ from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import RunInfo, RunState
 from mininet_ai.substrates.mininet_ovs.state import (
     STATE_API_VERSION,
+    LEGACY_STATE_API_VERSION,
     PersistedRun,
+    PersistedStoppedRun,
     ProcessOwner,
     RunStateStore,
     StateLockHeld,
@@ -51,6 +54,21 @@ class RunStateStoreTests(unittest.TestCase):
 
         self.assertEqual(self.store.read(), self.record())
         self.assertEqual(self.store.state_path.stat().st_mode & 0o777, 0o600)
+
+    def test_legacy_active_record_remains_readable_and_is_rewritten(self) -> None:
+        self.store.acquire()
+        self.addCleanup(self.store.release)
+        self.store.write(self.record())
+        payload = json.loads(self.store.state_path.read_text(encoding="utf-8"))
+        payload["apiVersion"] = LEGACY_STATE_API_VERSION
+        self.store.state_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        legacy = self.store.read()
+
+        self.assertIsNotNone(legacy)
+        self.assertEqual(legacy.api_version, LEGACY_STATE_API_VERSION)
+        self.store.write(legacy.model_copy(update={"api_version": STATE_API_VERSION}))
+        self.assertEqual(self.store.read().api_version, STATE_API_VERSION)
 
     def test_lock_excludes_a_second_store_until_release(self) -> None:
         other = RunStateStore(self.store.state_directory, self.store.lock_path)
@@ -95,6 +113,32 @@ class RunStateStoreTests(unittest.TestCase):
         self.assertFalse(self.store.state_path.exists())
         self.assertFalse(self.store.state_directory.exists())
         self.assertTrue(self.store.lock_path.exists())
+
+    def test_stopped_record_survives_active_state_cleanup(self) -> None:
+        record = self.record()
+        stopped = record.run.model_copy(
+            update={
+                "state": RunState.STOPPED,
+                "stopped_at": datetime(2026, 1, 1, 0, 1, tzinfo=UTC),
+            }
+        )
+        stopped_record = PersistedStoppedRun(
+            apiVersion=STATE_API_VERSION,
+            run=stopped,
+            plan=record.plan,
+        )
+        self.store.acquire()
+        self.addCleanup(self.store.release)
+        self.store.write(record)
+        self.store.write_stopped(stopped_record)
+
+        self.store.clear()
+
+        self.assertFalse(self.store.state_path.exists())
+        self.assertEqual(self.store.read_stopped(), stopped_record)
+
+        self.store.clear_stopped()
+        self.assertFalse(self.store.state_directory.exists())
 
 
 if __name__ == "__main__":

@@ -62,6 +62,24 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertIn("Stopped cli-run", result.output)
         self.assertEqual(runtime.inspect("cli-run").run.state, RunState.STOPPED)
 
+    def test_run_tears_down_if_reporting_the_started_run_fails(self) -> None:
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-broken-output")
+        with (
+            patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
+            patch(
+                "mininet_ai.cli.create_substrate_runtime",
+                return_value=runtime,
+            ),
+            patch("mininet_ai.cli.console.print", side_effect=BrokenPipeError),
+        ):
+            result = self.runner.invoke(app, ["run", "experiment.yaml"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(
+            runtime.inspect("cli-broken-output").run.state,
+            RunState.STOPPED,
+        )
+
     def test_status_supports_text_and_machine_readable_output(self) -> None:
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-status")
         run = runtime.deploy(self.plan)

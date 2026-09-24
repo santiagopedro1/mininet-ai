@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import signal
 import subprocess
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -56,6 +59,12 @@ class ActionProvider(Protocol):
 
     def close(self) -> None:
         """Stop processes started through this provider."""
+
+    def owned_pids(self) -> tuple[int, ...]:
+        """Return live process leaders that recovery must own."""
+
+    def release_pids(self, pids: tuple[int, ...]) -> None:
+        """Stop newly owned processes after persistence fails."""
 
 
 @dataclass
@@ -114,6 +123,24 @@ class MininetOVSActions:
             if managed.process.poll() is None:
                 self._terminate(managed.process, timeout_seconds=2)
         self._processes.clear()
+
+    def owned_pids(self) -> tuple[int, ...]:
+        return tuple(
+            sorted(
+                managed.process.pid
+                for managed in self._processes.values()
+                if managed.process.poll() is None
+            )
+        )
+
+    def release_pids(self, pids: tuple[int, ...]) -> None:
+        requested = set(pids)
+        for process_id, managed in tuple(self._processes.items()):
+            if managed.process.pid not in requested:
+                continue
+            if managed.process.poll() is None:
+                self._terminate(managed.process, timeout_seconds=2)
+            del self._processes[process_id]
 
     def _set_link_state(
         self, request: ActionRequest, *, up: bool
@@ -314,11 +341,57 @@ class MininetOVSActions:
         )
 
     def _terminate(self, process: Any, *, timeout_seconds: float) -> None:
+        process_group: int | None = None
         try:
-            process.terminate()
-            process.wait(timeout=timeout_seconds)
+            try:
+                process_group = os.getpgid(process.pid)
+            except ProcessLookupError:
+                process.wait(timeout=timeout_seconds)
+                return
+            if process_group == os.getpgrp():
+                process.terminate()
+                process.wait(timeout=timeout_seconds)
+                return
+
+            os.killpg(process_group, signal.SIGTERM)
+            deadline = time.monotonic() + timeout_seconds
+            while self._process_group_exists(process_group):
+                process.poll()
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+            if not self._process_group_exists(process_group):
+                process.poll()
+                return
+
+            os.killpg(process_group, signal.SIGKILL)
+            try:
+                process.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired as error:
+                raise ActionExecutionError(
+                    f"process group {process_group} did not stop before the timeout",
+                    code="runtime.action.timeout",
+                    status=ActionStatus.FAILED,
+                ) from error
+            kill_deadline = time.monotonic() + timeout_seconds
+            while self._process_group_exists(process_group):
+                if time.monotonic() >= kill_deadline:
+                    raise ActionExecutionError(
+                        f"process group {process_group} did not stop before "
+                        "the timeout",
+                        code="runtime.action.timeout",
+                        status=ActionStatus.FAILED,
+                    )
+                time.sleep(
+                    min(0.05, max(0, kill_deadline - time.monotonic()))
+                )
+        except ActionExecutionError:
+            raise
         except subprocess.TimeoutExpired:
-            process.kill()
+            if process_group is None or process_group == os.getpgrp():
+                process.kill()
+            else:
+                os.killpg(process_group, signal.SIGKILL)
             try:
                 process.wait(timeout=timeout_seconds)
             except subprocess.TimeoutExpired as error:
@@ -333,6 +406,16 @@ class MininetOVSActions:
                 code="runtime.action.failed",
                 status=ActionStatus.FAILED,
             ) from error
+
+    @staticmethod
+    def _process_group_exists(process_group: int) -> bool:
+        try:
+            os.killpg(process_group, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
 
     def _flow_expression(
         self, parameters: Mapping[str, Any], *, require_actions: bool

@@ -144,7 +144,10 @@ emit_runtime_file_state() {
     if [[ -d /run/mininet-ai ]]; then
         while IFS= read -r path; do
             printf 'runtime-file\t%s\n' "${path}"
-        done < <(find /run/mininet-ai -mindepth 1 -print)
+        done < <(
+            find /run/mininet-ai -mindepth 1 \
+                ! -name 'mininet-ovs.stopped.json' -print
+        )
     fi
 
     while IFS= read -r path; do
@@ -224,9 +227,13 @@ check() {
 
 clear_runtime_state() {
     local state_file=/run/mininet-ai/mininet-ovs.json
+    local stopped_file=/run/mininet-ai/mininet-ovs.stopped.json
 
     if [[ -e "${state_file}" ]]; then
         unlink "${state_file}" || fail "could not remove ${state_file}"
+    fi
+    if [[ -e "${stopped_file}" ]]; then
+        unlink "${stopped_file}" || fail "could not remove ${stopped_file}"
     fi
     if [[ -d /run/mininet-ai ]]; then
         rmdir /run/mininet-ai ||

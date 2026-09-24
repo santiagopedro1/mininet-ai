@@ -28,7 +28,11 @@ from mininet_ai.substrates.mininet_ovs.observations import (
     ObservationCollectionError,
 )
 from mininet_ai.substrates.mininet_ovs.runtime import _MininetBindings
-from mininet_ai.substrates.mininet_ovs.state import ProcessOwner, RunStateStore
+from mininet_ai.substrates.mininet_ovs.state import (
+    ProcessOwner,
+    RunStateStore,
+    StateStoreError,
+)
 from tests.compiler.helpers import example_snapshot, experiment_from
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
 
@@ -211,6 +215,31 @@ class RecordingActions:
     def close(self) -> None:
         self.closed = True
 
+    def owned_pids(self) -> tuple[int, ...]:
+        return ()
+
+    def release_pids(self, pids: tuple[int, ...]) -> None:
+        del pids
+
+
+class OwningActions(RecordingActions):
+    def __init__(self, plan, network) -> None:
+        super().__init__(plan, network)
+        self.pids: tuple[int, ...] = ()
+        self.released: tuple[int, ...] = ()
+
+    def execute(self, request: ActionRequest) -> ActionOutcome:
+        outcome = super().execute(request)
+        self.pids = (ProcessOwner.current().pid,)
+        return outcome
+
+    def owned_pids(self) -> tuple[int, ...]:
+        return self.pids
+
+    def release_pids(self, pids: tuple[int, ...]) -> None:
+        self.released = pids
+        self.pids = tuple(pid for pid in self.pids if pid not in pids)
+
 
 class RejectingActions(RecordingActions):
     def execute(self, request: ActionRequest) -> ActionOutcome:
@@ -218,6 +247,12 @@ class RejectingActions(RecordingActions):
             "scripted action rejection",
             code="runtime.action.invalid-parameters",
         )
+
+
+class FailingCloseActions(RecordingActions):
+    def close(self) -> None:
+        super().close()
+        raise RuntimeError("scripted action cleanup failure")
 
 
 def bindings(network_class: type = RecordingNetwork) -> _MininetBindings:
@@ -252,10 +287,15 @@ def recording_runtime(
     owner: ProcessOwner | None = None,
     recovery=None,
     observation_factory=RecordingObservations,
+    persisted_observation_factory=None,
     action_factory=RecordingActions,
 ) -> MininetOVSRuntime:
     if state_store is None:
         state_store = temporary_store(test_case)
+    if persisted_observation_factory is None:
+        persisted_observation_factory = lambda plan: RecordingObservations(
+            plan, None
+        )
     return MininetOVSRuntime(
         clock=IncrementingClock(),
         run_id_factory=lambda: "mininet-test-run",
@@ -264,6 +304,7 @@ def recording_runtime(
         owner=owner,
         recovery=recovery,
         observation_factory=observation_factory,
+        persisted_observation_factory=persisted_observation_factory,
         action_factory=action_factory,
     )
 
@@ -414,6 +455,27 @@ class MininetOVSRuntimeTests(unittest.TestCase):
 
         self.assertFalse(store.acquired)
         self.assertFalse(store.state_path.exists())
+
+    def test_teardown_is_idempotent_across_runtime_processes(self) -> None:
+        store = temporary_store(self)
+        owner = recording_runtime(self, state_store=store)
+        run = owner.deploy(self.plan)
+        owner.teardown(run.id)
+        fresh_store = RunStateStore(store.state_directory, store.lock_path)
+        fresh = recording_runtime(self, state_store=fresh_store)
+
+        repeated = fresh.teardown(run.id)
+        snapshot = fresh.inspect(run.id)
+
+        self.assertTrue(repeated.already_stopped)
+        self.assertEqual(repeated.released_resources, ())
+        self.assertEqual(snapshot.run.state, RunState.STOPPED)
+        self.assertTrue(
+            all(
+                resource.state == ResourceOperationalState.STOPPED
+                for resource in snapshot.resources
+            )
+        )
 
     def test_a_second_process_cannot_deploy_while_owner_lock_is_held(self) -> None:
         store = temporary_store(self)
@@ -581,6 +643,36 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertEqual(result.issue.code, "runtime.action.invalid-parameters")
 
+    def test_new_process_is_released_when_ownership_cannot_be_persisted(
+        self,
+    ) -> None:
+        store = temporary_store(self)
+        runtime = recording_runtime(
+            self,
+            state_store=store,
+            action_factory=OwningActions,
+        )
+        run = runtime.deploy(self.plan)
+
+        with patch.object(
+            store,
+            "write",
+            side_effect=StateStoreError("scripted persistence failure"),
+        ):
+            result = runtime.execute(
+                run.id,
+                ActionRequest(
+                    id="start-process",
+                    name="host.process.start",
+                    target="h1",
+                ),
+            )
+
+        actions = RecordingActions.instances[-1]
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertEqual(actions.released, (ProcessOwner.current().pid,))
+        self.assertEqual(actions.owned_pids(), ())
+
     def test_teardown_closes_action_provider_before_network(self) -> None:
         runtime = recording_runtime(self)
         run = runtime.deploy(self.plan)
@@ -588,6 +680,16 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         runtime.teardown(run.id)
 
         self.assertTrue(RecordingActions.instances[-1].closed)
+
+    def test_teardown_still_stops_network_when_action_cleanup_fails(self) -> None:
+        runtime = recording_runtime(self, action_factory=FailingCloseActions)
+        run = runtime.deploy(self.plan)
+
+        with self.assertRaises(RuntimeOperationError) as context:
+            runtime.teardown(run.id)
+
+        self.assertEqual(context.exception.code, "runtime.teardown.failed")
+        self.assertTrue(RecordingNetwork.instances[-1].stopped)
 
     def test_observation_failures_keep_the_provider_error_code(self) -> None:
         runtime = recording_runtime(

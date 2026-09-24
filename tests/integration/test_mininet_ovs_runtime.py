@@ -38,7 +38,18 @@ def deploy_and_exit_without_teardown(connection: Connection) -> None:
     plan = compile_experiment(EXPERIMENT)
     runtime = MininetOVSRuntime(run_id_factory=lambda: "live-crash-recovery")
     run = runtime.deploy(plan)
-    connection.send(run.id)
+    process = runtime.execute(
+        run.id,
+        ActionRequest(
+            id="crash-survivor",
+            name="host.process.start",
+            target="h1",
+            parameters={"command": "sleep", "arguments": ["300"]},
+        ),
+    )
+    if process.status != ActionStatus.SUCCEEDED:
+        raise RuntimeError(f"could not start managed process: {process.issue}")
+    connection.send((run.id, process.output["pid"]))
     connection.close()
     os._exit(0)
 
@@ -93,6 +104,17 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 "--format",
                 "json",
             )
+            command("ip", "link", "set", "dev", "s1-eth1", "down")
+            degraded_topology = command(
+                sys.executable,
+                "-m",
+                "mininet_ai.cli",
+                "topology",
+                run_id,
+                "--format",
+                "json",
+            )
+            command("ip", "link", "set", "dev", "s1-eth1", "up")
             stopped = command(
                 sys.executable,
                 "-m",
@@ -106,11 +128,38 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
             self.assertEqual(json.loads(status.stdout)["run"]["state"], "running")
             resources = json.loads(topology.stdout)["resources"]
             self.assertTrue(any(item["name"] == "s1" for item in resources))
+            degraded_resources = {
+                item["name"]: item
+                for item in json.loads(degraded_topology.stdout)["resources"]
+            }
+            self.assertEqual(degraded_resources["s1-eth1"]["state"], "down")
+            self.assertEqual(degraded_resources["h1-s1"]["state"], "down")
             self.assertIn(f"Stopped {run_id}", stopped.stdout)
             output, error = process.communicate(timeout=15)
             self.assertEqual(process.returncode, 0, f"{output}\n{error}")
             self.assertIn(f"Stopped {run_id}", output)
             self.assertFalse(state_path.exists())
+            repeated_stop = command(
+                sys.executable,
+                "-m",
+                "mininet_ai.cli",
+                "stop",
+                run_id,
+            )
+            stopped_status = command(
+                sys.executable,
+                "-m",
+                "mininet_ai.cli",
+                "status",
+                run_id,
+                "--format",
+                "json",
+            )
+            self.assertIn(f"Stopped {run_id}", repeated_stop.stdout)
+            self.assertEqual(
+                json.loads(stopped_status.stdout)["run"]["state"],
+                "stopped",
+            )
             self.assertNotEqual(
                 command(
                     "ovs-vsctl", "br-exists", "s1", check=False
@@ -137,7 +186,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
         process.start()
         write_connection.close()
         self.assertTrue(read_connection.poll(30))
-        run_id = read_connection.recv()
+        run_id, managed_pid = read_connection.recv()
         read_connection.close()
         process.join(timeout=30)
 
@@ -157,6 +206,12 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
             0,
         )
         self.assertFalse(Path("/run/mininet-ai/mininet-ovs.json").exists())
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and Path(
+            f"/proc/{managed_pid}"
+        ).exists():
+            time.sleep(0.05)
+        self.assertFalse(Path(f"/proc/{managed_pid}").exists())
 
     def test_deploys_inspects_and_tears_down_real_topology(self) -> None:
         plan = compile_experiment(EXPERIMENT)
