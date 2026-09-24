@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import NoReturn
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
@@ -336,9 +337,9 @@ class CapabilityEngine:
         )
 
     @staticmethod
-    def _reject(code: str, message: str) -> None:
+    def _reject(code: str, message: str) -> NoReturn:
         raise _CapabilityError(ActionStatus.REJECTED, code, message)
 
     @staticmethod
-    def _fail(code: str, message: str) -> None:
+    def _fail(code: str, message: str) -> NoReturn:
         raise _CapabilityError(ActionStatus.FAILED, code, message)

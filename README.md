@@ -135,6 +135,17 @@ for the complete rules and review checklist.
 
 The example compiles one reusable blueprint into a singleton global agent, one controller-domain agent, two switch-local agents, and two host agents.
 
+Phase 3 has a separate rootless acceptance example containing user-authored
+telemetry and action plugins, a deterministic declarative agent, and an
+out-of-scope action check:
+
+```bash
+uv run mininet-ai validate examples/phase3/experiment.yaml
+uv run pytest -q tests/acceptance/test_phase3.py
+```
+
+See [the Phase 3 example](examples/phase3/README.md) for its extension layout.
+
 ## Specification overview
 
 An experiment declares its topology, reusable agent blueprints, capabilities, and concrete placements:

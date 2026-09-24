@@ -82,8 +82,8 @@ def _integer(value: JsonValue | None, field: str) -> int:
     return value
 
 
-def _messages(request: ModelRequest) -> list[dict[str, JsonValue]]:
-    messages: list[dict[str, JsonValue]] = []
+def _messages(request: ModelRequest) -> list[JsonValue]:
+    messages: list[JsonValue] = []
     for message in request.messages:
         value: dict[str, JsonValue] = {
             "role": message.role.value,
@@ -96,6 +96,12 @@ def _messages(request: ModelRequest) -> list[dict[str, JsonValue]]:
 
 
 def _structured_output(content: str, request: ModelRequest) -> JsonValue:
+    schema = request.response_schema
+    if schema is None:
+        raise ModelProviderError(
+            "structured output requires a response schema",
+            code="model.request.invalid-schema",
+        )
     try:
         value = json.loads(content, parse_constant=_reject_json_constant)
     except ValueError as error:
@@ -104,8 +110,8 @@ def _structured_output(content: str, request: ModelRequest) -> JsonValue:
             code="model.response.invalid-json",
         ) from error
     try:
-        Draft202012Validator.check_schema(request.response_schema)
-        Draft202012Validator(request.response_schema).validate(value)
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema).validate(value)
     except SchemaError as error:
         raise ModelProviderError(
             f"model request contains an invalid response schema: {error.message}",

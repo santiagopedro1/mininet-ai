@@ -41,10 +41,12 @@ from mininet_ai.sdk import (
     AgentProvider,
     AgentResponse,
     AgentRuntimeIssue,
+    CapabilityProvider,
     ExecutionCatalog,
     InvocationStatus,
 )
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
+from mininet_ai.specification.models import CapabilityDefinition
 from mininet_ai.substrates import (
     ActionResult,
     ActionStatus,
@@ -105,7 +107,10 @@ def register_builtin_providers(
             ),
         ),
     )
-    substrate_action = ProviderPlugin(
+    substrate_action: ProviderPlugin[
+        CapabilityDefinition,
+        CapabilityProvider,
+    ] = ProviderPlugin(
         kind=ProviderKind.CAPABILITY,
         factory=lambda definition: SubstrateActionProvider(definition, substrate),
     )

@@ -1,0 +1,22 @@
+apiVersion: mininet-ai/v1alpha1
+kind: Capability
+metadata:
+  name: example.action.apply
+  description: Apply a deterministic user-defined change to one scoped target.
+targets: [switch]
+layers: [data]
+effects: [dataplane.write]
+input-schema:
+  type: object
+  required: [enabled]
+  properties:
+    enabled: {type: boolean}
+  additionalProperties: false
+output-schema:
+  type: object
+  required: [applied, target]
+  properties:
+    applied: {type: boolean}
+    target: {type: string}
+  additionalProperties: false
+provider: example.action

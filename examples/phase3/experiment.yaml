@@ -1,0 +1,37 @@
+apiVersion: mininet-ai/v1alpha1
+kind: Experiment
+metadata:
+  name: phase3-user-plugins
+  description: Offline acceptance experiment for user-defined capabilities.
+
+substrate:
+  driver: fake
+  topology:
+    resources:
+      - {name: network, kind: network}
+      - {name: s1, kind: switch, parent: network, labels: {role: managed}}
+      - {name: s2, kind: switch, parent: network, labels: {role: peer}}
+    links:
+      - name: s1-s2
+        endpoints: [{node: s1}, {node: s2}]
+
+blueprints:
+  - ./agent-blueprints/edge-operator.yaml
+
+capabilityDefinitions:
+  - ./capabilities/custom-telemetry.yaml
+  - ./capabilities/custom-action.yaml
+
+agents:
+  - name: edge-operator
+    blueprint: edge-operator
+    placement:
+      layer: data
+      targets: {kind: switch, names: [s1]}
+      cardinality: per-target
+      runtime: device-sidecar
+    observe: [topology.neighbors]
+    capabilities: [example.telemetry.read, example.action.apply]
+
+coordination:
+  mode: independent

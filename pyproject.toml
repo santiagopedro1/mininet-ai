@@ -25,8 +25,14 @@ build-backend = "setuptools.build_meta"
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.414",
     "pytest>=9.1.1",
 ]
+
+[tool.pyright]
+include = ["mininet_ai", "examples/phase3"]
+pythonVersion = "3.14"
+typeCheckingMode = "basic"
 
 [tool.setuptools.packages.find]
 include = ["mininet_ai*"]

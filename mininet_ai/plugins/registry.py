@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, Generic, Protocol, TypeVar, cast
 
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
@@ -24,7 +24,13 @@ from mininet_ai.specification.models import (
 
 
 ConfigurationT = TypeVar("ConfigurationT")
-ProviderT = TypeVar("ProviderT")
+
+
+class _VersionedProvider(Protocol):
+    contract_version: str
+
+
+ProviderT = TypeVar("ProviderT", bound=_VersionedProvider)
 
 
 class ProviderKind(StrEnum):
@@ -45,7 +51,7 @@ class ProviderPlugin(Generic[ConfigurationT, ProviderT]):
 class ProviderRegistry(Generic[ConfigurationT, ProviderT]):
     """Register factories and construct contract-checked provider adapters."""
 
-    def __init__(self, kind: ProviderKind, provider_type: type[ProviderT]) -> None:
+    def __init__(self, kind: ProviderKind, provider_type: type[Any]) -> None:
         self.kind = kind
         self._provider_type = provider_type
         self._plugins: dict[
@@ -89,13 +95,14 @@ class ProviderRegistry(Generic[ConfigurationT, ProviderT]):
                 "SDK protocol",
                 code="plugin.provider.invalid",
             )
-        if provider.contract_version != AGENT_RUNTIME_CONTRACT_VERSION:
+        checked = cast(ProviderT, provider)
+        if checked.contract_version != AGENT_RUNTIME_CONTRACT_VERSION:
             raise AgentRuntimeError(
                 f"{self.kind.value} provider {name!r} uses unsupported "
-                f"contract version {provider.contract_version!r}",
+                f"contract version {checked.contract_version!r}",
                 code="plugin.version.unsupported",
             )
-        return provider
+        return checked
 
     def _validate(
         self,

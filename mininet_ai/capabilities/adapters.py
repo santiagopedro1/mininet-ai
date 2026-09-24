@@ -11,6 +11,7 @@ import tempfile
 import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import IO, cast
 from urllib.parse import urlsplit
 
 from pydantic import JsonValue, ValidationError
@@ -220,7 +221,7 @@ class ProcessCapabilityProvider:
                     self._terminate(process)
                     raise TimeoutError("capability process timed out")
                 for key, _ in selector.select(min(remaining, 0.1)):
-                    stream = key.fileobj
+                    stream = cast(IO[bytes], key.fileobj)
                     chunk = os.read(stream.fileno(), 64 * 1024)
                     if not chunk:
                         selector.unregister(stream)
