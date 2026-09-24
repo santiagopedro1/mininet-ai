@@ -30,7 +30,7 @@ dev = [
 ]
 
 [tool.pyright]
-include = ["mininet_ai", "examples/phase3"]
+include = ["mininet_ai", "examples/phase3", "tests"]
 pythonVersion = "3.14"
 typeCheckingMode = "basic"
 

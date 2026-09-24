@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from pydantic import ValidationError
 
@@ -28,7 +29,6 @@ from mininet_ai.sdk import (
 )
 from mininet_ai.specification.models import AttachmentLayer, ResourceKind
 from mininet_ai.substrates import ActionStatus
-
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -146,7 +146,7 @@ class AgentRuntimeContractTests(unittest.TestCase):
                 id="proposal-1",
                 capability="custom.invalid",
                 target="s1",
-                arguments={"value": object()},
+                arguments=cast(Any, {"value": object()}),
             ),
             lambda: AgentInvocationResult(
                 invocationId="invoke-1",
@@ -194,7 +194,7 @@ class AgentRuntimeContractTests(unittest.TestCase):
         for parameters in cases:
             with self.subTest(parameters=parameters):
                 with self.assertRaises(ValueError):
-                    CapabilityProviderError(**parameters)
+                    CapabilityProviderError(**cast(Any, parameters))
 
         with self.assertRaises(ValueError):
             ModelProviderError("", code="model.failed")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from typing import Any, cast
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import AgentRuntimeError
@@ -10,6 +11,7 @@ from mininet_ai.plugins import (
     ProviderRegistries,
 )
 from mininet_ai.sdk import AGENT_RUNTIME_CONTRACT_VERSION, ExecutionCatalog
+from mininet_ai.specification.models import ModelConfiguration
 from tests.compiler.helpers import EXAMPLE
 from tests.plugins.helpers import plugin
 
@@ -20,8 +22,10 @@ class ProviderRegistryTests(unittest.TestCase):
         catalog = ExecutionCatalog(self.plan)
         self.agent_definition = catalog.resolve("switch-router@s1")
         self.capability_definition = self.agent_definition.capabilities[0]
-        self.model_configuration = self.agent_definition.blueprint.model
-        self.assertIsNotNone(self.model_configuration)
+        model_configuration = self.agent_definition.blueprint.model
+        self.assertIsNotNone(model_configuration)
+        assert model_configuration is not None
+        self.model_configuration: ModelConfiguration = model_configuration
         self.registries = ProviderRegistries()
 
     def test_registers_and_constructs_each_provider_kind(self) -> None:
@@ -79,7 +83,7 @@ class ProviderRegistryTests(unittest.TestCase):
                 "old-model",
                 ProviderPlugin(
                     kind=ProviderKind.MODEL,
-                    factory=lambda configuration: object(),
+                    factory=cast(Any, lambda configuration: object()),
                     contract_version="mininet-ai/agent-runtime/v0",
                 ),
                 "plugin.version.unsupported",
@@ -87,8 +91,8 @@ class ProviderRegistryTests(unittest.TestCase):
             (
                 "invalid-kind",
                 ProviderPlugin(
-                    kind="not-a-kind",
-                    factory=lambda configuration: object(),
+                    kind=cast(Any, "not-a-kind"),
+                    factory=cast(Any, lambda configuration: object()),
                 ),
                 "plugin.descriptor.invalid",
             ),
@@ -96,7 +100,7 @@ class ProviderRegistryTests(unittest.TestCase):
                 "not-callable",
                 ProviderPlugin(
                     kind=ProviderKind.MODEL,
-                    factory=None,
+                    factory=cast(Any, None),
                 ),
                 "plugin.factory.invalid",
             ),
@@ -128,7 +132,7 @@ class ProviderRegistryTests(unittest.TestCase):
                 "invalid",
                 ProviderPlugin(
                     kind=ProviderKind.MODEL,
-                    factory=lambda configuration: object(),
+                    factory=cast(Any, lambda configuration: object()),
                 ),
                 "plugin.provider.invalid",
             ),
@@ -144,7 +148,7 @@ class ProviderRegistryTests(unittest.TestCase):
 
         for name, descriptor, code in cases:
             with self.subTest(name=name):
-                self.registries.models.register(name, descriptor)
+                self.registries.models.register(name, cast(Any, descriptor))
                 with self.assertRaises(AgentRuntimeError) as context:
                     self.registries.models.create(name, self.model_configuration)
                 self.assertEqual(context.exception.code, code)

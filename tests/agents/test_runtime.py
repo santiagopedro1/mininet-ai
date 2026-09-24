@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import unittest
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
 from mininet_ai.audit import AuditEventType, AuditRecorder, MemoryAuditSink
@@ -12,7 +13,6 @@ from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.sdk import InvocationStatus
 from mininet_ai.substrates import ActionStatus, FakeSubstrateRuntime
 from tests.compiler.helpers import EXAMPLE
-
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -71,11 +71,12 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         result = runtime.invoke(run.id, "switch-router@s1", "repair forwarding")
 
         self.assertEqual(result.status, InvocationStatus.SUCCEEDED)
+        assert result.response is not None
         self.assertEqual(result.response.message, "install a safe rule")
         self.assertEqual(len(result.action_results), 1)
         self.assertEqual(result.action_results[0].status, ActionStatus.SUCCEEDED)
         self.assertEqual(result.action_results[0].output["target"], "s1")
-        context_data = sink.events[0].data["context"]
+        context_data = cast(dict[str, Any], sink.events[0].data["context"])
         self.assertEqual(
             set(context_data["observations"]),
             {
@@ -112,6 +113,7 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         result = runtime.invoke(run.id, "switch-router@s1", "repair forwarding")
 
         self.assertEqual(result.status, InvocationStatus.REJECTED)
+        assert result.issue is not None
         self.assertEqual(result.issue.code, "capability.target.out-of-scope")
         self.assertEqual(result.action_results[0].status, ActionStatus.REJECTED)
 
@@ -121,6 +123,7 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         result = runtime.invoke(run.id, "switch-router@s1", "repair forwarding")
 
         self.assertEqual(result.status, InvocationStatus.FAILED)
+        assert result.issue is not None
         self.assertEqual(result.issue.code, "agent.response.invalid")
         self.assertEqual(sink.events[-1].type, AuditEventType.AGENT_FAILED)
 
@@ -146,6 +149,7 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         result = runtime.invoke(run.id, "switch-router@s1", "inspect")
 
         self.assertEqual(result.status, InvocationStatus.SUCCEEDED)
+        assert result.response is not None
         self.assertEqual(result.response.message, "inspected switch-router@s1")
         self.assertEqual(result.action_results, ())
 

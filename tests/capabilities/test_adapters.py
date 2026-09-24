@@ -7,6 +7,7 @@ import unittest
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 from unittest.mock import patch
 
 from mininet_ai.capabilities import (
@@ -27,10 +28,10 @@ from mininet_ai.substrates import (
     ActionResult,
     ActionStatus,
     ObservationResult,
+    SubstrateRuntime,
 )
 from mininet_ai.transports import HttpTransportError
 from tests.compiler.helpers import EXAMPLE
-
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -114,10 +115,11 @@ class CapabilityAdapterTests(unittest.TestCase):
         self,
     ) -> None:
         runtime = RecordingRuntime()
-        action_provider = SubstrateActionProvider(self.capability, runtime)
+        substrate = cast(SubstrateRuntime, runtime)
+        action_provider = SubstrateActionProvider(self.capability, substrate)
         observation_provider = SubstrateObservationProvider(
             self.capability,
-            runtime,
+            substrate,
         )
         proposal = self.proposal()
 
@@ -131,7 +133,8 @@ class CapabilityAdapterTests(unittest.TestCase):
         query = runtime.observation_queries[0][1]
         self.assertEqual(query.name, self.capability.metadata.name)
         self.assertEqual(query.targets, ("s1",))
-        self.assertEqual(observation.output["s1"]["state"], "up")
+        observed = cast(dict[str, Any], observation.output["s1"])
+        self.assertEqual(observed["state"], "up")
 
     def test_process_adapter_uses_versioned_json_protocol(self) -> None:
         script = (

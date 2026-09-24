@@ -6,15 +6,16 @@ import stat
 import unittest
 from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
+from typing import Any, NoReturn, cast
 
 from mininet_ai.audit import (
     AUDIT_CONTRACT_VERSION,
-    AuditError,
-    AuditEventType,
-    AuditRecorder,
     AuditedAgentProvider,
     AuditedCapabilityExecutor,
     AuditedModelProvider,
+    AuditError,
+    AuditEventType,
+    AuditRecorder,
     JsonLinesAuditSink,
     MemoryAuditSink,
 )
@@ -32,7 +33,6 @@ from mininet_ai.sdk import (
 )
 from mininet_ai.specification.models import AttachmentLayer, ResourceKind
 from mininet_ai.substrates import ActionResult, ActionStatus, RuntimeIssue
-
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -65,21 +65,22 @@ def proposal() -> ActionProposal:
 class EchoAgent:
     contract_version = AGENT_RUNTIME_CONTRACT_VERSION
 
-    def invoke(self, invocation):
-        return AgentResponse(message=invocation.intent)
+    def invoke(self, context: AgentContext) -> AgentResponse:
+        return AgentResponse(message=context.intent)
 
 
 class FailingAgent:
     contract_version = AGENT_RUNTIME_CONTRACT_VERSION
 
-    def invoke(self, invocation):
+    def invoke(self, context: AgentContext) -> NoReturn:
+        del context
         raise AgentProviderError("script failed", code="agent.script.failed")
 
 
 class EchoModel:
     contract_version = AGENT_RUNTIME_CONTRACT_VERSION
 
-    def generate(self, request):
+    def generate(self, request: ModelRequest) -> ModelResponse:
         return ModelResponse(
             content=request.messages[-1].content,
             usage=TokenUsage(inputTokens=3, outputTokens=2, totalTokens=5),
@@ -88,10 +89,12 @@ class EchoModel:
 
 
 class RejectingExecutor:
-    def execute(self, invocation, action):
+    def execute(
+        self, context: AgentContext, proposal: ActionProposal
+    ) -> ActionResult:
         return ActionResult(
-            run_id=invocation.run_id,
-            request_id=action.id,
+            run_id=context.run_id,
+            request_id=proposal.id,
             status=ActionStatus.REJECTED,
             completed_at=NOW,
             issue=RuntimeIssue(code="denied", message="not authorized"),
@@ -178,10 +181,8 @@ class AuditTests(unittest.TestCase):
                 AuditEventType.AGENT_COMPLETED,
             ),
         )
-        self.assertEqual(
-            sink.events[1].data["response"]["message"],
-            invocation.intent,
-        )
+        completed = cast(dict[str, Any], sink.events[1].data)
+        self.assertEqual(completed["response"]["message"], invocation.intent)
 
         failing_sink = MemoryAuditSink()
         failing = AuditedAgentProvider(
@@ -216,11 +217,13 @@ class AuditTests(unittest.TestCase):
                 AuditEventType.MODEL_COMPLETED,
             ),
         )
+        started = cast(dict[str, Any], sink.events[0].data)
         self.assertEqual(
-            sink.events[0].data["request"]["messages"][0]["content"],
+            started["request"]["messages"][0]["content"],
             "inspect s1",
         )
-        usage = sink.events[1].data["response"]["usage"]
+        completed = cast(dict[str, Any], sink.events[1].data)
+        usage = completed["response"]["usage"]
         self.assertEqual(usage["totalTokens"], 5)
 
     def test_capability_wrapper_records_proposals_and_typed_results(self) -> None:
@@ -238,14 +241,13 @@ class AuditTests(unittest.TestCase):
                 AuditEventType.CAPABILITY_COMPLETED,
             ),
         )
+        started = cast(dict[str, Any], sink.events[0].data)
+        completed = cast(dict[str, Any], sink.events[1].data)
         self.assertEqual(
-            sink.events[0].data["proposal"]["capability"],
+            started["proposal"]["capability"],
             "openflow.flow.install",
         )
-        self.assertEqual(
-            sink.events[1].data["result"]["status"],
-            "rejected",
-        )
+        self.assertEqual(completed["result"]["status"], "rejected")
 
 
 if __name__ == "__main__":

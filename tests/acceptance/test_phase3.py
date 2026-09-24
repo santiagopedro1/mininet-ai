@@ -8,18 +8,18 @@ import unittest
 from importlib.metadata import EntryPoint, EntryPoints
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 from unittest.mock import patch
 
 from typer.testing import CliRunner
 
 from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
 from mininet_ai.audit import AuditEventType, AuditRecorder, MemoryAuditSink
-from mininet_ai.compiler import compile_experiment
 from mininet_ai.cli import app
+from mininet_ai.compiler import compile_experiment
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
 from mininet_ai.sdk import InvocationStatus
 from mininet_ai.substrates import ActionStatus, FakeSubstrateRuntime
-
 
 ROOT = Path(__file__).parents[2]
 EXPERIMENT = ROOT / "examples" / "phase3" / "experiment.yaml"
@@ -89,8 +89,9 @@ class Phase3AcceptanceTests(unittest.TestCase):
         model_event = next(
             event for event in events if event.type == AuditEventType.MODEL_COMPLETED
         )
+        response = cast(dict[str, Any], model_event.data["response"])
         self.assertEqual(
-            model_event.data["response"]["usage"]["totalTokens"],
+            response["usage"]["totalTokens"],
             0,
         )
 
@@ -107,8 +108,10 @@ class Phase3AcceptanceTests(unittest.TestCase):
 
         self.assertEqual(result.status, InvocationStatus.REJECTED)
         self.assertEqual(result.action_results[-1].status, ActionStatus.REJECTED)
+        issue = result.action_results[-1].issue
+        assert issue is not None
         self.assertEqual(
-            result.action_results[-1].issue.code,
+            issue.code,
             "capability.target.out-of-scope",
         )
         completed = [
@@ -116,8 +119,9 @@ class Phase3AcceptanceTests(unittest.TestCase):
             for event in events
             if event.type == AuditEventType.CAPABILITY_COMPLETED
         ]
+        completed_data = cast(dict[str, Any], completed[-1].data)
         self.assertEqual(
-            completed[-1].data["result"]["issue"]["code"],
+            completed_data["result"]["issue"]["code"],
             "capability.target.out-of-scope",
         )
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from mininet_ai.capabilities import CapabilityEngine
 from mininet_ai.compiler import compile_experiment
@@ -15,10 +15,9 @@ from mininet_ai.sdk import (
     CapabilityProviderError,
     ExecutionCatalog,
 )
-from mininet_ai.specification.models import AttachmentLayer, ResourceKind
+from mininet_ai.specification.models import AttachmentLayer
 from mininet_ai.substrates import ActionResult, ActionStatus, RuntimeIssue
 from tests.compiler.helpers import EXAMPLE
-
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -49,9 +48,12 @@ class CapabilityEngineTests(unittest.TestCase):
         self.registries = ProviderRegistries()
         self.registries.capabilities.register(
             "fake.openflow",
-            ProviderPlugin(
-                kind=ProviderKind.CAPABILITY,
-                factory=lambda capability: self.provider,
+            cast(
+                Any,
+                ProviderPlugin(
+                    kind=ProviderKind.CAPABILITY,
+                    factory=lambda capability: self.provider,
+                ),
             ),
         )
         self.engine = CapabilityEngine(
@@ -89,6 +91,11 @@ class CapabilityEngineTests(unittest.TestCase):
         values.update(updates)
         return ActionProposal.model_validate(values)
 
+    def assert_issue_code(self, result: ActionResult, code: str) -> None:
+        self.assertIsNotNone(result.issue)
+        assert result.issue is not None
+        self.assertEqual(result.issue.code, code)
+
     def test_authorizes_validates_and_executes_an_assigned_capability(self) -> None:
         context = self.context()
         proposal = self.proposal()
@@ -121,7 +128,7 @@ class CapabilityEngineTests(unittest.TestCase):
             with self.subTest(code=code):
                 result = self.engine.execute(self.context(), proposal)
                 self.assertEqual(result.status, ActionStatus.REJECTED)
-                self.assertEqual(result.issue.code, code)
+                self.assert_issue_code(result, code)
 
         self.assertEqual(self.provider.calls, [])
 
@@ -136,7 +143,7 @@ class CapabilityEngineTests(unittest.TestCase):
                 result = self.engine.execute(context, self.proposal())
 
                 self.assertEqual(result.status, ActionStatus.REJECTED)
-                self.assertEqual(result.issue.code, "capability.context.invalid")
+                self.assert_issue_code(result, "capability.context.invalid")
         self.assertEqual(self.provider.calls, [])
 
     def test_unknown_agent_identity_is_rejected(self) -> None:
@@ -146,7 +153,7 @@ class CapabilityEngineTests(unittest.TestCase):
         )
 
         self.assertEqual(result.status, ActionStatus.REJECTED)
-        self.assertEqual(result.issue.code, "agent.instance.unknown")
+        self.assert_issue_code(result, "agent.instance.unknown")
         self.assertEqual(self.provider.calls, [])
 
     def test_capability_target_kind_and_layer_are_enforced(self) -> None:
@@ -175,7 +182,7 @@ class CapabilityEngineTests(unittest.TestCase):
                 result = engine.execute(self.context(), self.proposal())
 
                 self.assertEqual(result.status, ActionStatus.REJECTED)
-                self.assertEqual(result.issue.code, expected_code)
+                self.assert_issue_code(result, expected_code)
 
         self.assertEqual(self.provider.calls, [])
 
@@ -196,7 +203,7 @@ class CapabilityEngineTests(unittest.TestCase):
         result = engine.execute(self.context(), self.proposal())
 
         self.assertEqual(result.status, ActionStatus.REJECTED)
-        self.assertEqual(result.issue.code, "capability.effects.denied")
+        self.assert_issue_code(result, "capability.effects.denied")
 
     def test_provider_failures_and_timeouts_are_normalized(self) -> None:
         cases = (
@@ -222,7 +229,7 @@ class CapabilityEngineTests(unittest.TestCase):
                     else ActionStatus.FAILED
                 )
                 self.assertEqual(result.status, expected_status)
-                self.assertEqual(result.issue.code, code)
+                self.assert_issue_code(result, code)
 
     def test_successful_substrate_result_output_must_be_json(self) -> None:
         self.provider.result = ActionResult(
@@ -236,7 +243,7 @@ class CapabilityEngineTests(unittest.TestCase):
         result = self.engine.execute(self.context(), self.proposal())
 
         self.assertEqual(result.status, ActionStatus.FAILED)
-        self.assertEqual(result.issue.code, "capability.output.invalid")
+        self.assert_issue_code(result, "capability.output.invalid")
 
     def test_substrate_action_results_are_preserved(self) -> None:
         substrate_result = ActionResult(
@@ -267,7 +274,7 @@ class CapabilityEngineTests(unittest.TestCase):
         result = self.engine.execute(self.context(), self.proposal())
 
         self.assertEqual(result.status, ActionStatus.FAILED)
-        self.assertEqual(result.issue.code, "capability.result.invalid-identity")
+        self.assert_issue_code(result, "capability.result.invalid-identity")
 
     def test_unknown_provider_is_a_typed_failure(self) -> None:
         engine = CapabilityEngine(
@@ -279,7 +286,7 @@ class CapabilityEngineTests(unittest.TestCase):
         result = engine.execute(self.context(), self.proposal())
 
         self.assertEqual(result.status, ActionStatus.FAILED)
-        self.assertEqual(result.issue.code, "plugin.provider.unknown")
+        self.assert_issue_code(result, "plugin.provider.unknown")
 
     def test_missing_provider_is_a_typed_failure(self) -> None:
         snapshot = dict(self.plan.snapshot)
@@ -298,7 +305,7 @@ class CapabilityEngineTests(unittest.TestCase):
         result = engine.execute(self.context(), self.proposal())
 
         self.assertEqual(result.status, ActionStatus.FAILED)
-        self.assertEqual(result.issue.code, "capability.provider.missing")
+        self.assert_issue_code(result, "capability.provider.missing")
 
     def test_provider_output_must_be_json_and_match_declared_schema(self) -> None:
         cases = (
@@ -311,7 +318,7 @@ class CapabilityEngineTests(unittest.TestCase):
                 self.provider.result = output
                 result = self.engine.execute(self.context(), self.proposal())
                 self.assertEqual(result.status, ActionStatus.FAILED)
-                self.assertEqual(result.issue.code, code)
+                self.assert_issue_code(result, code)
 
     def test_declared_output_schema_is_enforced(self) -> None:
         snapshot = dict(self.plan.snapshot)
@@ -333,7 +340,7 @@ class CapabilityEngineTests(unittest.TestCase):
         result = engine.execute(self.context(), self.proposal())
 
         self.assertEqual(result.status, ActionStatus.FAILED)
-        self.assertEqual(result.issue.code, "capability.output.invalid")
+        self.assert_issue_code(result, "capability.output.invalid")
 
     def test_invalid_declared_schema_is_a_typed_failure(self) -> None:
         snapshot = dict(self.plan.snapshot)
@@ -350,7 +357,7 @@ class CapabilityEngineTests(unittest.TestCase):
         result = engine.execute(self.context(), self.proposal())
 
         self.assertEqual(result.status, ActionStatus.FAILED)
-        self.assertEqual(result.issue.code, "capability.schema.invalid")
+        self.assert_issue_code(result, "capability.schema.invalid")
         self.assertEqual(self.provider.calls, [])
 
     def test_supported_json_schema_formats_are_enforced(self) -> None:
@@ -372,7 +379,7 @@ class CapabilityEngineTests(unittest.TestCase):
         result = engine.execute(self.context(), self.proposal())
 
         self.assertEqual(result.status, ActionStatus.REJECTED)
-        self.assertEqual(result.issue.code, "capability.input.invalid")
+        self.assert_issue_code(result, "capability.input.invalid")
         self.assertEqual(self.provider.calls, [])
 
 
