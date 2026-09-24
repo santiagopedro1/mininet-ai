@@ -36,6 +36,13 @@ Discovery is opt-in and transactional: compiling or validating an experiment
 does not import plugins, and a failed discovery leaves existing registrations
 unchanged.
 
+`CapabilityEngine` is the single execution seam for agent proposals. Before a
+provider can run, it verifies the compiled agent identity and scope, assigned
+capability, target kind, attachment layer, and effects; validates input against
+JSON Schema; and then validates and normalizes provider output. Authorization
+violations are rejected without invoking plugin code, while provider and output
+failures use typed action results.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -178,6 +185,7 @@ The code is organized by responsibility:
 mininet_ai/
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
+├── capabilities/    # Proposal authorization, validation, and execution
 ├── plugins/         # Explicit provider registries and entry-point discovery
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
 ├── sdk/             # Agent, model, and capability runtime contracts

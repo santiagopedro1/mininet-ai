@@ -13,6 +13,7 @@ from mininet_ai.sdk import (
     AgentProvider,
     AgentResponse,
     AgentRuntimeIssue,
+    CapabilityOutcome,
     CapabilityProvider,
     InvocationStatus,
     ModelMessage,
@@ -109,6 +110,11 @@ class AgentRuntimeContractTests(unittest.TestCase):
         self.assertEqual(
             payload["response"]["proposals"][0]["timeoutSeconds"],
             5,
+        )
+        self.assertEqual(
+            CapabilityOutcome(changed=True, output={"installed": True})
+            .model_dump(mode="json"),
+            {"changed": True, "output": {"installed": True}},
         )
 
     def test_model_contract_normalizes_structured_output_and_usage(self) -> None:

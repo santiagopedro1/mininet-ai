@@ -130,6 +130,13 @@ class ActionProposal(StrictModel):
     timeout_seconds: float = Field(default=30, alias="timeoutSeconds", gt=0)
 
 
+class CapabilityOutcome(StrictModel):
+    """Provider output before the runtime adds identity and completion time."""
+
+    changed: bool = False
+    output: dict[str, JsonValue] = Field(default_factory=dict)
+
+
 class AgentResponse(StrictModel):
     message: str | None = Field(default=None, min_length=1)
     proposals: tuple[ActionProposal, ...] = ()
@@ -205,6 +212,6 @@ class CapabilityProvider(Protocol):
         self,
         context: AgentContext,
         proposal: ActionProposal,
-    ) -> Mapping[str, JsonValue]:
+    ) -> CapabilityOutcome | Mapping[str, JsonValue]:
         """Execute one already-authorized proposal."""
         ...
