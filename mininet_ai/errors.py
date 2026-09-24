@@ -39,3 +39,11 @@ class AgentRuntimeError(MininetAIError):
         self.code = code
         self.agent_id = agent_id
         self.invocation_id = invocation_id
+
+
+class AuditError(MininetAIError):
+    """An agent-runtime audit record could not be safely persisted."""
+
+    def __init__(self, message: str, *, code: str) -> None:
+        super().__init__(message)
+        self.code = code

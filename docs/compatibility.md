@@ -7,7 +7,7 @@ driver contract.
 
 ## Versioned contracts
 
-The project currently defines five contract families:
+The project currently defines six contract families:
 
 - `mininet-ai/v1alpha1` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
@@ -34,6 +34,9 @@ The project currently defines five contract families:
   `AgentResponse` shape, and Python entrypoints receive `AgentContext` and must
   return that same shape. The agent-runtime contract is independent of
   experiment and substrate contract versions.
+- `mininet-ai/audit/v1alpha1` covers correlated JSON audit records for agent,
+  model, and capability execution. It is versioned separately so storage and
+  analysis tools can evolve without changing provider contracts.
 
 The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing

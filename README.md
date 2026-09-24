@@ -68,6 +68,15 @@ Entrypoints are imported only when their provider is constructed, never during
 validation or compilation. They currently run as trusted code in the
 orchestrator process; process and namespace isolation belong to Phase 6.
 
+Audit decorators record agent invocations, complete model prompts and normalized
+responses, token usage, action proposals, results, and typed failures as
+versioned JSON events. The JSON Lines sink serializes concurrent appenders,
+limits individual event size, and creates owner-only files. Audit records can
+contain prompts and observations and must therefore be treated as sensitive
+experiment artifacts. Writes are synchronous: failure to record a start event
+prevents the wrapped operation from running instead of silently losing audit
+coverage.
+
 ## Installation
 
 Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
@@ -209,6 +218,7 @@ The code is organized by responsibility:
 ```text
 mininet_ai/
 ├── agents/          # Declarative and Python agent adapters
+├── audit/           # Versioned runtime events, sinks, and decorators
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
 ├── capabilities/    # Proposal authorization, validation, and execution
