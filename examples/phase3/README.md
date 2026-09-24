@@ -13,13 +13,32 @@ live model or privileged network:
   `mininet_ai.capabilities` entry-point group.
 - `experiment.yaml` attaches the agent only to `s1`.
 
-Run the automated completion demonstration with:
+Run the complete example in one process with:
+
+```bash
+uv run python -m examples.phase3
+```
+
+This prints the invocation result and teardown state as JSON, and writes the
+full event stream to `.mininet-ai/phase3-demo-audit.jsonl`. Choose another
+destination or intent when needed:
+
+```bash
+uv run python -m examples.phase3 \
+  --audit-log /tmp/phase3-audit.jsonl \
+  --intent "Inspect s1 and apply the declared safe change"
+```
+
+The workflow deliberately stays in one process because the fake substrate is
+in-memory. It compiles and deploys the experiment, discovers both example
+providers, invokes `edge-operator@s1`, records the audit trail, and tears down
+the run before exiting. It requires neither root access nor Mininet.
+
+Run the automated acceptance checks with:
 
 ```bash
 uv run pytest -q tests/acceptance/test_phase3.py
 ```
 
-The suite compiles and deploys the fake substrate, discovers both providers,
-invokes the agent through the public runtime and CLI, verifies typed results
-and audit records, and proves that changing the action target to `s2` is
-rejected before the provider can act.
+The suite also verifies typed results and audit records and proves that changing
+the action target to `s2` is rejected before the provider can act.

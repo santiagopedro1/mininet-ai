@@ -141,6 +141,7 @@ out-of-scope action check:
 
 ```bash
 uv run mininet-ai validate examples/phase3/experiment.yaml
+uv run python -m examples.phase3
 uv run pytest -q tests/acceptance/test_phase3.py
 ```
 

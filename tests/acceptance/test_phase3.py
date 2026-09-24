@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
+import sys
 import unittest
 from importlib.metadata import EntryPoint, EntryPoints
 from pathlib import Path
@@ -163,6 +165,40 @@ class Phase3AcceptanceTests(unittest.TestCase):
             ]
             self.assertEqual(records[0]["runId"], run.id)
             self.assertEqual(records[-1]["data"]["result"]["status"], "succeeded")
+
+    def test_demo_command_runs_the_complete_workflow_in_one_process(self) -> None:
+        with TemporaryDirectory() as temporary:
+            audit_path = Path(temporary) / "phase3-demo-audit.jsonl"
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "examples.phase3",
+                    "--audit-log",
+                    str(audit_path),
+                ],
+                cwd=ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            payload = json.loads(completed.stdout)
+            self.assertEqual(payload["result"]["status"], "succeeded")
+            self.assertEqual(len(payload["result"]["actionResults"]), 2)
+            self.assertEqual(
+                payload["loadedPlugins"],
+                ["example.action", "example.telemetry"],
+            )
+            self.assertEqual(payload["teardown"]["run"]["state"], "stopped")
+            self.assertTrue(audit_path.is_file())
+            records = [
+                json.loads(line)
+                for line in audit_path.read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertGreaterEqual(len(records), 6)
 
 
 if __name__ == "__main__":
