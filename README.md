@@ -321,9 +321,27 @@ learned memory in SQLite. A stable Agno session ID combines the experiment run
 and agent instance. Learned memory is disabled when `learned` is absent;
 `scope: run` isolates it to that experiment run, while the explicit
 `scope: agent` option reuses it for the same compiled agent ID across runs.
-Mininet AI will implement `shared` deployment/run state separately because it
-participates in cross-agent coordination. Capability definitions may declare
-typed postcondition observations and rollback timeouts.
+Mininet AI implements `shared` deployment/run state separately because it
+participates in cross-agent coordination. Authorized values are included in
+the next `AgentContext` as `sharedState`. Agents return structured updates with
+their response, for example:
+
+```yaml
+sharedStateUpdates:
+  - scope: run
+    operation: set
+    key: preferred-path
+    value: west
+    expectedVersion: 0
+```
+
+Updates are applied atomically before network proposals. `expectedVersion: 0`
+means “create only”; later updates can use the observed version for
+compare-and-set conflict detection. Run state is visible to authorized agents
+across deployments, while deployment state is isolated by run and deployment.
+The strictest `maxEntries` declared by agents sharing a namespace is enforced.
+Capability definitions may declare typed postcondition observations and
+rollback timeouts.
 
 ## Development
 
@@ -479,9 +497,12 @@ run metadata and usage, proposals, and action results to
 `.mininet-ai/audit.jsonl` by default. Use
 `--format json` or `--audit-log PATH` when needed. Agno sessions and memory are
 stored in `.mininet-ai/agno.sqlite3`; use `--agno-db PATH` to select another
-private SQLite file. Existing database files must have mode `0600`. Completed
-invocation audit records include the Agno version, stable session/user IDs,
-effective memory settings, and model metrics. Model providers use their
+private SQLite file. Shared operational state is stored separately in
+`.mininet-ai/shared-state.sqlite3`; use `--shared-state-db PATH` to select its
+location. Existing database files must have mode `0600`. Shared-state changes
+and conflicts are appended to the audit/ledger stream. Completed invocation
+audit records include the Agno version, stable session/user IDs, effective
+memory settings, and model metrics. Model providers use their
 standard Agno environment variables, such as `OPENAI_API_KEY`; custom endpoints
 and provider-specific options belong in a Python-authored Agno factory. Add
 `--discover-plugins` to explicitly load installed provider entry points during

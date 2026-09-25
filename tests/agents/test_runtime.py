@@ -10,7 +10,9 @@ from mininet_ai.audit import AuditEventType, AuditRecorder, MemoryAuditSink
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.plugins import ProviderRegistries
+from mininet_ai.runtime import InMemorySharedStateStore
 from mininet_ai.sdk import InvocationStatus
+from mininet_ai.specification.models import Experiment
 from mininet_ai.substrates import ActionStatus, FakeSubstrateRuntime
 from tests.compiler.helpers import EXAMPLE
 
@@ -31,6 +33,22 @@ def configured_plan(response, *, implementation=None):
         blueprint["implementation"] = implementation
         blueprint["model"] = None
     return plan.model_copy(update={"snapshot": snapshot})
+
+
+def configured_shared_plan(response):
+    plan = compile_experiment(EXAMPLE)
+    snapshot = copy.deepcopy(plan.snapshot)
+    blueprint = snapshot["blueprints"][0]
+    blueprint["model"] = {
+        "provider": "mock",
+        "name": "deterministic",
+        "parameters": {"response": response},
+    }
+    blueprint["memory"]["shared"] = {
+        "scopes": ["run", "deployment"],
+        "maxEntries": 4,
+    }
+    return compile_experiment(Experiment.model_validate(snapshot))
 
 
 class OneShotAgentRuntimeTests(unittest.TestCase):
@@ -125,6 +143,67 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         assert result.issue is not None
         self.assertEqual(result.issue.code, "capability.target.out-of-scope")
         self.assertEqual(result.action_results[0].status, ActionStatus.REJECTED)
+
+    def test_shared_state_updates_are_scoped_audited_and_visible_next_run(
+        self,
+    ) -> None:
+        response = {
+            "sharedStateUpdates": [
+                {
+                    "scope": "run",
+                    "key": "preferred-path",
+                    "value": "west",
+                    "expectedVersion": 0,
+                },
+                {
+                    "scope": "deployment",
+                    "key": "leader",
+                    "value": "s1",
+                },
+            ]
+        }
+        plan = configured_shared_plan(response)
+        substrate = FakeSubstrateRuntime(run_id_factory=lambda: "shared-run")
+        run = substrate.deploy(plan)
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, substrate)
+        sink = MemoryAuditSink()
+        state = InMemorySharedStateStore(clock=lambda: NOW)
+        invocation_ids = iter(("shared-1", "shared-2"))
+        runtime = OneShotAgentRuntime(
+            plan,
+            substrate,
+            registries,
+            audit=AuditRecorder(sink, clock=lambda: NOW),
+            shared_state=state,
+            clock=lambda: NOW,
+            invocation_id_factory=lambda: next(invocation_ids),
+        )
+
+        first = runtime.invoke(run.id, "switch-router@s1", "choose path")
+        second = runtime.invoke(run.id, "switch-router@s1", "choose again")
+
+        self.assertEqual(first.status, InvocationStatus.SUCCEEDED)
+        self.assertEqual(len(first.shared_state_changes), 2)
+        self.assertEqual(first.shared_state_changes[0].version, 1)
+        self.assertEqual(second.status, InvocationStatus.REJECTED)
+        assert second.issue is not None
+        self.assertEqual(second.issue.code, "state.version.conflict")
+        second_started = next(
+            event
+            for event in sink.events
+            if event.type == AuditEventType.AGENT_STARTED
+            and event.invocation_id == "shared-2"
+        )
+        context_data = cast(dict[str, Any], second_started.data["context"])
+        shared_data = cast(dict[str, Any], context_data["sharedState"])
+        run_state = cast(dict[str, Any], shared_data["run"])
+        self.assertEqual(run_state["preferred-path"]["value"], "west")
+        self.assertIn(
+            AuditEventType.SHARED_STATE_UPDATED,
+            tuple(event.type for event in sink.events),
+        )
+        self.assertEqual(sink.events[-1].type, AuditEventType.SHARED_STATE_FAILED)
 
     def test_model_failures_become_typed_invocation_results(self) -> None:
         runtime, run, sink = self.runtime({"metadata": {}})

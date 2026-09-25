@@ -21,13 +21,15 @@ uv run python -m examples.phase3
 
 This prints the invocation result and teardown state as JSON, writes the full
 event stream to `.mininet-ai/phase3-demo-audit.jsonl`, and stores the Agno
-session in `.mininet-ai/phase3-demo-agno.sqlite3`. Choose other destinations or
-an intent when needed:
+session in `.mininet-ai/phase3-demo-agno.sqlite3`. Mininet-owned shared state
+uses `.mininet-ai/phase3-demo-state.sqlite3`. Choose other destinations or an
+intent when needed:
 
 ```bash
 uv run python -m examples.phase3 \
   --audit-log /tmp/phase3-audit.jsonl \
   --agno-db /tmp/phase3-agno.sqlite3 \
+  --shared-state-db /tmp/phase3-state.sqlite3 \
   --intent "Inspect s1 and apply the declared safe change"
 ```
 

@@ -162,6 +162,8 @@ class Phase3AcceptanceTests(unittest.TestCase):
                         str(audit_path),
                         "--agno-db",
                         str(Path(temporary) / "agno.sqlite3"),
+                        "--shared-state-db",
+                        str(Path(temporary) / "state.sqlite3"),
                         "--format",
                         "json",
                     ],
@@ -182,6 +184,7 @@ class Phase3AcceptanceTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             audit_path = Path(temporary) / "phase3-demo-audit.jsonl"
             agno_db = Path(temporary) / "phase3-demo-agno.sqlite3"
+            state_db = Path(temporary) / "phase3-demo-state.sqlite3"
 
             completed = subprocess.run(
                 [
@@ -192,6 +195,8 @@ class Phase3AcceptanceTests(unittest.TestCase):
                     str(audit_path),
                     "--agno-db",
                     str(agno_db),
+                    "--shared-state-db",
+                    str(state_db),
                 ],
                 cwd=ROOT,
                 check=False,

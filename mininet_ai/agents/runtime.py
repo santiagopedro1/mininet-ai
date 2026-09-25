@@ -26,6 +26,12 @@ from mininet_ai.plugins import (
     ProviderPlugin,
     ProviderRegistries,
 )
+from mininet_ai.runtime import (
+    SharedScope,
+    SharedStateAccess,
+    SharedStateError,
+    SharedStateStore,
+)
 from mininet_ai.sdk import (
     AgentContext,
     AgentInvocationResult,
@@ -34,6 +40,9 @@ from mininet_ai.sdk import (
     CapabilityProvider,
     ExecutionCatalog,
     InvocationStatus,
+    SharedStateChange,
+    SharedStateSnapshot,
+    SharedStateUpdate,
 )
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
 from mininet_ai.specification.models import CapabilityDefinition
@@ -97,6 +106,7 @@ class OneShotAgentRuntime:
         *,
         audit: AuditRecorder | None = None,
         agent_factory: AgnoAgentFactory | None = None,
+        shared_state: SharedStateStore | None = None,
         clock: Clock = _utc_now,
         invocation_id_factory: InvocationIdFactory = _invocation_id,
     ) -> None:
@@ -104,6 +114,15 @@ class OneShotAgentRuntime:
         self._substrate = substrate
         self._audit = audit
         self._agent_factory = agent_factory or AgnoAgentFactory()
+        self._shared_state = shared_state
+        self._agent_instances = plan.agents
+        if shared_state is None and any(
+            agent.memory.shared is not None for agent in plan.agents
+        ):
+            raise AgentRuntimeError(
+                "the deployment plan declares shared state but no store is configured",
+                code="state.store.required",
+            )
         self._clock = clock
         self._invocation_id_factory = invocation_id_factory
         capability_engine = CapabilityEngine(
@@ -162,6 +181,12 @@ class OneShotAgentRuntime:
                 invocation_id=invocation_id,
             )
         observations = self._observe(run_id, definition)
+        access = self._shared_access(run_id, definition)
+        shared_state = (
+            self._shared_state.snapshot(access)
+            if self._shared_state is not None and access.limits
+            else SharedStateSnapshot()
+        )
         context = self._context(
             definition,
             invocation_id=invocation_id,
@@ -169,6 +194,7 @@ class OneShotAgentRuntime:
             intent=intent,
             invoked_at=started_at,
             observations=observations,
+            shared_state=shared_state,
         )
         if self._audit is not None:
             self._audit.record(
@@ -206,11 +232,32 @@ class OneShotAgentRuntime:
                 },
             )
 
+        try:
+            state_changes = self._apply_shared_state(
+                context,
+                access,
+                response.shared_state_updates,
+            )
+        except SharedStateError as error:
+            if self._audit is not None:
+                self._audit.record(
+                    AuditEventType.SHARED_STATE_FAILED,
+                    context,
+                    self._error_data(error),
+                )
+            return self._state_failure(context, started_at, response, error)
+
         action_results = tuple(
             self._capabilities.execute(context, proposal)
             for proposal in response.proposals
         )
-        return self._result(context, started_at, response, action_results)
+        return self._result(
+            context,
+            started_at,
+            response,
+            action_results,
+            state_changes,
+        )
 
     def _observe(
         self,
@@ -252,6 +299,7 @@ class OneShotAgentRuntime:
         intent: str,
         invoked_at: datetime,
         observations: dict[str, JsonValue],
+        shared_state: SharedStateSnapshot,
     ) -> AgentContext:
         instance = definition.instance
         attachment = instance.attachment
@@ -266,6 +314,7 @@ class OneShotAgentRuntime:
             targets=attachment.targets,
             capabilities=instance.capabilities,
             observations=observations,
+            sharedState=shared_state,
             intent=intent,
             priority=instance.priority,
             invokedAt=invoked_at,
@@ -277,6 +326,7 @@ class OneShotAgentRuntime:
         started_at: datetime,
         response: AgentResponse,
         action_results: tuple[ActionResult, ...],
+        state_changes: tuple[SharedStateChange, ...],
     ) -> AgentInvocationResult:
         unsuccessful = next(
             (
@@ -296,6 +346,7 @@ class OneShotAgentRuntime:
                 completedAt=self._clock(),
                 response=response,
                 actionResults=action_results,
+                sharedStateChanges=state_changes,
             )
         issue = unsuccessful.issue
         if issue is None:
@@ -314,11 +365,97 @@ class OneShotAgentRuntime:
             completedAt=self._clock(),
             response=response,
             actionResults=action_results,
+            sharedStateChanges=state_changes,
             issue=AgentRuntimeIssue(
                 code=issue.code,
                 message=issue.message,
                 agentId=context.agent_id,
                 target=issue.target,
+            ),
+        )
+
+    def _shared_access(
+        self,
+        run_id: str,
+        definition: AgentExecutionDefinition,
+    ) -> SharedStateAccess:
+        configuration = definition.instance.memory.shared
+        limits: dict[SharedScope, int] = {}
+        if configuration is not None:
+            for scope in configuration.scopes:
+                candidates = []
+                for instance in self._agent_instances:
+                    shared = instance.memory.shared
+                    if shared is None or scope not in shared.scopes:
+                        continue
+                    if (
+                        scope == "deployment"
+                        and instance.deployment != definition.instance.deployment
+                    ):
+                        continue
+                    candidates.append(shared.max_entries)
+                limits[scope] = min(candidates)
+        return SharedStateAccess(
+            run_id=run_id,
+            deployment=definition.instance.deployment,
+            agent_id=definition.instance.id,
+            limits=limits,
+        )
+
+    def _apply_shared_state(
+        self,
+        context: AgentContext,
+        access: SharedStateAccess,
+        updates: tuple[SharedStateUpdate, ...],
+    ) -> tuple[SharedStateChange, ...]:
+        if not updates:
+            return ()
+        if self._shared_state is None:
+            raise SharedStateError(
+                "agent proposed shared-state updates without a configured store",
+                code="state.store.required",
+            )
+        changes = self._shared_state.apply(access, updates)
+        if self._audit is not None:
+            self._audit.record(
+                AuditEventType.SHARED_STATE_UPDATED,
+                context,
+                {
+                    "changes": [
+                        change.model_dump(
+                            mode="json",
+                            by_alias=True,
+                            exclude_none=True,
+                        )
+                        for change in changes
+                    ]
+                },
+            )
+        return changes
+
+    def _state_failure(
+        self,
+        context: AgentContext,
+        started_at: datetime,
+        response: AgentResponse,
+        error: SharedStateError,
+    ) -> AgentInvocationResult:
+        return AgentInvocationResult(
+            invocationId=context.invocation_id,
+            runId=context.run_id,
+            agentId=context.agent_id,
+            status=(
+                InvocationStatus.REJECTED
+                if error.conflict
+                else InvocationStatus.FAILED
+            ),
+            startedAt=started_at,
+            completedAt=self._clock(),
+            response=response,
+            issue=AgentRuntimeIssue(
+                code=error.code,
+                message=str(error),
+                agentId=context.agent_id,
             ),
         )
 

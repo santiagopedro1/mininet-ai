@@ -98,6 +98,7 @@ class LedgerRecordCategory(StrEnum):
     INVOCATION = "invocation"
     ACTION = "action"
     METRIC = "metric"
+    STATE = "state"
 
 
 class LedgerEntry(StrictModel):
@@ -150,6 +151,11 @@ class LedgerEntry(StrictModel):
             AuditEventType.CAPABILITY_FAILED,
         }:
             category = LedgerRecordCategory.ACTION
+        elif event.type in {
+            AuditEventType.SHARED_STATE_UPDATED,
+            AuditEventType.SHARED_STATE_FAILED,
+        }:
+            category = LedgerRecordCategory.STATE
         return cls(
             runId=event.run_id,
             category=category,

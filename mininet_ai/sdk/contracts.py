@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
@@ -34,6 +34,67 @@ class InvocationStatus(StrEnum):
     FAILED = "failed"
 
 
+class SharedStateEntry(StrictModel):
+    """One versioned value visible in an agent's authorized shared scope."""
+
+    value: JsonValue
+    version: int = Field(ge=1)
+    updated_by: str = Field(alias="updatedBy", min_length=1)
+    updated_at: AwareDatetime = Field(alias="updatedAt")
+
+
+class SharedStateSnapshot(StrictModel):
+    """Shared operational state supplied to one agent invocation."""
+
+    allowed_scopes: tuple[Literal["run", "deployment"], ...] = Field(
+        default=(),
+        alias="allowedScopes",
+    )
+    run: dict[str, SharedStateEntry] = Field(default_factory=dict)
+    deployment: dict[str, SharedStateEntry] = Field(default_factory=dict)
+
+
+class SharedStateUpdate(StrictModel):
+    """A structured, optionally conditional shared-state mutation."""
+
+    scope: Literal["run", "deployment"]
+    operation: Literal["set", "delete"] = "set"
+    key: str = Field(
+        min_length=1,
+        max_length=256,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
+    )
+    value: JsonValue | None = None
+    expected_version: int | None = Field(
+        default=None,
+        alias="expectedVersion",
+        ge=0,
+    )
+
+    @model_validator(mode="after")
+    def operation_matches_value(self) -> SharedStateUpdate:
+        supplied = "value" in self.model_fields_set
+        if self.operation == "set" and not supplied:
+            raise ValueError("a set update requires value")
+        if self.operation == "delete" and supplied:
+            raise ValueError("a delete update cannot contain value")
+        return self
+
+
+class SharedStateChange(StrictModel):
+    """The committed result of one shared-state mutation."""
+
+    scope: Literal["run", "deployment"]
+    operation: Literal["set", "delete"]
+    key: str = Field(
+        min_length=1,
+        max_length=256,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
+    )
+    version: int = Field(ge=1)
+    value: JsonValue | None = None
+
+
 class AgentContext(StrictModel):
     """The complete scope visible to one agent invocation."""
 
@@ -47,6 +108,10 @@ class AgentContext(StrictModel):
     targets: tuple[str, ...] = Field(min_length=1)
     capabilities: tuple[str, ...] = ()
     observations: dict[str, JsonValue] = Field(default_factory=dict)
+    shared_state: SharedStateSnapshot = Field(
+        default_factory=SharedStateSnapshot,
+        alias="sharedState",
+    )
     intent: str = Field(min_length=1)
     priority: int = 0
     invoked_at: AwareDatetime = Field(alias="invokedAt")
@@ -169,12 +234,18 @@ class CapabilityProviderError(Exception):
 class AgentResponse(StrictModel):
     message: str | None = Field(default=None, min_length=1)
     proposals: tuple[ActionProposal, ...] = ()
+    shared_state_updates: tuple[SharedStateUpdate, ...] = Field(
+        default=(),
+        alias="sharedStateUpdates",
+    )
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def response_has_an_outcome(self) -> AgentResponse:
-        if self.message is None and not self.proposals:
-            raise ValueError("an agent response requires a message or proposal")
+        if self.message is None and not self.proposals and not self.shared_state_updates:
+            raise ValueError(
+                "an agent response requires a message, proposal, or shared-state update"
+            )
         proposal_ids = [proposal.id for proposal in self.proposals]
         if len(set(proposal_ids)) != len(proposal_ids):
             raise ValueError("action proposal ids must be unique")
@@ -202,6 +273,10 @@ class AgentInvocationResult(StrictModel):
     action_results: tuple[ActionResult, ...] = Field(
         default=(),
         alias="actionResults",
+    )
+    shared_state_changes: tuple[SharedStateChange, ...] = Field(
+        default=(),
+        alias="sharedStateChanges",
     )
     issue: AgentRuntimeIssue | None = None
 

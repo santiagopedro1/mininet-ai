@@ -304,6 +304,16 @@ class SharedMemoryConfiguration(StrictModel):
     scopes: tuple[Literal["deployment", "run"], ...] = Field(min_length=1)
     max_entries: int = Field(default=1000, alias="maxEntries", ge=1)
 
+    @field_validator("scopes")
+    @classmethod
+    def scopes_are_unique(
+        cls,
+        scopes: tuple[Literal["deployment", "run"], ...],
+    ) -> tuple[Literal["deployment", "run"], ...]:
+        if len(set(scopes)) != len(scopes):
+            raise ValueError("shared memory scopes must be unique")
+        return scopes
+
 
 class MemoryConfiguration(StrictModel):
     local: LocalMemoryConfiguration | None = None

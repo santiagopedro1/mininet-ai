@@ -17,6 +17,7 @@ from mininet_ai.agents import (
 from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
+from mininet_ai.runtime import SQLiteSharedStateStore
 from mininet_ai.sdk import InvocationStatus
 from mininet_ai.substrates import FakeSubstrateRuntime
 
@@ -24,6 +25,7 @@ from mininet_ai.substrates import FakeSubstrateRuntime
 EXPERIMENT = Path(__file__).with_name("experiment.yaml")
 DEFAULT_AUDIT_LOG = Path(".mininet-ai/phase3-demo-audit.jsonl")
 DEFAULT_AGNO_DB = Path(".mininet-ai/phase3-demo-agno.sqlite3")
+DEFAULT_SHARED_STATE_DB = Path(".mininet-ai/phase3-demo-state.sqlite3")
 
 
 def _entry_points() -> tuple[EntryPoint, ...]:
@@ -45,6 +47,12 @@ def _entry_points() -> tuple[EntryPoint, ...]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run the complete rootless Phase 3 acceptance experiment."
+    )
+    parser.add_argument(
+        "--shared-state-db",
+        type=Path,
+        default=DEFAULT_SHARED_STATE_DB,
+        help=f"Shared-state database (default: {DEFAULT_SHARED_STATE_DB})",
     )
     parser.add_argument(
         "--agno-db",
@@ -72,6 +80,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
     plan = compile_experiment(EXPERIMENT)
     substrate = FakeSubstrateRuntime()
+    state_store = SQLiteSharedStateStore(options.shared_state_db)
     run = substrate.deploy(plan)
     teardown = None
     try:
@@ -86,14 +95,17 @@ def main(arguments: Sequence[str] | None = None) -> int:
             agent_factory=AgnoAgentFactory(
                 db=create_agno_database(options.agno_db)
             ),
+            shared_state=state_store,
         )
         result = runtime.invoke(run.id, "edge-operator@s1", options.intent)
     finally:
+        state_store.close()
         teardown = substrate.teardown(run.id)
 
     payload = {
         "auditLog": str(options.audit_log),
         "agnoDb": str(options.agno_db),
+        "sharedStateDb": str(options.shared_state_db),
         "loadedPlugins": [plugin.name for plugin in loaded],
         "result": result.model_dump(mode="json", by_alias=True, exclude_none=True),
         "teardown": teardown.model_dump(

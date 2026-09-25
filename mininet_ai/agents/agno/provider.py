@@ -38,6 +38,7 @@ _ENTRYPOINT_PATTERN = re.compile(
 _SAFE_OUTPUT_INSTRUCTIONS = (
     "Return a response matching the required schema. Action proposals must use "
     "only capabilities and targets present in the supplied scoped context. "
+    "Shared-state updates must use only sharedState.allowedScopes. "
     "Do not execute network changes directly."
 )
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])

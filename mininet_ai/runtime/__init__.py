@@ -30,6 +30,14 @@ from mininet_ai.runtime.ledger import (
     RunManifest,
     SQLiteRunLedger,
 )
+from mininet_ai.runtime.state import (
+    InMemorySharedStateStore,
+    SharedScope,
+    SharedStateAccess,
+    SharedStateError,
+    SharedStateStore,
+    SQLiteSharedStateStore,
+)
 
 __all__ = [
     "RUNTIME_EVENT_CONTRACT_VERSION",
@@ -39,6 +47,7 @@ __all__ = [
     "EventBusError",
     "InMemoryRuntimeEventBus",
     "IntervalElapsedPayload",
+    "InMemorySharedStateStore",
     "LedgerError",
     "LedgerEntry",
     "LedgerAuditSink",
@@ -55,5 +64,10 @@ __all__ = [
     "RuntimeEventBus",
     "RuntimeEventType",
     "RuntimeFailurePayload",
+    "SharedScope",
+    "SharedStateAccess",
+    "SharedStateError",
+    "SharedStateStore",
+    "SQLiteSharedStateStore",
     "SQLiteRunLedger",
 ]

@@ -25,6 +25,7 @@ from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.errors import MininetAIError
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
 from mininet_ai.runtime import RuntimeEvent
+from mininet_ai.runtime import SQLiteSharedStateStore
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification import (
     AgentBlueprint,
@@ -345,6 +346,11 @@ def invoke(
         "--agno-db",
         help="Private SQLite database for Agno sessions and memory.",
     ),
+    shared_state_db: Path = typer.Option(
+        Path(".mininet-ai/shared-state.sqlite3"),
+        "--shared-state-db",
+        help="Private SQLite database for scoped shared operational state.",
+    ),
     discover: bool = typer.Option(
         False,
         "--discover-plugins",
@@ -374,14 +380,23 @@ def invoke(
         raise typer.Exit(code=1) from error
     recorder = AuditRecorder(JsonLinesAuditSink(audit_log, sync=True))
     database = _operation_or_exit(lambda: create_agno_database(agno_db))
+    state_store = _operation_or_exit(
+        lambda: SQLiteSharedStateStore(shared_state_db)
+    )
     runtime = OneShotAgentRuntime(
         deployment_plan,
         substrate,
         registries,
         audit=recorder,
         agent_factory=AgnoAgentFactory(db=database),
+        shared_state=state_store,
     )
-    result = _operation_or_exit(lambda: runtime.invoke(run_id, agent_id, intent))
+    try:
+        result = _operation_or_exit(
+            lambda: runtime.invoke(run_id, agent_id, intent)
+        )
+    finally:
+        state_store.close()
     if output_format == OutputFormat.JSON:
         _print_json(result)
     else:

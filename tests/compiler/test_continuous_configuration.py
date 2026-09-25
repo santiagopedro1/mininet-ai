@@ -166,6 +166,10 @@ class ContinuousConfigurationTests(unittest.TestCase):
         self.assertEqual(plan.resource_limits.max_concurrent_invocations, 8)
         self.assertEqual(plan.resource_limits.max_queued_events, 512)
 
+    def test_shared_memory_scopes_must_be_unique(self) -> None:
+        with self.assertRaisesRegex(ValueError, "shared memory scopes must be unique"):
+            SharedMemoryConfiguration(scopes=("run", "run"))
+
     def test_capability_postconditions_and_rollback_are_typed_in_snapshot(
         self,
     ) -> None:

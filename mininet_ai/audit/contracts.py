@@ -25,6 +25,8 @@ class AuditEventType(StrEnum):
     CAPABILITY_STARTED = "capability.execution.started"
     CAPABILITY_COMPLETED = "capability.execution.completed"
     CAPABILITY_FAILED = "capability.execution.failed"
+    SHARED_STATE_UPDATED = "shared-state.updated"
+    SHARED_STATE_FAILED = "shared-state.failed"
 
 
 class AuditEvent(StrictModel):

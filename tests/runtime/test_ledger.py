@@ -162,6 +162,31 @@ class SQLiteRunLedgerTests(unittest.TestCase):
         self.assertEqual(metrics["cacheReadTokens"], 4)
         self.assertEqual(metrics["cost"], 0.003)
 
+    def test_shared_state_audit_records_have_a_state_category(self) -> None:
+        event = AuditEvent(
+            recordedAt=NOW,
+            type=AuditEventType.SHARED_STATE_UPDATED,
+            runId="run-1",
+            invocationId="invoke-1",
+            agentId="switch-router@s1",
+            data={
+                "changes": [
+                    {
+                        "scope": "run",
+                        "operation": "set",
+                        "key": "preferred-path",
+                        "value": "west",
+                        "version": 1,
+                    }
+                ]
+            },
+        )
+
+        record = LedgerEntry.from_audit_event(event)
+
+        self.assertEqual(record.category, LedgerRecordCategory.STATE)
+        self.assertEqual(record.type, "shared-state.updated")
+
     def test_unsafe_paths_and_invalid_run_operations_are_typed(self) -> None:
         with TemporaryDirectory() as temporary:
             path = Path(temporary) / "ledger.sqlite3"

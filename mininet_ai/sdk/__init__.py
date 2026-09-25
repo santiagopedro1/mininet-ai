@@ -21,6 +21,10 @@ from mininet_ai.sdk.contracts import (
     ModelRequest,
     ModelResponse,
     ModelRole,
+    SharedStateChange,
+    SharedStateEntry,
+    SharedStateSnapshot,
+    SharedStateUpdate,
     TokenUsage,
 )
 
@@ -46,5 +50,9 @@ __all__ = [
     "ModelRequest",
     "ModelResponse",
     "ModelRole",
+    "SharedStateChange",
+    "SharedStateEntry",
+    "SharedStateSnapshot",
+    "SharedStateUpdate",
     "TokenUsage",
 ]
