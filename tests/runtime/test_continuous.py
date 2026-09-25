@@ -8,6 +8,7 @@ from typing import Any
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.runtime import (
+    AgentLifecycleState,
     AgentInvoker,
     ContinuousAgentRuntime,
     ContinuousRuntimeError,
@@ -19,6 +20,7 @@ from mininet_ai.runtime import (
 from mininet_ai.sdk import (
     AgentInvocationResult,
     AgentResponse,
+    AgentRuntimeIssue,
     InvocationStatus,
 )
 from mininet_ai.specification.models import Experiment
@@ -35,6 +37,7 @@ def configured_plan(
     queue_capacity: int = 4,
     max_concurrency: int = 1,
     global_concurrency: int = 4,
+    restart: dict[str, Any] | None = None,
 ):
     snapshot = example_snapshot()
     deployment = named(snapshot["agents"], "switch-router")
@@ -48,6 +51,8 @@ def configured_plan(
             "overflow": overflow,
         }
     )
+    if restart is not None:
+        deployment["execution"]["restart"] = restart
     snapshot["resourceLimits"]["max-concurrent-invocations"] = global_concurrency
     snapshot["resourceLimits"]["max-queued-events"] = 16
     return compile_experiment(Experiment.model_validate(snapshot))
@@ -138,6 +143,108 @@ def wait_until(predicate, *, timeout: float = 1) -> None:
 
 
 class ContinuousAgentRuntimeTests(unittest.TestCase):
+    def test_pause_resume_and_failure_recovery_follow_compiled_policy(self) -> None:
+        plan = configured_plan(
+            triggers=[{"type": "manual", "name": "operator"}],
+            restart={
+                "policy": "on-failure",
+                "maxAttempts": 1,
+                "backoff": "0s",
+            },
+        )
+
+        class FlakyInvoker:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def invoke(
+                self,
+                run_id: str,
+                agent_id: str,
+                intent: str,
+            ) -> AgentInvocationResult:
+                self.calls += 1
+                failed = self.calls == 1
+                return AgentInvocationResult(
+                    invocationId=f"invoke-{self.calls}",
+                    runId=run_id,
+                    agentId=agent_id,
+                    status=(
+                        InvocationStatus.FAILED
+                        if failed
+                        else InvocationStatus.SUCCEEDED
+                    ),
+                    startedAt=NOW,
+                    completedAt=NOW,
+                    response=None if failed else AgentResponse(message="done"),
+                    issue=(
+                        AgentRuntimeIssue(
+                            code="agent.failed",
+                            message="temporary failure",
+                        )
+                        if failed
+                        else None
+                    ),
+                )
+
+        invoker = FlakyInvoker()
+        runtime = ContinuousAgentRuntime(plan, "run-1", invoker)
+        runtime.start()
+        runtime.pause("switch-router@s1")
+        runtime.publish(manual_event("manual-1", sequence=1))
+        time.sleep(0.02)
+        self.assertEqual(invoker.calls, 0)
+        self.assertEqual(
+            runtime.agent_state("switch-router@s1"),
+            AgentLifecycleState.PAUSED,
+        )
+
+        runtime.resume("switch-router@s1")
+        report = runtime.stop()
+
+        self.assertEqual(invoker.calls, 2)
+        self.assertEqual(report.completed, 1)
+        self.assertEqual(report.failed, 0)
+        states = [
+            transition.state
+            for transition in report.lifecycle
+            if transition.agent_id == "switch-router@s1"
+        ]
+        self.assertEqual(
+            states,
+            [
+                AgentLifecycleState.STARTING,
+                AgentLifecycleState.RUNNING,
+                AgentLifecycleState.PAUSED,
+                AgentLifecycleState.RUNNING,
+                AgentLifecycleState.FAILED,
+                AgentLifecycleState.RESTARTING,
+                AgentLifecycleState.RUNNING,
+                AgentLifecycleState.STOPPING,
+                AgentLifecycleState.STOPPED,
+            ],
+        )
+
+    def test_draining_stop_releases_a_paused_agent(self) -> None:
+        plan = configured_plan(
+            triggers=[{"type": "manual", "name": "operator"}]
+        )
+        invoker = RecordingInvoker()
+        runtime = ContinuousAgentRuntime(plan, "run-1", invoker)
+        runtime.start()
+        runtime.pause("switch-router@s1")
+        runtime.publish(manual_event("manual-1", sequence=1))
+        wait_until(lambda: runtime.report().enqueued == 1)
+
+        report = runtime.stop(drain=True)
+
+        self.assertEqual(report.completed, 1)
+        self.assertEqual(invoker.calls[0][2], "intent-manual-1")
+        self.assertEqual(
+            runtime.agent_state("switch-router@s1"),
+            AgentLifecycleState.STOPPED,
+        )
+
     def test_manual_and_scoped_event_triggers_reuse_bounded_invoker(self) -> None:
         plan = configured_plan(
             triggers=[

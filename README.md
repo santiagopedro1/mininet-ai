@@ -135,8 +135,18 @@ and cooldowns are enforced. Each agent has a FIFO queue with its declared
 overflow behavior. The deployment-wide concurrency and queued-event limits are
 also enforced. Source sequence replay is rejected, interval ticks are emitted
 as normalized runtime events, and `stop(drain=True)` completes accepted work
-before returning a structured `ContinuousRuntimeReport`. Lifecycle supervision,
-restart policy, and a long-running CLI owner remain later Phase 4 items.
+before returning a structured `ContinuousRuntimeReport`.
+
+Each compiled agent is now supervised through `starting`, `running`, `paused`,
+`restarting`, `failed`, `stopping`, and `stopped` states. The continuous runtime
+exposes explicit per-agent `pause`, `resume`, and state inspection operations;
+paused agents retain queued work, and a draining stop resumes them so shutdown
+cannot deadlock. Raised invocation errors and structured `failed` results use
+the agent's compiled `restart` policy, bounded attempt count, and backoff before
+retrying the same event. Structured `rejected` results are policy outcomes and
+are never restarted. Every transition is timestamped in the continuous runtime
+report, including its recovery attempt number. A long-running CLI owner remains
+a later Phase 4 item.
 
 `TelemetryPipeline` executes the compiled observation policies without sending
 raw high-frequency samples to agents. It samples only each agent's declared

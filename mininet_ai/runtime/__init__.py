@@ -3,6 +3,7 @@
 from mininet_ai.runtime.contracts import (
     AgentLifecyclePayload,
     AgentLifecycleState,
+    AgentLifecycleTransition,
     ContinuousInvocationRecord,
     ContinuousRuntimeIssue,
     ContinuousRuntimeReport,
@@ -50,6 +51,7 @@ from mininet_ai.runtime.state import (
     SharedStateStore,
     SQLiteSharedStateStore,
 )
+from mininet_ai.runtime.supervision import AgentSupervisionError, AgentSupervisor
 from mininet_ai.runtime.telemetry import (
     RuntimeEventPublisher,
     TelemetryPipeline,
@@ -62,6 +64,9 @@ __all__ = [
     "RUNTIME_EVENT_SCHEMA_ID",
     "AgentLifecyclePayload",
     "AgentLifecycleState",
+    "AgentLifecycleTransition",
+    "AgentSupervisionError",
+    "AgentSupervisor",
     "AgentInvoker",
     "ContinuousAgentRuntime",
     "ContinuousInvocationRecord",

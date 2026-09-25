@@ -145,6 +145,19 @@ class AgentLifecyclePayload(StrictModel):
     attempt: int = Field(default=0, ge=0)
 
 
+class AgentLifecycleTransition(StrictModel):
+    """One supervised agent state change retained in a runtime report."""
+
+    agent_id: str = Field(alias="agentId", min_length=1)
+    state: AgentLifecycleState
+    previous_state: AgentLifecycleState | None = Field(
+        default=None,
+        alias="previousState",
+    )
+    attempt: int = Field(default=0, ge=0)
+    recorded_at: AwareDatetime = Field(alias="recordedAt")
+
+
 class RuntimeFailurePayload(StrictModel):
     code: str = Field(min_length=1)
     message: str = Field(min_length=1)
@@ -184,6 +197,7 @@ class ContinuousRuntimeReport(StrictModel):
     failed: int = Field(default=0, ge=0)
     invocations: tuple[ContinuousInvocationRecord, ...] = ()
     issues: tuple[ContinuousRuntimeIssue, ...] = ()
+    lifecycle: tuple[AgentLifecycleTransition, ...] = ()
 
 
 PayloadModel = TypeVar("PayloadModel", bound=BaseModel)

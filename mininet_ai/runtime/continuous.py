@@ -18,6 +18,8 @@ from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.compiler.models import AgentInstance
 from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import (
+    AgentLifecycleState,
+    AgentLifecycleTransition,
     ContinuousInvocationRecord,
     ContinuousRuntimeIssue,
     ContinuousRuntimeReport,
@@ -27,6 +29,7 @@ from mininet_ai.runtime.contracts import (
     RuntimeEventType,
 )
 from mininet_ai.runtime.events import InMemoryRuntimeEventBus, RuntimeEventBus
+from mininet_ai.runtime.supervision import AgentSupervisor
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification.models import EventTrigger, IntervalTrigger
 
@@ -146,6 +149,15 @@ class ContinuousAgentRuntime:
         }
         self._invocations: list[ContinuousInvocationRecord] = []
         self._issues: list[ContinuousRuntimeIssue] = []
+        self._lifecycle: list[AgentLifecycleTransition] = []
+        self._supervisor = AgentSupervisor(
+            {
+                agent.id: agent.execution.restart
+                for agent in self._plan.agents
+            },
+            listener=self._record_transition,
+            clock=clock,
+        )
 
     @property
     def state(self) -> ContinuousRuntimeState:
@@ -162,6 +174,7 @@ class ContinuousAgentRuntime:
                     code="runtime.lifecycle.invalid",
                 )
             self._state = ContinuousRuntimeState.RUNNING
+        self._supervisor.start()
         for agent in self._plan.agents:
             for index in range(agent.execution.max_concurrency):
                 worker = Thread(
@@ -188,6 +201,23 @@ class ContinuousAgentRuntime:
             daemon=True,
         )
         self._dispatcher.start()
+
+    def pause(self, agent_id: str) -> None:
+        """Pause new invocations for one supervised agent."""
+
+        self._require_running()
+        self._supervisor.pause(agent_id)
+
+    def resume(self, agent_id: str) -> None:
+        """Resume queued invocations for one supervised agent."""
+
+        self._require_running()
+        self._supervisor.resume(agent_id)
+
+    def agent_state(self, agent_id: str) -> AgentLifecycleState:
+        """Return one agent's current supervised lifecycle state."""
+
+        return self._supervisor.state(agent_id)
 
     def publish(self, event: RuntimeEvent) -> None:
         """Validate and publish one normalized event for this run."""
@@ -224,6 +254,8 @@ class ContinuousAgentRuntime:
                 )
             self._state = ContinuousRuntimeState.STOPPING
             self._drain = drain
+        if drain:
+            self._supervisor.resume_paused()
         deadline = time.monotonic() + timeout_seconds
         self._interval_stop.set()
         for interval in self._intervals:
@@ -233,6 +265,7 @@ class ContinuousAgentRuntime:
             self._join(self._dispatcher, deadline)
         for worker in self._workers:
             self._join(worker, deadline)
+        self._supervisor.stop()
         with self._lifecycle_lock:
             self._state = ContinuousRuntimeState.STOPPED
         return self.report()
@@ -245,7 +278,19 @@ class ContinuousAgentRuntime:
                 **self._counts,
                 invocations=tuple(self._invocations),
                 issues=tuple(self._issues),
+                lifecycle=tuple(self._lifecycle),
             )
+
+    def _require_running(self) -> None:
+        if self.state != ContinuousRuntimeState.RUNNING:
+            raise ContinuousRuntimeError(
+                "continuous runtime is not running",
+                code="runtime.lifecycle.not-running",
+            )
+
+    def _record_transition(self, transition: AgentLifecycleTransition) -> None:
+        with self._report_lock:
+            self._lifecycle.append(transition)
 
     def _join(self, thread: Thread, deadline: float) -> None:
         remaining = deadline - time.monotonic()
@@ -512,24 +557,22 @@ class ContinuousAgentRuntime:
                     return
                 item = queue.popleft()
                 self._queued -= 1
-            with self._global_slots:
-                try:
-                    result = self._invoker.invoke(
-                        self._run_id,
-                        item.agent.id,
-                        item.intent,
-                    )
-                except Exception as error:
-                    self._issue(
-                        "runtime.invocation.failed",
-                        str(error) or type(error).__name__,
-                        event=item.event,
-                        agent_id=item.agent.id,
-                        trigger=item.trigger,
-                    )
-                    with self._report_lock:
-                        self._counts["failed"] += 1
-                    continue
+            try:
+                result = self._supervisor.execute(
+                    item.agent.id,
+                    lambda: self._invoke(item),
+                )
+            except Exception as error:
+                self._issue(
+                    "runtime.invocation.failed",
+                    str(error) or type(error).__name__,
+                    event=item.event,
+                    agent_id=item.agent.id,
+                    trigger=item.trigger,
+                )
+                with self._report_lock:
+                    self._counts["failed"] += 1
+                continue
             record = ContinuousInvocationRecord(
                 eventId=item.event.event_id,
                 agentId=item.agent.id,
@@ -541,6 +584,14 @@ class ContinuousAgentRuntime:
                 self._counts["completed"] += 1
                 if result.status != InvocationStatus.SUCCEEDED:
                     self._counts["failed"] += 1
+
+    def _invoke(self, item: _WorkItem) -> AgentInvocationResult:
+        with self._global_slots:
+            return self._invoker.invoke(
+                self._run_id,
+                item.agent.id,
+                item.intent,
+            )
 
     def _issue(
         self,
