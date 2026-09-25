@@ -1,0 +1,28 @@
+apiVersion: mininet-ai/v1alpha1
+kind: Capability
+metadata:
+  name: openflow.flow.install
+  description: Install and verify a forwarding rule on one switch.
+targets: [switch]
+layers: [data]
+effects: [dataplane.write]
+input-schema:
+  type: object
+  required: [match, actions]
+  properties:
+    match: {type: string}
+    actions: {type: string}
+  additionalProperties: false
+output-schema:
+  type: object
+reversible: true
+provider: fake.openflow
+postconditions:
+  - observation: openflow.flows
+    path: installed
+    operator: eq
+    expected: true
+    timeout: 100ms
+    interval: 10ms
+rollback:
+  timeout: 1s

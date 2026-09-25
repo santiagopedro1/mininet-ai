@@ -50,38 +50,93 @@ class RuntimeCLITests(unittest.TestCase):
 
     def test_run_owns_runtime_until_signal_latch_then_tears_down(self) -> None:
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-run")
-        with (
-            patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
-            patch(
-                "mininet_ai.cli.create_substrate_runtime",
-                return_value=runtime,
-            ),
-            patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
-        ):
-            result = self.runner.invoke(app, ["run", "experiment.yaml"])
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+                patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    ["run", "experiment.yaml", *self.run_databases(temporary)],
+                )
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("Running cli-run", result.output)
         self.assertIn("Stopped cli-run", result.output)
         self.assertEqual(runtime.inspect("cli-run").run.state, RunState.STOPPED)
 
+    def test_run_accepts_initial_intent_and_prints_final_json_report(self) -> None:
+        plan = configured_plan({"message": "handled"})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-json-run")
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+                patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--intent",
+                        "switch-router@s1=inspect forwarding",
+                        "--format",
+                        "json",
+                        *self.run_databases(temporary),
+                    ],
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        report = json.loads(result.output)
+        self.assertEqual(report["state"], "stopped")
+        self.assertEqual(report["continuous"]["completed"], 1)
+        self.assertEqual(report["continuous"]["failed"], 0)
+        self.assertEqual(
+            runtime.inspect("cli-json-run").run.state,
+            RunState.STOPPED,
+        )
+
     def test_run_tears_down_if_reporting_the_started_run_fails(self) -> None:
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-broken-output")
-        with (
-            patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
-            patch(
-                "mininet_ai.cli.create_substrate_runtime",
-                return_value=runtime,
-            ),
-            patch("mininet_ai.cli.console.print", side_effect=BrokenPipeError),
-        ):
-            result = self.runner.invoke(app, ["run", "experiment.yaml"])
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+                patch("mininet_ai.cli.console.print", side_effect=BrokenPipeError),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    ["run", "experiment.yaml", *self.run_databases(temporary)],
+                )
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertEqual(
             runtime.inspect("cli-broken-output").run.state,
             RunState.STOPPED,
         )
+
+    @staticmethod
+    def run_databases(directory: str) -> list[str]:
+        root = Path(directory)
+        return [
+            "--ledger-db",
+            str(root / "ledger.sqlite3"),
+            "--agno-db",
+            str(root / "agno.sqlite3"),
+            "--shared-state-db",
+            str(root / "state.sqlite3"),
+        ]
 
     def test_status_supports_text_and_machine_readable_output(self) -> None:
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-status")

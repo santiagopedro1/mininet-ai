@@ -145,8 +145,8 @@ cannot deadlock. Raised invocation errors and structured `failed` results use
 the agent's compiled `restart` policy, bounded attempt count, and backoff before
 retrying the same event. Structured `rejected` results are policy outcomes and
 are never restarted. Every transition is timestamped in the continuous runtime
-report, including its recovery attempt number. A long-running CLI owner remains
-a later Phase 4 item.
+report, including its recovery attempt number, and the experiment owner records
+those transitions as part of the complete run lifecycle.
 
 Reasoning deadlines are enforced through Agno's asynchronous cancellation path
 when a blueprint declares `reasoning.timeout`. Action proposals are capped by
@@ -194,6 +194,14 @@ cursor after restart. Runtime-event and audit-sink adapters preserve their
 original versioned records, including invocation, model, capability, and timing
 data. Ledger files must be owner-only regular files; unsupported database
 versions and unsafe paths are rejected instead of being rewritten.
+
+`ExperimentRuntime` is the lifecycle owner for a complete long-running run. It
+deploys the substrate, writes the manifest, starts continuous consumers before
+telemetry producers, and exposes manual intent plus pause/resume controls. Its
+shutdown reverses that dependency order—telemetry, draining agents, then the
+substrate—and returns one structured report. The `mininet-ai run` command now
+uses this owner until `SIGINT` or `SIGTERM`; accepted runtime events and Agno
+audit records are persisted to the same ordered ledger.
 
 ## Installation
 
@@ -256,6 +264,18 @@ uv run mininet-ai validate examples/phase3/experiment.yaml
 uv run python -m examples.phase3
 uv run pytest -q tests/acceptance/test_phase3.py
 ```
+
+Run the rootless Phase 4 autonomous experiment:
+
+```bash
+uv run python -m examples.phase4
+uv run pytest -q tests/acceptance/test_phase4.py
+```
+
+It detects synthetic queue congestion, triggers an Agno agent without a manual
+prompt, authorizes and applies its proposed flow, verifies the live effect, and
+prints the final runtime and teardown report. See
+[`examples/phase4/README.md`](examples/phase4/README.md) for database options.
 
 See [the Phase 3 example](examples/phase3/README.md) for its extension layout.
 

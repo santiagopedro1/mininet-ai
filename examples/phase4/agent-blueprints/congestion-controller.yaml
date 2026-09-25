@@ -1,0 +1,28 @@
+apiVersion: mininet-ai/v1alpha1
+kind: AgentBlueprint
+metadata:
+  name: congestion-controller
+  description: Deterministic Agno agent that mitigates detected congestion.
+implementation:
+  type: declarative
+model:
+  provider: mock
+  name: deterministic
+  parameters:
+    response:
+      message: Install the declared forwarding rule to mitigate congestion.
+      proposals:
+        - id: mitigate-s1
+          capability: openflow.flow.install
+          target: s1
+          arguments: {match: ip, actions: normal}
+    usage:
+      inputTokens: 41
+      outputTokens: 16
+      totalTokens: 57
+      cacheReadTokens: 4
+      reasoningTokens: 2
+      cost: 0.001
+reasoning:
+  instructions: React only with capabilities and targets supplied in context.
+  timeout: 2s

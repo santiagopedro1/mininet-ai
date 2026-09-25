@@ -46,16 +46,28 @@ class RuntimeEventBus(Protocol):
         ...
 
 
+class RuntimeEventSink(Protocol):
+    """Synchronous observer for events accepted by an in-memory bus."""
+
+    def write(self, event: RuntimeEvent) -> None: ...
+
+
 class InMemoryRuntimeEventBus:
     """Thread-safe bounded FIFO bus for one continuous-runtime process."""
 
-    def __init__(self, *, capacity: int) -> None:
+    def __init__(
+        self,
+        *,
+        capacity: int,
+        sink: RuntimeEventSink | None = None,
+    ) -> None:
         if capacity <= 0:
             raise ValueError("event bus capacity must be positive")
         self._capacity = capacity
         self._events: deque[RuntimeEvent] = deque()
         self._closed = False
         self._condition = Condition()
+        self._sink = sink
 
     @property
     def capacity(self) -> int:
@@ -78,6 +90,8 @@ class InMemoryRuntimeEventBus:
                     "runtime event bus is full",
                     code="runtime.event-bus.full",
                 )
+            if self._sink is not None:
+                self._sink.write(event)
             self._events.append(event)
             self._condition.notify()
 

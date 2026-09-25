@@ -29,6 +29,7 @@ from mininet_ai.runtime.events import (
     EventBusError,
     InMemoryRuntimeEventBus,
     RuntimeEventBus,
+    RuntimeEventSink,
 )
 from mininet_ai.runtime.ledger import (
     RUN_LEDGER_CONTRACT_VERSION,
@@ -93,6 +94,7 @@ __all__ = [
     "RunManifest",
     "RuntimeEvent",
     "RuntimeEventBus",
+    "RuntimeEventSink",
     "RuntimeEventType",
     "RuntimeFailurePayload",
     "RuntimeEventPublisher",

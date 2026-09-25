@@ -129,6 +129,35 @@ class RuntimeEventContractTests(unittest.TestCase):
 
 
 class RuntimeEventBusTests(unittest.TestCase):
+    def test_sink_failure_rejects_delivery(self) -> None:
+        class FailingSink:
+            def write(self, event: RuntimeEvent) -> None:
+                del event
+                raise OSError("ledger unavailable")
+
+        bus = InMemoryRuntimeEventBus(capacity=1, sink=FailingSink())
+
+        with self.assertRaisesRegex(OSError, "ledger unavailable"):
+            bus.publish(manual_event())
+
+        self.assertEqual(bus.size, 0)
+
+    def test_bus_sink_observes_only_events_accepted_for_delivery(self) -> None:
+        recorded = []
+
+        class Sink:
+            def write(self, event: RuntimeEvent) -> None:
+                recorded.append(event)
+
+        bus = InMemoryRuntimeEventBus(capacity=1, sink=Sink())
+        accepted = manual_event()
+        bus.publish(accepted)
+
+        with self.assertRaises(EventBusError):
+            bus.publish(manual_event(event_id="event-2", sequence=2))
+
+        self.assertEqual(recorded, [accepted])
+
     def test_bus_delivers_events_in_fifo_order_through_public_interface(self) -> None:
         bus = InMemoryRuntimeEventBus(capacity=2)
         first = manual_event(event_id="event-1", sequence=1)
