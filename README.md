@@ -86,6 +86,14 @@ only at runtime, never during validation or compilation, and will initially run
 as trusted code in the orchestrator process; process and namespace isolation
 belongs to Phase 6.
 
+The native Agno module is now available alongside that transitional path. It
+constructs declarative agents with Agno's canonical `provider:model` resolver,
+loads Python-authored Agno agents or factories, requires structured
+`AgentResponse` output, and validates the compiled Mininet scope before each
+run. It deliberately supplies no network mutation tools: returned proposals
+still require capability authorization. Routing the one-shot and continuous
+runtimes through this module is the next migration step.
+
 Audit decorators currently record agent invocations, complete model prompts and
 normalized responses, token usage, action proposals, results, and typed failures
 as versioned JSON events. During the Agno migration, model measurements will be

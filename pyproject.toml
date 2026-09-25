@@ -5,6 +5,7 @@ description = "A declarative experiment compiler and runtime for agentic network
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+	"agno[ollama,openai]>=3.0.11,<3.1",
 	"httpx>=0.28.1",
 	"jsonschema>=4.23.0",
 	"pydantic>=2.13.3",
