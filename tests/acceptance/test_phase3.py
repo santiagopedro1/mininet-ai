@@ -160,6 +160,8 @@ class Phase3AcceptanceTests(unittest.TestCase):
                         "--discover-plugins",
                         "--audit-log",
                         str(audit_path),
+                        "--agno-db",
+                        str(Path(temporary) / "agno.sqlite3"),
                         "--format",
                         "json",
                     ],
@@ -179,6 +181,7 @@ class Phase3AcceptanceTests(unittest.TestCase):
     def test_demo_command_runs_the_complete_workflow_in_one_process(self) -> None:
         with TemporaryDirectory() as temporary:
             audit_path = Path(temporary) / "phase3-demo-audit.jsonl"
+            agno_db = Path(temporary) / "phase3-demo-agno.sqlite3"
 
             completed = subprocess.run(
                 [
@@ -187,6 +190,8 @@ class Phase3AcceptanceTests(unittest.TestCase):
                     "examples.phase3",
                     "--audit-log",
                     str(audit_path),
+                    "--agno-db",
+                    str(agno_db),
                 ],
                 cwd=ROOT,
                 check=False,

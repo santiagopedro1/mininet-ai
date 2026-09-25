@@ -3,10 +3,16 @@ from __future__ import annotations
 import unittest
 from dataclasses import replace
 from datetime import UTC, datetime
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from agno.agent import Agent
 
-from mininet_ai.agents import AgnoAgentFactory, AgnoAgentProvider
+from mininet_ai.agents import (
+    AgnoAgentFactory,
+    AgnoAgentProvider,
+    create_agno_database,
+)
 from mininet_ai.agents.agno import DeterministicAgnoModel
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.sdk import (
@@ -16,7 +22,13 @@ from mininet_ai.sdk import (
     AgentResponse,
     ExecutionCatalog,
 )
-from mininet_ai.specification.models import Implementation
+from mininet_ai.specification.models import (
+    ConversationMemoryConfiguration,
+    Implementation,
+    LearnedMemoryConfiguration,
+    LocalMemoryConfiguration,
+    MemoryConfiguration,
+)
 from tests.agents.agno_helpers import StaticModel
 from tests.compiler.helpers import EXAMPLE
 
@@ -57,6 +69,14 @@ class AgnoAgentProviderTests(unittest.TestCase):
             }
         )
         return replace(self.definition, blueprint=blueprint)
+
+    def memory_definition(self, memory: MemoryConfiguration):
+        return replace(
+            self.definition,
+            blueprint=self.definition.blueprint.model_copy(
+                update={"memory": memory}
+            ),
+        )
 
     def test_declarative_blueprint_runs_as_native_agno_agent(self) -> None:
         model = StaticModel(
@@ -114,6 +134,9 @@ class AgnoAgentProviderTests(unittest.TestCase):
         execution = provider.run(self.context)
 
         self.assertEqual(execution.agno_run_id, "invoke-1")
+        self.assertEqual(execution.session_id, "run-1:switch-router@s1")
+        self.assertIsNone(execution.user_id)
+        self.assertRegex(execution.runtime_version, r"^3\.0\.")
         self.assertEqual(execution.model, "deterministic")
         self.assertEqual(execution.model_provider, "MininetAI")
         self.assertEqual(execution.response.message, "measured")
@@ -126,6 +149,65 @@ class AgnoAgentProviderTests(unittest.TestCase):
         self.assertEqual(len(execution.metrics.models), 1)
         self.assertEqual(execution.metrics.models[0].role, "model")
         self.assertEqual(execution.metrics.models[0].model, "deterministic")
+
+    def test_conversation_session_is_persisted_with_stable_identity(self) -> None:
+        definition = self.memory_definition(
+            MemoryConfiguration(
+                conversation=ConversationMemoryConfiguration(maxMessages=7)
+            )
+        )
+        with TemporaryDirectory() as temporary:
+            database = create_agno_database(Path(temporary) / "agno.sqlite3")
+            provider = AgnoAgentProvider(
+                definition,
+                factory=AgnoAgentFactory(
+                    model_resolver=lambda configuration: StaticModel(),
+                    db=database,
+                ),
+            )
+
+            execution = provider.run(self.context)
+
+            session_id = "run-1:switch-router@s1"
+            self.assertEqual(execution.session_id, session_id)
+            self.assertIsNotNone(database.get_session(session_id))
+            self.assertTrue(execution.memory.conversation_history)
+            self.assertEqual(execution.memory.history_messages, 7)
+
+    def test_learned_memory_scope_controls_agno_user_identity(self) -> None:
+        definition = self.memory_definition(
+            MemoryConfiguration(
+                learned=LearnedMemoryConfiguration(
+                    scope="agent",
+                    mode="agentic",
+                )
+            )
+        )
+        with TemporaryDirectory() as temporary:
+            provider = AgnoAgentProvider(
+                definition,
+                factory=AgnoAgentFactory(
+                    model_resolver=lambda configuration: StaticModel(),
+                    db=create_agno_database(Path(temporary) / "agno.sqlite3"),
+                ),
+            )
+
+            execution = provider.run(self.context)
+
+        self.assertEqual(execution.user_id, "switch-router@s1")
+        self.assertTrue(execution.memory.learned_memory)
+        self.assertEqual(execution.memory.learned_scope, "agent")
+        self.assertEqual(execution.memory.learned_mode, "agentic")
+
+    def test_declared_memory_requires_a_session_database(self) -> None:
+        definition = self.memory_definition(
+            MemoryConfiguration(local=LocalMemoryConfiguration())
+        )
+
+        with self.assertRaises(AgentProviderError) as caught:
+            AgnoAgentProvider(definition)
+
+        self.assertEqual(caught.exception.code, "agent.agno.database-required")
 
     def test_python_entrypoint_can_return_factory_or_agent(self) -> None:
         cases = (

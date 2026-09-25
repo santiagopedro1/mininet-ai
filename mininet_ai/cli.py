@@ -14,7 +14,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+from mininet_ai.agents import (
+    AgnoAgentFactory,
+    OneShotAgentRuntime,
+    create_agno_database,
+    register_builtin_providers,
+)
 from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.errors import MininetAIError
@@ -335,6 +340,11 @@ def invoke(
         "--audit-log",
         help="Append-only JSONL audit destination.",
     ),
+    agno_db: Path = typer.Option(
+        Path(".mininet-ai/agno.sqlite3"),
+        "--agno-db",
+        help="Private SQLite database for Agno sessions and memory.",
+    ),
     discover: bool = typer.Option(
         False,
         "--discover-plugins",
@@ -363,11 +373,13 @@ def invoke(
         )
         raise typer.Exit(code=1) from error
     recorder = AuditRecorder(JsonLinesAuditSink(audit_log, sync=True))
+    database = _operation_or_exit(lambda: create_agno_database(agno_db))
     runtime = OneShotAgentRuntime(
         deployment_plan,
         substrate,
         registries,
         audit=recorder,
+        agent_factory=AgnoAgentFactory(db=database),
     )
     result = _operation_or_exit(lambda: runtime.invoke(run_id, agent_id, intent))
     if output_format == OutputFormat.JSON:

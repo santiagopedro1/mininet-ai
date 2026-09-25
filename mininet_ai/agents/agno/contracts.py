@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field, JsonValue, model_validator
 
 from mininet_ai.sdk import AgentResponse
@@ -58,11 +60,40 @@ class AgentRunMetrics(TokenMetrics):
     additional: dict[str, JsonValue] = Field(default_factory=dict)
 
 
+class AgnoMemorySettings(StrictModel):
+    """Effective Agno memory behavior recorded with an invocation."""
+
+    local_state: bool = Field(alias="localState")
+    local_max_entries: int | None = Field(
+        default=None,
+        alias="localMaxEntries",
+        ge=1,
+    )
+    conversation_history: bool = Field(alias="conversationHistory")
+    history_messages: int | None = Field(
+        default=None,
+        alias="historyMessages",
+        ge=1,
+    )
+    session_summaries: bool = Field(alias="sessionSummaries")
+    learned_memory: bool = Field(alias="learnedMemory")
+    learned_scope: Literal["run", "agent"] | None = Field(
+        default=None,
+        alias="learnedScope",
+    )
+    learned_mode: Literal["automatic", "agentic"] | None = Field(
+        default=None,
+        alias="learnedMode",
+    )
+
+
 class AgnoExecutionResult(StrictModel):
     """Agno output translated into Mininet-owned, serializable values."""
 
     agno_run_id: str = Field(alias="agnoRunId", min_length=1)
+    runtime_version: str = Field(alias="runtimeVersion", min_length=1)
     session_id: str | None = Field(default=None, alias="sessionId", min_length=1)
+    user_id: str | None = Field(default=None, alias="userId", min_length=1)
     model: str | None = Field(default=None, min_length=1)
     model_provider: str | None = Field(
         default=None,
@@ -71,3 +102,4 @@ class AgnoExecutionResult(StrictModel):
     )
     response: AgentResponse
     metrics: AgentRunMetrics = Field(default_factory=AgentRunMetrics)
+    memory: AgnoMemorySettings

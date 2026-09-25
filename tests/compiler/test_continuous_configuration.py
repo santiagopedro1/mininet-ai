@@ -120,7 +120,8 @@ class ContinuousConfigurationTests(unittest.TestCase):
         )
         blueprint["memory"] = {
             "local": {"maxEntries": 200},
-            "conversation": {"maxMessages": 20},
+            "conversation": {"maxMessages": 20, "summaries": True},
+            "learned": {"scope": "agent", "mode": "agentic"},
             "shared": {"scopes": ["deployment"], "maxEntries": 50},
         }
         deployment = named(snapshot["agents"], "switch-router")
@@ -154,6 +155,10 @@ class ContinuousConfigurationTests(unittest.TestCase):
         shared = cast(SharedMemoryConfiguration, instance.memory.shared)
         self.assertEqual(local.max_entries, 200)
         self.assertEqual(conversation.max_messages, 20)
+        self.assertTrue(conversation.summaries)
+        assert instance.memory.learned is not None
+        self.assertEqual(instance.memory.learned.scope, "agent")
+        self.assertEqual(instance.memory.learned.mode, "agentic")
         self.assertEqual(shared.scopes, ("deployment",))
         self.assertEqual(instance.execution.queue_capacity, 16)
         self.assertEqual(instance.execution.overflow, "coalesce")

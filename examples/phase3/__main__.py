@@ -8,7 +8,12 @@ from importlib.metadata import EntryPoint
 from pathlib import Path
 from typing import Sequence
 
-from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+from mininet_ai.agents import (
+    AgnoAgentFactory,
+    OneShotAgentRuntime,
+    create_agno_database,
+    register_builtin_providers,
+)
 from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
@@ -18,6 +23,7 @@ from mininet_ai.substrates import FakeSubstrateRuntime
 
 EXPERIMENT = Path(__file__).with_name("experiment.yaml")
 DEFAULT_AUDIT_LOG = Path(".mininet-ai/phase3-demo-audit.jsonl")
+DEFAULT_AGNO_DB = Path(".mininet-ai/phase3-demo-agno.sqlite3")
 
 
 def _entry_points() -> tuple[EntryPoint, ...]:
@@ -39,6 +45,12 @@ def _entry_points() -> tuple[EntryPoint, ...]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run the complete rootless Phase 3 acceptance experiment."
+    )
+    parser.add_argument(
+        "--agno-db",
+        type=Path,
+        default=DEFAULT_AGNO_DB,
+        help=f"Agno session database (default: {DEFAULT_AGNO_DB})",
     )
     parser.add_argument(
         "--audit-log",
@@ -71,6 +83,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
             substrate,
             registries,
             audit=AuditRecorder(JsonLinesAuditSink(options.audit_log, sync=True)),
+            agent_factory=AgnoAgentFactory(
+                db=create_agno_database(options.agno_db)
+            ),
         )
         result = runtime.invoke(run.id, "edge-operator@s1", options.intent)
     finally:
@@ -78,6 +93,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
     payload = {
         "auditLog": str(options.audit_log),
+        "agnoDb": str(options.agno_db),
         "loadedPlugins": [plugin.name for plugin in loaded],
         "result": result.model_dump(mode="json", by_alias=True, exclude_none=True),
         "teardown": teardown.model_dump(

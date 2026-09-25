@@ -5,9 +5,11 @@ from __future__ import annotations
 import importlib
 import re
 from collections.abc import Callable, Mapping
+from importlib.metadata import version
 from typing import Protocol, cast
 
 from agno.agent import Agent
+from agno.db.base import BaseDb
 from agno.metrics import ModelMetrics, RunMetrics
 from agno.models.base import Model
 from agno.run.agent import RunOutput
@@ -16,6 +18,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 from mininet_ai.agents.agno.contracts import (
     AgentRunMetrics,
     AgnoExecutionResult,
+    AgnoMemorySettings,
     ModelRunMetrics,
 )
 from mininet_ai.agents.agno.models import DeterministicAgnoModel
@@ -38,6 +41,7 @@ _SAFE_OUTPUT_INSTRUCTIONS = (
     "Do not execute network changes directly."
 )
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
+_AGNO_VERSION = version("agno")
 
 
 class ModelResolver(Protocol):
@@ -190,14 +194,71 @@ def _normalize_output(output: RunOutput) -> AgentResponse:
 class AgnoAgentFactory:
     """Build an Agno agent from one compiled Mininet agent definition."""
 
-    def __init__(self, *, model_resolver: ModelResolver | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        model_resolver: ModelResolver | None = None,
+        db: BaseDb | None = None,
+    ) -> None:
         self._model_resolver = model_resolver or _default_model_resolver
+        self._db = db
 
     def create(self, definition: AgentExecutionDefinition) -> Agent:
         implementation = definition.blueprint.implementation
         if implementation.type == "declarative":
-            return self._declarative(definition)
-        return self._python(definition)
+            agent = self._declarative(definition)
+        else:
+            agent = self._python(definition)
+        return self._configure(agent, definition)
+
+    def _configure(
+        self,
+        agent: Agent,
+        definition: AgentExecutionDefinition,
+    ) -> Agent:
+        memory = definition.blueprint.memory
+        uses_persistent_memory = any(
+            item is not None
+            for item in (memory.local, memory.conversation, memory.learned)
+        )
+        if uses_persistent_memory and self._db is None:
+            raise AgentProviderError(
+                "Agno memory requires a configured session database",
+                code="agent.agno.database-required",
+            )
+        if self._db is not None:
+            if agent.db is not None and agent.db is not self._db:
+                raise AgentProviderError(
+                    "Python Agno agent configured a different session database",
+                    code="agent.agno.database-conflict",
+                )
+            agent.db = self._db
+        agent.session_id = None
+        agent.user_id = None
+        local = memory.local
+        conversation = memory.conversation
+        learned = memory.learned
+        agent.session_state = (agent.session_state or {}) if local else None
+        agent.add_session_state_to_context = local is not None
+        agent.enable_agentic_state = local is not None
+        agent.add_history_to_context = conversation is not None
+        agent.num_history_messages = (
+            conversation.max_messages if conversation is not None else None
+        )
+        agent.enable_session_summaries = bool(
+            conversation is not None and conversation.summaries
+        )
+        agent.add_session_summary_to_context = bool(
+            conversation is not None and conversation.summaries
+        )
+        agent.update_memory_on_run = bool(
+            learned is not None and learned.mode == "automatic"
+        )
+        agent.enable_agentic_memory = bool(
+            learned is not None and learned.mode == "agentic"
+        )
+        agent.telemetry = False
+        return agent
 
     def _declarative(self, definition: AgentExecutionDefinition) -> Agent:
         blueprint = definition.blueprint
@@ -294,10 +355,19 @@ class AgnoAgentProvider:
         """Execute Agno and return only normalized, serializable values."""
 
         _validate_context(self._definition, context)
+        session_id = f"{context.run_id}:{context.agent_id}"
+        learned = self._definition.blueprint.memory.learned
+        user_id = None
+        if learned is not None:
+            user_id = (
+                context.agent_id if learned.scope == "agent" else session_id
+            )
         try:
             output = self._agent.run(
                 input=context,
                 run_id=context.invocation_id,
+                session_id=session_id,
+                user_id=user_id,
                 output_schema=AgentResponse,
             )
         except TimeoutError:
@@ -318,11 +388,45 @@ class AgnoAgentProvider:
                 "Agno returned a different run identifier",
                 code="agent.agno.run-identity-mismatch",
             )
+        if output.session_id != session_id or output.user_id != user_id:
+            raise AgentProviderError(
+                "Agno returned different session identity",
+                code="agent.agno.session-identity-mismatch",
+            )
+        memory = self._definition.blueprint.memory
+        if (
+            memory.local is not None
+            and output.session_state is not None
+            and len(output.session_state) > memory.local.max_entries
+        ):
+            raise AgentProviderError(
+                "Agno session state exceeds the declared local memory limit",
+                code="agent.agno.local-memory-limit",
+            )
+        conversation = memory.conversation
         return AgnoExecutionResult(
             agnoRunId=agno_run_id,
-            sessionId=output.session_id,
+            runtimeVersion=_AGNO_VERSION,
+            sessionId=session_id,
+            userId=user_id,
             model=output.model,
             modelProvider=output.model_provider,
             response=_normalize_output(output),
             metrics=_run_metrics(output.metrics),
+            memory=AgnoMemorySettings(
+                localState=memory.local is not None,
+                localMaxEntries=(
+                    memory.local.max_entries if memory.local is not None else None
+                ),
+                conversationHistory=conversation is not None,
+                historyMessages=(
+                    conversation.max_messages if conversation is not None else None
+                ),
+                sessionSummaries=(
+                    conversation.summaries if conversation is not None else False
+                ),
+                learnedMemory=learned is not None,
+                learnedScope=learned.scope if learned is not None else None,
+                learnedMode=learned.mode if learned is not None else None,
+            ),
         )

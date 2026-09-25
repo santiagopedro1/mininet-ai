@@ -98,6 +98,11 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         runtime_data = cast(dict[str, Any], completed["runtime"])
         self.assertEqual(runtime_data["name"], "agno")
         self.assertEqual(runtime_data["agnoRunId"], "invoke-1")
+        self.assertEqual(runtime_data["sessionId"], "run-1:switch-router@s1")
+        self.assertRegex(cast(str, runtime_data["runtimeVersion"]), r"^3\.0\.")
+        memory = cast(dict[str, Any], runtime_data["memory"])
+        self.assertFalse(memory["learnedMemory"])
+        self.assertFalse(memory["conversationHistory"])
         metrics = cast(dict[str, Any], runtime_data["metrics"])
         self.assertEqual(metrics["totalTokens"], 0)
 

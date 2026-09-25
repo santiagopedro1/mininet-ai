@@ -292,6 +292,12 @@ class LocalMemoryConfiguration(StrictModel):
 
 class ConversationMemoryConfiguration(StrictModel):
     max_messages: int = Field(default=50, alias="maxMessages", ge=1)
+    summaries: bool = False
+
+
+class LearnedMemoryConfiguration(StrictModel):
+    scope: Literal["run", "agent"] = "run"
+    mode: Literal["automatic", "agentic"] = "automatic"
 
 
 class SharedMemoryConfiguration(StrictModel):
@@ -302,6 +308,7 @@ class SharedMemoryConfiguration(StrictModel):
 class MemoryConfiguration(StrictModel):
     local: LocalMemoryConfiguration | None = None
     conversation: ConversationMemoryConfiguration | None = None
+    learned: LearnedMemoryConfiguration | None = None
     shared: SharedMemoryConfiguration | None = None
 
 
