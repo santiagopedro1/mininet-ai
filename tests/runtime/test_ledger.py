@@ -116,6 +116,52 @@ class SQLiteRunLedgerTests(unittest.TestCase):
             "mininet-ai/audit/v1alpha1",
         )
 
+    def test_agno_usage_survives_the_audit_to_ledger_adapter(self) -> None:
+        audit_event = AuditEvent(
+            recordedAt=NOW,
+            type=AuditEventType.AGENT_COMPLETED,
+            runId="run-1",
+            invocationId="invoke-1",
+            agentId="switch-router@s1",
+            data={
+                "response": {"message": "done"},
+                "runtime": {
+                    "name": "agno",
+                    "agnoRunId": "invoke-1",
+                    "model": "gpt-5-mini",
+                    "modelProvider": "OpenAI",
+                    "metrics": {
+                        "inputTokens": 21,
+                        "outputTokens": 8,
+                        "totalTokens": 29,
+                        "cacheReadTokens": 4,
+                        "reasoningTokens": 2,
+                        "cost": 0.003,
+                    },
+                },
+            },
+        )
+
+        with TemporaryDirectory() as temporary:
+            ledger = SQLiteRunLedger(Path(temporary) / "ledger.sqlite3")
+            try:
+                ledger.create_run(run_manifest())
+                LedgerAuditSink(ledger).write(audit_event)
+                record = ledger.records("run-1")[0]
+            finally:
+                ledger.close()
+
+        self.assertEqual(record.category, LedgerRecordCategory.INVOCATION)
+        event_data = record.data["data"]
+        assert isinstance(event_data, dict)
+        runtime = event_data["runtime"]
+        assert isinstance(runtime, dict)
+        metrics = runtime["metrics"]
+        assert isinstance(metrics, dict)
+        self.assertEqual(metrics["totalTokens"], 29)
+        self.assertEqual(metrics["cacheReadTokens"], 4)
+        self.assertEqual(metrics["cost"], 0.003)
+
     def test_unsafe_paths_and_invalid_run_operations_are_typed(self) -> None:
         with TemporaryDirectory() as temporary:
             path = Path(temporary) / "ledger.sqlite3"

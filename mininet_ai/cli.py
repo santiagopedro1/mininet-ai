@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import signal
 import threading
 from enum import StrEnum
@@ -339,17 +338,7 @@ def invoke(
     discover: bool = typer.Option(
         False,
         "--discover-plugins",
-        help="Load installed agent, model, and capability entry points.",
-    ),
-    model_endpoint: str | None = typer.Option(
-        None,
-        "--model-endpoint",
-        help="Override the selected built-in HTTP model endpoint.",
-    ),
-    model_api_key_env: str = typer.Option(
-        "OPENAI_API_KEY",
-        "--model-api-key-env",
-        help="Environment variable containing an OpenAI-compatible API key.",
+        help="Load capability and deprecated provider entry points.",
     ),
     output_format: OutputFormat = typer.Option(
         OutputFormat.TEXT,
@@ -363,12 +352,7 @@ def invoke(
     deployment_plan = _compile_or_exit(experiment)
     substrate = _runtime_or_exit(deployment_plan.substrate)
     registries = ProviderRegistries()
-    register_builtin_providers(
-        registries,
-        substrate,
-        model_endpoint=model_endpoint,
-        openai_api_key=os.environ.get(model_api_key_env),
-    )
+    register_builtin_providers(registries, substrate)
     if discover:
         _operation_or_exit(lambda: discover_plugins(registries))
     try:

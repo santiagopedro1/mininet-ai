@@ -86,18 +86,21 @@ only at runtime, never during validation or compilation, and will initially run
 as trusted code in the orchestrator process; process and namespace isolation
 belongs to Phase 6.
 
-The native Agno module is now available alongside that transitional path. It
+The native Agno module now drives one-shot agent invocation. It
 constructs declarative agents with Agno's canonical `provider:model` resolver,
 loads Python-authored Agno agents or factories, requires structured
 `AgentResponse` output, and validates the compiled Mininet scope before each
 run. It deliberately supplies no network mutation tools: returned proposals
-still require capability authorization. Routing the one-shot and continuous
-runtimes through this module is the next migration step.
+still require capability authorization. Agno run identity, model identity, and
+normalized token, cache, reasoning, audio, cost, and timing metrics are written
+to the completed-invocation audit record and therefore to ledger-backed audit
+sinks. Continuous invocation will reuse this path in a later Phase 4 commit.
 
-Audit decorators currently record agent invocations, complete model prompts and
-normalized responses, token usage, action proposals, results, and typed failures
-as versioned JSON events. During the Agno migration, model measurements will be
-sourced from Agno run metrics and normalized into the same experiment record.
+The active Agno path records scoped invocation context, normalized responses,
+Agno run and session identity, model identity, usage metrics, action proposals,
+results, and typed failures as versioned JSON events. Deprecated model-provider
+decorators still support the previous prompt-level audit shape until their
+removal.
 The JSON Lines sink serializes concurrent appenders,
 limits individual event size, and creates owner-only files. Audit records can
 contain prompts and observations and must therefore be treated as sensitive
@@ -105,14 +108,13 @@ experiment artifacts. Writes are synchronous: failure to record a start event
 prevents the wrapped operation from running instead of silently losing audit
 coverage.
 
-`OneShotAgentRuntime` currently connects those seams for manual invocations. It verifies
+`OneShotAgentRuntime` connects those seams for manual invocations. It verifies
 that the supplied deployment plan matches a running substrate, collects only
-declared observations, invokes the selected agent and model providers, and
-passes every proposal through capability authorization. Ollama,
-OpenAI-compatible, deterministic mock, and substrate-backed providers are
-built in during the transition; installed provider plugins are loaded only when
-explicitly enabled. The Agno migration will replace the agent and model portion
-without changing capability authorization.
+declared observations, invokes the Agno agent, and passes every proposal through
+capability authorization. Agno supplies the Ollama and OpenAI integrations; a
+deterministic Agno model keeps tests and offline examples reproducible. The
+deprecated agent and model provider registries remain temporarily for removal
+in the cleanup commit and are no longer consulted by this runtime.
 
 The Phase 4 runtime-event contract provides one immutable, versioned envelope
 for manual intents, interval ticks, normalized observations, agent lifecycle
@@ -461,13 +463,15 @@ sudo scripts/vm-run.sh mininet-ai invoke experiment.yaml <run-id> \
 ```
 
 The command refuses a plan whose digest differs from the deployed run. It
-prints a normalized `AgentInvocationResult` and appends prompts, token usage,
-proposals, and action results to `.mininet-ai/audit.jsonl` by default. Use
-`--format json`, `--audit-log PATH`, or `--model-endpoint URL` when needed.
-OpenAI-compatible credentials are read from `OPENAI_API_KEY`; select another
-environment variable with `--model-api-key-env`. Add `--discover-plugins` to
-explicitly load installed provider entry points. Capabilities implemented by
-the active substrate use provider `substrate.action` or
+prints a normalized `AgentInvocationResult` and appends scoped context, Agno
+run metadata and usage, proposals, and action results to
+`.mininet-ai/audit.jsonl` by default. Use
+`--format json` or `--audit-log PATH` when needed. Model providers use their
+standard Agno environment variables, such as `OPENAI_API_KEY`; custom endpoints
+and provider-specific options belong in a Python-authored Agno factory. Add
+`--discover-plugins` to explicitly load installed provider entry points during
+the transition. Capabilities implemented by the active substrate use provider
+`substrate.action` or
 `substrate.observation`.
 
 `status` and `topology` accept `--format json`. `stop` signals only the owner

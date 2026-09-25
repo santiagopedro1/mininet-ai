@@ -3,8 +3,8 @@
 This rootless experiment demonstrates the Phase 3 extension seams without a
 live model or privileged network:
 
-- `agent-blueprints/edge-operator.yaml` defines a declarative agent using the
-  deterministic `mock` model provider.
+- `agent-blueprints/edge-operator.yaml` defines a declarative Agno agent using
+  the deterministic offline model and configured usage metrics.
 - `capabilities/custom-telemetry.yaml` declares a read-only telemetry
   capability.
 - `capabilities/custom-action.yaml` declares a typed mutating capability.
@@ -30,9 +30,10 @@ uv run python -m examples.phase3 \
 ```
 
 The workflow deliberately stays in one process because the fake substrate is
-in-memory. It compiles and deploys the experiment, discovers both example
-providers, invokes `edge-operator@s1`, records the audit trail, and tears down
-the run before exiting. It requires neither root access nor Mininet.
+in-memory. It compiles and deploys the experiment, discovers both capability
+providers, invokes `edge-operator@s1` through Agno, records Agno usage with the
+audit trail, and tears down the run before exiting. It requires neither root
+access nor Mininet.
 
 Run the automated acceptance checks with:
 

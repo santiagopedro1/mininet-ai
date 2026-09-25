@@ -8,15 +8,11 @@ from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from mininet_ai.agents.providers import (
-    DeclarativeAgentProvider,
-    PythonAgentProvider,
-)
+from mininet_ai.agents.agno import AgnoAgentFactory, AgnoAgentProvider
 from mininet_ai.audit import (
     AuditEventType,
     AuditRecorder,
     AuditedCapabilityExecutor,
-    AuditedModelProvider,
 )
 from mininet_ai.capabilities import (
     CapabilityEngine,
@@ -25,11 +21,6 @@ from mininet_ai.capabilities import (
 )
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.errors import AgentRuntimeError
-from mininet_ai.models import (
-    DeterministicModelProvider,
-    OllamaModelProvider,
-    OpenAICompatibleModelProvider,
-)
 from mininet_ai.plugins import (
     ProviderKind,
     ProviderPlugin,
@@ -38,7 +29,6 @@ from mininet_ai.plugins import (
 from mininet_ai.sdk import (
     AgentContext,
     AgentInvocationResult,
-    AgentProvider,
     AgentResponse,
     AgentRuntimeIssue,
     CapabilityProvider,
@@ -72,41 +62,8 @@ def _invocation_id() -> str:
 def register_builtin_providers(
     registries: ProviderRegistries,
     substrate: SubstrateRuntime,
-    *,
-    model_endpoint: str | None = None,
-    openai_api_key: str | None = None,
 ) -> None:
-    """Register providers that ship with the core package."""
-
-    registries.models.register(
-        "mock",
-        ProviderPlugin(
-            kind=ProviderKind.MODEL,
-            factory=lambda configuration: DeterministicModelProvider(),
-        ),
-    )
-    registries.models.register(
-        "ollama",
-        ProviderPlugin(
-            kind=ProviderKind.MODEL,
-            factory=lambda configuration: OllamaModelProvider(
-                endpoint=model_endpoint or "http://127.0.0.1:11434/api/chat"
-            ),
-        ),
-    )
-    registries.models.register(
-        "openai-compatible",
-        ProviderPlugin(
-            kind=ProviderKind.MODEL,
-            factory=lambda configuration: OpenAICompatibleModelProvider(
-                endpoint=(
-                    model_endpoint
-                    or "https://api.openai.com/v1/chat/completions"
-                ),
-                api_key=openai_api_key,
-            ),
-        ),
-    )
+    """Register built-in capability providers used by the agent runtime."""
     substrate_action: ProviderPlugin[
         CapabilityDefinition,
         CapabilityProvider,
@@ -139,13 +96,14 @@ class OneShotAgentRuntime:
         registries: ProviderRegistries,
         *,
         audit: AuditRecorder | None = None,
+        agent_factory: AgnoAgentFactory | None = None,
         clock: Clock = _utc_now,
         invocation_id_factory: InvocationIdFactory = _invocation_id,
     ) -> None:
         self._catalog = ExecutionCatalog(plan)
         self._substrate = substrate
-        self._registries = registries
         self._audit = audit
+        self._agent_factory = agent_factory or AgnoAgentFactory()
         self._clock = clock
         self._invocation_id_factory = invocation_id_factory
         capability_engine = CapabilityEngine(
@@ -219,8 +177,11 @@ class OneShotAgentRuntime:
                 {"context": context.model_dump(mode="json", by_alias=True)},
             )
         try:
-            provider = self._agent_provider(definition, context)
-            response = provider.invoke(context)
+            execution = AgnoAgentProvider(
+                definition,
+                factory=self._agent_factory,
+            ).run(context)
+            response = execution.response
         except Exception as error:
             if self._audit is not None:
                 self._audit.record(
@@ -230,10 +191,19 @@ class OneShotAgentRuntime:
                 )
             return self._failure(context, started_at, error)
         if self._audit is not None:
+            execution_data = execution.model_dump(
+                mode="json",
+                by_alias=True,
+                exclude_none=True,
+            )
+            execution_data.pop("response")
             self._audit.record(
                 AuditEventType.AGENT_COMPLETED,
                 context,
-                {"response": response.model_dump(mode="json", by_alias=True)},
+                {
+                    "response": response.model_dump(mode="json", by_alias=True),
+                    "runtime": {"name": "agno", **execution_data},
+                },
             )
 
         action_results = tuple(
@@ -300,34 +270,6 @@ class OneShotAgentRuntime:
             priority=instance.priority,
             invokedAt=invoked_at,
         )
-
-    def _agent_provider(
-        self,
-        definition: AgentExecutionDefinition,
-        context: AgentContext,
-    ) -> AgentProvider:
-        implementation = definition.blueprint.implementation
-        if implementation.type == "declarative":
-            model_configuration = definition.blueprint.model
-            if model_configuration is None:
-                raise AgentRuntimeError(
-                    "declarative agent has no model configuration",
-                    code="agent.configuration.model-missing",
-                    agent_id=definition.instance.id,
-                    invocation_id=context.invocation_id,
-                )
-            model = self._registries.models.create(
-                model_configuration.provider,
-                model_configuration,
-            )
-            if self._audit is not None:
-                model = AuditedModelProvider(model, self._audit, context)
-            return DeclarativeAgentProvider(definition, model)
-
-        entrypoint = implementation.entrypoint
-        if entrypoint is not None and ":" not in entrypoint:
-            return self._registries.agents.create(entrypoint, definition)
-        return PythonAgentProvider(definition)
 
     def _result(
         self,

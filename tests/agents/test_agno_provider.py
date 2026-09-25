@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from agno.agent import Agent
 
 from mininet_ai.agents import AgnoAgentFactory, AgnoAgentProvider
+from mininet_ai.agents.agno import DeterministicAgnoModel
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.sdk import (
     AgentContext,
@@ -88,6 +89,43 @@ class AgnoAgentProviderTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.code, "agent.context.invalid")
         self.assertEqual(model.calls, 0)
+
+    def test_run_normalizes_agno_identity_and_detailed_metrics(self) -> None:
+        model = DeterministicAgnoModel(
+            {"message": "measured"},
+            usage={
+                "inputTokens": 11,
+                "outputTokens": 4,
+                "totalTokens": 15,
+                "audioInputTokens": 2,
+                "audioOutputTokens": 1,
+                "audioTotalTokens": 3,
+                "cacheReadTokens": 5,
+                "cacheWriteTokens": 2,
+                "reasoningTokens": 3,
+                "cost": 0.012,
+            },
+        )
+        provider = AgnoAgentProvider(
+            self.definition,
+            factory=AgnoAgentFactory(model_resolver=lambda configuration: model),
+        )
+
+        execution = provider.run(self.context)
+
+        self.assertEqual(execution.agno_run_id, "invoke-1")
+        self.assertEqual(execution.model, "deterministic")
+        self.assertEqual(execution.model_provider, "MininetAI")
+        self.assertEqual(execution.response.message, "measured")
+        self.assertEqual(execution.metrics.total_tokens, 15)
+        self.assertEqual(execution.metrics.audio_total_tokens, 3)
+        self.assertEqual(execution.metrics.cache_read_tokens, 5)
+        self.assertEqual(execution.metrics.cache_write_tokens, 2)
+        self.assertEqual(execution.metrics.reasoning_tokens, 3)
+        self.assertEqual(execution.metrics.cost, 0.012)
+        self.assertEqual(len(execution.metrics.models), 1)
+        self.assertEqual(execution.metrics.models[0].role, "model")
+        self.assertEqual(execution.metrics.models[0].model, "deterministic")
 
     def test_python_entrypoint_can_return_factory_or_agent(self) -> None:
         cases = (

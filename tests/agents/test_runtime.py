@@ -89,13 +89,17 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
             tuple(event.type for event in sink.events),
             (
                 AuditEventType.AGENT_STARTED,
-                AuditEventType.MODEL_STARTED,
-                AuditEventType.MODEL_COMPLETED,
                 AuditEventType.AGENT_COMPLETED,
                 AuditEventType.CAPABILITY_STARTED,
                 AuditEventType.CAPABILITY_COMPLETED,
             ),
         )
+        completed = cast(dict[str, Any], sink.events[1].data)
+        runtime_data = cast(dict[str, Any], completed["runtime"])
+        self.assertEqual(runtime_data["name"], "agno")
+        self.assertEqual(runtime_data["agnoRunId"], "invoke-1")
+        metrics = cast(dict[str, Any], runtime_data["metrics"])
+        self.assertEqual(metrics["totalTokens"], 0)
 
     def test_action_rejection_rejects_the_invocation(self) -> None:
         response = {
@@ -124,15 +128,18 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
 
         self.assertEqual(result.status, InvocationStatus.FAILED)
         assert result.issue is not None
-        self.assertEqual(result.issue.code, "agent.response.invalid")
+        self.assertEqual(
+            result.issue.code,
+            "agent.agno.deterministic-response-invalid",
+        )
         self.assertEqual(sink.events[-1].type, AuditEventType.AGENT_FAILED)
 
-    def test_python_agents_run_without_a_model(self) -> None:
+    def test_python_agno_factories_run_through_the_same_runtime(self) -> None:
         plan = configured_plan(
             None,
             implementation={
                 "type": "python",
-                "entrypoint": "tests.agents.helpers:mapping_agent",
+                "entrypoint": "tests.agents.agno_helpers:agent_factory",
             },
         )
         substrate = FakeSubstrateRuntime(run_id_factory=lambda: "run-python")
@@ -150,7 +157,7 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
 
         self.assertEqual(result.status, InvocationStatus.SUCCEEDED)
         assert result.response is not None
-        self.assertEqual(result.response.message, "inspected switch-router@s1")
+        self.assertEqual(result.response.message, "from Python Agno factory")
         self.assertEqual(result.action_results, ())
 
     def test_run_must_be_running_and_match_the_compiled_plan(self) -> None:

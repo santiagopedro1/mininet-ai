@@ -251,7 +251,10 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
         payload = json.loads(result.output)
         self.assertEqual(payload["status"], "failed")
-        self.assertEqual(payload["issue"]["code"], "agent.response.invalid")
+        self.assertEqual(
+            payload["issue"]["code"],
+            "agent.agno.deterministic-response-invalid",
+        )
 
     def test_invoke_discovers_plugins_only_when_requested(self) -> None:
         plan = configured_plan({"message": "done"})

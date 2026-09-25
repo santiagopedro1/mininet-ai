@@ -86,14 +86,20 @@ class Phase3AcceptanceTests(unittest.TestCase):
         self.assertEqual(action.output, {"applied": True, "target": "s1"})
         self.assertEqual(events[0].type, AuditEventType.AGENT_STARTED)
         self.assertEqual(events[-1].type, AuditEventType.CAPABILITY_COMPLETED)
-        model_event = next(
-            event for event in events if event.type == AuditEventType.MODEL_COMPLETED
+        invocation_event = next(
+            event for event in events if event.type == AuditEventType.AGENT_COMPLETED
         )
-        response = cast(dict[str, Any], model_event.data["response"])
+        runtime_data = cast(dict[str, Any], invocation_event.data["runtime"])
+        metrics = cast(dict[str, Any], runtime_data["metrics"])
+        self.assertEqual(runtime_data["name"], "agno")
+        self.assertEqual(runtime_data["agnoRunId"], "phase3-invocation")
         self.assertEqual(
-            response["usage"]["totalTokens"],
-            0,
+            metrics["totalTokens"],
+            55,
         )
+        self.assertEqual(metrics["cacheReadTokens"], 5)
+        self.assertEqual(metrics["reasoningTokens"], 3)
+        self.assertEqual(metrics["cost"], 0.001)
 
     def test_out_of_scope_plugin_action_is_rejected_before_execution(self) -> None:
         plan = compile_experiment(EXPERIMENT)

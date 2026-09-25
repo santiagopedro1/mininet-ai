@@ -20,6 +20,13 @@ model:
           capability: example.action.apply
           target: s1
           arguments: {enabled: true}
+    usage:
+      inputTokens: 37
+      outputTokens: 18
+      totalTokens: 55
+      cacheReadTokens: 5
+      reasoningTokens: 3
+      cost: 0.001
 reasoning:
   instructions: Use only the capabilities and target in the supplied context.
   timeout: 2s

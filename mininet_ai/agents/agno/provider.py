@@ -8,10 +8,17 @@ from collections.abc import Callable, Mapping
 from typing import Protocol, cast
 
 from agno.agent import Agent
+from agno.metrics import ModelMetrics, RunMetrics
 from agno.models.base import Model
 from agno.run.agent import RunOutput
-from pydantic import ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from mininet_ai.agents.agno.contracts import (
+    AgentRunMetrics,
+    AgnoExecutionResult,
+    ModelRunMetrics,
+)
+from mininet_ai.agents.agno.models import DeterministicAgnoModel
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
 from mininet_ai.sdk.contracts import (
     AGENT_RUNTIME_CONTRACT_VERSION,
@@ -30,6 +37,7 @@ _SAFE_OUTPUT_INSTRUCTIONS = (
     "only capabilities and targets present in the supplied scoped context. "
     "Do not execute network changes directly."
 )
+_JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 
 
 class ModelResolver(Protocol):
@@ -41,7 +49,31 @@ class ModelResolver(Protocol):
 AgnoFactoryEntrypoint = Callable[[AgentExecutionDefinition], Agent]
 
 
-def _default_model_resolver(configuration: ModelConfiguration) -> str:
+def _default_model_resolver(configuration: ModelConfiguration) -> Model | str:
+    if configuration.provider == "mock":
+        allowed = {"response", "usage"}
+        unknown = sorted(set(configuration.parameters) - allowed)
+        if unknown:
+            raise AgentProviderError(
+                "unsupported deterministic Agno model parameters: "
+                + ", ".join(unknown),
+                code="agent.agno.model-parameters-unsupported",
+            )
+        if "response" not in configuration.parameters:
+            raise AgentProviderError(
+                "the deterministic Agno model requires parameters.response",
+                code="agent.agno.deterministic-response-missing",
+            )
+        usage = configuration.parameters.get("usage", {})
+        if not isinstance(usage, Mapping):
+            raise AgentProviderError(
+                "deterministic Agno parameters.usage must be an object",
+                code="agent.agno.deterministic-usage-invalid",
+            )
+        return DeterministicAgnoModel(
+            configuration.parameters["response"],
+            usage=usage,
+        )
     if configuration.parameters:
         raise AgentProviderError(
             "declarative Agno models do not accept legacy model parameters; "
@@ -49,6 +81,69 @@ def _default_model_resolver(configuration: ModelConfiguration) -> str:
             code="agent.agno.model-parameters-unsupported",
         )
     return f"{configuration.provider}:{configuration.name}"
+
+
+def _json_object(value: object, *, field: str) -> dict[str, JsonValue]:
+    if value is None:
+        return {}
+    try:
+        return _JSON_OBJECT.validate_python(value)
+    except ValidationError as error:
+        raise AgentProviderError(
+            f"Agno returned non-JSON {field}: {error}",
+            code="agent.agno.metrics-invalid",
+        ) from error
+
+
+def _model_metrics(role: str, metrics: ModelMetrics) -> ModelRunMetrics:
+    return ModelRunMetrics(
+        role=role,
+        model=metrics.id,
+        provider=metrics.provider,
+        inputTokens=metrics.input_tokens,
+        outputTokens=metrics.output_tokens,
+        totalTokens=metrics.total_tokens,
+        audioInputTokens=metrics.audio_input_tokens,
+        audioOutputTokens=metrics.audio_output_tokens,
+        audioTotalTokens=metrics.audio_total_tokens,
+        cacheReadTokens=metrics.cache_read_tokens,
+        cacheWriteTokens=metrics.cache_write_tokens,
+        reasoningTokens=metrics.reasoning_tokens,
+        cost=metrics.cost,
+        providerMetrics=_json_object(
+            metrics.provider_metrics,
+            field="model provider metrics",
+        ),
+    )
+
+
+def _run_metrics(metrics: RunMetrics | None) -> AgentRunMetrics:
+    if metrics is None:
+        return AgentRunMetrics()
+    models = tuple(
+        _model_metrics(role, model_metrics)
+        for role in sorted(metrics.details or {})
+        for model_metrics in (metrics.details or {})[role]
+    )
+    return AgentRunMetrics(
+        inputTokens=metrics.input_tokens,
+        outputTokens=metrics.output_tokens,
+        totalTokens=metrics.total_tokens,
+        audioInputTokens=metrics.audio_input_tokens,
+        audioOutputTokens=metrics.audio_output_tokens,
+        audioTotalTokens=metrics.audio_total_tokens,
+        cacheReadTokens=metrics.cache_read_tokens,
+        cacheWriteTokens=metrics.cache_write_tokens,
+        reasoningTokens=metrics.reasoning_tokens,
+        cost=metrics.cost,
+        durationSeconds=metrics.duration,
+        timeToFirstTokenSeconds=metrics.time_to_first_token,
+        models=models,
+        additional=_json_object(
+            metrics.additional_metrics,
+            field="additional metrics",
+        ),
+    )
 
 
 def _validate_context(
@@ -193,6 +288,11 @@ class AgnoAgentProvider:
         self._agent = (factory or AgnoAgentFactory()).create(definition)
 
     def invoke(self, context: AgentContext) -> AgentResponse:
+        return self.run(context).response
+
+    def run(self, context: AgentContext) -> AgnoExecutionResult:
+        """Execute Agno and return only normalized, serializable values."""
+
         _validate_context(self._definition, context)
         try:
             output = self._agent.run(
@@ -212,4 +312,17 @@ class AgnoAgentProvider:
                 "Agno returned a streaming iterator for a bounded invocation",
                 code="agent.agno.streaming-unsupported",
             )
-        return _normalize_output(output)
+        agno_run_id = output.run_id
+        if not isinstance(agno_run_id, str) or agno_run_id != context.invocation_id:
+            raise AgentProviderError(
+                "Agno returned a different run identifier",
+                code="agent.agno.run-identity-mismatch",
+            )
+        return AgnoExecutionResult(
+            agnoRunId=agno_run_id,
+            sessionId=output.session_id,
+            model=output.model,
+            modelProvider=output.model_provider,
+            response=_normalize_output(output),
+            metrics=_run_metrics(output.metrics),
+        )
