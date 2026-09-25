@@ -153,9 +153,21 @@ when a blueprint declares `reasoning.timeout`. Action proposals are capped by
 the smaller of their requested timeout and the agent's compiled
 `execution.actionTimeout`, so an agent cannot extend its own execution budget.
 Every invocation result carries separate event-detection, context-building,
-reasoning, action-execution, and total timings. Model-queueing and action-effect
-timings remain explicitly unset until their respective provider and
-postcondition stages can measure them rather than estimating them.
+reasoning, action-execution, action-effect, and total timings. Model-queueing
+timing remains explicitly unset until a provider can measure it rather than
+the runtime estimating it.
+
+When `require-postcondition-check` is enabled, declared capability
+postconditions are polled against the live substrate until they succeed or
+their individual deadlines expire. Paths are relative to the proposal target
+and may traverse objects and list indexes. Results retain every check, its last
+observed value, attempt count, and observation error, while action-effect
+latency is reported separately from action execution. A changed action with a
+configured rollback invokes the provider's reversible interface after failed
+verification. Successful rollback reports a failed action with `changed: false`;
+failed or unsupported rollback preserves `changed: true` and returns a typed
+rollback failure. The built-in substrate adapter supplies conservative inverses
+for flow installation, link enable/disable, and managed process start.
 
 `TelemetryPipeline` executes the compiled observation policies without sending
 raw high-frequency samples to agents. It samples only each agent's declared

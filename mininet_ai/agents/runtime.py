@@ -17,6 +17,7 @@ from mininet_ai.audit import (
 )
 from mininet_ai.capabilities import (
     CapabilityEngine,
+    PostconditionVerifier,
     SubstrateActionProvider,
     SubstrateObservationProvider,
 )
@@ -134,6 +135,11 @@ class OneShotAgentRuntime:
             self._catalog,
             registries.capabilities,
             clock=clock,
+            verifier=PostconditionVerifier(
+                substrate,
+                clock=clock,
+                monotonic_clock=monotonic_clock,
+            ),
         )
         self._capabilities = (
             AuditedCapabilityExecutor(capability_engine, audit)
@@ -282,7 +288,19 @@ class OneShotAgentRuntime:
             self._capabilities.execute(context, proposal)
             for proposal in response.proposals
         )
-        action_seconds = self._elapsed(action_tick)
+        action_total_seconds = self._elapsed(action_tick)
+        effect_latencies = tuple(
+            result.effect_latency_seconds
+            for result in action_results
+            if result.effect_latency_seconds is not None
+        )
+        effect_seconds = (
+            sum(effect_latencies) if effect_latencies else None
+        )
+        action_seconds = max(
+            0.0,
+            action_total_seconds - (effect_seconds or 0.0),
+        )
         return self._result(
             context,
             started_at,
@@ -294,6 +312,7 @@ class OneShotAgentRuntime:
                 context_seconds=context_seconds,
                 reasoning_seconds=reasoning_seconds,
                 action_seconds=action_seconds,
+                effect_seconds=effect_seconds,
             ),
         )
 
@@ -536,11 +555,13 @@ class OneShotAgentRuntime:
         context_seconds: float,
         reasoning_seconds: float,
         action_seconds: float = 0,
+        effect_seconds: float | None = None,
     ) -> InvocationTimings:
         return InvocationTimings(
             contextBuildSeconds=context_seconds,
             reasoningSeconds=reasoning_seconds,
             actionExecutionSeconds=action_seconds,
+            actionEffectSeconds=effect_seconds,
             totalSeconds=self._elapsed(started),
         )
 

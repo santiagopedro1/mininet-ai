@@ -340,9 +340,26 @@ class PostconditionDefinition(StrictModel):
     timeout: Duration = "5s"
     interval: Duration = "250ms"
 
+    @model_validator(mode="after")
+    def timing_is_positive_and_bounded(self) -> PostconditionDefinition:
+        timeout = duration_seconds(self.timeout)
+        interval = duration_seconds(self.interval)
+        if timeout <= 0 or interval <= 0:
+            raise ValueError("postcondition timeout and interval must be positive")
+        if interval > timeout:
+            raise ValueError("postcondition interval cannot exceed its timeout")
+        return self
+
 
 class CapabilityRollbackConfiguration(StrictModel):
     timeout: Duration = "30s"
+
+    @field_validator("timeout")
+    @classmethod
+    def timeout_is_positive(cls, value: str) -> str:
+        if duration_seconds(value) <= 0:
+            raise ValueError("rollback timeout must be positive")
+        return value
 
 
 class CapabilityDefinition(StrictModel):

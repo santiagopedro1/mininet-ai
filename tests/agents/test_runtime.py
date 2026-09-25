@@ -52,8 +52,8 @@ def configured_shared_plan(response):
 
 
 class OneShotAgentRuntimeTests(unittest.TestCase):
-    def runtime(self, response, *, monotonic_clock=None):
-        plan = configured_plan(response)
+    def runtime(self, response, *, monotonic_clock=None, plan=None):
+        plan = plan or configured_plan(response)
         substrate = FakeSubstrateRuntime(
             clock=lambda: NOW,
             run_id_factory=lambda: "run-1",
@@ -91,6 +91,46 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         self.assertEqual(result.timings.total_seconds, 7)
         self.assertIsNone(result.timings.model_queueing_seconds)
         self.assertIsNone(result.timings.action_effect_seconds)
+
+    def test_postcondition_latency_is_separate_from_action_execution(self) -> None:
+        response = {
+            "proposals": [
+                {
+                    "id": "proposal-1",
+                    "capability": "openflow.flow.install",
+                    "target": "s1",
+                    "arguments": {"match": "ip", "actions": "normal"},
+                }
+            ]
+        }
+        plan = configured_plan(response)
+        snapshot = copy.deepcopy(plan.snapshot)
+        capability = next(
+            item
+            for item in snapshot["capabilityDefinitions"]
+            if item["metadata"]["name"] == "openflow.flow.install"
+        )
+        capability["postconditions"] = [
+            {
+                "observation": "openflow.flows",
+                "path": "observation",
+                "operator": "eq",
+                "expected": "openflow.flows",
+                "timeout": "20ms",
+                "interval": "10ms",
+            }
+        ]
+        plan = plan.model_copy(update={"snapshot": snapshot})
+        runtime, run, _ = self.runtime(response, plan=plan)
+
+        result = runtime.invoke(run.id, "switch-router@s1", "install")
+
+        self.assertEqual(result.status, InvocationStatus.SUCCEEDED)
+        self.assertEqual(len(result.action_results[0].postconditions), 1)
+        self.assertIsNotNone(result.timings.action_effect_seconds)
+        assert result.timings.action_effect_seconds is not None
+        self.assertGreaterEqual(result.timings.action_effect_seconds, 0)
+        self.assertGreaterEqual(result.timings.action_execution_seconds, 0)
 
     def test_observes_invokes_authorizes_executes_and_audits(self) -> None:
         response = {

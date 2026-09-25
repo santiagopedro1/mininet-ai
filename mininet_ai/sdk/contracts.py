@@ -366,3 +366,19 @@ class CapabilityProvider(Protocol):
     ) -> CapabilityOutcome | Mapping[str, JsonValue] | ActionResult:
         """Execute one already-authorized proposal."""
         ...
+
+
+@runtime_checkable
+class ReversibleCapabilityProvider(Protocol):
+    """Optional adapter interface for undoing one successful capability."""
+
+    def rollback(
+        self,
+        context: AgentContext,
+        proposal: ActionProposal,
+        outcome: CapabilityOutcome,
+        *,
+        timeout_seconds: float,
+    ) -> CapabilityOutcome | Mapping[str, JsonValue] | ActionResult:
+        """Attempt to undo the effects of one successful execution."""
+        ...

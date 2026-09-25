@@ -221,6 +221,22 @@ class ContinuousConfigurationTests(unittest.TestCase):
         ):
             Experiment.model_validate(snapshot)
 
+        capability["reversible"] = True
+        capability["postconditions"][0]["interval"] = "0s"
+        with self.assertRaisesRegex(
+            ValueError,
+            "postcondition timeout and interval must be positive",
+        ):
+            Experiment.model_validate(snapshot)
+
+        capability["postconditions"][0]["interval"] = "250ms"
+        capability["rollback"]["timeout"] = "0s"
+        with self.assertRaisesRegex(
+            ValueError,
+            "rollback timeout must be positive",
+        ):
+            Experiment.model_validate(snapshot)
+
     def test_invalid_continuous_timing_is_rejected_by_the_schema(self) -> None:
         snapshot = example_snapshot()
         deployment = named(snapshot["agents"], "switch-router")

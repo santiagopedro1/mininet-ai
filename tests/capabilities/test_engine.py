@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import copy
 import unittest
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from mininet_ai.capabilities import CapabilityEngine
+from mininet_ai.capabilities import CapabilityEngine, PostconditionVerifier
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.plugins import ProviderKind, ProviderPlugin, ProviderRegistries
 from mininet_ai.sdk import (
@@ -16,7 +17,12 @@ from mininet_ai.sdk import (
     ExecutionCatalog,
 )
 from mininet_ai.specification.models import AttachmentLayer
-from mininet_ai.substrates import ActionResult, ActionStatus, RuntimeIssue
+from mininet_ai.substrates import (
+    ActionResult,
+    ActionStatus,
+    ObservationResult,
+    RuntimeIssue,
+)
 from tests.compiler.helpers import EXAMPLE
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -31,12 +37,61 @@ class RecordingProvider:
             output={"installed": True},
         )
         self.calls: list[tuple[AgentContext, ActionProposal]] = []
+        self.rollback_result: object = CapabilityOutcome(
+            changed=True,
+            output={"undone": True},
+        )
+        self.rollback_calls = []
 
     def execute(self, context: AgentContext, proposal: ActionProposal):
         self.calls.append((context, proposal))
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
+
+    def rollback(
+        self,
+        context,
+        proposal,
+        outcome,
+        *,
+        timeout_seconds,
+    ):
+        self.rollback_calls.append(
+            (context, proposal, outcome, timeout_seconds)
+        )
+        if isinstance(self.rollback_result, Exception):
+            raise self.rollback_result
+        return self.rollback_result
+
+
+class ManualTime:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def monotonic(self) -> float:
+        return self.value
+
+    def sleep(self, seconds: float) -> None:
+        self.value += seconds
+
+
+class RecordingObserver:
+    def __init__(self, values: list[object]) -> None:
+        self.values = values
+        self.calls = []
+
+    def observe(self, run_id, query):
+        self.calls.append((run_id, query))
+        value = self.values.pop(0) if len(self.values) > 1 else self.values[0]
+        if isinstance(value, Exception):
+            raise value
+        return ObservationResult(
+            run_id=run_id,
+            query=query,
+            observed_at=NOW,
+            values={query.targets[0]: value},
+        )
 
 
 class CapabilityEngineTests(unittest.TestCase):
@@ -96,6 +151,40 @@ class CapabilityEngineTests(unittest.TestCase):
         assert result.issue is not None
         self.assertEqual(result.issue.code, code)
 
+    def verification_engine(self, observer, manual_time):
+        snapshot = copy.deepcopy(self.plan.snapshot)
+        capability = next(
+            item
+            for item in snapshot["capabilityDefinitions"]
+            if item["metadata"]["name"] == "openflow.flow.install"
+        )
+        capability["postconditions"] = [
+            {
+                "observation": "openflow.flows",
+                "path": "installed",
+                "operator": "eq",
+                "expected": True,
+                "timeout": "20ms",
+                "interval": "10ms",
+            }
+        ]
+        capability["rollback"] = {"timeout": "3s"}
+        catalog = ExecutionCatalog(
+            self.plan.model_copy(update={"snapshot": snapshot})
+        )
+        verifier = PostconditionVerifier(
+            observer,
+            clock=lambda: NOW,
+            monotonic_clock=manual_time.monotonic,
+            sleeper=manual_time.sleep,
+        )
+        return CapabilityEngine(
+            catalog,
+            self.registries.capabilities,
+            clock=lambda: NOW,
+            verifier=verifier,
+        )
+
     def test_authorizes_validates_and_executes_an_assigned_capability(self) -> None:
         context = self.context()
         proposal = self.proposal()
@@ -134,6 +223,58 @@ class CapabilityEngineTests(unittest.TestCase):
 
         self.assertEqual(result.status, ActionStatus.SUCCEEDED)
         self.assertEqual(self.provider.calls[0][1].timeout_seconds, 2)
+
+    def test_postcondition_polls_until_the_effect_is_visible(self) -> None:
+        manual_time = ManualTime()
+        observer = RecordingObserver(
+            [{"installed": False}, {"installed": True}]
+        )
+        engine = self.verification_engine(observer, manual_time)
+
+        result = engine.execute(self.context(), self.proposal())
+
+        self.assertEqual(result.status, ActionStatus.SUCCEEDED)
+        self.assertEqual(len(result.postconditions), 1)
+        self.assertTrue(result.postconditions[0].satisfied)
+        self.assertEqual(result.postconditions[0].attempts, 2)
+        self.assertEqual(result.effect_latency_seconds, 0.01)
+        self.assertEqual(self.provider.rollback_calls, [])
+
+    def test_failed_postcondition_rolls_back_a_changed_action(self) -> None:
+        manual_time = ManualTime()
+        observer = RecordingObserver([{"installed": False}])
+        engine = self.verification_engine(observer, manual_time)
+
+        result = engine.execute(self.context(), self.proposal())
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertFalse(result.changed)
+        self.assert_issue_code(result, "capability.postcondition.failed")
+        self.assertEqual(result.postconditions[0].attempts, 3)
+        self.assertEqual(result.effect_latency_seconds, 0.02)
+        self.assertIsNotNone(result.rollback)
+        assert result.rollback is not None
+        self.assertEqual(result.rollback.status, ActionStatus.SUCCEEDED)
+        self.assertEqual(self.provider.rollback_calls[0][3], 3)
+
+    def test_rollback_failure_preserves_changed_state(self) -> None:
+        manual_time = ManualTime()
+        observer = RecordingObserver([{"installed": False}])
+        self.provider.rollback_result = RuntimeError("undo failed")
+        engine = self.verification_engine(observer, manual_time)
+
+        result = engine.execute(self.context(), self.proposal())
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertTrue(result.changed)
+        self.assert_issue_code(result, "capability.rollback.failed")
+        assert result.rollback is not None
+        self.assertEqual(result.rollback.status, ActionStatus.FAILED)
+        assert result.rollback.issue is not None
+        self.assertEqual(
+            result.rollback.issue.code,
+            "capability.rollback.failed",
+        )
 
     def test_rejects_unassigned_out_of_scope_and_invalid_input(self) -> None:
         cases = (

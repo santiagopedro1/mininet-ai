@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 from pydantic import JsonValue, TypeAdapter
 
+from mininet_ai.capabilities.verification import PostconditionVerifier
 from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.plugins.registry import ProviderRegistry
@@ -21,11 +22,14 @@ from mininet_ai.sdk.contracts import (
     CapabilityOutcome,
     CapabilityProvider,
     CapabilityProviderError,
+    ReversibleCapabilityProvider,
 )
 from mininet_ai.specification.models import CapabilityDefinition
 from mininet_ai.substrates.runtime import (
     ActionResult,
     ActionStatus,
+    PostconditionResult,
+    RollbackResult,
     RuntimeIssue,
 )
 
@@ -55,10 +59,12 @@ class CapabilityEngine:
         providers: ProviderRegistry[CapabilityDefinition, CapabilityProvider],
         *,
         clock: Clock = _utc_now,
+        verifier: PostconditionVerifier | None = None,
     ) -> None:
         self._catalog = catalog
         self._providers = providers
         self._clock = clock
+        self._verifier = verifier
 
     def execute(
         self,
@@ -155,15 +161,186 @@ class CapabilityEngine:
                 ),
             )
 
-        if provider_result is not None:
-            return provider_result
-        return self._result(
+        result = provider_result or self._result(
             context,
             proposal,
             status=ActionStatus.SUCCEEDED,
             changed=outcome.changed,
             output=outcome.output,
         )
+        return self._verify_effect(
+            definition,
+            capability,
+            provider,
+            context,
+            proposal,
+            outcome,
+            result,
+        )
+
+    def _verify_effect(
+        self,
+        definition: AgentExecutionDefinition,
+        capability: CapabilityDefinition,
+        provider: CapabilityProvider,
+        context: AgentContext,
+        proposal: ActionProposal,
+        outcome: CapabilityOutcome,
+        result: ActionResult,
+    ) -> ActionResult:
+        if (
+            not definition.policy.require_postcondition_check
+            or not capability.postconditions
+        ):
+            return result
+        if self._verifier is None:
+            return self._postcondition_failure(
+                capability,
+                provider,
+                context,
+                proposal,
+                outcome,
+                result,
+                checks=(),
+                effect_seconds=0,
+                message="postcondition verification has no observation provider",
+            )
+        report = self._verifier.verify(
+            context,
+            proposal,
+            tuple(capability.postconditions),
+        )
+        if report.satisfied:
+            return result.model_copy(
+                update={
+                    "completed_at": self._clock(),
+                    "postconditions": report.checks,
+                    "effect_latency_seconds": report.duration_seconds,
+                }
+            )
+        failed = [
+            f"{check.observation}:{check.path}"
+            for check in report.checks
+            if not check.satisfied
+        ]
+        return self._postcondition_failure(
+            capability,
+            provider,
+            context,
+            proposal,
+            outcome,
+            result,
+            checks=report.checks,
+            effect_seconds=report.duration_seconds,
+            message="postconditions not satisfied: " + ", ".join(failed),
+        )
+
+    def _postcondition_failure(
+        self,
+        capability: CapabilityDefinition,
+        provider: CapabilityProvider,
+        context: AgentContext,
+        proposal: ActionProposal,
+        outcome: CapabilityOutcome,
+        result: ActionResult,
+        *,
+        checks: tuple[PostconditionResult, ...],
+        effect_seconds: float,
+        message: str,
+    ) -> ActionResult:
+        rollback = None
+        changed = result.changed
+        issue_code = "capability.postcondition.failed"
+        if result.changed and capability.rollback is not None:
+            rollback = self._rollback(
+                capability,
+                provider,
+                context,
+                proposal,
+                outcome,
+            )
+            if rollback.status == ActionStatus.SUCCEEDED:
+                changed = False
+                message += "; action was rolled back"
+            else:
+                issue_code = "capability.rollback.failed"
+                message += "; rollback failed"
+        return result.model_copy(
+            update={
+                "status": ActionStatus.FAILED,
+                "completed_at": self._clock(),
+                "changed": changed,
+                "postconditions": checks,
+                "rollback": rollback,
+                "effect_latency_seconds": effect_seconds,
+                "issue": RuntimeIssue(
+                    code=issue_code,
+                    message=message,
+                    target=proposal.target,
+                ),
+            }
+        )
+
+    def _rollback(
+        self,
+        capability: CapabilityDefinition,
+        provider: CapabilityProvider,
+        context: AgentContext,
+        proposal: ActionProposal,
+        outcome: CapabilityOutcome,
+    ) -> RollbackResult:
+        configuration = capability.rollback
+        if configuration is None:
+            raise AssertionError("rollback requested without configuration")
+        if not isinstance(provider, ReversibleCapabilityProvider):
+            return RollbackResult(
+                status=ActionStatus.FAILED,
+                completedAt=self._clock(),
+                issue=RuntimeIssue(
+                    code="capability.rollback.unsupported",
+                    message="capability provider does not support rollback",
+                    target=proposal.target,
+                ),
+            )
+        try:
+            raw = provider.rollback(
+                context,
+                proposal,
+                outcome,
+                timeout_seconds=duration_seconds(configuration.timeout),
+            )
+            if isinstance(raw, ActionResult):
+                if raw.run_id != context.run_id:
+                    raise ValueError("rollback result changed run identity")
+                return RollbackResult(
+                    status=raw.status,
+                    completedAt=self._clock(),
+                    changed=raw.changed,
+                    output=raw.output,
+                    issue=raw.issue,
+                )
+            normalized = self._normalize_outcome(raw)
+            return RollbackResult(
+                status=ActionStatus.SUCCEEDED,
+                completedAt=self._clock(),
+                changed=normalized.changed,
+                output=normalized.output,
+            )
+        except Exception as error:
+            code = getattr(error, "code", None)
+            return RollbackResult(
+                status=ActionStatus.FAILED,
+                completedAt=self._clock(),
+                issue=RuntimeIssue(
+                    code=(
+                        code
+                        if isinstance(code, str) and code
+                        else "capability.rollback.failed"
+                    ),
+                    message=str(error) or type(error).__name__,
+                    target=proposal.target,
+                ),
+            )
 
     def _resolve(self, context: AgentContext) -> AgentExecutionDefinition:
         try:

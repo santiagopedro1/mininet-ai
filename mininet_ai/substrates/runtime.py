@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
 from mininet_ai.specification.models import ResourceKind, StrictModel
 
@@ -103,6 +103,34 @@ class ActionRequest(StrictModel):
     timeout_seconds: float = Field(default=30, gt=0)
 
 
+class PostconditionResult(StrictModel):
+    observation: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    operator: str = Field(min_length=1)
+    expected: JsonValue
+    actual: JsonValue | None = None
+    satisfied: bool
+    attempts: int = Field(ge=1)
+    completed_at: AwareDatetime = Field(alias="completedAt")
+    issue: RuntimeIssue | None = None
+
+
+class RollbackResult(StrictModel):
+    status: ActionStatus
+    completed_at: AwareDatetime = Field(alias="completedAt")
+    changed: bool = False
+    output: dict[str, Any] = Field(default_factory=dict)
+    issue: RuntimeIssue | None = None
+
+    @model_validator(mode="after")
+    def issue_matches_status(self) -> RollbackResult:
+        if self.status == ActionStatus.SUCCEEDED and self.issue is not None:
+            raise ValueError("a successful rollback cannot contain an issue")
+        if self.status != ActionStatus.SUCCEEDED and self.issue is None:
+            raise ValueError("an unsuccessful rollback requires an issue")
+        return self
+
+
 class ActionResult(StrictModel):
     run_id: str = Field(min_length=1)
     request_id: str = Field(min_length=1)
@@ -110,6 +138,13 @@ class ActionResult(StrictModel):
     completed_at: AwareDatetime
     changed: bool = False
     output: dict[str, Any] = Field(default_factory=dict)
+    postconditions: tuple[PostconditionResult, ...] = ()
+    rollback: RollbackResult | None = None
+    effect_latency_seconds: float | None = Field(
+        default=None,
+        alias="effectLatencySeconds",
+        ge=0,
+    )
     issue: RuntimeIssue | None = None
 
     @model_validator(mode="after")
