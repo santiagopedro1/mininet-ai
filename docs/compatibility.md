@@ -24,16 +24,17 @@ The project currently defines six contract families:
   record used to inspect and recover an interrupted Mininet/OVS run. It is
   versioned so a newer runtime never guesses how to clean up an incompatible
   record.
-- `mininet-ai/agent-runtime/v1alpha1` covers the SDK seam used by agent,
+- `mininet-ai/agent-runtime/v1alpha1` covers the current SDK seam used by agent,
   capability, and model-provider adapters, including scoped invocation context,
   action proposals, normalized model responses, invocation results, versioned
   provider descriptors, registry semantics, and the JSON protocol used by
-  external capability processes and services. OpenAI-compatible and Ollama
-  wire formats are adapter details normalized into this contract; they are not
-  additional public contract families. Declarative agents emit the normalized
-  `AgentResponse` shape, and Python entrypoints receive `AgentContext` and must
-  return that same shape. The agent-runtime contract is independent of
-  experiment and substrate contract versions.
+  external capability processes and services. Its generic agent and model
+  provider portions are deprecated by
+  [ADR 0001](adr/0001-use-agno-as-v1-agent-runtime.md) and will be replaced by
+  an Agno-centric runtime contract before v1. Scoped invocation, action, result,
+  and external capability concepts remain owned by Mininet AI. The
+  agent-runtime contract is independent of experiment and substrate contract
+  versions.
 - `mininet-ai/audit/v1alpha1` covers correlated JSON audit records for agent,
   model, and capability execution. It is versioned separately so storage and
   analysis tools can evolve without changing provider contracts.
@@ -42,6 +43,21 @@ The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing
 version may change silently. A consumer can use the version field or schema ID
 to select the exact contract it understands.
+
+### Planned Agno runtime migration
+
+The framework-neutral `AgentProvider` and `ModelProvider` protocols, their
+provider registries, and the built-in OpenAI-compatible and Ollama model
+adapters are deprecated. They remain documented as current `v1alpha1` behavior
+until the Agno execution path reaches parity. Their removal or semantic
+replacement will use a new agent-runtime contract version rather than silently
+changing `mininet-ai/agent-runtime/v1alpha1`.
+
+The migration does not delegate network authority to Agno. Mininet's scoped
+invocation context, structured action proposal, capability authorization,
+action result, runtime event, and ledger records remain Mininet-owned
+contracts. Agno run and session data will be translated into those records at
+the agent-runtime seam.
 
 ### Runtime-state v1alpha1 to v1alpha2
 

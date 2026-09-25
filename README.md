@@ -4,6 +4,29 @@ Mininet AI is a declarative experiment compiler and multi-layer runtime for agen
 
 The project is being built as an experiment framework rather than a collection of predefined agents. Experiments should be reproducible, inspectable, and portable across networking substrates.
 
+## AI runtime direction
+
+The alpha releases and planned v1 are **Agno-centric**. Agno will own agent and
+model execution, sessions, conversation history, agent-local state, learned
+memory, summaries, and AI usage metrics. Mininet AI will own experiment
+specifications, topology and substrate lifecycle, event delivery, scheduling,
+capability authorization, network action execution, cross-agent operational
+state, and the reproducibility ledger.
+
+Agno agents produce Mininet `ActionProposal` values; they do not mutate the
+network directly. Every proposal continues through the Mininet capability
+engine, which validates identity, scope, target, effects, input, and output.
+Agno usage measurements are normalized into the experiment ledger alongside
+the network events and action outcomes they caused.
+
+The framework-neutral agent and model provider layer introduced in Phase 3 is
+deprecated and will be removed before v1. Framework neutrality will be
+reconsidered when a concrete second production agent runtime is required. Agno
+objects will remain confined to the agent-runtime implementation so Mininet's
+experiment, proposal, capability, event, and ledger contracts do not expose
+them. See [ADR 0001](docs/adr/0001-use-agno-as-v1-agent-runtime.md) for the
+decision and its consequences.
+
 ## Current capabilities
 
 Phase 1 introduces the `mininet-ai/v1alpha1` public contract and a compiler that operates without root access or a running Mininet network:
@@ -22,19 +45,19 @@ Phase 1 introduces the `mininet-ai/v1alpha1` public contract and a compiler that
 
 Logical placement is intentionally separate from physical execution. For example, an agent may be attached to the data plane of a switch while its model executes in an external process. The attachment controls its network scope and available capabilities.
 
-The Phase 3 foundation adds the independent
-`mininet-ai/agent-runtime/v1alpha1` SDK contract. It defines scoped invocation
-context, model requests and responses, structured action proposals, normalized
-invocation results, and provider protocols. An execution catalog resolves each
-compiled agent to its normalized blueprint, capability definitions, and policy
-without changing the deployment-plan format.
+The Phase 3 foundation introduced the independent
+`mininet-ai/agent-runtime/v1alpha1` SDK contract. Its scoped invocation context,
+structured action proposals, normalized invocation results, capability
+contracts, and execution catalog remain part of the Mininet domain. Its generic
+agent and model provider protocols are now deprecated; the Phase 4 Agno
+migration will replace them rather than extend them.
 
-Agent, capability, and model adapters use explicit provider registries. Optional
-packages expose versioned descriptors through the `mininet_ai.agents`,
-`mininet_ai.capabilities`, or `mininet_ai.models` Python entry-point groups.
-Discovery is opt-in and transactional: compiling or validating an experiment
-does not import plugins, and a failed discovery leaves existing registrations
-unchanged.
+The current implementation still has explicit agent, capability, and model
+provider registries. Only capability extensibility remains a v1 direction;
+generic agent and model registration is transitional and deprecated. Plugin
+discovery remains opt-in and transactional while the migration is in progress:
+compiling or validating an experiment does not import plugins, and failed
+discovery leaves existing registrations unchanged.
 
 `CapabilityEngine` is the single execution seam for agent proposals. Before a
 provider can run, it verifies the compiled agent identity and scope, assigned
@@ -51,38 +74,37 @@ minimal explicit environment, bound output, enforce deadlines, and terminate
 the complete process group. HTTP adapters reject embedded URL credentials,
 disable redirects, and bound response bodies.
 
-Built-in model adapters normalize OpenAI-compatible chat completions and
-Ollama chat responses into the same `ModelResponse` contract. Calls are always
-non-streaming and use the shared bounded HTTP transport. OpenAI-compatible
-parameters are sent as top-level request fields; Ollama parameters are sent as
-`options`. When a response schema is requested, the adapter sends the backend's
-structured-output setting, parses strict JSON, and validates the result locally
-before returning it. Credentials belong in adapter configuration or plugin
-code, not experiment documents or endpoint URLs.
+The built-in OpenAI-compatible and Ollama model adapters are deprecated
+transitional implementations. Agno will replace their model invocation,
+structured-output, retry, and usage-accounting responsibilities. Credentials
+will continue to stay outside experiment documents.
 
-Declarative agent adapters turn a compiled blueprint and scoped `AgentContext`
-into one structured model request, then require a valid `AgentResponse` before
-any proposal reaches the capability engine. Python agents use an explicit
-`module:callable` entrypoint with the same context and response contracts.
-Entrypoints are imported only when their provider is constructed, never during
-validation or compilation. They currently run as trusted code in the
-orchestrator process; process and namespace isolation belong to Phase 6.
+The current declarative and Python agent providers are also deprecated.
+Declarative blueprints will construct Agno agents, and Python entrypoints will
+return configured Agno agents or factories. User code will still be imported
+only at runtime, never during validation or compilation, and will initially run
+as trusted code in the orchestrator process; process and namespace isolation
+belongs to Phase 6.
 
-Audit decorators record agent invocations, complete model prompts and normalized
-responses, token usage, action proposals, results, and typed failures as
-versioned JSON events. The JSON Lines sink serializes concurrent appenders,
+Audit decorators currently record agent invocations, complete model prompts and
+normalized responses, token usage, action proposals, results, and typed failures
+as versioned JSON events. During the Agno migration, model measurements will be
+sourced from Agno run metrics and normalized into the same experiment record.
+The JSON Lines sink serializes concurrent appenders,
 limits individual event size, and creates owner-only files. Audit records can
 contain prompts and observations and must therefore be treated as sensitive
 experiment artifacts. Writes are synchronous: failure to record a start event
 prevents the wrapped operation from running instead of silently losing audit
 coverage.
 
-`OneShotAgentRuntime` connects those seams for manual invocations. It verifies
+`OneShotAgentRuntime` currently connects those seams for manual invocations. It verifies
 that the supplied deployment plan matches a running substrate, collects only
 declared observations, invokes the selected agent and model providers, and
 passes every proposal through capability authorization. Ollama,
 OpenAI-compatible, deterministic mock, and substrate-backed providers are
-built in; installed provider plugins are loaded only when explicitly enabled.
+built in during the transition; installed provider plugins are loaded only when
+explicitly enabled. The Agno migration will replace the agent and model portion
+without changing capability authorization.
 
 The Phase 4 runtime-event contract provides one immutable, versioned envelope
 for manual intents, interval ticks, normalized observations, agent lifecycle
@@ -274,10 +296,13 @@ agents:
 ```
 
 Blueprint memory is typed as local structured state, bounded conversation
-history, and optional shared deployment/run scopes. Capability definitions may
-declare typed postcondition observations and rollback timeouts. At this stage
-the compiler validates and normalizes those declarations; subsequent Phase 4
-commits provide their runtime behavior.
+history, and optional shared deployment/run scopes. Agno will implement local
+session state and conversation history; learned memory across experiment runs
+will be explicit and opt-in. Mininet AI will implement shared deployment/run
+state because it participates in cross-agent coordination. Capability
+definitions may declare typed postcondition observations and rollback timeouts.
+At this stage the compiler validates and normalizes those declarations;
+subsequent Phase 4 commits provide their runtime behavior.
 
 ## Development
 
@@ -296,16 +321,16 @@ The code is organized by responsibility:
 
 ```text
 mininet_ai/
-├── agents/          # Declarative and Python agent adapters
+├── agents/          # Agent orchestration; migrating to the Agno runtime
 ├── audit/           # Versioned runtime events, sinks, and decorators
 ├── specification/   # Versioned user-facing models and YAML loading
 ├── compiler/        # Specification to deterministic deployment plan
 ├── capabilities/    # Proposal authorization, validation, and execution
-├── models/          # Normalized model-backend adapters
-├── plugins/         # Explicit provider registries and entry-point discovery
+├── models/          # Deprecated transitional model adapters
+├── plugins/         # Capability plugins and transitional provider registries
 ├── runtime/         # Continuous runtime events and bounded delivery
 ├── substrates/      # Substrate contracts and the Phase 1 fake driver
-├── sdk/             # Agent, model, and capability runtime contracts
+├── sdk/             # Mininet invocation, proposal, and capability contracts
 ├── transports/      # Bounded I/O shared by external adapters
 └── cli.py            # compile-time and live-runtime commands
 ```
@@ -507,15 +532,15 @@ Add deterministic network creation and teardown, resource discovery, normalized 
 
 ### Phase 3: User-defined agents and capabilities
 
-Provide a stable SDK, capability registry, plugin loading, structured action proposals, policy enforcement, and adapters for user-authored declarative and code-based agents.
+Establish scoped invocation, capability, structured-action, policy, and plugin contracts for user-authored agents. The generic agent and model provider implementations created in this phase are transitional and will be replaced by Agno during Phase 4.
 
 ### Phase 4: Continuous runtime
 
-Introduce event-driven agent lifecycles, triggers, scoped observations, memory, supervision, failure recovery, action execution, and a persistent experiment run ledger.
+Adopt Agno as the v1 agent runtime, using its model integrations, sessions, local state, memory, summaries, and usage metrics. Add event-driven agent lifecycles, triggers, scoped observations, Mininet-owned shared operational state, supervision, failure recovery, authorized action execution, and a persistent experiment run ledger.
 
 ### Phase 5: Coordination architectures
 
-Support centralized, hierarchical, and peer-to-peer agent graphs, message channels, intent routing, and conflict arbitration for concurrent actions.
+Support centralized, hierarchical, and peer-to-peer agent graphs, translating the canonical Mininet coordination plan into Agno teams or workflows where appropriate. Add message channels, intent routing, and Mininet-owned conflict arbitration for concurrent network actions.
 
 ### Phase 6: Placement and isolation
 
