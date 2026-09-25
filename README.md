@@ -136,8 +136,24 @@ overflow behavior. The deployment-wide concurrency and queued-event limits are
 also enforced. Source sequence replay is rejected, interval ticks are emitted
 as normalized runtime events, and `stop(drain=True)` completes accepted work
 before returning a structured `ContinuousRuntimeReport`. Lifecycle supervision,
-restart policy, telemetry detectors, and a long-running CLI owner remain later
-Phase 4 items.
+restart policy, and a long-running CLI owner remain later Phase 4 items.
+
+`TelemetryPipeline` executes the compiled observation policies without sending
+raw high-frequency samples to agents. It samples only each agent's declared
+targets, retains a time- and count-bounded window, and supports `latest`,
+`minimum`, `maximum`, `mean`, and `sum` aggregation while preserving the nested
+observation shape. Every sample produces a typed `observation.recorded` event.
+Threshold and z-score detectors evaluate numeric paths over the aggregated
+window and publish their configured event names with the triggering value,
+window, baseline, score, and detector identity. Detector cooldowns are scoped
+per agent, detector, and target. The detector event identifies its aggregated
+observation event as both correlation and causation evidence.
+
+The continuous runtime is a `RuntimeEventPublisher`, so the two modules compose
+directly: start the continuous runtime before the telemetry pipeline, then stop
+telemetry before draining the runtime. Sampling failures and publication
+failures are retained in a structured `TelemetryPipelineReport` instead of
+silently terminating sampler threads.
 
 `SQLiteRunLedger` persists the reproducibility manifest and append-only history
 for experiment runs. A manifest captures the normalized specification, complete

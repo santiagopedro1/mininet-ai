@@ -47,6 +47,11 @@ class ObservationRecordedPayload(StrictModel):
     observation: str = Field(min_length=1)
     targets: tuple[str, ...] = Field(min_length=1)
     values: dict[str, JsonValue] = Field(default_factory=dict)
+    agent_id: str | None = Field(default=None, alias="agentId", min_length=1)
+    aggregation: Literal["latest", "minimum", "maximum", "mean", "sum"] | None = (
+        None
+    )
+    sample_count: int | None = Field(default=None, alias="sampleCount", ge=1)
     window_started_at: AwareDatetime | None = Field(
         default=None,
         alias="windowStartedAt",
@@ -67,6 +72,57 @@ class ObservationRecordedPayload(StrictModel):
         ):
             raise ValueError("observation window cannot end before it starts")
         return self
+
+
+class DetectorEventPayload(StrictModel):
+    """Why one observation detector emitted its configured event."""
+
+    agent_id: str = Field(alias="agentId", min_length=1)
+    observation: str = Field(min_length=1)
+    detector: str = Field(min_length=1)
+    detector_type: Literal["threshold", "anomaly"] = Field(alias="detectorType")
+    aggregation: Literal["latest", "minimum", "maximum", "mean", "sum"]
+    target: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    value: float
+    operator: Literal["gt", "gte", "lt", "lte", "eq", "ne"] | None = None
+    threshold: float | None = None
+    baseline_mean: float | None = Field(default=None, alias="baselineMean")
+    baseline_stddev: float | None = Field(default=None, alias="baselineStddev", ge=0)
+    score: float | None = Field(default=None, ge=0)
+    sample_count: int = Field(alias="sampleCount", ge=1)
+    window_started_at: AwareDatetime = Field(alias="windowStartedAt")
+    window_ended_at: AwareDatetime = Field(alias="windowEndedAt")
+
+    @model_validator(mode="after")
+    def details_match_detector(self) -> DetectorEventPayload:
+        if self.window_ended_at < self.window_started_at:
+            raise ValueError("detector window cannot end before it starts")
+        if self.detector_type == "threshold":
+            if self.operator is None or self.threshold is None:
+                raise ValueError("threshold detector requires operator and threshold")
+        elif (
+            self.baseline_mean is None
+            or self.baseline_stddev is None
+            or self.score is None
+        ):
+            raise ValueError("anomaly detector requires baseline and score")
+        return self
+
+
+class TelemetryPipelineIssue(StrictModel):
+    code: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    agent_id: str | None = Field(default=None, alias="agentId", min_length=1)
+    observation: str | None = Field(default=None, min_length=1)
+
+
+class TelemetryPipelineReport(StrictModel):
+    samples: int = Field(default=0, ge=0)
+    observations: int = Field(default=0, ge=0)
+    detector_events: int = Field(default=0, alias="detectorEvents", ge=0)
+    failures: int = Field(default=0, ge=0)
+    issues: tuple[TelemetryPipelineIssue, ...] = ()
 
 
 class AgentLifecycleState(StrEnum):
