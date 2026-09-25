@@ -20,6 +20,8 @@ from pydantic import (
     model_validator,
 )
 
+from mininet_ai.durations import duration_seconds
+
 API_VERSION: Literal["mininet-ai/v1alpha1"] = "mininet-ai/v1alpha1"
 NAME_PATTERN = r"^[a-zA-Z][a-zA-Z0-9_.-]*$"
 
@@ -214,16 +216,6 @@ Duration = Annotated[
     Field(pattern=r"^(?:0|[0-9]+(?:\.[0-9]+)?)(?:us|ms|s)$"),
 ]
 
-_DURATION_FACTORS = {"us": 0.000001, "ms": 0.001, "s": 1.0}
-
-
-def _duration_seconds(value: str) -> float:
-    match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)(us|ms|s)", value)
-    if match is None:
-        raise ValueError(f"invalid duration {value!r}")
-    return float(match.group(1)) * _DURATION_FACTORS[match.group(2)]
-
-
 class LinkEndpoint(StrictModel):
     node: Name
     adapter: Name | None = None
@@ -280,6 +272,13 @@ class ReasoningConfiguration(StrictModel):
     instructions: str | None = None
     output_schema: str | None = Field(default=None, alias="output-schema")
     timeout: Duration | None = None
+
+    @field_validator("timeout")
+    @classmethod
+    def timeout_is_positive(cls, value: str | None) -> str | None:
+        if value is not None and duration_seconds(value) <= 0:
+            raise ValueError("reasoning timeout must be positive")
+        return value
 
 
 class LoopConfiguration(StrictModel):
@@ -424,7 +423,7 @@ class IntervalTrigger(StrictModel):
     @field_validator("every")
     @classmethod
     def interval_is_positive(cls, value: str) -> str:
-        if _duration_seconds(value) <= 0:
+        if duration_seconds(value) <= 0:
             raise ValueError("trigger interval must be positive")
         return value
 
@@ -482,8 +481,8 @@ class ObservationPolicy(StrictModel):
 
     @model_validator(mode="after")
     def policy_is_consistent(self) -> ObservationPolicy:
-        every = _duration_seconds(self.every)
-        window = _duration_seconds(self.window)
+        every = duration_seconds(self.every)
+        window = duration_seconds(self.window)
         if every <= 0:
             raise ValueError("observation sampling interval must be positive")
         if window < every:
@@ -520,7 +519,7 @@ class ExecutionConfiguration(StrictModel):
     @field_validator("action_timeout")
     @classmethod
     def action_timeout_is_positive(cls, value: str) -> str:
-        if _duration_seconds(value) <= 0:
+        if duration_seconds(value) <= 0:
             raise ValueError("action timeout must be positive")
         return value
 

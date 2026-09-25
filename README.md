@@ -148,6 +148,15 @@ are never restarted. Every transition is timestamped in the continuous runtime
 report, including its recovery attempt number. A long-running CLI owner remains
 a later Phase 4 item.
 
+Reasoning deadlines are enforced through Agno's asynchronous cancellation path
+when a blueprint declares `reasoning.timeout`. Action proposals are capped by
+the smaller of their requested timeout and the agent's compiled
+`execution.actionTimeout`, so an agent cannot extend its own execution budget.
+Every invocation result carries separate event-detection, context-building,
+reasoning, action-execution, and total timings. Model-queueing and action-effect
+timings remain explicitly unset until their respective provider and
+postcondition stages can measure them rather than estimating them.
+
 `TelemetryPipeline` executes the compiled observation policies without sending
 raw high-frequency samples to agents. It samples only each agent's declared
 targets, retains a time- and count-bounded window, and supports `latest`,

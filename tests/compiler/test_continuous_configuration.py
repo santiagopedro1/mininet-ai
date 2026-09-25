@@ -254,6 +254,19 @@ class ContinuousConfigurationTests(unittest.TestCase):
         ):
             Experiment.model_validate(snapshot)
 
+        snapshot = example_snapshot()
+        blueprint = next(
+            item
+            for item in snapshot["blueprints"]
+            if item["metadata"]["name"] == "local-router"
+        )
+        blueprint["reasoning"]["timeout"] = "0s"
+        with self.assertRaisesRegex(
+            ValidationError,
+            "reasoning timeout must be positive",
+        ):
+            Experiment.model_validate(snapshot)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -46,6 +47,14 @@ class StaticModel(Model):
 
     def _parse_provider_response_delta(self, response: Any) -> ModelResponse:
         return response
+
+
+class SlowAsyncModel(StaticModel):
+    """Block only the async path so timeout tests remain deterministic."""
+
+    async def ainvoke(self, *args: Any, **kwargs: Any) -> ModelResponse:
+        await asyncio.sleep(1)
+        return self.invoke(*args, **kwargs)
 
 
 def agent_factory(definition: Any) -> Agent:

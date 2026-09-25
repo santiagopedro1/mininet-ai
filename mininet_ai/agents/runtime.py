@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from time import monotonic
 from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -40,6 +41,7 @@ from mininet_ai.sdk import (
     CapabilityProvider,
     ExecutionCatalog,
     InvocationStatus,
+    InvocationTimings,
     SharedStateChange,
     SharedStateSnapshot,
     SharedStateUpdate,
@@ -57,6 +59,7 @@ from mininet_ai.substrates import (
 
 Clock = Callable[[], datetime]
 InvocationIdFactory = Callable[[], str]
+MonotonicClock = Callable[[], float]
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 
 
@@ -108,6 +111,7 @@ class OneShotAgentRuntime:
         agent_factory: AgnoAgentFactory | None = None,
         shared_state: SharedStateStore | None = None,
         clock: Clock = _utc_now,
+        monotonic_clock: MonotonicClock = monotonic,
         invocation_id_factory: InvocationIdFactory = _invocation_id,
     ) -> None:
         self._catalog = ExecutionCatalog(plan)
@@ -124,6 +128,7 @@ class OneShotAgentRuntime:
                 code="state.store.required",
             )
         self._clock = clock
+        self._monotonic = monotonic_clock
         self._invocation_id_factory = invocation_id_factory
         capability_engine = CapabilityEngine(
             self._catalog,
@@ -143,6 +148,7 @@ class OneShotAgentRuntime:
         intent: str,
     ) -> AgentInvocationResult:
         started_at = self._clock()
+        started_tick = self._monotonic()
         invocation_id = self._invocation_id_factory()
         if not intent:
             raise AgentRuntimeError(
@@ -157,6 +163,7 @@ class OneShotAgentRuntime:
                 code="agent.invocation.invalid-id",
                 agent_id=agent_id,
             )
+        context_tick = self._monotonic()
         definition = self._catalog.resolve(agent_id)
         snapshot = self._substrate.inspect(run_id)
         if snapshot.run.id != run_id:
@@ -196,12 +203,14 @@ class OneShotAgentRuntime:
             observations=observations,
             shared_state=shared_state,
         )
+        context_seconds = self._elapsed(context_tick)
         if self._audit is not None:
             self._audit.record(
                 AuditEventType.AGENT_STARTED,
                 context,
                 {"context": context.model_dump(mode="json", by_alias=True)},
             )
+        reasoning_tick = self._monotonic()
         try:
             execution = AgnoAgentProvider(
                 definition,
@@ -209,13 +218,24 @@ class OneShotAgentRuntime:
             ).run(context)
             response = execution.response
         except Exception as error:
+            reasoning_seconds = self._elapsed(reasoning_tick)
             if self._audit is not None:
                 self._audit.record(
                     AuditEventType.AGENT_FAILED,
                     context,
                     self._error_data(error),
                 )
-            return self._failure(context, started_at, error)
+            return self._failure(
+                context,
+                started_at,
+                error,
+                timings=self._timings(
+                    started_tick,
+                    context_seconds=context_seconds,
+                    reasoning_seconds=reasoning_seconds,
+                ),
+            )
+        reasoning_seconds = self._elapsed(reasoning_tick)
         if self._audit is not None:
             execution_data = execution.model_dump(
                 mode="json",
@@ -245,18 +265,36 @@ class OneShotAgentRuntime:
                     context,
                     self._error_data(error),
                 )
-            return self._state_failure(context, started_at, response, error)
+            return self._state_failure(
+                context,
+                started_at,
+                response,
+                error,
+                timings=self._timings(
+                    started_tick,
+                    context_seconds=context_seconds,
+                    reasoning_seconds=reasoning_seconds,
+                ),
+            )
 
+        action_tick = self._monotonic()
         action_results = tuple(
             self._capabilities.execute(context, proposal)
             for proposal in response.proposals
         )
+        action_seconds = self._elapsed(action_tick)
         return self._result(
             context,
             started_at,
             response,
             action_results,
             state_changes,
+            self._timings(
+                started_tick,
+                context_seconds=context_seconds,
+                reasoning_seconds=reasoning_seconds,
+                action_seconds=action_seconds,
+            ),
         )
 
     def _observe(
@@ -327,6 +365,7 @@ class OneShotAgentRuntime:
         response: AgentResponse,
         action_results: tuple[ActionResult, ...],
         state_changes: tuple[SharedStateChange, ...],
+        timings: InvocationTimings,
     ) -> AgentInvocationResult:
         unsuccessful = next(
             (
@@ -347,6 +386,7 @@ class OneShotAgentRuntime:
                 response=response,
                 actionResults=action_results,
                 sharedStateChanges=state_changes,
+                timings=timings,
             )
         issue = unsuccessful.issue
         if issue is None:
@@ -366,6 +406,7 @@ class OneShotAgentRuntime:
             response=response,
             actionResults=action_results,
             sharedStateChanges=state_changes,
+            timings=timings,
             issue=AgentRuntimeIssue(
                 code=issue.code,
                 message=issue.message,
@@ -439,6 +480,8 @@ class OneShotAgentRuntime:
         started_at: datetime,
         response: AgentResponse,
         error: SharedStateError,
+        *,
+        timings: InvocationTimings,
     ) -> AgentInvocationResult:
         return AgentInvocationResult(
             invocationId=context.invocation_id,
@@ -452,6 +495,7 @@ class OneShotAgentRuntime:
             startedAt=started_at,
             completedAt=self._clock(),
             response=response,
+            timings=timings,
             issue=AgentRuntimeIssue(
                 code=error.code,
                 message=str(error),
@@ -464,6 +508,8 @@ class OneShotAgentRuntime:
         context: AgentContext,
         started_at: datetime,
         error: Exception,
+        *,
+        timings: InvocationTimings,
     ) -> AgentInvocationResult:
         return AgentInvocationResult(
             invocationId=context.invocation_id,
@@ -472,11 +518,30 @@ class OneShotAgentRuntime:
             status=InvocationStatus.FAILED,
             startedAt=started_at,
             completedAt=self._clock(),
+            timings=timings,
             issue=AgentRuntimeIssue(
                 code=self._error_code(error),
                 message=str(error) or type(error).__name__,
                 agentId=context.agent_id,
             ),
+        )
+
+    def _elapsed(self, started: float) -> float:
+        return max(0.0, self._monotonic() - started)
+
+    def _timings(
+        self,
+        started: float,
+        *,
+        context_seconds: float,
+        reasoning_seconds: float,
+        action_seconds: float = 0,
+    ) -> InvocationTimings:
+        return InvocationTimings(
+            contextBuildSeconds=context_seconds,
+            reasoningSeconds=reasoning_seconds,
+            actionExecutionSeconds=action_seconds,
+            totalSeconds=self._elapsed(started),
         )
 
     @staticmethod

@@ -108,6 +108,33 @@ class CapabilityEngineTests(unittest.TestCase):
         self.assertEqual(result.completed_at, NOW)
         self.assertEqual(self.provider.calls, [(context, proposal)])
 
+    def test_compiled_action_timeout_caps_agent_proposal(self) -> None:
+        agents = tuple(
+            agent.model_copy(
+                update={
+                    "execution": agent.execution.model_copy(
+                        update={"action_timeout": "2s"}
+                    )
+                }
+            )
+            if agent.id == "switch-router@s1"
+            else agent
+            for agent in self.plan.agents
+        )
+        engine = CapabilityEngine(
+            ExecutionCatalog(self.plan.model_copy(update={"agents": agents})),
+            self.registries.capabilities,
+            clock=lambda: NOW,
+        )
+
+        result = engine.execute(
+            self.context(),
+            self.proposal(timeoutSeconds=20),
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCEEDED)
+        self.assertEqual(self.provider.calls[0][1].timeout_seconds, 2)
+
     def test_rejects_unassigned_out_of_scope_and_invalid_input(self) -> None:
         cases = (
             (

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import re
 import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from threading import Condition
 
 from mininet_ai.errors import MininetAIError
+from mininet_ai.durations import duration_seconds
 from mininet_ai.runtime.contracts import (
     AgentLifecycleState,
     AgentLifecycleTransition,
@@ -21,18 +21,10 @@ Clock = Callable[[], datetime]
 Sleeper = Callable[[float], None]
 TransitionListener = Callable[[AgentLifecycleTransition], None]
 Invocation = Callable[[], AgentInvocationResult]
-_DURATION_FACTORS = {"us": 0.000001, "ms": 0.001, "s": 1.0}
 
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
-
-
-def _duration_seconds(value: str) -> float:
-    match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)(us|ms|s)", value)
-    if match is None:
-        raise ValueError(f"invalid duration {value!r}")
-    return float(match.group(1)) * _DURATION_FACTORS[match.group(2)]
 
 
 class AgentSupervisionError(MininetAIError):
@@ -182,7 +174,7 @@ class AgentSupervisor:
         self._emit(transitions)
         if not should_restart:
             return False
-        self._sleeper(_duration_seconds(policy.backoff))
+        self._sleeper(duration_seconds(policy.backoff))
         self._transition(
             agent_id,
             AgentLifecycleState.RUNNING,

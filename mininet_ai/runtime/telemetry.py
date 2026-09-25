@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import re
 import sys
 import time
 from collections import deque
@@ -18,6 +17,7 @@ from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from mininet_ai.durations import duration_seconds
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.compiler.models import AgentInstance
 from mininet_ai.errors import MininetAIError
@@ -39,7 +39,6 @@ from mininet_ai.substrates import ObservationQuery, SubstrateRuntime
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
-_DURATION_FACTORS = {"us": 0.000001, "ms": 0.001, "s": 1.0}
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 
 
@@ -49,13 +48,6 @@ def _utc_now() -> datetime:
 
 def _event_id() -> str:
     return f"event-{uuid4()}"
-
-
-def _duration_seconds(value: str) -> float:
-    match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)(us|ms|s)", value)
-    if match is None:
-        raise ValueError(f"invalid duration {value!r}")
-    return float(match.group(1)) * _DURATION_FACTORS[match.group(2)]
 
 
 class TelemetryPipelineError(MininetAIError):
@@ -231,7 +223,7 @@ class TelemetryPipeline:
             )
 
     def _sampling_loop(self, binding: _PolicyBinding) -> None:
-        every = _duration_seconds(binding.policy.every)
+        every = duration_seconds(binding.policy.every)
         while not self._stop.is_set():
             try:
                 self._sample(binding)
@@ -275,8 +267,8 @@ class TelemetryPipeline:
                     code="telemetry.observation.out-of-order",
                 )
             window.append(_Sample(result.observed_at, values))
-            window_seconds = _duration_seconds(binding.policy.window)
-            every_seconds = _duration_seconds(binding.policy.every)
+            window_seconds = duration_seconds(binding.policy.window)
+            every_seconds = duration_seconds(binding.policy.every)
             max_samples = math.ceil(window_seconds / every_seconds) + 1
             cutoff = result.observed_at - timedelta(seconds=window_seconds)
             while window and window[0].observed_at < cutoff:
@@ -380,7 +372,7 @@ class TelemetryPipeline:
                         deque(),
                     )
                     cutoff = ended_at - timedelta(
-                        seconds=_duration_seconds(binding.policy.window)
+                        seconds=duration_seconds(binding.policy.window)
                     )
                     while history and history[0][0] < cutoff:
                         history.popleft()
@@ -396,7 +388,7 @@ class TelemetryPipeline:
                     sample_count = len(baseline)
                 cooldown_key = (binding.identity, detector.name, target)
                 last = self._last_emitted.get(cooldown_key)
-                cooldown = _duration_seconds(detector.cooldown)
+                cooldown = duration_seconds(detector.cooldown)
                 if last is not None and (ended_at - last).total_seconds() < cooldown:
                     continue
                 self._last_emitted[cooldown_key] = ended_at

@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 from pydantic import JsonValue, TypeAdapter
 
+from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.plugins.registry import ProviderRegistry
 from mininet_ai.sdk.catalog import AgentExecutionDefinition, ExecutionCatalog
@@ -69,6 +70,7 @@ class CapabilityEngine:
         try:
             definition = self._resolve(context)
             capability = self._authorize(definition, context, proposal)
+            proposal = self._bounded_proposal(definition, proposal)
             self._validate_schema(
                 capability.input_schema,
                 proposal.arguments,
@@ -236,6 +238,18 @@ class CapabilityEngine:
                 + ", ".join(sorted(missing_effects)),
             )
         return capability
+
+    @staticmethod
+    def _bounded_proposal(
+        definition: AgentExecutionDefinition,
+        proposal: ActionProposal,
+    ) -> ActionProposal:
+        declared = duration_seconds(
+            definition.instance.execution.action_timeout
+        )
+        return proposal.model_copy(
+            update={"timeout_seconds": min(proposal.timeout_seconds, declared)}
+        )
 
     def _validate_schema(
         self,

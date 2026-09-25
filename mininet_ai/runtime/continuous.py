@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import time
 from collections import deque
 from collections.abc import Callable
@@ -16,6 +15,7 @@ from uuid import uuid4
 
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.compiler.models import AgentInstance
+from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import (
     AgentLifecycleState,
@@ -36,7 +36,6 @@ from mininet_ai.specification.models import EventTrigger, IntervalTrigger
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
-_DURATION_FACTORS = {"us": 0.000001, "ms": 0.001, "s": 1.0}
 
 
 def _utc_now() -> datetime:
@@ -45,13 +44,6 @@ def _utc_now() -> datetime:
 
 def _event_id() -> str:
     return f"event-{uuid4()}"
-
-
-def _duration_seconds(value: str) -> float:
-    match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)(us|ms|s)", value)
-    if match is None:
-        raise ValueError(f"invalid duration {value!r}")
-    return float(match.group(1)) * _DURATION_FACTORS[match.group(2)]
 
 
 class ContinuousRuntimeError(MininetAIError):
@@ -303,10 +295,10 @@ class ContinuousAgentRuntime:
             )
 
     def _interval(self, agent: AgentInstance, trigger: IntervalTrigger) -> None:
-        delay = _duration_seconds(trigger.initial_delay)
+        delay = duration_seconds(trigger.initial_delay)
         if self._interval_stop.wait(delay):
             return
-        every = _duration_seconds(trigger.every)
+        every = duration_seconds(trigger.every)
         sequence = 0
         while not self._interval_stop.is_set():
             scheduled_at = self._clock()
@@ -471,7 +463,7 @@ class ContinuousAgentRuntime:
                     continue
                 identity = (agent.id, trigger.name)
                 last = self._last_triggered.get(identity)
-                cooldown = _duration_seconds(trigger.cooldown)
+                cooldown = duration_seconds(trigger.cooldown)
                 if last is not None and (
                     event.observed_at - last
                 ).total_seconds() < cooldown:
@@ -573,6 +565,21 @@ class ContinuousAgentRuntime:
                 with self._report_lock:
                     self._counts["failed"] += 1
                 continue
+            result = result.model_copy(
+                update={
+                    "timings": result.timings.model_copy(
+                        update={
+                            "event_detection_seconds": max(
+                                0.0,
+                                (
+                                    item.event.observed_at
+                                    - item.event.occurred_at
+                                ).total_seconds(),
+                            )
+                        }
+                    )
+                }
+            )
             record = ContinuousInvocationRecord(
                 eventId=item.event.event_id,
                 agentId=item.agent.id,

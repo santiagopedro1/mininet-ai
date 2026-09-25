@@ -28,8 +28,9 @@ from mininet_ai.specification.models import (
     LearnedMemoryConfiguration,
     LocalMemoryConfiguration,
     MemoryConfiguration,
+    ReasoningConfiguration,
 )
-from tests.agents.agno_helpers import StaticModel
+from tests.agents.agno_helpers import SlowAsyncModel, StaticModel
 from tests.compiler.helpers import EXAMPLE
 
 
@@ -109,6 +110,26 @@ class AgnoAgentProviderTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.code, "agent.context.invalid")
         self.assertEqual(model.calls, 0)
+
+    def test_declared_reasoning_timeout_cancels_agno_run(self) -> None:
+        definition = replace(
+            self.definition,
+            blueprint=self.definition.blueprint.model_copy(
+                update={"reasoning": ReasoningConfiguration(timeout="1ms")}
+            ),
+        )
+        provider = AgnoAgentProvider(
+            definition,
+            factory=AgnoAgentFactory(
+                model_resolver=lambda configuration: SlowAsyncModel()
+            ),
+        )
+
+        with self.assertRaises(AgentProviderError) as caught:
+            provider.run(self.context)
+
+        self.assertEqual(caught.exception.code, "agent.reasoning.timeout")
+        self.assertIn("0.001 seconds", str(caught.exception))
 
     def test_run_normalizes_agno_identity_and_detailed_metrics(self) -> None:
         model = DeterministicAgnoModel(

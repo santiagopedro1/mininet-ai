@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import re
 from collections.abc import Callable, Mapping
@@ -15,6 +16,7 @@ from agno.models.base import Model
 from agno.run.agent import RunOutput
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from mininet_ai.durations import duration_seconds
 from mininet_ai.agents.agno.contracts import (
     AgentRunMetrics,
     AgnoExecutionResult,
@@ -43,6 +45,15 @@ _SAFE_OUTPUT_INSTRUCTIONS = (
 )
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 _AGNO_VERSION = version("agno")
+
+
+def _reasoning_timeout_seconds(
+    definition: AgentExecutionDefinition,
+) -> float | None:
+    value = definition.blueprint.reasoning.timeout
+    if value is None:
+        return None
+    return duration_seconds(value)
 
 
 class ModelResolver(Protocol):
@@ -363,16 +374,30 @@ class AgnoAgentProvider:
             user_id = (
                 context.agent_id if learned.scope == "agent" else session_id
             )
+        timeout_seconds = _reasoning_timeout_seconds(self._definition)
         try:
-            output = self._agent.run(
-                input=context,
-                run_id=context.invocation_id,
-                session_id=session_id,
-                user_id=user_id,
-                output_schema=AgentResponse,
-            )
-        except TimeoutError:
-            raise
+            if timeout_seconds is None:
+                output = self._agent.run(
+                    input=context,
+                    run_id=context.invocation_id,
+                    session_id=session_id,
+                    user_id=user_id,
+                    output_schema=AgentResponse,
+                )
+            else:
+                output = asyncio.run(
+                    self._run_with_timeout(
+                        context,
+                        session_id,
+                        user_id,
+                        timeout_seconds,
+                    )
+                )
+        except TimeoutError as error:
+            raise AgentProviderError(
+                f"Agno reasoning exceeded {timeout_seconds:g} seconds",
+                code="agent.reasoning.timeout",
+            ) from error
         except Exception as error:
             raise AgentProviderError(
                 f"Agno agent invocation failed: {error}",
@@ -430,4 +455,22 @@ class AgnoAgentProvider:
                 learnedScope=learned.scope if learned is not None else None,
                 learnedMode=learned.mode if learned is not None else None,
             ),
+        )
+
+    async def _run_with_timeout(
+        self,
+        context: AgentContext,
+        session_id: str,
+        user_id: str | None,
+        timeout_seconds: float,
+    ) -> object:
+        return await asyncio.wait_for(
+            self._agent.arun(
+                input=context,
+                run_id=context.invocation_id,
+                session_id=session_id,
+                user_id=user_id,
+                output_schema=AgentResponse,
+            ),
+            timeout=timeout_seconds,
         )

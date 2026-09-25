@@ -52,7 +52,7 @@ def configured_shared_plan(response):
 
 
 class OneShotAgentRuntimeTests(unittest.TestCase):
-    def runtime(self, response):
+    def runtime(self, response, *, monotonic_clock=None):
         plan = configured_plan(response)
         substrate = FakeSubstrateRuntime(
             clock=lambda: NOW,
@@ -62,6 +62,9 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         registries = ProviderRegistries()
         register_builtin_providers(registries, substrate)
         sink = MemoryAuditSink()
+        options = {}
+        if monotonic_clock is not None:
+            options["monotonic_clock"] = monotonic_clock
         runtime = OneShotAgentRuntime(
             plan,
             substrate,
@@ -69,8 +72,25 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
             audit=AuditRecorder(sink, clock=lambda: NOW),
             clock=lambda: NOW,
             invocation_id_factory=lambda: "invoke-1",
+            **options,
         )
         return runtime, run, sink
+
+    def test_records_separate_context_reasoning_and_action_timings(self) -> None:
+        ticks = iter(float(value) for value in range(8))
+        runtime, run, _ = self.runtime(
+            {"message": "measured"},
+            monotonic_clock=lambda: next(ticks),
+        )
+
+        result = runtime.invoke(run.id, "switch-router@s1", "inspect")
+
+        self.assertEqual(result.timings.context_build_seconds, 1)
+        self.assertEqual(result.timings.reasoning_seconds, 1)
+        self.assertEqual(result.timings.action_execution_seconds, 1)
+        self.assertEqual(result.timings.total_seconds, 7)
+        self.assertIsNone(result.timings.model_queueing_seconds)
+        self.assertIsNone(result.timings.action_effect_seconds)
 
     def test_observes_invokes_authorizes_executes_and_audits(self) -> None:
         response = {

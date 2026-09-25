@@ -262,6 +262,42 @@ class AgentProviderError(Exception):
         self.code = code
 
 
+class InvocationTimings(StrictModel):
+    """Measured invocation phases; unavailable phases remain unset."""
+
+    event_detection_seconds: float | None = Field(
+        default=None,
+        alias="eventDetectionSeconds",
+        ge=0,
+    )
+    context_build_seconds: float = Field(
+        default=0,
+        alias="contextBuildSeconds",
+        ge=0,
+    )
+    model_queueing_seconds: float | None = Field(
+        default=None,
+        alias="modelQueueingSeconds",
+        ge=0,
+    )
+    reasoning_seconds: float = Field(
+        default=0,
+        alias="reasoningSeconds",
+        ge=0,
+    )
+    action_execution_seconds: float = Field(
+        default=0,
+        alias="actionExecutionSeconds",
+        ge=0,
+    )
+    action_effect_seconds: float | None = Field(
+        default=None,
+        alias="actionEffectSeconds",
+        ge=0,
+    )
+    total_seconds: float = Field(default=0, alias="totalSeconds", ge=0)
+
+
 class AgentInvocationResult(StrictModel):
     invocation_id: str = Field(alias="invocationId", min_length=1)
     run_id: str = Field(alias="runId", min_length=1)
@@ -278,6 +314,7 @@ class AgentInvocationResult(StrictModel):
         default=(),
         alias="sharedStateChanges",
     )
+    timings: InvocationTimings = Field(default_factory=InvocationTimings)
     issue: AgentRuntimeIssue | None = None
 
     @model_validator(mode="after")

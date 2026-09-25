@@ -279,6 +279,10 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
         self.assertEqual(report.matched, 2)
         self.assertEqual(report.completed, 2)
         self.assertEqual(
+            report.invocations[0].result.timings.event_detection_seconds,
+            0,
+        )
+        self.assertEqual(
             [record.trigger for record in report.invocations],
             ["operator", "queue-alert"],
         )
