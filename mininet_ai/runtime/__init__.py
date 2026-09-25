@@ -3,6 +3,9 @@
 from mininet_ai.runtime.contracts import (
     AgentLifecyclePayload,
     AgentLifecycleState,
+    ContinuousInvocationRecord,
+    ContinuousRuntimeIssue,
+    ContinuousRuntimeReport,
     IntervalElapsedPayload,
     ObservationRecordedPayload,
     RUNTIME_EVENT_CONTRACT_VERSION,
@@ -11,6 +14,12 @@ from mininet_ai.runtime.contracts import (
     RuntimeEvent,
     RuntimeEventType,
     RuntimeFailurePayload,
+)
+from mininet_ai.runtime.continuous import (
+    AgentInvoker,
+    ContinuousAgentRuntime,
+    ContinuousRuntimeError,
+    ContinuousRuntimeState,
 )
 from mininet_ai.runtime.events import (
     EventBusError,
@@ -44,6 +53,13 @@ __all__ = [
     "RUNTIME_EVENT_SCHEMA_ID",
     "AgentLifecyclePayload",
     "AgentLifecycleState",
+    "AgentInvoker",
+    "ContinuousAgentRuntime",
+    "ContinuousInvocationRecord",
+    "ContinuousRuntimeError",
+    "ContinuousRuntimeIssue",
+    "ContinuousRuntimeReport",
+    "ContinuousRuntimeState",
     "EventBusError",
     "InMemoryRuntimeEventBus",
     "IntervalElapsedPayload",

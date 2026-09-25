@@ -15,6 +15,7 @@ from pydantic import (
 )
 
 from mininet_ai.specification.models import StrictModel
+from mininet_ai.sdk import AgentInvocationResult
 
 
 RUNTIME_EVENT_CONTRACT_VERSION: Literal["mininet-ai/runtime-event/v1alpha1"] = (
@@ -93,6 +94,40 @@ class RuntimeFailurePayload(StrictModel):
     message: str = Field(min_length=1)
     agent_id: str | None = Field(default=None, alias="agentId", min_length=1)
     recoverable: bool = False
+
+
+class ContinuousInvocationRecord(StrictModel):
+    """One event-to-agent invocation completed by the continuous runtime."""
+
+    event_id: str = Field(alias="eventId", min_length=1)
+    agent_id: str = Field(alias="agentId", min_length=1)
+    trigger: str = Field(min_length=1)
+    result: AgentInvocationResult
+
+
+class ContinuousRuntimeIssue(StrictModel):
+    """A trigger delivery that was skipped, dropped, or rejected."""
+
+    code: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    event_id: str | None = Field(default=None, alias="eventId", min_length=1)
+    agent_id: str | None = Field(default=None, alias="agentId", min_length=1)
+    trigger: str | None = Field(default=None, min_length=1)
+
+
+class ContinuousRuntimeReport(StrictModel):
+    """Thread-safe runtime counters and completed invocation records."""
+
+    received: int = Field(default=0, ge=0)
+    matched: int = Field(default=0, ge=0)
+    enqueued: int = Field(default=0, ge=0)
+    coalesced: int = Field(default=0, ge=0)
+    dropped: int = Field(default=0, ge=0)
+    rejected: int = Field(default=0, ge=0)
+    completed: int = Field(default=0, ge=0)
+    failed: int = Field(default=0, ge=0)
+    invocations: tuple[ContinuousInvocationRecord, ...] = ()
+    issues: tuple[ContinuousRuntimeIssue, ...] = ()
 
 
 PayloadModel = TypeVar("PayloadModel", bound=BaseModel)

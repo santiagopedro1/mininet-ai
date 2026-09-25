@@ -13,6 +13,7 @@ from mininet_ai.agents.runtime import (
     OneShotAgentRuntime,
     register_builtin_providers,
 )
+from mininet_ai.runtime import ContinuousAgentRuntime
 
 __all__ = [
     "AgnoAgentFactory",
@@ -21,5 +22,6 @@ __all__ = [
     "DeclarativeAgentProvider",
     "PythonAgentProvider",
     "OneShotAgentRuntime",
+    "ContinuousAgentRuntime",
     "register_builtin_providers",
 ]

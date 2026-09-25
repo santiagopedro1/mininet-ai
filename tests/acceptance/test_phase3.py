@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import unittest
+from datetime import UTC, datetime
 from importlib.metadata import EntryPoint, EntryPoints
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,6 +19,12 @@ from mininet_ai.audit import AuditEventType, AuditRecorder, MemoryAuditSink
 from mininet_ai.cli import app
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
+from mininet_ai.runtime import (
+    ContinuousAgentRuntime,
+    ManualIntentPayload,
+    RuntimeEvent,
+    RuntimeEventType,
+)
 from mininet_ai.sdk import InvocationStatus
 from mininet_ai.substrates import ActionStatus, FakeSubstrateRuntime
 
@@ -100,6 +107,45 @@ class Phase3AcceptanceTests(unittest.TestCase):
         self.assertEqual(metrics["cacheReadTokens"], 5)
         self.assertEqual(metrics["reasoningTokens"], 3)
         self.assertEqual(metrics["cost"], 0.001)
+
+    def test_manual_event_runs_the_complete_agno_and_capability_path(self) -> None:
+        plan = compile_experiment(EXPERIMENT)
+        substrate = FakeSubstrateRuntime(run_id_factory=lambda: "continuous-run")
+        run = substrate.deploy(plan)
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, substrate)
+        discover_plugins(registries, entry_points=capability_entry_points())
+        one_shot = OneShotAgentRuntime(
+            plan,
+            substrate,
+            registries,
+            invocation_id_factory=lambda: "continuous-invocation",
+        )
+        runtime = ContinuousAgentRuntime(plan, run.id, one_shot)
+        payload = ManualIntentPayload(
+            agentId="edge-operator@s1",
+            intent="Inspect s1 and apply the declared safe change",
+        )
+        observed_at = datetime.now(UTC)
+        event = RuntimeEvent(
+            eventId="manual-1",
+            runId=run.id,
+            type=RuntimeEventType.MANUAL_INTENT,
+            source="acceptance-test",
+            subject="edge-operator@s1",
+            occurredAt=observed_at,
+            observedAt=observed_at,
+            sequence=1,
+            payload=payload.model_dump(mode="json", by_alias=True),
+        )
+
+        runtime.start()
+        runtime.publish(event)
+        report = runtime.stop()
+
+        self.assertEqual(report.completed, 1)
+        self.assertEqual(report.failed, 0)
+        self.assertEqual(len(report.invocations[0].result.action_results), 2)
 
     def test_out_of_scope_plugin_action_is_rejected_before_execution(self) -> None:
         plan = compile_experiment(EXPERIMENT)

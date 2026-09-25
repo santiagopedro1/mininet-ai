@@ -94,7 +94,9 @@ run. It deliberately supplies no network mutation tools: returned proposals
 still require capability authorization. Agno run identity, model identity, and
 normalized token, cache, reasoning, audio, cost, and timing metrics are written
 to the completed-invocation audit record and therefore to ledger-backed audit
-sinks. Continuous invocation will reuse this path in a later Phase 4 commit.
+sinks. Continuous invocation now reuses this exact path through
+`ContinuousAgentRuntime`; event scheduling does not bypass Agno execution,
+shared state, capability authorization, or audit recording.
 
 The active Agno path records scoped invocation context, normalized responses,
 Agno run and session identity, model identity, usage metrics, action proposals,
@@ -124,6 +126,18 @@ correlation and causation identifiers, and a JSON payload. Standard event
 payloads have typed models. `InMemoryRuntimeEventBus` provides bounded,
 thread-safe FIFO delivery: a full or closed bus rejects publication explicitly,
 and closure wakes blocked consumers after already queued events are drained.
+
+`ContinuousAgentRuntime` consumes that event stream and matches compiled
+manual, interval, and named event triggers. Events without an explicit trigger
+subject remain scoped to the attached agent target; explicit subjects, sources,
+and cooldowns are enforced. Each agent has a FIFO queue with its declared
+`queueCapacity`, `maxConcurrency`, and `reject`, `drop-oldest`, or `coalesce`
+overflow behavior. The deployment-wide concurrency and queued-event limits are
+also enforced. Source sequence replay is rejected, interval ticks are emitted
+as normalized runtime events, and `stop(drain=True)` completes accepted work
+before returning a structured `ContinuousRuntimeReport`. Lifecycle supervision,
+restart policy, telemetry detectors, and a long-running CLI owner remain later
+Phase 4 items.
 
 `SQLiteRunLedger` persists the reproducibility manifest and append-only history
 for experiment runs. A manifest captures the normalized specification, complete
