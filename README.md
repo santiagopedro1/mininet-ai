@@ -684,6 +684,10 @@ Adopt Agno as the v1 agent runtime, using its model integrations, sessions, loca
 
 Support centralized, hierarchical, and peer-to-peer agent graphs, translating the canonical Mininet coordination plan into Agno teams or workflows where appropriate. Add message channels, intent routing, and Mininet-owned conflict arbitration for concurrent network actions.
 
+The proposed runtime architecture, ownership seams, compatibility gates, and
+acceptance matrix are documented in
+[`docs/phase5-coordination.md`](docs/phase5-coordination.md).
+
 ### Phase 6: Placement and isolation
 
 Turn logical placements into isolated processes, namespaces, containers, controller-side runtimes, host runtimes, and device-local sidecars with explicit privilege boundaries.
