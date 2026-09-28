@@ -65,3 +65,5 @@ class Phase4AcceptanceTests(unittest.TestCase):
         self.assertIn("agent.invocation.completed", payload["recordTypes"])
         self.assertIn("capability.execution.completed", payload["recordTypes"])
         self.assertEqual(payload["recordTypes"][-1], "run.stopped")
+        memory_results = payload["memoryState"]["mininetActionResults"]
+        self.assertTrue(memory_results[0]["postconditions"][0]["satisfied"])

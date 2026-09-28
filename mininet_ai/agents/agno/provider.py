@@ -5,12 +5,15 @@ from __future__ import annotations
 import asyncio
 import importlib
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from importlib.metadata import version
+from pathlib import Path
+from threading import RLock
+from time import monotonic
 from typing import Protocol, cast
 
 from agno.agent import Agent
-from agno.db.base import BaseDb
 from agno.metrics import ModelMetrics, RunMetrics
 from agno.models.base import Model
 from agno.run.agent import RunOutput
@@ -24,6 +27,7 @@ from mininet_ai.agents.agno.contracts import (
     ModelRunMetrics,
 )
 from mininet_ai.agents.agno.models import DeterministicAgnoModel
+from mininet_ai.agents.agno.storage import create_agno_database
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
 from mininet_ai.sdk.contracts import (
     AGENT_RUNTIME_CONTRACT_VERSION,
@@ -32,6 +36,7 @@ from mininet_ai.sdk.contracts import (
     AgentResponse,
 )
 from mininet_ai.specification.models import ModelConfiguration
+from mininet_ai.substrates import ActionResult
 
 
 _ENTRYPOINT_PATTERN = re.compile(
@@ -210,18 +215,62 @@ class AgnoAgentFactory:
         self,
         *,
         model_resolver: ModelResolver | None = None,
-        db: BaseDb | None = None,
+        database_path: str | Path | None = None,
     ) -> None:
         self._model_resolver = model_resolver or _default_model_resolver
-        self._db = db
+        self._db = (
+            create_agno_database(database_path)
+            if database_path is not None
+            else None
+        )
+        self._lock = RLock()
+        self._agents: dict[str, Agent] = {}
+        self._definitions: dict[str, AgentExecutionDefinition] = {}
+        self._invocation_locks: dict[str, RLock] = {}
 
     def create(self, definition: AgentExecutionDefinition) -> Agent:
-        implementation = definition.blueprint.implementation
-        if implementation.type == "declarative":
-            agent = self._declarative(definition)
-        else:
-            agent = self._python(definition)
-        return self._configure(agent, definition)
+        identity = definition.instance.id
+        with self._lock:
+            existing = self._agents.get(identity)
+            if existing is not None:
+                if self._definitions[identity] != definition:
+                    raise AgentProviderError(
+                        f"agent {identity!r} was requested with another definition",
+                        code="agent.agno.definition-conflict",
+                    )
+                return existing
+            implementation = definition.blueprint.implementation
+            if implementation.type == "declarative":
+                agent = self._declarative(definition)
+            else:
+                agent = self._python(definition)
+            configured = self._configure(agent, definition)
+            self._agents[identity] = configured
+            self._definitions[identity] = definition
+            self._invocation_locks[identity] = RLock()
+            return configured
+
+    @contextmanager
+    def invocation(self, agent_id: str) -> Iterator[None]:
+        """Serialize use of one persistent Agno agent instance."""
+
+        with self._lock:
+            try:
+                invocation_lock = self._invocation_locks[agent_id]
+            except KeyError as error:
+                raise AgentProviderError(
+                    f"Agno agent {agent_id!r} has not been created",
+                    code="agent.agno.not-created",
+                ) from error
+        with invocation_lock:
+            yield
+
+    def session_state(self, agent_id: str, session_id: str) -> dict[str, JsonValue]:
+        """Return normalized local state without exposing an Agno object."""
+
+        with self.invocation(agent_id):
+            state = self._agents[agent_id].get_session_state(session_id)
+        return _json_object(state, field="session state")
 
     def _configure(
         self,
@@ -358,7 +407,8 @@ class AgnoAgentProvider:
         factory: AgnoAgentFactory | None = None,
     ) -> None:
         self._definition = definition
-        self._agent = (factory or AgnoAgentFactory()).create(definition)
+        self._factory = factory or AgnoAgentFactory()
+        self._agent = self._factory.create(definition)
 
     def invoke(self, context: AgentContext) -> AgentResponse:
         return self.run(context).response
@@ -376,23 +426,26 @@ class AgnoAgentProvider:
             )
         timeout_seconds = _reasoning_timeout_seconds(self._definition)
         try:
-            if timeout_seconds is None:
-                output = self._agent.run(
-                    input=context,
-                    run_id=context.invocation_id,
-                    session_id=session_id,
-                    user_id=user_id,
-                    output_schema=AgentResponse,
-                )
-            else:
-                output = asyncio.run(
-                    self._run_with_timeout(
-                        context,
-                        session_id,
-                        user_id,
-                        timeout_seconds,
+            queued_at = monotonic()
+            with self._factory.invocation(context.agent_id):
+                queueing_seconds = max(0.0, monotonic() - queued_at)
+                if timeout_seconds is None:
+                    output = self._agent.run(
+                        input=context,
+                        run_id=context.invocation_id,
+                        session_id=session_id,
+                        user_id=user_id,
+                        output_schema=AgentResponse,
                     )
-                )
+                else:
+                    output = asyncio.run(
+                        self._run_with_timeout(
+                            context,
+                            session_id,
+                            user_id,
+                            timeout_seconds,
+                        )
+                    )
         except TimeoutError as error:
             raise AgentProviderError(
                 f"Agno reasoning exceeded {timeout_seconds:g} seconds",
@@ -437,6 +490,7 @@ class AgnoAgentProvider:
             userId=user_id,
             model=output.model,
             modelProvider=output.model_provider,
+            modelQueueingSeconds=queueing_seconds,
             response=_normalize_output(output),
             metrics=_run_metrics(output.metrics),
             memory=AgnoMemorySettings(
@@ -456,6 +510,44 @@ class AgnoAgentProvider:
                 learnedMode=learned.mode if learned is not None else None,
             ),
         )
+
+    def record_action_results(
+        self,
+        context: AgentContext,
+        results: tuple[ActionResult, ...],
+    ) -> dict[str, JsonValue] | None:
+        """Persist observed action outcomes in declared agent-local state."""
+
+        local = self._definition.blueprint.memory.local
+        if local is None or not results:
+            return None
+        session_id = f"{context.run_id}:{context.agent_id}"
+        payload = [
+            result.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for result in results
+        ]
+        try:
+            with self._factory.invocation(context.agent_id):
+                current = self._agent.get_session_state(session_id)
+                key = "mininetActionResults"
+                if key not in current and len(current) >= local.max_entries:
+                    raise AgentProviderError(
+                        "Agno session state has no capacity for action results",
+                        code="agent.agno.local-memory-limit",
+                    )
+                self._agent.update_session_state(
+                    {key: payload},
+                    session_id=session_id,
+                )
+                updated = self._agent.get_session_state(session_id)
+        except AgentProviderError:
+            raise
+        except Exception as error:
+            raise AgentProviderError(
+                f"could not persist action results in Agno state: {error}",
+                code="agent.agno.local-memory-write-failed",
+            ) from error
+        return _json_object(updated, field="session state")
 
     async def _run_with_timeout(
         self,

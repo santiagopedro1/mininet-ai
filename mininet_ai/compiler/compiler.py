@@ -810,7 +810,7 @@ def compile_experiment(
     canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
     digest = f"sha256:{hashlib.sha256(canonical.encode()).hexdigest()}"
     return DeploymentPlan(
-        apiVersion="mininet-ai/v1alpha1",
+        apiVersion="mininet-ai/v1alpha2",
         metadata=loaded.experiment.metadata,
         source=str(loaded.source),
         digest=digest,

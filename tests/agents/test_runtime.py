@@ -89,7 +89,7 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         self.assertEqual(result.timings.reasoning_seconds, 1)
         self.assertEqual(result.timings.action_execution_seconds, 1)
         self.assertEqual(result.timings.total_seconds, 7)
-        self.assertIsNone(result.timings.model_queueing_seconds)
+        self.assertIsNotNone(result.timings.model_queueing_seconds)
         self.assertIsNone(result.timings.action_effect_seconds)
 
     def test_postcondition_latency_is_separate_from_action_execution(self) -> None:

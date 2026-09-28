@@ -13,7 +13,6 @@ from mininet_ai.agents.agno.provider import (
     AgnoAgentProvider,
     ModelResolver,
 )
-from mininet_ai.agents.agno.storage import create_agno_database
 
 __all__ = [
     "AgnoAgentFactory",
@@ -25,5 +24,4 @@ __all__ = [
     "ModelRunMetrics",
     "ModelResolver",
     "TokenMetrics",
-    "create_agno_database",
 ]

@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
-import stat
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -22,6 +20,7 @@ from mininet_ai.sdk import (
     SharedStateSnapshot,
     SharedStateUpdate,
 )
+from mininet_ai.storage import PrivateStoragePathError, prepare_private_sqlite_file
 
 
 SharedScope = Literal["run", "deployment"]
@@ -421,28 +420,16 @@ class SQLiteSharedStateStore:
 
     def _prepare_file(self) -> None:
         try:
-            self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            if self.path.exists() or self.path.is_symlink():
-                status = self.path.lstat()
-                if not stat.S_ISREG(status.st_mode) or stat.S_IMODE(
-                    status.st_mode
-                ) & 0o077:
-                    raise SharedStateError(
-                        f"shared-state store {self.path} is not an owner-only "
-                        "regular file",
-                        code="state.path.unsafe",
-                    )
-                return
-            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-            flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-            descriptor = os.open(self.path, flags, 0o600)
-            os.close(descriptor)
-        except SharedStateError:
-            raise
-        except OSError as error:
+            prepare_private_sqlite_file(self.path)
+        except PrivateStoragePathError as error:
             raise SharedStateError(
-                f"could not prepare shared-state store {self.path}: {error}",
-                code="state.open.failed",
+                (
+                    f"shared-state store {self.path} is not an owner-only "
+                    "regular file"
+                    if error.unsafe
+                    else f"could not prepare shared-state store {self.path}: {error}"
+                ),
+                code=("state.path.unsafe" if error.unsafe else "state.open.failed"),
             ) from error
 
     def _require_open(self) -> sqlite3.Connection:

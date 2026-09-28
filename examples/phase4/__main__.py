@@ -9,7 +9,6 @@ from typing import Sequence
 
 from mininet_ai.agents import (
     AgnoAgentFactory,
-    create_agno_database,
     register_builtin_providers,
 )
 from mininet_ai.audit import AuditRecorder
@@ -55,12 +54,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
     register_builtin_providers(registries, substrate)
     ledger = SQLiteRunLedger(options.ledger_db)
     state_store = SQLiteSharedStateStore(options.shared_state_db)
+    agent_factory = AgnoAgentFactory(database_path=options.agno_db)
     owner = ExperimentRuntime(
         plan,
         substrate,
         registries,
         audit=AuditRecorder(LedgerAuditSink(ledger)),
-        agent_factory=AgnoAgentFactory(db=create_agno_database(options.agno_db)),
+        agent_factory=agent_factory,
         shared_state=state_store,
         ledger=ledger,
     )
@@ -81,6 +81,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
     payload = {
         "report": report.model_dump(mode="json", by_alias=True, exclude_none=True),
         "recordTypes": [record.type for record in records],
+        "memoryState": agent_factory.session_state(
+            "congestion-controller@s1",
+            f"{report.run.id}:congestion-controller@s1",
+        ),
     }
     print(json.dumps(payload, indent=2))
     succeeded = (

@@ -3,7 +3,6 @@
 from mininet_ai.agents.agno import (
     AgnoAgentFactory,
     AgnoAgentProvider,
-    create_agno_database,
 )
 from mininet_ai.agents.providers import (
     DeclarativeAgentProvider,
@@ -18,7 +17,6 @@ from mininet_ai.runtime import ContinuousAgentRuntime
 __all__ = [
     "AgnoAgentFactory",
     "AgnoAgentProvider",
-    "create_agno_database",
     "DeclarativeAgentProvider",
     "PythonAgentProvider",
     "OneShotAgentRuntime",

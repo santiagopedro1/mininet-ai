@@ -4,6 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from mininet_ai.cli import app
@@ -28,7 +29,7 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
         self.assertEqual(schema["$id"], DEPLOYMENT_PLAN_SCHEMA_ID)
         self.assertEqual(
             schema["properties"]["apiVersion"]["const"],
-            "mininet-ai/v1alpha1",
+            "mininet-ai/v1alpha2",
         )
         self.assertEqual(schema["properties"]["kind"]["const"], "DeploymentPlan")
         self.assertIn("PlannedController", schema["$defs"])
@@ -48,7 +49,7 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
 
         self.assertEqual(restored, original)
 
-    def test_additive_runtime_fields_preserve_older_plan_payloads(self) -> None:
+    def test_runtime_fields_have_v1alpha2_defaults_when_omitted(self) -> None:
         payload = compile_experiment(EXAMPLE).model_dump(
             mode="json",
             by_alias=True,
@@ -66,6 +67,16 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
         self.assertTrue(
             all(agent.triggers[0].type == "manual" for agent in restored.agents)
         )
+
+    def test_v1alpha1_plan_is_rejected_instead_of_silently_reinterpreted(self) -> None:
+        payload = compile_experiment(EXAMPLE).model_dump(
+            mode="json",
+            by_alias=True,
+        )
+        payload["apiVersion"] = "mininet-ai/v1alpha1"
+
+        with self.assertRaises(ValidationError):
+            DeploymentPlan.model_validate(payload)
 
     def test_cli_exposes_deployment_plan_schema(self) -> None:
         result = CliRunner().invoke(app, ["schema", "deployment-plan"])

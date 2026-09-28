@@ -4,6 +4,7 @@ import unittest
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from mininet_ai.agents import register_builtin_providers
 from mininet_ai.audit import AuditRecorder
@@ -13,11 +14,14 @@ from mininet_ai.experiment import (
 )
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime import (
+    ContinuousRuntimeError,
+    ContinuousRuntimeReport,
     LedgerAuditSink,
     LedgerError,
     LedgerRecordCategory,
     RunManifest,
     SQLiteRunLedger,
+    TelemetryPipelineReport,
 )
 from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 from tests.agents.test_runtime import configured_plan
@@ -109,6 +113,73 @@ class ExperimentRuntimeTests(unittest.TestCase):
             substrate.inspect("duplicate-run").run.state,
             RunState.STOPPED,
         )
+
+    def test_stop_does_not_teardown_until_runtime_workers_have_stopped(self) -> None:
+        class RetryableContinuous:
+            def __init__(self) -> None:
+                self.stop_calls = 0
+
+            def start(self) -> None:
+                pass
+
+            def stop(self, **options) -> ContinuousRuntimeReport:
+                del options
+                self.stop_calls += 1
+                if self.stop_calls == 1:
+                    raise ContinuousRuntimeError(
+                        "worker still active",
+                        code="runtime.stop.timeout",
+                    )
+                return ContinuousRuntimeReport()
+
+            def report(self) -> ContinuousRuntimeReport:
+                return ContinuousRuntimeReport()
+
+        class StoppableTelemetry:
+            def start(self) -> None:
+                pass
+
+            def stop(self, **options) -> TelemetryPipelineReport:
+                del options
+                return TelemetryPipelineReport()
+
+            def report(self) -> TelemetryPipelineReport:
+                return TelemetryPipelineReport()
+
+        plan = configured_plan({"message": "unused"})
+        substrate = FakeSubstrateRuntime(run_id_factory=lambda: "retry-run")
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, substrate)
+        continuous = RetryableContinuous()
+        telemetry = StoppableTelemetry()
+        owner = ExperimentRuntime(plan, substrate, registries)
+
+        with (
+            patch(
+                "mininet_ai.experiment.ContinuousAgentRuntime",
+                return_value=continuous,
+            ),
+            patch(
+                "mininet_ai.experiment.TelemetryPipeline",
+                return_value=telemetry,
+            ),
+        ):
+            owner.start()
+            failed = owner.stop(timeout_seconds=0.01)
+
+            self.assertEqual(failed.state, ExperimentRuntimeState.FAILED)
+            self.assertIsNone(failed.teardown)
+            self.assertEqual(
+                substrate.inspect("retry-run").run.state,
+                RunState.RUNNING,
+            )
+
+            stopped = owner.stop(timeout_seconds=1)
+
+        self.assertEqual(stopped.state, ExperimentRuntimeState.STOPPED)
+        assert stopped.teardown is not None
+        self.assertEqual(stopped.run.state, RunState.STOPPED)
+        self.assertEqual(continuous.stop_calls, 2)
 
 
 if __name__ == "__main__":

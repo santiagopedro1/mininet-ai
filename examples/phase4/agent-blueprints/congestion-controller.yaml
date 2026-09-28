@@ -1,4 +1,4 @@
-apiVersion: mininet-ai/v1alpha1
+apiVersion: mininet-ai/v1alpha2
 kind: AgentBlueprint
 metadata:
   name: congestion-controller
@@ -26,3 +26,6 @@ model:
 reasoning:
   instructions: React only with capabilities and targets supplied in context.
   timeout: 2s
+memory:
+  local:
+    maxEntries: 8

@@ -218,10 +218,11 @@ class OneShotAgentRuntime:
             )
         reasoning_tick = self._monotonic()
         try:
-            execution = AgnoAgentProvider(
+            provider = AgnoAgentProvider(
                 definition,
                 factory=self._agent_factory,
-            ).run(context)
+            )
+            execution = provider.run(context)
             response = execution.response
         except Exception as error:
             reasoning_seconds = self._elapsed(reasoning_tick)
@@ -279,6 +280,7 @@ class OneShotAgentRuntime:
                 timings=self._timings(
                     started_tick,
                     context_seconds=context_seconds,
+                    model_queueing_seconds=execution.model_queueing_seconds,
                     reasoning_seconds=reasoning_seconds,
                 ),
             )
@@ -301,19 +303,47 @@ class OneShotAgentRuntime:
             0.0,
             action_total_seconds - (effect_seconds or 0.0),
         )
+        timings = self._timings(
+            started_tick,
+            context_seconds=context_seconds,
+            model_queueing_seconds=execution.model_queueing_seconds,
+            reasoning_seconds=reasoning_seconds,
+            action_seconds=action_seconds,
+            effect_seconds=effect_seconds,
+        )
+        try:
+            provider.record_action_results(context, action_results)
+        except Exception as error:
+            if self._audit is not None:
+                self._audit.record(
+                    AuditEventType.AGENT_FAILED,
+                    context,
+                    self._error_data(error),
+                )
+            return AgentInvocationResult(
+                invocationId=context.invocation_id,
+                runId=context.run_id,
+                agentId=context.agent_id,
+                status=InvocationStatus.FAILED,
+                startedAt=started_at,
+                completedAt=self._clock(),
+                response=response,
+                actionResults=action_results,
+                sharedStateChanges=state_changes,
+                timings=timings,
+                issue=AgentRuntimeIssue(
+                    code=self._error_code(error),
+                    message=str(error) or type(error).__name__,
+                    agentId=context.agent_id,
+                ),
+            )
         return self._result(
             context,
             started_at,
             response,
             action_results,
             state_changes,
-            self._timings(
-                started_tick,
-                context_seconds=context_seconds,
-                reasoning_seconds=reasoning_seconds,
-                action_seconds=action_seconds,
-                effect_seconds=effect_seconds,
-            ),
+            timings,
         )
 
     def _observe(
@@ -553,12 +583,14 @@ class OneShotAgentRuntime:
         started: float,
         *,
         context_seconds: float,
+        model_queueing_seconds: float | None = None,
         reasoning_seconds: float,
         action_seconds: float = 0,
         effect_seconds: float | None = None,
     ) -> InvocationTimings:
         return InvocationTimings(
             contextBuildSeconds=context_seconds,
+            modelQueueingSeconds=model_queueing_seconds,
             reasoningSeconds=reasoning_seconds,
             actionExecutionSeconds=action_seconds,
             actionEffectSeconds=effect_seconds,

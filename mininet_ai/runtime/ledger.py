@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 import sqlite3
-import stat
 from enum import StrEnum
 from pathlib import Path
 from threading import RLock
@@ -16,6 +14,7 @@ from mininet_ai.audit.contracts import AuditEvent, AuditEventType
 from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import RuntimeEvent
 from mininet_ai.specification.models import StrictModel
+from mininet_ai.storage import PrivateStoragePathError, prepare_private_sqlite_file
 
 if TYPE_CHECKING:
     from mininet_ai.compiler import DeploymentPlan
@@ -450,26 +449,15 @@ class SQLiteRunLedger:
 
     def _prepare_file(self) -> None:
         try:
-            self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            if self.path.exists() or self.path.is_symlink():
-                status = self.path.lstat()
-                mode = stat.S_IMODE(status.st_mode)
-                if not stat.S_ISREG(status.st_mode) or mode & 0o077:
-                    raise LedgerError(
-                        f"run ledger {self.path} is not an owner-only regular file",
-                        code="ledger.path.unsafe",
-                    )
-                return
-            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-            flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-            descriptor = os.open(self.path, flags, 0o600)
-            os.close(descriptor)
-        except LedgerError:
-            raise
-        except OSError as error:
+            prepare_private_sqlite_file(self.path)
+        except PrivateStoragePathError as error:
             raise LedgerError(
-                f"could not prepare run ledger {self.path}: {error}",
-                code="ledger.open.failed",
+                (
+                    f"run ledger {self.path} is not an owner-only regular file"
+                    if error.unsafe
+                    else f"could not prepare run ledger {self.path}: {error}"
+                ),
+                code=("ledger.path.unsafe" if error.unsafe else "ledger.open.failed"),
             ) from error
 
     def _require_open(self) -> sqlite3.Connection:

@@ -113,6 +113,8 @@ class ExperimentRuntime:
         self._run: RunInfo | None = None
         self._continuous: ContinuousAgentRuntime | None = None
         self._telemetry: TelemetryPipeline | None = None
+        self._continuous_started = False
+        self._telemetry_started = False
         self._report: ExperimentRuntimeReport | None = None
         self._source_sequences: dict[str, int] = {}
 
@@ -180,7 +182,9 @@ class ExperimentRuntime:
             )
             self._continuous = continuous
             self._telemetry = telemetry
+            self._continuous_started = True
             continuous.start()
+            self._telemetry_started = True
             telemetry.start()
             with self._lock:
                 self._state = ExperimentRuntimeState.RUNNING
@@ -245,9 +249,20 @@ class ExperimentRuntime:
         if timeout_seconds <= 0:
             raise ValueError("experiment stop timeout must be positive")
         with self._lock:
-            if self._report is not None:
+            if (
+                self._report is not None
+                and self._report.teardown is not None
+            ):
                 return self._report
-            if self._state != ExperimentRuntimeState.RUNNING:
+            retrying = (
+                self._state == ExperimentRuntimeState.FAILED
+                and self._run is not None
+                and (
+                    self._report is None
+                    or self._report.teardown is None
+                )
+            )
+            if self._state != ExperimentRuntimeState.RUNNING and not retrying:
                 raise ExperimentRuntimeError(
                     f"cannot stop experiment runtime from {self._state.value}",
                     code="experiment.lifecycle.invalid",
@@ -255,17 +270,21 @@ class ExperimentRuntime:
             self._state = ExperimentRuntimeState.STOPPING
         issues: list[ExperimentRuntimeIssue] = []
         self._record_lifecycle(
-            "run.stopping",
-            {"state": "stopping"},
+            "run.stop-retrying" if retrying else "run.stopping",
+            {"state": "stopping", "retry": retrying},
             issues=issues,
         )
-        telemetry_report = self._stop_telemetry(timeout_seconds, issues)
-        continuous_report = self._stop_continuous(
+        telemetry_report, telemetry_stopped = self._stop_telemetry(
+            timeout_seconds,
+            issues,
+        )
+        continuous_report, continuous_stopped = self._stop_continuous(
             drain,
             timeout_seconds,
             issues,
         )
-        teardown = self._teardown(issues)
+        safe_to_teardown = telemetry_stopped and continuous_stopped
+        teardown = self._teardown(issues) if safe_to_teardown else None
         final_state = (
             ExperimentRuntimeState.FAILED
             if issues
@@ -281,7 +300,7 @@ class ExperimentRuntime:
         with self._lock:
             self._state = final_state
         report = ExperimentRuntimeReport(
-            run=self.run,
+            run=(teardown.run if teardown is not None else self.run),
             state=final_state,
             continuous=continuous_report,
             telemetry=telemetry_report,
@@ -345,31 +364,35 @@ class ExperimentRuntime:
         self,
         timeout_seconds: float,
         issues: list[ExperimentRuntimeIssue],
-    ) -> TelemetryPipelineReport:
+    ) -> tuple[TelemetryPipelineReport, bool]:
         if self._telemetry is None:
-            return TelemetryPipelineReport()
+            return TelemetryPipelineReport(), True
         try:
-            return self._telemetry.stop(timeout_seconds=timeout_seconds)
+            report = self._telemetry.stop(timeout_seconds=timeout_seconds)
+            self._telemetry_started = False
+            return report, True
         except Exception as error:
             issues.append(self._issue("telemetry", error))
-            return self._telemetry.report()
+            return self._telemetry.report(), False
 
     def _stop_continuous(
         self,
         drain: bool,
         timeout_seconds: float,
         issues: list[ExperimentRuntimeIssue],
-    ) -> ContinuousRuntimeReport:
+    ) -> tuple[ContinuousRuntimeReport, bool]:
         if self._continuous is None:
-            return ContinuousRuntimeReport()
+            return ContinuousRuntimeReport(), True
         try:
-            return self._continuous.stop(
+            report = self._continuous.stop(
                 drain=drain,
                 timeout_seconds=timeout_seconds,
             )
+            self._continuous_started = False
+            return report, True
         except Exception as error:
             issues.append(self._issue("continuous", error))
-            return self._continuous.report()
+            return self._continuous.report(), False
 
     def _teardown(
         self,
@@ -385,17 +408,21 @@ class ExperimentRuntime:
 
     def _cleanup_start_failure(self) -> None:
         issues: list[ExperimentRuntimeIssue] = []
-        if self._telemetry is not None:
+        safe_to_teardown = True
+        if self._telemetry is not None and self._telemetry_started:
             try:
                 self._telemetry.stop()
+                self._telemetry_started = False
             except Exception:
-                pass
-        if self._continuous is not None:
+                safe_to_teardown = False
+        if self._continuous is not None and self._continuous_started:
             try:
                 self._continuous.stop(drain=False)
+                self._continuous_started = False
             except Exception:
-                pass
-        self._teardown(issues)
+                safe_to_teardown = False
+        if safe_to_teardown:
+            self._teardown(issues)
 
     @staticmethod
     def _issue(phase: str, error: Exception) -> ExperimentRuntimeIssue:

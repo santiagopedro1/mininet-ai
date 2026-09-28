@@ -100,6 +100,11 @@ class AgnoExecutionResult(StrictModel):
         alias="modelProvider",
         min_length=1,
     )
+    model_queueing_seconds: float = Field(
+        default=0,
+        alias="modelQueueingSeconds",
+        ge=0,
+    )
     response: AgentResponse
     metrics: AgentRunMetrics = Field(default_factory=AgentRunMetrics)
     memory: AgnoMemorySettings

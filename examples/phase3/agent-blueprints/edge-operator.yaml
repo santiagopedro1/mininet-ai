@@ -1,4 +1,4 @@
-apiVersion: mininet-ai/v1alpha1
+apiVersion: mininet-ai/v1alpha2
 kind: AgentBlueprint
 metadata:
   name: edge-operator

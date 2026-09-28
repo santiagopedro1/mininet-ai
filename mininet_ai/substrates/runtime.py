@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from mininet_ai.compiler.models import DeploymentPlan
 
 
-RUNTIME_CONTRACT_VERSION = "mininet-ai/substrate-runtime/v1alpha1"
+RUNTIME_CONTRACT_VERSION = "mininet-ai/substrate-runtime/v1alpha2"
 
 
 class RunState(StrEnum):

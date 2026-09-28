@@ -17,7 +17,6 @@ from rich.table import Table
 from mininet_ai.agents import (
     AgnoAgentFactory,
     OneShotAgentRuntime,
-    create_agno_database,
     register_builtin_providers,
 )
 from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
@@ -283,8 +282,8 @@ def run(
             substrate,
             registries,
             audit=AuditRecorder(LedgerAuditSink(ledger)),
-            agent_factory=AgnoAgentFactory(
-                db=_operation_or_exit(lambda: create_agno_database(agno_db))
+            agent_factory=_operation_or_exit(
+                lambda: AgnoAgentFactory(database_path=agno_db)
             ),
             shared_state=state_store,
             ledger=ledger,
@@ -478,7 +477,6 @@ def invoke(
         )
         raise typer.Exit(code=1) from error
     recorder = AuditRecorder(JsonLinesAuditSink(audit_log, sync=True))
-    database = _operation_or_exit(lambda: create_agno_database(agno_db))
     state_store = _operation_or_exit(
         lambda: SQLiteSharedStateStore(shared_state_db)
     )
@@ -487,7 +485,9 @@ def invoke(
         substrate,
         registries,
         audit=recorder,
-        agent_factory=AgnoAgentFactory(db=database),
+        agent_factory=_operation_or_exit(
+            lambda: AgnoAgentFactory(database_path=agno_db)
+        ),
         shared_state=state_store,
     )
     try:
@@ -510,7 +510,7 @@ def print_schema(
         SchemaName.EXPERIMENT, help="Schema to print."
     ),
 ) -> None:
-    """Print a JSON Schema for a public v1alpha1 document."""
+    """Print a JSON Schema for a current public document."""
 
     models = {
         SchemaName.EXPERIMENT: Experiment,

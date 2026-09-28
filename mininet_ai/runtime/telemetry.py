@@ -191,12 +191,16 @@ class TelemetryPipeline:
         with self._state_lock:
             if self._state == TelemetryPipelineState.STOPPED:
                 return self.report()
-            if self._state != TelemetryPipelineState.RUNNING:
+            if self._state not in {
+                TelemetryPipelineState.RUNNING,
+                TelemetryPipelineState.STOPPING,
+            }:
                 raise TelemetryPipelineError(
                     f"cannot stop telemetry pipeline from {self._state.value}",
                     code="telemetry.lifecycle.invalid",
                 )
-            self._state = TelemetryPipelineState.STOPPING
+            if self._state == TelemetryPipelineState.RUNNING:
+                self._state = TelemetryPipelineState.STOPPING
         self._stop.set()
         deadline = time.monotonic() + timeout_seconds
         for thread in self._threads:

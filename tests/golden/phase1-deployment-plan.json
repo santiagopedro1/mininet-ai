@@ -242,12 +242,12 @@
       ]
     }
   ],
-  "apiVersion": "mininet-ai/v1alpha1",
+  "apiVersion": "mininet-ai/v1alpha2",
   "coordination": {
     "edges": [],
     "mode": "independent"
   },
-  "digest": "sha256:50c7f3036f5cab6c6d036c1a5ddbcb64568478df82dc2f47b4145587520dfb44",
+  "digest": "sha256:618c6e2c56a4918c4b2d5b084afbeb12df20f58d75e0cba86198debcd61f8f84",
   "kind": "DeploymentPlan",
   "metadata": {
     "description": "Phase 1 acceptance experiment using one blueprint at four layers.",
@@ -620,10 +620,10 @@
         ]
       }
     ],
-    "apiVersion": "mininet-ai/v1alpha1",
+    "apiVersion": "mininet-ai/v1alpha2",
     "blueprints": [
       {
-        "apiVersion": "mininet-ai/v1alpha1",
+        "apiVersion": "mininet-ai/v1alpha2",
         "implementation": {
           "entrypoint": null,
           "type": "declarative"
@@ -663,7 +663,7 @@
     ],
     "capabilityDefinitions": [
       {
-        "apiVersion": "mininet-ai/v1alpha1",
+        "apiVersion": "mininet-ai/v1alpha2",
         "effects": [
           "dataplane.write"
         ],

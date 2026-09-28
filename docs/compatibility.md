@@ -7,16 +7,16 @@ driver contract.
 
 ## Versioned contracts
 
-The project currently defines six contract families:
+The project currently defines eight contract families:
 
-- `mininet-ai/v1alpha1` covers `Experiment`, `AgentBlueprint`, and `Capability`
+- `mininet-ai/v1alpha2` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
   plan JSON Schema uses the matching identifier
-  `urn:mininet-ai:schema:v1alpha1:deployment-plan`.
+  `urn:mininet-ai:schema:v1alpha2:deployment-plan`.
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
-- `mininet-ai/substrate-runtime/v1alpha1` covers the stateful lifecycle
+- `mininet-ai/substrate-runtime/v1alpha2` covers the stateful lifecycle
   interface implemented by executable substrate adapters: deploy, inspect,
   observe, execute, and teardown. It is separate from the planning contract so
   compiling an experiment never requires privileged networking access.
@@ -24,7 +24,7 @@ The project currently defines six contract families:
   record used to inspect and recover an interrupted Mininet/OVS run. It is
   versioned so a newer runtime never guesses how to clean up an incompatible
   record.
-- `mininet-ai/agent-runtime/v1alpha1` covers the current SDK seam used by agent,
+- `mininet-ai/agent-runtime/v1alpha2` covers the current SDK seam used by agent,
   capability, and model-provider adapters, including scoped invocation context,
   action proposals, normalized model responses, invocation results, versioned
   provider descriptors, registry semantics, and the JSON protocol used by
@@ -38,6 +38,12 @@ The project currently defines six contract families:
 - `mininet-ai/audit/v1alpha1` covers correlated JSON audit records for agent,
   model, and capability execution. It is versioned separately so storage and
   analysis tools can evolve without changing provider contracts.
+- `mininet-ai/runtime-event/v1alpha1` covers normalized continuous-runtime
+  events, their ordering and causation, and typed payloads. Its schema identifier
+  is `urn:mininet-ai:schema:v1alpha1:runtime-event`.
+- `mininet-ai/run-ledger/v1alpha1` covers immutable run manifests and ordered
+  ledger records. Its SQLite schema version is validated independently from the
+  serialized record contract.
 
 The `alpha` label means that breaking revisions are expected before the
 contract is declared stable. It does not mean that the meaning of an existing
@@ -48,16 +54,43 @@ to select the exact contract it understands.
 
 The framework-neutral `AgentProvider` and `ModelProvider` protocols, their
 provider registries, and the built-in OpenAI-compatible and Ollama model
-adapters are deprecated. They remain documented as current `v1alpha1` behavior
+adapters are deprecated. They remain documented as current `v1alpha2` behavior
 until the Agno execution path reaches parity. Their removal or semantic
 replacement will use a new agent-runtime contract version rather than silently
-changing `mininet-ai/agent-runtime/v1alpha1`.
+changing `mininet-ai/agent-runtime/v1alpha2`.
 
 The migration does not delegate network authority to Agno. Mininet's scoped
 invocation context, structured action proposal, capability authorization,
 action result, runtime event, and ledger records remain Mininet-owned
 contracts. Agno run and session data will be translated into those records at
 the agent-runtime seam.
+
+### Public specification v1alpha1 to v1alpha2
+
+`v1alpha2` adds triggers, observation policies, memory, execution controls,
+resource limits, postconditions, and rollback declarations. Those fields also
+change the deployment-plan shape, normalized snapshot, and digest, so the
+public contract and deployment-plan schema identifier advance together.
+
+The compiler no longer accepts `mininet-ai/v1alpha1` documents. Change the
+`apiVersion` on an experiment and every referenced blueprint and capability to
+`mininet-ai/v1alpha2`, then regenerate and review its deployment plan. Defaults
+preserve manual one-shot behavior, but the serialized plan and digest
+intentionally change.
+
+### Agent runtime v1alpha1 to v1alpha2
+
+`v1alpha2` adds scoped shared-state input and updates, committed state changes,
+and invocation timings. Capability, agent, and model plugins must advertise
+`mininet-ai/agent-runtime/v1alpha2`; incompatible `v1alpha1` plugins are
+rejected before invocation.
+
+### Substrate runtime v1alpha1 to v1alpha2
+
+`v1alpha2` adds postcondition and rollback results plus action-effect latency to
+`ActionResult`. Runtime adapters must advertise
+`mininet-ai/substrate-runtime/v1alpha2`; incompatible `v1alpha1` adapters are
+rejected by the runtime registry.
 
 ### Runtime-state v1alpha1 to v1alpha2
 
@@ -72,7 +105,7 @@ the normal targeted `stop RUN_ID` recovery before upgrading when practical;
 if an old active record remains, the new runtime can inspect and recover it
 using its recorded owner, plan, and process groups.
 
-## Changes allowed within `v1alpha1`
+## Changes allowed within a contract version
 
 A change may keep the current contract version when it does not alter the
 accepted meaning or serialized result of an existing valid document. Examples
@@ -92,7 +125,7 @@ focused test for its default and explicit forms.
 
 ## Changes that require a new contract version
 
-Use a new version, beginning with `mininet-ai/v1alpha2`, when a change can make
+Use a new contract version when a change can make
 an existing valid document fail, change its meaning, or change its observable
 compiled representation. This includes:
 
@@ -112,15 +145,14 @@ digest. A deliberate bug fix that changes a plan for previously valid input is
 therefore a contract change and needs a new version plus migration guidance.
 
 Changes to the planning driver protocol or the meaning of its manifest require
-a new substrate contract version, such as `mininet-ai/substrate/v1alpha2`.
+a new substrate contract version.
 Changes to runtime operations, lifecycle semantics, or their serialized models
-require a new runtime contract version, such as
-`mininet-ai/substrate-runtime/v1alpha2`. Merely adding an implementation or
+require a new substrate-runtime contract version. Merely adding an implementation or
 changing which optional features a specific adapter advertises does not.
 Changes to persisted ownership fields or their recovery meaning require a new
-runtime-state version, such as `mininet-ai/runtime-state/v1alpha2`.
+runtime-state version.
 Changes to the SDK provider protocols or serialized agent-runtime models require
-a new agent-runtime version, such as `mininet-ai/agent-runtime/v1alpha2`.
+a new agent-runtime version.
 
 When a contract is promoted to beta or stable, use a new version such as
 `v1beta1` or `v1`. Supporting an older version alongside the new one is an

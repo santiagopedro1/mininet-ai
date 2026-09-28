@@ -16,7 +16,7 @@ from mininet_ai.specification.models import (
 from mininet_ai.substrates.runtime import ActionResult, ActionStatus
 
 
-AGENT_RUNTIME_CONTRACT_VERSION = "mininet-ai/agent-runtime/v1alpha1"
+AGENT_RUNTIME_CONTRACT_VERSION = "mininet-ai/agent-runtime/v1alpha2"
 
 
 class AgentRuntimeIssue(StrictModel):

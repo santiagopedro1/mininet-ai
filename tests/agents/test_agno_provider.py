@@ -5,13 +5,13 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 
 from agno.agent import Agent
 
 from mininet_ai.agents import (
     AgnoAgentFactory,
     AgnoAgentProvider,
-    create_agno_database,
 )
 from mininet_ai.agents.agno import DeterministicAgnoModel
 from mininet_ai.compiler import compile_experiment
@@ -30,6 +30,7 @@ from mininet_ai.specification.models import (
     MemoryConfiguration,
     ReasoningConfiguration,
 )
+from mininet_ai.substrates import ActionResult, ActionStatus
 from tests.agents.agno_helpers import SlowAsyncModel, StaticModel
 from tests.compiler.helpers import EXAMPLE
 
@@ -167,6 +168,7 @@ class AgnoAgentProviderTests(unittest.TestCase):
         self.assertEqual(execution.metrics.cache_write_tokens, 2)
         self.assertEqual(execution.metrics.reasoning_tokens, 3)
         self.assertEqual(execution.metrics.cost, 0.012)
+        self.assertGreaterEqual(execution.model_queueing_seconds, 0)
         self.assertEqual(len(execution.metrics.models), 1)
         self.assertEqual(execution.metrics.models[0].role, "model")
         self.assertEqual(execution.metrics.models[0].model, "deterministic")
@@ -178,20 +180,23 @@ class AgnoAgentProviderTests(unittest.TestCase):
             )
         )
         with TemporaryDirectory() as temporary:
-            database = create_agno_database(Path(temporary) / "agno.sqlite3")
+            factory = AgnoAgentFactory(
+                model_resolver=lambda configuration: StaticModel(),
+                database_path=Path(temporary) / "agno.sqlite3",
+            )
             provider = AgnoAgentProvider(
                 definition,
-                factory=AgnoAgentFactory(
-                    model_resolver=lambda configuration: StaticModel(),
-                    db=database,
-                ),
+                factory=factory,
             )
 
             execution = provider.run(self.context)
 
             session_id = "run-1:switch-router@s1"
             self.assertEqual(execution.session_id, session_id)
-            self.assertIsNotNone(database.get_session(session_id))
+            self.assertEqual(
+                factory.session_state(self.context.agent_id, session_id),
+                {},
+            )
             self.assertTrue(execution.memory.conversation_history)
             self.assertEqual(execution.memory.history_messages, 7)
 
@@ -209,7 +214,7 @@ class AgnoAgentProviderTests(unittest.TestCase):
                 definition,
                 factory=AgnoAgentFactory(
                     model_resolver=lambda configuration: StaticModel(),
-                    db=create_agno_database(Path(temporary) / "agno.sqlite3"),
+                    database_path=Path(temporary) / "agno.sqlite3",
                 ),
             )
 
@@ -229,6 +234,36 @@ class AgnoAgentProviderTests(unittest.TestCase):
             AgnoAgentProvider(definition)
 
         self.assertEqual(caught.exception.code, "agent.agno.database-required")
+
+    def test_verified_action_results_are_persisted_in_local_state(self) -> None:
+        definition = self.memory_definition(
+            MemoryConfiguration(local=LocalMemoryConfiguration(maxEntries=2))
+        )
+        with TemporaryDirectory() as temporary:
+            factory = AgnoAgentFactory(
+                model_resolver=lambda configuration: StaticModel(),
+                database_path=Path(temporary) / "agno.sqlite3",
+            )
+            provider = AgnoAgentProvider(definition, factory=factory)
+            provider.run(self.context)
+
+            state = provider.record_action_results(
+                self.context,
+                (
+                    ActionResult(
+                        run_id="run-1",
+                        request_id="proposal-1",
+                        status=ActionStatus.SUCCEEDED,
+                        completed_at=NOW,
+                        changed=True,
+                        output={"installed": True},
+                    ),
+                ),
+            )
+
+        assert state is not None
+        results = cast(list[dict[str, Any]], state["mininetActionResults"])
+        self.assertEqual(results[0]["output"], {"installed": True})
 
     def test_python_entrypoint_can_return_factory_or_agent(self) -> None:
         cases = (
@@ -261,9 +296,11 @@ class AgnoAgentProviderTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, code)
 
     def test_default_factory_uses_agno_model_strings(self) -> None:
-        agent = AgnoAgentFactory().create(self.definition)
+        factory = AgnoAgentFactory()
+        agent = factory.create(self.definition)
 
         self.assertIsInstance(agent, Agent)
+        self.assertIs(factory.create(self.definition), agent)
         self.assertEqual(agent.id, "switch-router@s1")
         assert agent.model is not None
         self.assertEqual(agent.model.id, "llama3.1:8b")

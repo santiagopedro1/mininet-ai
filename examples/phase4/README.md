@@ -3,7 +3,8 @@
 This rootless example proves the complete continuous experiment lifecycle. A
 telemetry policy observes a congested queue, emits `queue.congested`, invokes a
 deterministic Agno agent, installs an authorized OpenFlow rule, verifies that
-the effect is observable, and persists the run history before teardown.
+the effect is observable, stores the verified action result in agent-local Agno
+state, and persists the run history before teardown.
 
 Run it from the repository root:
 

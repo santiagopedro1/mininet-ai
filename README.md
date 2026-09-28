@@ -29,7 +29,9 @@ decision and its consequences.
 
 ## Current capabilities
 
-Phase 1 introduces the `mininet-ai/v1alpha1` public contract and a compiler that operates without root access or a running Mininet network:
+Phase 1 introduced the public experiment contract; the current
+continuous-runtime shape is `mininet-ai/v1alpha2`. The compiler operates without
+root access or a running Mininet network:
 
 - Strict schemas for experiments, agent blueprints, placements, capabilities, topology resources, coordination, policies, and resource limits.
 - YAML documents and Python-created specifications.
@@ -46,7 +48,7 @@ Phase 1 introduces the `mininet-ai/v1alpha1` public contract and a compiler that
 Logical placement is intentionally separate from physical execution. For example, an agent may be attached to the data plane of a switch while its model executes in an external process. The attachment controls its network scope and available capabilities.
 
 The Phase 3 foundation introduced the independent
-`mininet-ai/agent-runtime/v1alpha1` SDK contract. Its scoped invocation context,
+`mininet-ai/agent-runtime/v1alpha2` SDK contract. Its scoped invocation context,
 structured action proposals, normalized invocation results, capability
 contracts, and execution catalog remain part of the Mininet domain. Its generic
 agent and model provider protocols are now deprecated; the Phase 4 Agno
@@ -152,10 +154,15 @@ Reasoning deadlines are enforced through Agno's asynchronous cancellation path
 when a blueprint declares `reasoning.timeout`. Action proposals are capped by
 the smaller of their requested timeout and the agent's compiled
 `execution.actionTimeout`, so an agent cannot extend its own execution budget.
+Built-in substrate, process, and HTTP adapters enforce that deadline. Trusted
+in-process capability plugins receive the bounded deadline but must cooperate;
+hard cancellation of arbitrary Python belongs to the process-isolation work in
+Phase 6.
 Every invocation result carries separate event-detection, context-building,
-reasoning, action-execution, action-effect, and total timings. Model-queueing
-timing remains explicitly unset until a provider can measure it rather than
-the runtime estimating it.
+model-queueing, reasoning, action-execution, action-effect, and total timings.
+Model queueing measures time waiting for the persistent per-agent Agno execution
+slot; provider-internal queueing remains unavailable unless the provider reports
+it separately.
 
 When `require-postcondition-check` is enabled, declared capability
 postconditions are polled against the live substrate until they succeed or
@@ -199,7 +206,10 @@ versions and unsafe paths are rejected instead of being rewritten.
 deploys the substrate, writes the manifest, starts continuous consumers before
 telemetry producers, and exposes manual intent plus pause/resume controls. Its
 shutdown reverses that dependency order—telemetry, draining agents, then the
-substrate—and returns one structured report. The `mininet-ai run` command now
+substrate—and returns one structured report. If a producer or worker misses its
+shutdown deadline, the owner leaves the substrate running and permits a later
+stop retry instead of tearing resources out from under active work. The
+`mininet-ai run` command now
 uses this owner until `SIGINT` or `SIGTERM`; accepted runtime events and Agno
 audit records are persisted to the same ordered ledger.
 
@@ -240,14 +250,14 @@ uv run mininet-ai schema runtime-event
 
 Schemas are emitted as JSON Schema Draft 2020-12 documents. The deployment-plan
 schema has the stable versioned identifier
-`urn:mininet-ai:schema:v1alpha1:deployment-plan` and can be saved for external
+`urn:mininet-ai:schema:v1alpha2:deployment-plan` and can be saved for external
 validation or tooling:
 
 ```bash
 uv run mininet-ai schema deployment-plan > deployment-plan.schema.json
 ```
 
-The `v1alpha1` identifier denotes a specific machine-readable contract, even
+The `v1alpha2` identifier denotes a specific machine-readable contract, even
 while the project is in alpha. Compatible additions may retain it; changes that
 invalidate existing documents or alter their compiled representation require a
 new contract version. See [Compatibility and versioning](docs/compatibility.md)
@@ -284,7 +294,7 @@ See [the Phase 3 example](examples/phase3/README.md) for its extension layout.
 An experiment declares its topology, reusable agent blueprints, capabilities, and concrete placements:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha1
+apiVersion: mininet-ai/v1alpha2
 kind: Experiment
 metadata:
   name: distributed-routing
@@ -402,6 +412,9 @@ learned memory in SQLite. A stable Agno session ID combines the experiment run
 and agent instance. Learned memory is disabled when `learned` is absent;
 `scope: run` isolates it to that experiment run, while the explicit
 `scope: agent` option reuses it for the same compiled agent ID across runs.
+When local state is enabled, completed action and postcondition results are
+stored after execution under `mininetActionResults`, so the next invocation can
+reason from observed effects rather than only from its original proposal.
 Mininet AI implements `shared` deployment/run state separately because it
 participates in cross-agent coordination. Authorized values are included in
 the next `AgentContext` as `sharedState`. Agents return structured updates with
@@ -502,7 +515,7 @@ with `register_substrate_driver`, and run the reusable
 `tests.substrates.contract.SubstrateDriverContract` test mixin.
 
 Stateful execution uses the separate
-`mininet-ai/substrate-runtime/v1alpha1` lifecycle contract. Its five operations
+`mininet-ai/substrate-runtime/v1alpha2` lifecycle contract. Its five operations
 are `deploy`, `inspect`, `observe`, `execute`, and `teardown`; deployment must
 roll back on failure, and teardown must be idempotent and limited to resources
 owned by the run. Runtime adapters register independently with

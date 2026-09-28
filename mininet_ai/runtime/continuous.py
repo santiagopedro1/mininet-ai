@@ -239,13 +239,17 @@ class ContinuousAgentRuntime:
         with self._lifecycle_lock:
             if self._state == ContinuousRuntimeState.STOPPED:
                 return self.report()
-            if self._state != ContinuousRuntimeState.RUNNING:
+            if self._state not in {
+                ContinuousRuntimeState.RUNNING,
+                ContinuousRuntimeState.STOPPING,
+            }:
                 raise ContinuousRuntimeError(
                     f"cannot stop continuous runtime from {self._state.value}",
                     code="runtime.lifecycle.invalid",
                 )
-            self._state = ContinuousRuntimeState.STOPPING
-            self._drain = drain
+            if self._state == ContinuousRuntimeState.RUNNING:
+                self._state = ContinuousRuntimeState.STOPPING
+                self._drain = drain
         if drain:
             self._supervisor.resume_paused()
         deadline = time.monotonic() + timeout_seconds

@@ -245,6 +245,28 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
             AgentLifecycleState.STOPPED,
         )
 
+    def test_timed_out_stop_can_be_retried_after_worker_finishes(self) -> None:
+        plan = configured_plan(
+            triggers=[{"type": "manual", "name": "operator"}]
+        )
+        invoker = RecordingInvoker(blocked=True)
+        runtime = ContinuousAgentRuntime(plan, "run-1", invoker)
+        runtime.start()
+        runtime.publish(manual_event("manual-1", sequence=1))
+        self.assertTrue(invoker.entered.wait(timeout=1))
+
+        with self.assertRaises(ContinuousRuntimeError) as timed_out:
+            runtime.stop(timeout_seconds=0.001)
+
+        self.assertEqual(timed_out.exception.code, "runtime.stop.timeout")
+        self.assertEqual(runtime.state, ContinuousRuntimeState.STOPPING)
+        invoker.release.set()
+
+        report = runtime.stop(timeout_seconds=1)
+
+        self.assertEqual(runtime.state, ContinuousRuntimeState.STOPPED)
+        self.assertEqual(report.completed, 1)
+
     def test_manual_and_scoped_event_triggers_reuse_bounded_invoker(self) -> None:
         plan = configured_plan(
             triggers=[

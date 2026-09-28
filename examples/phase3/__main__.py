@@ -11,7 +11,6 @@ from typing import Sequence
 from mininet_ai.agents import (
     AgnoAgentFactory,
     OneShotAgentRuntime,
-    create_agno_database,
     register_builtin_providers,
 )
 from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
@@ -92,9 +91,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             substrate,
             registries,
             audit=AuditRecorder(JsonLinesAuditSink(options.audit_log, sync=True)),
-            agent_factory=AgnoAgentFactory(
-                db=create_agno_database(options.agno_db)
-            ),
+            agent_factory=AgnoAgentFactory(database_path=options.agno_db),
             shared_state=state_store,
         )
         result = runtime.invoke(run.id, "edge-operator@s1", options.intent)
