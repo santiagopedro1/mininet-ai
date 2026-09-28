@@ -1,0 +1,24 @@
+apiVersion: mininet-ai/v1alpha2
+kind: AgentBlueprint
+metadata:
+  name: congestion-controller
+  description: Ollama-backed controller used to verify real Agno sessions and metrics.
+implementation:
+  type: declarative
+model:
+  provider: ollama
+  name: qwen3.6:27b
+reasoning:
+  instructions: >-
+    For every request, propose exactly one openflow.flow.install action for target
+    s1. Give the proposal a unique id, set arguments.match to "ip", and set
+    arguments.actions to "normal". Briefly explain that this is a safe acceptance
+    test. Do not propose any other capability or target and do not update shared
+    state.
+  timeout: 120s
+memory:
+  local:
+    maxEntries: 8
+  conversation:
+    maxMessages: 10
+    summaries: false
