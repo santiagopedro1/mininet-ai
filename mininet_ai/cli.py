@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import signal
 import threading
 from enum import StrEnum
@@ -15,11 +14,23 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+from mininet_ai.agents import (
+    AgnoAgentFactory,
+    OneShotAgentRuntime,
+    register_builtin_providers,
+)
 from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.errors import MininetAIError
+from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
+from mininet_ai.runtime import (
+    LedgerAuditSink,
+    PluginManifest,
+    RuntimeEvent,
+    SQLiteRunLedger,
+    SQLiteSharedStateStore,
+)
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification import (
     AgentBlueprint,
@@ -52,6 +63,7 @@ class SchemaName(StrEnum):
     AGENT_BLUEPRINT = "agent-blueprint"
     CAPABILITY = "capability"
     DEPLOYMENT_PLAN = "deployment-plan"
+    RUNTIME_EVENT = "runtime-event"
 
 
 class _SignalLatch:
@@ -200,10 +212,35 @@ def run(
         help="Compile and print the plan without creating network resources.",
     ),
     output_format: OutputFormat = typer.Option(
-        OutputFormat.TEXT, "--format", "-f", help="Output format for dry-run."
+        OutputFormat.TEXT, "--format", "-f", help="Output format."
+    ),
+    initial_intents: list[str] = typer.Option(
+        [],
+        "--intent",
+        help="Initial manual intent as AGENT=TEXT; may be repeated.",
+    ),
+    ledger_db: Path = typer.Option(
+        Path(".mininet-ai/runs.sqlite3"),
+        "--ledger-db",
+        help="Persistent experiment ledger database.",
+    ),
+    agno_db: Path = typer.Option(
+        Path(".mininet-ai/agno.sqlite3"),
+        "--agno-db",
+        help="Private SQLite database for Agno sessions and memory.",
+    ),
+    shared_state_db: Path = typer.Option(
+        Path(".mininet-ai/shared-state.sqlite3"),
+        "--shared-state-db",
+        help="Private SQLite database for shared operational state.",
+    ),
+    discover: bool = typer.Option(
+        False,
+        "--discover-plugins",
+        help="Load installed capability plugins.",
     ),
 ) -> None:
-    """Deploy an experiment in the foreground until interrupted or stopped."""
+    """Own a complete continuous experiment until interrupted or stopped."""
 
     deployment_plan = _compile_or_exit(experiment)
     if dry_run:
@@ -213,21 +250,89 @@ def run(
             _print_text_plan(deployment_plan)
         return
 
-    runtime = _runtime_or_exit(deployment_plan.substrate)
-    with _SignalLatch() as stop_latch:
-        run_info = _operation_or_exit(lambda: runtime.deploy(deployment_plan))
-        try:
-            console.print(
-                f"[green]Running[/green] {run_info.id} on {run_info.substrate}. "
-                "Press Ctrl+C to stop."
-            )
-            stop_latch.wait()
-        finally:
-            result = _operation_or_exit(lambda: runtime.teardown(run_info.id))
-    console.print(
-        f"[green]Stopped[/green] {result.run.id}; "
-        f"released {len(result.released_resources)} resources"
+    substrate = _runtime_or_exit(deployment_plan.substrate)
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    loaded = (
+        _operation_or_exit(lambda: discover_plugins(registries))
+        if discover
+        else ()
     )
+    parsed_intents = []
+    for declaration in initial_intents:
+        agent_id, separator, intent = declaration.partition("=")
+        if not separator or not agent_id or not intent:
+            raise typer.BadParameter(
+                "initial intents must use AGENT=TEXT",
+                param_hint="--intent",
+            )
+        parsed_intents.append((agent_id, intent))
+
+    ledger = None
+    state_store = None
+    owner = None
+    report = None
+    try:
+        ledger = _operation_or_exit(lambda: SQLiteRunLedger(ledger_db))
+        state_store = _operation_or_exit(
+            lambda: SQLiteSharedStateStore(shared_state_db)
+        )
+        owner = ExperimentRuntime(
+            deployment_plan,
+            substrate,
+            registries,
+            audit=AuditRecorder(LedgerAuditSink(ledger)),
+            agent_factory=_operation_or_exit(
+                lambda: AgnoAgentFactory(database_path=agno_db)
+            ),
+            shared_state=state_store,
+            ledger=ledger,
+            plugins=tuple(
+                PluginManifest(group=plugin.group, name=plugin.name)
+                for plugin in loaded
+            ),
+        )
+        with _SignalLatch() as stop_latch:
+            run_info = _operation_or_exit(owner.start)
+            for agent_id, intent in parsed_intents:
+                _operation_or_exit(
+                    lambda agent_id=agent_id, intent=intent: owner.submit_intent(
+                        agent_id,
+                        intent,
+                    )
+                )
+            if output_format == OutputFormat.TEXT:
+                console.print(
+                    f"[green]Running[/green] {run_info.id} on "
+                    f"{run_info.substrate}. Press Ctrl+C to stop."
+                )
+            stop_latch.wait()
+    finally:
+        try:
+            if owner is not None and owner.state == ExperimentRuntimeState.RUNNING:
+                report = _operation_or_exit(owner.stop)
+        finally:
+            if state_store is not None:
+                state_store.close()
+            if ledger is not None:
+                ledger.close()
+    if report is None:
+        return
+    if output_format == OutputFormat.JSON:
+        _print_json(report)
+    else:
+        released = (
+            len(report.teardown.released_resources)
+            if report.teardown is not None
+            else 0
+        )
+        console.print(
+            f"[green]Stopped[/green] {report.run.id}; "
+            f"{report.continuous.completed} invocations, "
+            f"released {released} resources"
+        )
+    if report.state == ExperimentRuntimeState.FAILED:
+        raise typer.Exit(code=1)
 
 
 def _snapshot_or_exit(substrate: str, run_id: str) -> RuntimeSnapshot:
@@ -334,20 +439,20 @@ def invoke(
         "--audit-log",
         help="Append-only JSONL audit destination.",
     ),
+    agno_db: Path = typer.Option(
+        Path(".mininet-ai/agno.sqlite3"),
+        "--agno-db",
+        help="Private SQLite database for Agno sessions and memory.",
+    ),
+    shared_state_db: Path = typer.Option(
+        Path(".mininet-ai/shared-state.sqlite3"),
+        "--shared-state-db",
+        help="Private SQLite database for scoped shared operational state.",
+    ),
     discover: bool = typer.Option(
         False,
         "--discover-plugins",
-        help="Load installed agent, model, and capability entry points.",
-    ),
-    model_endpoint: str | None = typer.Option(
-        None,
-        "--model-endpoint",
-        help="Override the selected built-in HTTP model endpoint.",
-    ),
-    model_api_key_env: str = typer.Option(
-        "OPENAI_API_KEY",
-        "--model-api-key-env",
-        help="Environment variable containing an OpenAI-compatible API key.",
+        help="Load capability and deprecated provider entry points.",
     ),
     output_format: OutputFormat = typer.Option(
         OutputFormat.TEXT,
@@ -361,12 +466,7 @@ def invoke(
     deployment_plan = _compile_or_exit(experiment)
     substrate = _runtime_or_exit(deployment_plan.substrate)
     registries = ProviderRegistries()
-    register_builtin_providers(
-        registries,
-        substrate,
-        model_endpoint=model_endpoint,
-        openai_api_key=os.environ.get(model_api_key_env),
-    )
+    register_builtin_providers(registries, substrate)
     if discover:
         _operation_or_exit(lambda: discover_plugins(registries))
     try:
@@ -377,13 +477,25 @@ def invoke(
         )
         raise typer.Exit(code=1) from error
     recorder = AuditRecorder(JsonLinesAuditSink(audit_log, sync=True))
+    state_store = _operation_or_exit(
+        lambda: SQLiteSharedStateStore(shared_state_db)
+    )
     runtime = OneShotAgentRuntime(
         deployment_plan,
         substrate,
         registries,
         audit=recorder,
+        agent_factory=_operation_or_exit(
+            lambda: AgnoAgentFactory(database_path=agno_db)
+        ),
+        shared_state=state_store,
     )
-    result = _operation_or_exit(lambda: runtime.invoke(run_id, agent_id, intent))
+    try:
+        result = _operation_or_exit(
+            lambda: runtime.invoke(run_id, agent_id, intent)
+        )
+    finally:
+        state_store.close()
     if output_format == OutputFormat.JSON:
         _print_json(result)
     else:
@@ -398,13 +510,14 @@ def print_schema(
         SchemaName.EXPERIMENT, help="Schema to print."
     ),
 ) -> None:
-    """Print a JSON Schema for a public v1alpha1 document."""
+    """Print a JSON Schema for a current public document."""
 
     models = {
         SchemaName.EXPERIMENT: Experiment,
         SchemaName.AGENT_BLUEPRINT: AgentBlueprint,
         SchemaName.CAPABILITY: CapabilityDefinition,
         SchemaName.DEPLOYMENT_PLAN: DeploymentPlan,
+        SchemaName.RUNTIME_EVENT: RuntimeEvent,
     }
     console.print_json(json.dumps(models[name].model_json_schema(by_alias=True)))
 

@@ -21,6 +21,7 @@ from mininet_ai.sdk import (
     AGENT_RUNTIME_CONTRACT_VERSION,
     ActionProposal,
     AgentContext,
+    CapabilityOutcome,
     CapabilityProviderError,
     ExecutionCatalog,
 )
@@ -135,6 +136,31 @@ class CapabilityAdapterTests(unittest.TestCase):
         self.assertEqual(query.targets, ("s1",))
         observed = cast(dict[str, Any], observation.output["s1"])
         self.assertEqual(observed["state"], "up")
+
+    def test_substrate_action_rollback_uses_a_safe_inverse(self) -> None:
+        runtime = RecordingRuntime()
+        provider = SubstrateActionProvider(
+            self.capability,
+            cast(SubstrateRuntime, runtime),
+        )
+        proposal = self.proposal()
+
+        result = provider.rollback(
+            self.context,
+            proposal,
+            outcome=CapabilityOutcome(changed=True),
+            timeout_seconds=4,
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCEEDED)
+        request = runtime.action_requests[0][1]
+        self.assertEqual(request.id, "proposal-1:rollback")
+        self.assertEqual(request.name, "openflow.flow.remove")
+        self.assertEqual(
+            request.parameters,
+            {"match": "ip"},
+        )
+        self.assertEqual(request.timeout_seconds, 4)
 
     def test_process_adapter_uses_versioned_json_protocol(self) -> None:
         script = (

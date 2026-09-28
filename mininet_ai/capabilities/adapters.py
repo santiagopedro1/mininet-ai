@@ -84,6 +84,62 @@ class SubstrateActionProvider:
                 code=error.code,
             ) from error
 
+    def rollback(
+        self,
+        context: AgentContext,
+        proposal: ActionProposal,
+        outcome: CapabilityOutcome,
+        *,
+        timeout_seconds: float,
+    ) -> ActionResult:
+        """Execute a conservative inverse for supported substrate actions."""
+
+        name = self._definition.metadata.name
+        parameters: dict[str, JsonValue]
+        if name == "openflow.flow.install":
+            name = "openflow.flow.remove"
+            parameters = {
+                key: value
+                for key, value in proposal.arguments.items()
+                if key != "actions"
+            }
+        elif name == "link.enable":
+            name = "link.disable"
+            parameters = {}
+        elif name == "link.disable":
+            name = "link.enable"
+            parameters = {}
+        elif name == "host.process.start":
+            process_id = outcome.output.get("processId")
+            if not isinstance(process_id, str) or not process_id:
+                raise CapabilityProviderError(
+                    "process rollback requires the started process identifier",
+                    code="capability.rollback.invalid-output",
+                )
+            name = "host.process.stop"
+            parameters = {"processId": process_id}
+        else:
+            raise CapabilityProviderError(
+                f"substrate action {name!r} has no safe inverse",
+                code="capability.rollback.unsupported",
+            )
+        try:
+            return self._runtime.execute(
+                context.run_id,
+                ActionRequest(
+                    id=f"{proposal.id}:rollback",
+                    name=name,
+                    target=proposal.target,
+                    parameters=parameters,
+                    timeout_seconds=timeout_seconds,
+                ),
+            )
+        except RuntimeOperationError as error:
+            raise CapabilityProviderError(
+                str(error),
+                code=error.code,
+            ) from error
+
 
 class SubstrateObservationProvider:
     """Map an authorized capability to a substrate observation of the same name."""

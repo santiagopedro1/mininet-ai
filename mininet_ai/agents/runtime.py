@@ -4,46 +4,48 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from time import monotonic
 from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from mininet_ai.agents.providers import (
-    DeclarativeAgentProvider,
-    PythonAgentProvider,
-)
+from mininet_ai.agents.agno import AgnoAgentFactory, AgnoAgentProvider
 from mininet_ai.audit import (
     AuditEventType,
     AuditRecorder,
     AuditedCapabilityExecutor,
-    AuditedModelProvider,
 )
 from mininet_ai.capabilities import (
     CapabilityEngine,
+    PostconditionVerifier,
     SubstrateActionProvider,
     SubstrateObservationProvider,
 )
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.errors import AgentRuntimeError
-from mininet_ai.models import (
-    DeterministicModelProvider,
-    OllamaModelProvider,
-    OpenAICompatibleModelProvider,
-)
 from mininet_ai.plugins import (
     ProviderKind,
     ProviderPlugin,
     ProviderRegistries,
 )
+from mininet_ai.runtime import (
+    SharedScope,
+    SharedStateAccess,
+    SharedStateError,
+    SharedStateStore,
+)
 from mininet_ai.sdk import (
     AgentContext,
     AgentInvocationResult,
-    AgentProvider,
     AgentResponse,
     AgentRuntimeIssue,
     CapabilityProvider,
     ExecutionCatalog,
     InvocationStatus,
+    InvocationTimings,
+    SharedStateChange,
+    SharedStateSnapshot,
+    SharedStateUpdate,
 )
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
 from mininet_ai.specification.models import CapabilityDefinition
@@ -58,6 +60,7 @@ from mininet_ai.substrates import (
 
 Clock = Callable[[], datetime]
 InvocationIdFactory = Callable[[], str]
+MonotonicClock = Callable[[], float]
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 
 
@@ -72,41 +75,8 @@ def _invocation_id() -> str:
 def register_builtin_providers(
     registries: ProviderRegistries,
     substrate: SubstrateRuntime,
-    *,
-    model_endpoint: str | None = None,
-    openai_api_key: str | None = None,
 ) -> None:
-    """Register providers that ship with the core package."""
-
-    registries.models.register(
-        "mock",
-        ProviderPlugin(
-            kind=ProviderKind.MODEL,
-            factory=lambda configuration: DeterministicModelProvider(),
-        ),
-    )
-    registries.models.register(
-        "ollama",
-        ProviderPlugin(
-            kind=ProviderKind.MODEL,
-            factory=lambda configuration: OllamaModelProvider(
-                endpoint=model_endpoint or "http://127.0.0.1:11434/api/chat"
-            ),
-        ),
-    )
-    registries.models.register(
-        "openai-compatible",
-        ProviderPlugin(
-            kind=ProviderKind.MODEL,
-            factory=lambda configuration: OpenAICompatibleModelProvider(
-                endpoint=(
-                    model_endpoint
-                    or "https://api.openai.com/v1/chat/completions"
-                ),
-                api_key=openai_api_key,
-            ),
-        ),
-    )
+    """Register built-in capability providers used by the agent runtime."""
     substrate_action: ProviderPlugin[
         CapabilityDefinition,
         CapabilityProvider,
@@ -139,19 +109,37 @@ class OneShotAgentRuntime:
         registries: ProviderRegistries,
         *,
         audit: AuditRecorder | None = None,
+        agent_factory: AgnoAgentFactory | None = None,
+        shared_state: SharedStateStore | None = None,
         clock: Clock = _utc_now,
+        monotonic_clock: MonotonicClock = monotonic,
         invocation_id_factory: InvocationIdFactory = _invocation_id,
     ) -> None:
         self._catalog = ExecutionCatalog(plan)
         self._substrate = substrate
-        self._registries = registries
         self._audit = audit
+        self._agent_factory = agent_factory or AgnoAgentFactory()
+        self._shared_state = shared_state
+        self._agent_instances = plan.agents
+        if shared_state is None and any(
+            agent.memory.shared is not None for agent in plan.agents
+        ):
+            raise AgentRuntimeError(
+                "the deployment plan declares shared state but no store is configured",
+                code="state.store.required",
+            )
         self._clock = clock
+        self._monotonic = monotonic_clock
         self._invocation_id_factory = invocation_id_factory
         capability_engine = CapabilityEngine(
             self._catalog,
             registries.capabilities,
             clock=clock,
+            verifier=PostconditionVerifier(
+                substrate,
+                clock=clock,
+                monotonic_clock=monotonic_clock,
+            ),
         )
         self._capabilities = (
             AuditedCapabilityExecutor(capability_engine, audit)
@@ -166,6 +154,7 @@ class OneShotAgentRuntime:
         intent: str,
     ) -> AgentInvocationResult:
         started_at = self._clock()
+        started_tick = self._monotonic()
         invocation_id = self._invocation_id_factory()
         if not intent:
             raise AgentRuntimeError(
@@ -180,6 +169,7 @@ class OneShotAgentRuntime:
                 code="agent.invocation.invalid-id",
                 agent_id=agent_id,
             )
+        context_tick = self._monotonic()
         definition = self._catalog.resolve(agent_id)
         snapshot = self._substrate.inspect(run_id)
         if snapshot.run.id != run_id:
@@ -204,6 +194,12 @@ class OneShotAgentRuntime:
                 invocation_id=invocation_id,
             )
         observations = self._observe(run_id, definition)
+        access = self._shared_access(run_id, definition)
+        shared_state = (
+            self._shared_state.snapshot(access)
+            if self._shared_state is not None and access.limits
+            else SharedStateSnapshot()
+        )
         context = self._context(
             definition,
             invocation_id=invocation_id,
@@ -211,16 +207,112 @@ class OneShotAgentRuntime:
             intent=intent,
             invoked_at=started_at,
             observations=observations,
+            shared_state=shared_state,
         )
+        context_seconds = self._elapsed(context_tick)
         if self._audit is not None:
             self._audit.record(
                 AuditEventType.AGENT_STARTED,
                 context,
                 {"context": context.model_dump(mode="json", by_alias=True)},
             )
+        reasoning_tick = self._monotonic()
         try:
-            provider = self._agent_provider(definition, context)
-            response = provider.invoke(context)
+            provider = AgnoAgentProvider(
+                definition,
+                factory=self._agent_factory,
+            )
+            execution = provider.run(context)
+            response = execution.response
+        except Exception as error:
+            reasoning_seconds = self._elapsed(reasoning_tick)
+            if self._audit is not None:
+                self._audit.record(
+                    AuditEventType.AGENT_FAILED,
+                    context,
+                    self._error_data(error),
+                )
+            return self._failure(
+                context,
+                started_at,
+                error,
+                timings=self._timings(
+                    started_tick,
+                    context_seconds=context_seconds,
+                    reasoning_seconds=reasoning_seconds,
+                ),
+            )
+        reasoning_seconds = self._elapsed(reasoning_tick)
+        if self._audit is not None:
+            execution_data = execution.model_dump(
+                mode="json",
+                by_alias=True,
+                exclude_none=True,
+            )
+            execution_data.pop("response")
+            self._audit.record(
+                AuditEventType.AGENT_COMPLETED,
+                context,
+                {
+                    "response": response.model_dump(mode="json", by_alias=True),
+                    "runtime": {"name": "agno", **execution_data},
+                },
+            )
+
+        try:
+            state_changes = self._apply_shared_state(
+                context,
+                access,
+                response.shared_state_updates,
+            )
+        except SharedStateError as error:
+            if self._audit is not None:
+                self._audit.record(
+                    AuditEventType.SHARED_STATE_FAILED,
+                    context,
+                    self._error_data(error),
+                )
+            return self._state_failure(
+                context,
+                started_at,
+                response,
+                error,
+                timings=self._timings(
+                    started_tick,
+                    context_seconds=context_seconds,
+                    model_queueing_seconds=execution.model_queueing_seconds,
+                    reasoning_seconds=reasoning_seconds,
+                ),
+            )
+
+        action_tick = self._monotonic()
+        action_results = tuple(
+            self._capabilities.execute(context, proposal)
+            for proposal in response.proposals
+        )
+        action_total_seconds = self._elapsed(action_tick)
+        effect_latencies = tuple(
+            result.effect_latency_seconds
+            for result in action_results
+            if result.effect_latency_seconds is not None
+        )
+        effect_seconds = (
+            sum(effect_latencies) if effect_latencies else None
+        )
+        action_seconds = max(
+            0.0,
+            action_total_seconds - (effect_seconds or 0.0),
+        )
+        timings = self._timings(
+            started_tick,
+            context_seconds=context_seconds,
+            model_queueing_seconds=execution.model_queueing_seconds,
+            reasoning_seconds=reasoning_seconds,
+            action_seconds=action_seconds,
+            effect_seconds=effect_seconds,
+        )
+        try:
+            provider.record_action_results(context, action_results)
         except Exception as error:
             if self._audit is not None:
                 self._audit.record(
@@ -228,19 +320,31 @@ class OneShotAgentRuntime:
                     context,
                     self._error_data(error),
                 )
-            return self._failure(context, started_at, error)
-        if self._audit is not None:
-            self._audit.record(
-                AuditEventType.AGENT_COMPLETED,
-                context,
-                {"response": response.model_dump(mode="json", by_alias=True)},
+            return AgentInvocationResult(
+                invocationId=context.invocation_id,
+                runId=context.run_id,
+                agentId=context.agent_id,
+                status=InvocationStatus.FAILED,
+                startedAt=started_at,
+                completedAt=self._clock(),
+                response=response,
+                actionResults=action_results,
+                sharedStateChanges=state_changes,
+                timings=timings,
+                issue=AgentRuntimeIssue(
+                    code=self._error_code(error),
+                    message=str(error) or type(error).__name__,
+                    agentId=context.agent_id,
+                ),
             )
-
-        action_results = tuple(
-            self._capabilities.execute(context, proposal)
-            for proposal in response.proposals
+        return self._result(
+            context,
+            started_at,
+            response,
+            action_results,
+            state_changes,
+            timings,
         )
-        return self._result(context, started_at, response, action_results)
 
     def _observe(
         self,
@@ -282,6 +386,7 @@ class OneShotAgentRuntime:
         intent: str,
         invoked_at: datetime,
         observations: dict[str, JsonValue],
+        shared_state: SharedStateSnapshot,
     ) -> AgentContext:
         instance = definition.instance
         attachment = instance.attachment
@@ -296,38 +401,11 @@ class OneShotAgentRuntime:
             targets=attachment.targets,
             capabilities=instance.capabilities,
             observations=observations,
+            sharedState=shared_state,
             intent=intent,
             priority=instance.priority,
             invokedAt=invoked_at,
         )
-
-    def _agent_provider(
-        self,
-        definition: AgentExecutionDefinition,
-        context: AgentContext,
-    ) -> AgentProvider:
-        implementation = definition.blueprint.implementation
-        if implementation.type == "declarative":
-            model_configuration = definition.blueprint.model
-            if model_configuration is None:
-                raise AgentRuntimeError(
-                    "declarative agent has no model configuration",
-                    code="agent.configuration.model-missing",
-                    agent_id=definition.instance.id,
-                    invocation_id=context.invocation_id,
-                )
-            model = self._registries.models.create(
-                model_configuration.provider,
-                model_configuration,
-            )
-            if self._audit is not None:
-                model = AuditedModelProvider(model, self._audit, context)
-            return DeclarativeAgentProvider(definition, model)
-
-        entrypoint = implementation.entrypoint
-        if entrypoint is not None and ":" not in entrypoint:
-            return self._registries.agents.create(entrypoint, definition)
-        return PythonAgentProvider(definition)
 
     def _result(
         self,
@@ -335,6 +413,8 @@ class OneShotAgentRuntime:
         started_at: datetime,
         response: AgentResponse,
         action_results: tuple[ActionResult, ...],
+        state_changes: tuple[SharedStateChange, ...],
+        timings: InvocationTimings,
     ) -> AgentInvocationResult:
         unsuccessful = next(
             (
@@ -354,6 +434,8 @@ class OneShotAgentRuntime:
                 completedAt=self._clock(),
                 response=response,
                 actionResults=action_results,
+                sharedStateChanges=state_changes,
+                timings=timings,
             )
         issue = unsuccessful.issue
         if issue is None:
@@ -372,6 +454,8 @@ class OneShotAgentRuntime:
             completedAt=self._clock(),
             response=response,
             actionResults=action_results,
+            sharedStateChanges=state_changes,
+            timings=timings,
             issue=AgentRuntimeIssue(
                 code=issue.code,
                 message=issue.message,
@@ -380,11 +464,101 @@ class OneShotAgentRuntime:
             ),
         )
 
+    def _shared_access(
+        self,
+        run_id: str,
+        definition: AgentExecutionDefinition,
+    ) -> SharedStateAccess:
+        configuration = definition.instance.memory.shared
+        limits: dict[SharedScope, int] = {}
+        if configuration is not None:
+            for scope in configuration.scopes:
+                candidates = []
+                for instance in self._agent_instances:
+                    shared = instance.memory.shared
+                    if shared is None or scope not in shared.scopes:
+                        continue
+                    if (
+                        scope == "deployment"
+                        and instance.deployment != definition.instance.deployment
+                    ):
+                        continue
+                    candidates.append(shared.max_entries)
+                limits[scope] = min(candidates)
+        return SharedStateAccess(
+            run_id=run_id,
+            deployment=definition.instance.deployment,
+            agent_id=definition.instance.id,
+            limits=limits,
+        )
+
+    def _apply_shared_state(
+        self,
+        context: AgentContext,
+        access: SharedStateAccess,
+        updates: tuple[SharedStateUpdate, ...],
+    ) -> tuple[SharedStateChange, ...]:
+        if not updates:
+            return ()
+        if self._shared_state is None:
+            raise SharedStateError(
+                "agent proposed shared-state updates without a configured store",
+                code="state.store.required",
+            )
+        changes = self._shared_state.apply(access, updates)
+        if self._audit is not None:
+            self._audit.record(
+                AuditEventType.SHARED_STATE_UPDATED,
+                context,
+                {
+                    "changes": [
+                        change.model_dump(
+                            mode="json",
+                            by_alias=True,
+                            exclude_none=True,
+                        )
+                        for change in changes
+                    ]
+                },
+            )
+        return changes
+
+    def _state_failure(
+        self,
+        context: AgentContext,
+        started_at: datetime,
+        response: AgentResponse,
+        error: SharedStateError,
+        *,
+        timings: InvocationTimings,
+    ) -> AgentInvocationResult:
+        return AgentInvocationResult(
+            invocationId=context.invocation_id,
+            runId=context.run_id,
+            agentId=context.agent_id,
+            status=(
+                InvocationStatus.REJECTED
+                if error.conflict
+                else InvocationStatus.FAILED
+            ),
+            startedAt=started_at,
+            completedAt=self._clock(),
+            response=response,
+            timings=timings,
+            issue=AgentRuntimeIssue(
+                code=error.code,
+                message=str(error),
+                agentId=context.agent_id,
+            ),
+        )
+
     def _failure(
         self,
         context: AgentContext,
         started_at: datetime,
         error: Exception,
+        *,
+        timings: InvocationTimings,
     ) -> AgentInvocationResult:
         return AgentInvocationResult(
             invocationId=context.invocation_id,
@@ -393,11 +567,34 @@ class OneShotAgentRuntime:
             status=InvocationStatus.FAILED,
             startedAt=started_at,
             completedAt=self._clock(),
+            timings=timings,
             issue=AgentRuntimeIssue(
                 code=self._error_code(error),
                 message=str(error) or type(error).__name__,
                 agentId=context.agent_id,
             ),
+        )
+
+    def _elapsed(self, started: float) -> float:
+        return max(0.0, self._monotonic() - started)
+
+    def _timings(
+        self,
+        started: float,
+        *,
+        context_seconds: float,
+        model_queueing_seconds: float | None = None,
+        reasoning_seconds: float,
+        action_seconds: float = 0,
+        effect_seconds: float | None = None,
+    ) -> InvocationTimings:
+        return InvocationTimings(
+            contextBuildSeconds=context_seconds,
+            modelQueueingSeconds=model_queueing_seconds,
+            reasoningSeconds=reasoning_seconds,
+            actionExecutionSeconds=action_seconds,
+            actionEffectSeconds=effect_seconds,
+            totalSeconds=self._elapsed(started),
         )
 
     @staticmethod

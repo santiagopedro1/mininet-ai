@@ -5,11 +5,13 @@ description = "A declarative experiment compiler and runtime for agentic network
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+	"agno[ollama,openai,sqlite]>=3.0.11,<3.1",
 	"httpx>=0.28.1",
 	"jsonschema>=4.23.0",
 	"pydantic>=2.13.3",
 	"pyyaml>=6.0.3",
 	"rich>=15.0.0",
+	"sqlalchemy[asyncio]>=2.1,<2.2",
 	"typer>=0.25.0",
 ]
 
@@ -30,7 +32,7 @@ dev = [
 ]
 
 [tool.pyright]
-include = ["mininet_ai", "examples/phase3", "tests"]
+include = ["mininet_ai", "examples/phase3", "examples/phase4", "tests"]
 pythonVersion = "3.14"
 typeCheckingMode = "basic"
 

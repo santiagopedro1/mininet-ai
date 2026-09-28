@@ -3,8 +3,8 @@
 This rootless experiment demonstrates the Phase 3 extension seams without a
 live model or privileged network:
 
-- `agent-blueprints/edge-operator.yaml` defines a declarative agent using the
-  deterministic `mock` model provider.
+- `agent-blueprints/edge-operator.yaml` defines a declarative Agno agent using
+  the deterministic offline model and configured usage metrics.
 - `capabilities/custom-telemetry.yaml` declares a read-only telemetry
   capability.
 - `capabilities/custom-action.yaml` declares a typed mutating capability.
@@ -19,20 +19,25 @@ Run the complete example in one process with:
 uv run python -m examples.phase3
 ```
 
-This prints the invocation result and teardown state as JSON, and writes the
-full event stream to `.mininet-ai/phase3-demo-audit.jsonl`. Choose another
-destination or intent when needed:
+This prints the invocation result and teardown state as JSON, writes the full
+event stream to `.mininet-ai/phase3-demo-audit.jsonl`, and stores the Agno
+session in `.mininet-ai/phase3-demo-agno.sqlite3`. Mininet-owned shared state
+uses `.mininet-ai/phase3-demo-state.sqlite3`. Choose other destinations or an
+intent when needed:
 
 ```bash
 uv run python -m examples.phase3 \
   --audit-log /tmp/phase3-audit.jsonl \
+  --agno-db /tmp/phase3-agno.sqlite3 \
+  --shared-state-db /tmp/phase3-state.sqlite3 \
   --intent "Inspect s1 and apply the declared safe change"
 ```
 
 The workflow deliberately stays in one process because the fake substrate is
-in-memory. It compiles and deploys the experiment, discovers both example
-providers, invokes `edge-operator@s1`, records the audit trail, and tears down
-the run before exiting. It requires neither root access nor Mininet.
+in-memory. It compiles and deploys the experiment, discovers both capability
+providers, invokes `edge-operator@s1` through Agno, records Agno usage with the
+audit trail, and tears down the run before exiting. It requires neither root
+access nor Mininet.
 
 Run the automated acceptance checks with:
 

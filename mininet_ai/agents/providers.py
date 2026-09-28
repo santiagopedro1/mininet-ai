@@ -10,6 +10,7 @@ from typing import cast
 
 from pydantic import JsonValue, ValidationError
 
+from mininet_ai.durations import duration_seconds
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
 from mininet_ai.sdk.contracts import (
     AGENT_RUNTIME_CONTRACT_VERSION,
@@ -26,21 +27,19 @@ from mininet_ai.sdk.contracts import (
 _ENTRYPOINT_PATTERN = re.compile(
     r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$"
 )
-_DURATION_PATTERN = re.compile(r"^(0|[0-9]+(?:\.[0-9]+)?)(us|ms|s)$")
-_DURATION_FACTORS = {"us": 0.000001, "ms": 0.001, "s": 1.0}
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 
 
 def _timeout_seconds(value: str | None) -> float:
     if value is None:
         return _DEFAULT_TIMEOUT_SECONDS
-    match = _DURATION_PATTERN.fullmatch(value)
-    if match is None:
+    try:
+        timeout = duration_seconds(value)
+    except ValueError as error:
         raise AgentProviderError(
             f"invalid declarative agent timeout {value!r}",
             code="agent.configuration.invalid-timeout",
-        )
-    timeout = float(match.group(1)) * _DURATION_FACTORS[match.group(2)]
+        ) from error
     if timeout <= 0:
         raise AgentProviderError(
             "declarative agent timeout must be positive",

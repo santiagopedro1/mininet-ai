@@ -11,16 +11,22 @@ from mininet_ai.specification.models import (
     ControllerProtocol,
     ControllerType,
     CoordinationMode,
+    ExecutionConfiguration,
+    ManualTrigger,
+    MemoryConfiguration,
     Metadata,
+    ObservationPolicy,
     OpenFlowProtocol,
     Policy,
     ResourceKind,
+    ResourceLimits,
     StrictModel,
     SwitchDatapath,
     SwitchFailMode,
+    Trigger,
 )
 
-DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha1:deployment-plan"
+DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha2:deployment-plan"
 
 
 class PlannedResourceBase(StrictModel):
@@ -118,6 +124,17 @@ class AgentInstance(StrictModel):
     capabilities: tuple[str, ...] = ()
     privileges: tuple[str, ...] = ()
     priority: int = 0
+    triggers: tuple[Trigger, ...] = Field(
+        default_factory=lambda: (ManualTrigger(),)
+    )
+    observation_policies: tuple[ObservationPolicy, ...] = Field(
+        default=(),
+        alias="observationPolicies",
+    )
+    memory: MemoryConfiguration = Field(default_factory=MemoryConfiguration)
+    execution: ExecutionConfiguration = Field(
+        default_factory=ExecutionConfiguration
+    )
 
 
 class CoordinationEdge(StrictModel):
@@ -141,7 +158,7 @@ class DeploymentPlan(StrictModel):
         },
     )
 
-    api_version: Literal["mininet-ai/v1alpha1"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
     kind: Literal["DeploymentPlan"] = "DeploymentPlan"
     metadata: Metadata
     source: str = Field(min_length=1)
@@ -151,4 +168,8 @@ class DeploymentPlan(StrictModel):
     agents: tuple[AgentInstance, ...]
     coordination: CoordinationPlan
     policies: Policy
+    resource_limits: ResourceLimits = Field(
+        default_factory=ResourceLimits,
+        alias="resourceLimits",
+    )
     snapshot: dict[str, Any]

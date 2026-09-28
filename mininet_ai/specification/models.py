@@ -1,4 +1,4 @@
-"""The ``mininet-ai/v1alpha1`` public schema.
+"""The ``mininet-ai/v1alpha2`` public schema.
 
 The models intentionally describe logical placement. Process isolation and real
 network attachment are substrate/runtime concerns introduced in later phases.
@@ -11,9 +11,18 @@ from enum import StrEnum
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_validator,
+    model_validator,
+)
 
-API_VERSION: Literal["mininet-ai/v1alpha1"] = "mininet-ai/v1alpha1"
+from mininet_ai.durations import duration_seconds
+
+API_VERSION: Literal["mininet-ai/v1alpha2"] = "mininet-ai/v1alpha2"
 NAME_PATTERN = r"^[a-zA-Z][a-zA-Z0-9_.-]*$"
 
 
@@ -207,7 +216,6 @@ Duration = Annotated[
     Field(pattern=r"^(?:0|[0-9]+(?:\.[0-9]+)?)(?:us|ms|s)$"),
 ]
 
-
 class LinkEndpoint(StrictModel):
     node: Name
     adapter: Name | None = None
@@ -263,26 +271,99 @@ class ModelConfiguration(StrictModel):
 class ReasoningConfiguration(StrictModel):
     instructions: str | None = None
     output_schema: str | None = Field(default=None, alias="output-schema")
-    timeout: str | None = None
+    timeout: Duration | None = None
+
+    @field_validator("timeout")
+    @classmethod
+    def timeout_is_positive(cls, value: str | None) -> str | None:
+        if value is not None and duration_seconds(value) <= 0:
+            raise ValueError("reasoning timeout must be positive")
+        return value
 
 
 class LoopConfiguration(StrictModel):
     phases: list[Name] = Field(default_factory=list)
 
 
+class LocalMemoryConfiguration(StrictModel):
+    max_entries: int = Field(default=1000, alias="maxEntries", ge=1)
+
+
+class ConversationMemoryConfiguration(StrictModel):
+    max_messages: int = Field(default=50, alias="maxMessages", ge=1)
+    summaries: bool = False
+
+
+class LearnedMemoryConfiguration(StrictModel):
+    scope: Literal["run", "agent"] = "run"
+    mode: Literal["automatic", "agentic"] = "automatic"
+
+
+class SharedMemoryConfiguration(StrictModel):
+    scopes: tuple[Literal["deployment", "run"], ...] = Field(min_length=1)
+    max_entries: int = Field(default=1000, alias="maxEntries", ge=1)
+
+    @field_validator("scopes")
+    @classmethod
+    def scopes_are_unique(
+        cls,
+        scopes: tuple[Literal["deployment", "run"], ...],
+    ) -> tuple[Literal["deployment", "run"], ...]:
+        if len(set(scopes)) != len(scopes):
+            raise ValueError("shared memory scopes must be unique")
+        return scopes
+
+
+class MemoryConfiguration(StrictModel):
+    local: LocalMemoryConfiguration | None = None
+    conversation: ConversationMemoryConfiguration | None = None
+    learned: LearnedMemoryConfiguration | None = None
+    shared: SharedMemoryConfiguration | None = None
+
+
 class AgentBlueprint(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha1"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
     kind: Literal["AgentBlueprint"]
     metadata: Metadata
     implementation: Implementation = Field(default_factory=Implementation)
     model: ModelConfiguration | None = None
     reasoning: ReasoningConfiguration = Field(default_factory=ReasoningConfiguration)
-    memory: dict[str, Any] = Field(default_factory=dict)
+    memory: MemoryConfiguration = Field(default_factory=MemoryConfiguration)
     loop: LoopConfiguration = Field(default_factory=LoopConfiguration)
 
 
+class PostconditionDefinition(StrictModel):
+    observation: str = Field(min_length=1)
+    path: str = Field(min_length=1)
+    operator: Literal["eq", "ne", "gt", "gte", "lt", "lte"]
+    expected: JsonValue
+    timeout: Duration = "5s"
+    interval: Duration = "250ms"
+
+    @model_validator(mode="after")
+    def timing_is_positive_and_bounded(self) -> PostconditionDefinition:
+        timeout = duration_seconds(self.timeout)
+        interval = duration_seconds(self.interval)
+        if timeout <= 0 or interval <= 0:
+            raise ValueError("postcondition timeout and interval must be positive")
+        if interval > timeout:
+            raise ValueError("postcondition interval cannot exceed its timeout")
+        return self
+
+
+class CapabilityRollbackConfiguration(StrictModel):
+    timeout: Duration = "30s"
+
+    @field_validator("timeout")
+    @classmethod
+    def timeout_is_positive(cls, value: str) -> str:
+        if duration_seconds(value) <= 0:
+            raise ValueError("rollback timeout must be positive")
+        return value
+
+
 class CapabilityDefinition(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha1"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
     kind: Literal["Capability"]
     metadata: Metadata
     targets: list[ResourceKind] = Field(min_length=1)
@@ -292,6 +373,14 @@ class CapabilityDefinition(StrictModel):
     output_schema: dict[str, Any] = Field(default_factory=dict, alias="output-schema")
     reversible: bool = False
     provider: str | None = None
+    postconditions: list[PostconditionDefinition] = Field(default_factory=list)
+    rollback: CapabilityRollbackConfiguration | None = None
+
+    @model_validator(mode="after")
+    def rollback_matches_reversibility(self) -> CapabilityDefinition:
+        if self.rollback is not None and not self.reversible:
+            raise ValueError("rollback requires a reversible capability")
+        return self
 
 
 class AttachmentLayer(StrEnum):
@@ -337,6 +426,121 @@ class Placement(StrictModel):
         return self
 
 
+class ManualTrigger(StrictModel):
+    type: Literal["manual"] = "manual"
+    name: Name = "manual"
+
+
+class IntervalTrigger(StrictModel):
+    type: Literal["interval"] = "interval"
+    name: Name
+    every: Duration
+    initial_delay: Duration = Field(default="0s", alias="initialDelay")
+
+    @field_validator("every")
+    @classmethod
+    def interval_is_positive(cls, value: str) -> str:
+        if duration_seconds(value) <= 0:
+            raise ValueError("trigger interval must be positive")
+        return value
+
+
+class EventTrigger(StrictModel):
+    type: Literal["event"] = "event"
+    name: Name
+    event: Name
+    source: str | None = Field(default=None, min_length=1)
+    subject: str | None = Field(default=None, min_length=1)
+    cooldown: Duration = "0s"
+
+
+Trigger = Annotated[
+    ManualTrigger | IntervalTrigger | EventTrigger,
+    Field(discriminator="type"),
+]
+
+
+class ThresholdDetector(StrictModel):
+    type: Literal["threshold"] = "threshold"
+    name: Name
+    event: Name
+    path: str = Field(min_length=1)
+    operator: Literal["gt", "gte", "lt", "lte", "eq", "ne"]
+    value: float
+    cooldown: Duration = "0s"
+
+
+class AnomalyDetector(StrictModel):
+    type: Literal["anomaly"] = "anomaly"
+    name: Name
+    event: Name
+    path: str = Field(min_length=1)
+    method: Literal["zscore"] = "zscore"
+    sensitivity: float = Field(default=3, gt=0)
+    min_samples: int = Field(default=10, alias="minSamples", ge=2)
+    cooldown: Duration = "0s"
+
+
+ObservationDetector = Annotated[
+    ThresholdDetector | AnomalyDetector,
+    Field(discriminator="type"),
+]
+
+
+class ObservationPolicy(StrictModel):
+    observation: str = Field(min_length=1)
+    every: Duration
+    window: Duration
+    aggregation: Literal["latest", "minimum", "maximum", "mean", "sum"] = (
+        "latest"
+    )
+    detectors: list[ObservationDetector] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def policy_is_consistent(self) -> ObservationPolicy:
+        every = duration_seconds(self.every)
+        window = duration_seconds(self.window)
+        if every <= 0:
+            raise ValueError("observation sampling interval must be positive")
+        if window < every:
+            raise ValueError(
+                "observation window cannot be shorter than its sampling interval"
+            )
+        detector_names = [detector.name for detector in self.detectors]
+        if len(set(detector_names)) != len(detector_names):
+            raise ValueError("observation detector names must be unique")
+        return self
+
+
+class RestartConfiguration(StrictModel):
+    policy: Literal["never", "on-failure"] = "never"
+    max_attempts: int = Field(default=0, alias="maxAttempts", ge=0)
+    backoff: Duration = "1s"
+
+    @model_validator(mode="after")
+    def attempts_match_policy(self) -> RestartConfiguration:
+        if self.policy == "never" and self.max_attempts != 0:
+            raise ValueError("never restart policy requires maxAttempts 0")
+        if self.policy == "on-failure" and self.max_attempts < 1:
+            raise ValueError("on-failure restart policy requires maxAttempts")
+        return self
+
+
+class ExecutionConfiguration(StrictModel):
+    queue_capacity: int = Field(default=64, alias="queueCapacity", ge=1)
+    max_concurrency: int = Field(default=1, alias="maxConcurrency", ge=1)
+    overflow: Literal["reject", "drop-oldest", "coalesce"] = "reject"
+    action_timeout: Duration = Field(default="30s", alias="actionTimeout")
+    restart: RestartConfiguration = Field(default_factory=RestartConfiguration)
+
+    @field_validator("action_timeout")
+    @classmethod
+    def action_timeout_is_positive(cls, value: str) -> str:
+        if duration_seconds(value) <= 0:
+            raise ValueError("action timeout must be positive")
+        return value
+
+
 class AgentDeployment(StrictModel):
     name: Name
     blueprint: Name | str
@@ -344,6 +548,23 @@ class AgentDeployment(StrictModel):
     observe: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
     priority: int = 0
+    triggers: list[Trigger] = Field(
+        default_factory=lambda: [ManualTrigger()]
+    )
+    observation_policies: list[ObservationPolicy] = Field(
+        default_factory=list,
+        alias="observationPolicies",
+    )
+    execution: ExecutionConfiguration = Field(
+        default_factory=ExecutionConfiguration
+    )
+
+    @model_validator(mode="after")
+    def trigger_names_are_unique(self) -> AgentDeployment:
+        names = [trigger.name for trigger in self.triggers]
+        if len(set(names)) != len(names):
+            raise ValueError("agent trigger names must be unique")
+        return self
 
 
 class CoordinationMode(StrEnum):
@@ -394,10 +615,20 @@ class Policy(StrictModel):
 
 class ResourceLimits(StrictModel):
     max_instances: int = Field(default=256, ge=1, alias="max-instances")
+    max_concurrent_invocations: int = Field(
+        default=32,
+        ge=1,
+        alias="max-concurrent-invocations",
+    )
+    max_queued_events: int = Field(
+        default=4096,
+        ge=1,
+        alias="max-queued-events",
+    )
 
 
 class Experiment(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha1"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
     kind: Literal["Experiment"]
     metadata: Metadata
     substrate: Substrate
