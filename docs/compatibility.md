@@ -24,17 +24,17 @@ The project currently defines nine contract families:
   record used to inspect and recover an interrupted Mininet/OVS run. It is
   versioned so a newer runtime never guesses how to clean up an incompatible
   record.
-- `mininet-ai/agent-runtime/v1alpha2` covers the current SDK seam used by agent,
+- `mininet-ai/agent-runtime/v1alpha3` covers the current SDK seam used by agent,
   capability, and model-provider adapters, including scoped invocation context,
   action proposals, normalized model responses, invocation results, versioned
   provider descriptors, registry semantics, and the JSON protocol used by
   external capability processes and services. Its generic agent and model
   provider portions are deprecated by
   [ADR 0001](adr/0001-use-agno-as-v1-agent-runtime.md) and will be replaced by
-  an Agno-centric runtime contract before v1. Scoped invocation, action, result,
-  and external capability concepts remain owned by Mininet AI. The
-  agent-runtime contract is independent of experiment and substrate contract
-  versions.
+  an Agno-centric runtime contract before v1. Scoped invocation, delegation,
+  action, result, and external capability concepts remain owned by Mininet AI.
+  The agent-runtime contract is independent of experiment and substrate
+  contract versions.
 - `mininet-ai/audit/v1alpha1` covers correlated JSON audit records for agent,
   model, and capability execution. It is versioned separately so storage and
   analysis tools can evolve without changing provider contracts.
@@ -58,10 +58,10 @@ to select the exact contract it understands.
 
 The framework-neutral `AgentProvider` and `ModelProvider` protocols, their
 provider registries, and the built-in OpenAI-compatible and Ollama model
-adapters are deprecated. They remain documented as current `v1alpha2` behavior
+adapters are deprecated. They remain documented as current `v1alpha3` behavior
 until the Agno execution path reaches parity. Their removal or semantic
 replacement will use a new agent-runtime contract version rather than silently
-changing `mininet-ai/agent-runtime/v1alpha2`.
+changing `mininet-ai/agent-runtime/v1alpha3`.
 
 The migration does not delegate network authority to Agno. Mininet's scoped
 invocation context, structured action proposal, capability authorization,
@@ -88,6 +88,41 @@ intentionally change.
 and invocation timings. Capability, agent, and model plugins must advertise
 `mininet-ai/agent-runtime/v1alpha2`; incompatible `v1alpha1` plugins are
 rejected before invocation.
+
+### Agent runtime v1alpha2 to v1alpha3
+
+`v1alpha3` adds optional coordination context to each invocation and structured
+delegation proposals to agent responses. Existing agents that do not delegate
+need no source changes, but provider plugins must advertise
+`mininet-ai/agent-runtime/v1alpha3`; incompatible `v1alpha2` plugins are
+rejected before invocation. A delegation is only a proposal: Mininet AI still
+validates its destination against the compiled coordination graph before
+delivery.
+
+An existing response remains valid after adding the new defaulted field:
+
+```json
+{"message": "done", "proposals": []}
+```
+
+A coordinating agent may now return an explicit proposal:
+
+```json
+{
+  "delegations": [
+    {
+      "id": "delegate-1",
+      "targetAgentId": "router@s2",
+      "intent": "Inspect the adjacent switch",
+      "metadata": {}
+    }
+  ]
+}
+```
+
+Coordinated invocations also receive the optional `coordination` object with
+the current message identity, requested agent, hop count, and graph-authorized
+`allowedDestinations`. Non-coordinated callers continue to omit that object.
 
 ### Substrate runtime v1alpha1 to v1alpha2
 

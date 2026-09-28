@@ -45,6 +45,8 @@ _ENTRYPOINT_PATTERN = re.compile(
 _SAFE_OUTPUT_INSTRUCTIONS = (
     "Return a response matching the required schema. Action proposals must use "
     "only capabilities and targets present in the supplied scoped context. "
+    "Delegation proposals must use only coordination.allowedDestinations; when "
+    "coordination is absent or has no allowed destinations, do not delegate. "
     "Shared-state updates must use only sharedState.allowedScopes. "
     "Do not execute network changes directly."
 )

@@ -11,7 +11,7 @@ from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime import InMemorySharedStateStore
-from mininet_ai.sdk import InvocationStatus
+from mininet_ai.sdk import AgentCoordinationContext, InvocationStatus
 from mininet_ai.specification.models import Experiment
 from mininet_ai.substrates import ActionStatus, FakeSubstrateRuntime
 from tests.compiler.helpers import EXAMPLE
@@ -203,6 +203,45 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         assert result.issue is not None
         self.assertEqual(result.issue.code, "capability.target.out-of-scope")
         self.assertEqual(result.action_results[0].status, ActionStatus.REJECTED)
+
+    def test_coordination_context_and_delegations_cross_agno_seam(self) -> None:
+        runtime, run, sink = self.runtime(
+            {
+                "delegations": [
+                    {
+                        "id": "delegate-1",
+                        "targetAgentId": "switch-router@s2",
+                        "intent": "Inspect the adjacent switch",
+                    }
+                ]
+            }
+        )
+        coordination = AgentCoordinationContext(
+            messageId="message-1",
+            correlationId="request-1",
+            kind="intent",
+            requestedAgentId="switch-router@s1",
+            allowedDestinations=("switch-router@s2",),
+        )
+
+        result = runtime.invoke(
+            run.id,
+            "switch-router@s1",
+            "coordinate inspection",
+            coordination=coordination,
+        )
+
+        self.assertEqual(result.status, InvocationStatus.SUCCEEDED)
+        assert result.response is not None
+        self.assertEqual(
+            result.response.delegations[0].target_agent_id,
+            "switch-router@s2",
+        )
+        context_data = cast(dict[str, Any], sink.events[0].data["context"])
+        self.assertEqual(
+            context_data["coordination"]["allowedDestinations"],
+            ["switch-router@s2"],
+        )
 
     def test_shared_state_updates_are_scoped_audited_and_visible_next_run(
         self,

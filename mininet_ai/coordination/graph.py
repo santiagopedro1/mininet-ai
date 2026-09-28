@@ -69,6 +69,12 @@ class CoordinationGraph:
     def mode(self) -> CoordinationMode:
         return self._mode
 
+    @property
+    def hop_limit(self) -> int:
+        """Maximum explicit delegation depth for this graph."""
+
+        return max(1, len(self._agents) * 2)
+
     def entry_agent(self, requested_agent: str) -> str:
         """Resolve the first recipient for an externally submitted intent."""
 

@@ -35,6 +35,7 @@ from mininet_ai.runtime import (
     SharedStateStore,
 )
 from mininet_ai.sdk import (
+    AgentCoordinationContext,
     AgentContext,
     AgentInvocationResult,
     AgentResponse,
@@ -152,6 +153,8 @@ class OneShotAgentRuntime:
         run_id: str,
         agent_id: str,
         intent: str,
+        *,
+        coordination: AgentCoordinationContext | None = None,
     ) -> AgentInvocationResult:
         started_at = self._clock()
         started_tick = self._monotonic()
@@ -208,6 +211,7 @@ class OneShotAgentRuntime:
             invoked_at=started_at,
             observations=observations,
             shared_state=shared_state,
+            coordination=coordination,
         )
         context_seconds = self._elapsed(context_tick)
         if self._audit is not None:
@@ -387,6 +391,7 @@ class OneShotAgentRuntime:
         invoked_at: datetime,
         observations: dict[str, JsonValue],
         shared_state: SharedStateSnapshot,
+        coordination: AgentCoordinationContext | None,
     ) -> AgentContext:
         instance = definition.instance
         attachment = instance.attachment
@@ -402,6 +407,7 @@ class OneShotAgentRuntime:
             capabilities=instance.capabilities,
             observations=observations,
             sharedState=shared_state,
+            coordination=coordination,
             intent=intent,
             priority=instance.priority,
             invokedAt=invoked_at,

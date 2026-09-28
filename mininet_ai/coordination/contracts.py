@@ -24,6 +24,19 @@ class CoordinationMessageKind(StrEnum):
     RESULT = "result"
 
 
+class CoordinationIntentPayload(StrictModel):
+    """Intent data carried by entry and delegation messages."""
+
+    intent: str = Field(min_length=1)
+    requested_agent_id: str = Field(alias="requestedAgentId", min_length=1)
+    delegation_id: str | None = Field(
+        default=None,
+        alias="delegationId",
+        min_length=1,
+    )
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
 class CoordinationMessage(StrictModel):
     """One immutable, correlated message accepted for at-most-once delivery."""
 

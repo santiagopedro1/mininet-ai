@@ -16,7 +16,7 @@ from mininet_ai.specification.models import (
 from mininet_ai.substrates.runtime import ActionResult, ActionStatus
 
 
-AGENT_RUNTIME_CONTRACT_VERSION = "mininet-ai/agent-runtime/v1alpha2"
+AGENT_RUNTIME_CONTRACT_VERSION = "mininet-ai/agent-runtime/v1alpha3"
 
 
 class AgentRuntimeIssue(StrictModel):
@@ -52,6 +52,39 @@ class SharedStateSnapshot(StrictModel):
     )
     run: dict[str, SharedStateEntry] = Field(default_factory=dict)
     deployment: dict[str, SharedStateEntry] = Field(default_factory=dict)
+
+
+class AgentCoordinationContext(StrictModel):
+    """Authorized message-routing context for one coordinated invocation."""
+
+    message_id: str = Field(alias="messageId", min_length=1)
+    correlation_id: str = Field(alias="correlationId", min_length=1)
+    causation_id: str | None = Field(
+        default=None,
+        alias="causationId",
+        min_length=1,
+    )
+    kind: Literal["intent", "delegation"]
+    source_agent_id: str | None = Field(
+        default=None,
+        alias="sourceAgentId",
+        min_length=1,
+    )
+    requested_agent_id: str = Field(alias="requestedAgentId", min_length=1)
+    allowed_destinations: tuple[str, ...] = Field(
+        default=(),
+        alias="allowedDestinations",
+    )
+    hop_count: int = Field(default=0, alias="hopCount", ge=0)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def destinations_are_unique(self) -> AgentCoordinationContext:
+        if self.kind == "delegation" and self.source_agent_id is None:
+            raise ValueError("a delegation context requires sourceAgentId")
+        if len(set(self.allowed_destinations)) != len(self.allowed_destinations):
+            raise ValueError("allowedDestinations must be unique")
+        return self
 
 
 class SharedStateUpdate(StrictModel):
@@ -112,6 +145,7 @@ class AgentContext(StrictModel):
         default_factory=SharedStateSnapshot,
         alias="sharedState",
     )
+    coordination: AgentCoordinationContext | None = None
     intent: str = Field(min_length=1)
     priority: int = 0
     invoked_at: AwareDatetime = Field(alias="invokedAt")
@@ -205,6 +239,15 @@ class ActionProposal(StrictModel):
     timeout_seconds: float = Field(default=30, alias="timeoutSeconds", gt=0)
 
 
+class DelegationProposal(StrictModel):
+    """Agent-proposed intent delivery to one graph-authorized destination."""
+
+    id: str = Field(min_length=1)
+    target_agent_id: str = Field(alias="targetAgentId", min_length=1)
+    intent: str = Field(min_length=1)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
 class CapabilityOutcome(StrictModel):
     """Provider output before the runtime adds identity and completion time."""
 
@@ -234,6 +277,7 @@ class CapabilityProviderError(Exception):
 class AgentResponse(StrictModel):
     message: str | None = Field(default=None, min_length=1)
     proposals: tuple[ActionProposal, ...] = ()
+    delegations: tuple[DelegationProposal, ...] = ()
     shared_state_updates: tuple[SharedStateUpdate, ...] = Field(
         default=(),
         alias="sharedStateUpdates",
@@ -242,13 +286,22 @@ class AgentResponse(StrictModel):
 
     @model_validator(mode="after")
     def response_has_an_outcome(self) -> AgentResponse:
-        if self.message is None and not self.proposals and not self.shared_state_updates:
+        if (
+            self.message is None
+            and not self.proposals
+            and not self.delegations
+            and not self.shared_state_updates
+        ):
             raise ValueError(
-                "an agent response requires a message, proposal, or shared-state update"
+                "an agent response requires a message, proposal, delegation, "
+                "or shared-state update"
             )
         proposal_ids = [proposal.id for proposal in self.proposals]
         if len(set(proposal_ids)) != len(proposal_ids):
             raise ValueError("action proposal ids must be unique")
+        delegation_ids = [delegation.id for delegation in self.delegations]
+        if len(set(delegation_ids)) != len(delegation_ids):
+            raise ValueError("delegation proposal ids must be unique")
         return self
 
 
