@@ -21,6 +21,7 @@ from mininet_ai.agents import (
 )
 from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
+from mininet_ai.coordination import CoordinationMessage
 from mininet_ai.errors import MininetAIError
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
@@ -64,6 +65,7 @@ class SchemaName(StrEnum):
     CAPABILITY = "capability"
     DEPLOYMENT_PLAN = "deployment-plan"
     RUNTIME_EVENT = "runtime-event"
+    COORDINATION_MESSAGE = "coordination-message"
 
 
 class _SignalLatch:
@@ -518,6 +520,7 @@ def print_schema(
         SchemaName.CAPABILITY: CapabilityDefinition,
         SchemaName.DEPLOYMENT_PLAN: DeploymentPlan,
         SchemaName.RUNTIME_EVENT: RuntimeEvent,
+        SchemaName.COORDINATION_MESSAGE: CoordinationMessage,
     }
     console.print_json(json.dumps(models[name].model_json_schema(by_alias=True)))
 

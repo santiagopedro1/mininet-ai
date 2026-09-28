@@ -7,7 +7,7 @@ driver contract.
 
 ## Versioned contracts
 
-The project currently defines eight contract families:
+The project currently defines nine contract families:
 
 - `mininet-ai/v1alpha2` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
@@ -41,6 +41,10 @@ The project currently defines eight contract families:
 - `mininet-ai/runtime-event/v1alpha1` covers normalized continuous-runtime
   events, their ordering and causation, and typed payloads. Its schema identifier
   is `urn:mininet-ai:schema:v1alpha1:runtime-event`.
+- `mininet-ai/coordination-message/v1alpha1` covers immutable, correlated
+  intent, delegation, and result envelopes accepted for at-most-once delivery
+  within one coordination runtime process. Its schema identifier is
+  `urn:mininet-ai:schema:v1alpha1:coordination-message`.
 - `mininet-ai/run-ledger/v1alpha1` covers immutable run manifests and ordered
   ledger records. Its SQLite schema version is validated independently from the
   serialized record contract.
