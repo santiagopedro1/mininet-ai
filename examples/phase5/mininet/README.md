@@ -23,10 +23,14 @@ cd /vagrant
 sudo scripts/vm-run.sh mininet-ai run \
   examples/phase5/mininet/experiment.yaml \
   --intent 'primary-remediator@s1=Coordinate a safe forwarding repair for s1.' \
+  --verbose \
   --format json
 ```
 
-Wait for the intent to complete, then press Ctrl+C. The final JSON report
+Verbose progress is written to stderr, while the final JSON report remains on
+stdout. The same progress is appended to `.mininet-ai/run.log`; override that
+location with `--log-file PATH`. Wait for the intent to complete, then press
+Ctrl+C. The final JSON report
 contains the versioned coordination outcome under
 `continuous.invocations[0].coordination`. It should contain three messages,
 three invocations, one `execute` arbitration decision, and one `reject`

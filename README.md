@@ -209,9 +209,11 @@ shutdown reverses that dependency order—telemetry, draining agents, then the
 substrate—and returns one structured report. If a producer or worker misses its
 shutdown deadline, the owner leaves the substrate running and permits a later
 stop retry instead of tearing resources out from under active work. The
-`mininet-ai run` command now
-uses this owner until `SIGINT` or `SIGTERM`; accepted runtime events and Agno
-audit records are persisted to the same ordered ledger.
+`mininet-ai run` uses this owner until `SIGINT` or `SIGTERM`; accepted runtime
+events and Agno audit records are persisted to the same ordered ledger. Every
+live run also appends concise lifecycle and audit progress to the owner-only
+`.mininet-ai/run.log`. Pass `--verbose` to mirror those updates to stderr while
+the experiment is running without contaminating JSON output on stdout.
 
 ## Installation
 
@@ -585,8 +587,13 @@ Python objects also owns cleanup. Start a run in one VM terminal and copy the
 reported run ID:
 
 ```bash
-sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml
+sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml --verbose
 ```
+
+Run progress is appended to `.mininet-ai/run.log` even without `--verbose`.
+Use `--log-file PATH` to select another destination. The log records lifecycle,
+intent queueing, agent invocation, model request, and capability execution
+updates; `--verbose` mirrors the same updates to the terminal.
 
 Inspect or stop it from another VM terminal:
 

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import signal
+import stat
 import threading
 from enum import StrEnum
 from pathlib import Path
@@ -19,7 +22,7 @@ from mininet_ai.agents import (
     OneShotAgentRuntime,
     register_builtin_providers,
 )
-from mininet_ai.audit import AuditRecorder, JsonLinesAuditSink
+from mininet_ai.audit import AuditEvent, AuditRecorder, JsonLinesAuditSink
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
 from mininet_ai.errors import MininetAIError
@@ -52,6 +55,87 @@ app = typer.Typer(
 )
 console = Console()
 error_console = Console(stderr=True)
+
+
+class _RunLogError(MininetAIError):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.code = "run.log.open-failed"
+
+
+class _RunProgress:
+    """Mirror run progress to an owner-only log and optionally stderr."""
+
+    def __init__(self, path: Path, *, verbose: bool) -> None:
+        self.path = path
+        self._verbose = verbose
+        descriptor: int | None = None
+        try:
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+            flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(path, flags, 0o600)
+            metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or stat.S_IMODE(metadata.st_mode) & 0o077
+            ):
+                raise _RunLogError(
+                    f"run log {path} must be an owner-only regular file"
+                )
+            self._stream = os.fdopen(
+                descriptor,
+                "a",
+                encoding="utf-8",
+                buffering=1,
+            )
+            descriptor = None
+        except _RunLogError:
+            if descriptor is not None:
+                os.close(descriptor)
+            raise
+        except OSError as error:
+            if descriptor is not None:
+                os.close(descriptor)
+            raise _RunLogError(f"could not open run log {path}: {error}") from error
+
+        self._logger = logging.Logger(f"mininet-ai.run.{id(self)}", logging.INFO)
+        self._logger.propagate = False
+        handler = logging.StreamHandler(self._stream)
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        )
+        self._logger.addHandler(handler)
+
+    def info(self, message: str) -> None:
+        self._logger.info(message)
+        if self._verbose:
+            error_console.print(f"[dim]•[/dim] {message}")
+
+    def audit(self, event: AuditEvent) -> None:
+        self.info(
+            f"{event.type.value}: agent={event.agent_id} "
+            f"invocation={event.invocation_id}"
+        )
+
+    def close(self) -> None:
+        for handler in tuple(self._logger.handlers):
+            handler.flush()
+            handler.close()
+            self._logger.removeHandler(handler)
+        self._stream.close()
+
+
+class _ReportingAuditSink:
+    """Persist audit events to the ledger and mirror concise progress."""
+
+    def __init__(self, ledger: SQLiteRunLedger, progress: _RunProgress) -> None:
+        self._ledger = LedgerAuditSink(ledger)
+        self._progress = progress
+
+    def write(self, event: AuditEvent) -> None:
+        self._ledger.write(event)
+        self._progress.audit(event)
 
 
 class OutputFormat(StrEnum):
@@ -242,6 +326,17 @@ def run(
         "--discover-plugins",
         help="Load installed capability plugins.",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Show live lifecycle, invocation, model, and capability progress.",
+    ),
+    log_file: Path = typer.Option(
+        Path(".mininet-ai/run.log"),
+        "--log-file",
+        help="Append human-readable run progress to this file.",
+    ),
 ) -> None:
     """Own a complete continuous experiment until interrupted or stopped."""
 
@@ -271,20 +366,31 @@ def run(
             )
         parsed_intents.append((agent_id, intent))
 
+    progress = _operation_or_exit(lambda: _RunProgress(log_file, verbose=verbose))
+    progress.info(
+        f"Prepared experiment {deployment_plan.metadata.name} "
+        f"({len(deployment_plan.resources)} resources, "
+        f"{len(deployment_plan.agents)} agents)"
+    )
     ledger = None
     state_store = None
     owner = None
     report = None
     try:
+        progress.info(f"Opening run ledger {ledger_db}")
         ledger = _operation_or_exit(lambda: SQLiteRunLedger(ledger_db))
+        progress.info(f"Opening shared state database {shared_state_db}")
         state_store = _operation_or_exit(
             lambda: SQLiteSharedStateStore(shared_state_db)
+        )
+        progress.info(
+            f"Starting {deployment_plan.substrate} substrate and runtime services"
         )
         owner = ExperimentRuntime(
             deployment_plan,
             substrate,
             registries,
-            audit=AuditRecorder(LedgerAuditSink(ledger)),
+            audit=AuditRecorder(_ReportingAuditSink(ledger, progress)),
             agent_factory=_operation_or_exit(
                 lambda: AgnoAgentFactory(database_path=agno_db)
             ),
@@ -297,28 +403,42 @@ def run(
         )
         with _SignalLatch() as stop_latch:
             run_info = _operation_or_exit(owner.start)
+            progress.info(
+                f"Run {run_info.id} is active on {run_info.substrate}"
+            )
             for agent_id, intent in parsed_intents:
-                _operation_or_exit(
+                event = _operation_or_exit(
                     lambda agent_id=agent_id, intent=intent: owner.submit_intent(
                         agent_id,
                         intent,
                     )
                 )
+                progress.info(
+                    f"Queued intent {event.event_id} for agent {agent_id}"
+                )
             if output_format == OutputFormat.TEXT:
                 console.print(
                     f"[green]Running[/green] {run_info.id} on "
-                    f"{run_info.substrate}. Press Ctrl+C to stop."
+                    f"{run_info.substrate}. Press Ctrl+C to stop.\n"
+                    f"Log: {log_file}"
                 )
             stop_latch.wait()
     finally:
         try:
             if owner is not None and owner.state == ExperimentRuntimeState.RUNNING:
+                progress.info("Stop requested; draining work and tearing down")
                 report = _operation_or_exit(owner.stop)
+                progress.info(
+                    f"Run {report.run.id} stopped with "
+                    f"{report.continuous.completed} completed and "
+                    f"{report.continuous.failed} failed invocations"
+                )
         finally:
             if state_store is not None:
                 state_store.close()
             if ledger is not None:
                 ledger.close()
+            progress.close()
     if report is None:
         return
     if output_format == OutputFormat.JSON:
