@@ -35,6 +35,7 @@ from mininet_ai.errors import MininetAIError
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
 from mininet_ai.runtime import (
+    ContinuousInvocationRecord,
     LedgerAuditSink,
     PluginManifest,
     RuntimeEvent,
@@ -92,9 +93,7 @@ class _RunProgress:
                 not stat.S_ISREG(metadata.st_mode)
                 or stat.S_IMODE(metadata.st_mode) & 0o077
             ):
-                raise _RunLogError(
-                    f"run log {path} must be an owner-only regular file"
-                )
+                raise _RunLogError(f"run log {path} must be an owner-only regular file")
             self._stream = os.fdopen(
                 descriptor,
                 "a",
@@ -114,9 +113,7 @@ class _RunProgress:
         self._logger = logging.Logger(f"mininet-ai.run.{id(self)}", logging.INFO)
         self._logger.propagate = False
         handler = logging.StreamHandler(self._stream)
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
         self._logger.addHandler(handler)
 
     def info(self, message: str) -> None:
@@ -200,9 +197,7 @@ class _SignalLatch:
 
     def __enter__(self) -> Self:
         for number in (signal.SIGINT, signal.SIGTERM):
-            self._previous[number] = cast(
-                signal.Handlers, signal.getsignal(number)
-            )
+            self._previous[number] = cast(signal.Handlers, signal.getsignal(number))
             signal.signal(number, self._request_stop)
         return self
 
@@ -221,6 +216,57 @@ class _SignalLatch:
 
     def wait(self) -> None:
         self._event.wait()
+
+
+class _InitialIntentTracker:
+    """Request stop after every registered initial intent reaches a result."""
+
+    def __init__(
+        self,
+        expected: int,
+        progress: _RunProgress,
+        request_stop: Callable[[], None],
+    ) -> None:
+        self._expected = expected
+        self._progress = progress
+        self._request_stop = request_stop
+        self._lock = threading.Lock()
+        self._tracked: set[str] = set()
+        self._completed: set[str] = set()
+        self._sealed = False
+        self._stop_requested = False
+
+    def track(self, event_id: str) -> None:
+        with self._lock:
+            self._tracked.add(event_id)
+        self._stop_if_complete()
+
+    def complete(self, record: ContinuousInvocationRecord) -> None:
+        with self._lock:
+            self._completed.add(record.event_id)
+        self._stop_if_complete()
+
+    def seal(self) -> None:
+        with self._lock:
+            self._sealed = True
+        self._stop_if_complete()
+
+    def _stop_if_complete(self) -> None:
+        with self._lock:
+            should_stop = (
+                self._sealed
+                and not self._stop_requested
+                and len(self._tracked) == self._expected
+                and self._tracked <= self._completed
+            )
+            if should_stop:
+                self._stop_requested = True
+        if should_stop:
+            self._progress.info(
+                f"All {self._expected} initial intents finished; "
+                "requesting automatic stop"
+            )
+            self._request_stop()
 
 
 def _compile_or_exit(path: Path) -> DeploymentPlan:
@@ -349,6 +395,11 @@ def run(
         "--intent",
         help="Initial manual intent as AGENT=TEXT; may be repeated.",
     ),
+    stop_after_intents: bool = typer.Option(
+        False,
+        "--stop-after-intents",
+        help="Stop after every initial --intent reaches a final result.",
+    ),
     ledger_db: Path = typer.Option(
         Path(".mininet-ai/runs.sqlite3"),
         "--ledger-db",
@@ -395,9 +446,7 @@ def run(
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
     loaded = (
-        _operation_or_exit(lambda: discover_plugins(registries))
-        if discover
-        else ()
+        _operation_or_exit(lambda: discover_plugins(registries)) if discover else ()
     )
     parsed_intents = []
     for declaration in initial_intents:
@@ -408,6 +457,11 @@ def run(
                 param_hint="--intent",
             )
         parsed_intents.append((agent_id, intent))
+    if stop_after_intents and not parsed_intents:
+        raise typer.BadParameter(
+            "requires at least one --intent",
+            param_hint="--stop-after-intents",
+        )
 
     progress = _operation_or_exit(lambda: _RunProgress(log_file, verbose=verbose))
     progress.info(
@@ -430,6 +484,15 @@ def run(
             f"Starting {deployment_plan.substrate} substrate and runtime services"
         )
         stop_latch = _SignalLatch()
+        intent_tracker = (
+            _InitialIntentTracker(
+                len(parsed_intents),
+                progress,
+                stop_latch.request_stop,
+            )
+            if stop_after_intents
+            else None
+        )
         owner = ExperimentRuntime(
             deployment_plan,
             substrate,
@@ -450,12 +513,13 @@ def run(
                 PluginManifest(group=plugin.group, name=plugin.name)
                 for plugin in loaded
             ),
+            invocation_listener=(
+                intent_tracker.complete if intent_tracker is not None else None
+            ),
         )
         with stop_latch:
             run_info = _operation_or_exit(owner.start)
-            progress.info(
-                f"Run {run_info.id} is active on {run_info.substrate}"
-            )
+            progress.info(f"Run {run_info.id} is active on {run_info.substrate}")
             for agent_id, intent in parsed_intents:
                 event = _operation_or_exit(
                     lambda agent_id=agent_id, intent=intent: owner.submit_intent(
@@ -463,13 +527,21 @@ def run(
                         intent,
                     )
                 )
-                progress.info(
-                    f"Queued intent {event.event_id} for agent {agent_id}"
-                )
+                progress.info(f"Queued intent {event.event_id} for agent {agent_id}")
+                if intent_tracker is not None:
+                    intent_tracker.track(event.event_id)
+            if intent_tracker is not None:
+                intent_tracker.seal()
             if output_format == OutputFormat.TEXT:
+                wait_message = (
+                    "Stopping after initial intents finish; press Ctrl+C "
+                    "to stop sooner."
+                    if stop_after_intents
+                    else "Press Ctrl+C to stop."
+                )
                 console.print(
                     f"[green]Running[/green] {run_info.id} on "
-                    f"{run_info.substrate}. Press Ctrl+C to stop.\n"
+                    f"{run_info.substrate}. {wait_message}\n"
                     f"Log: {log_file}"
                 )
             stop_latch.wait()
@@ -504,10 +576,7 @@ def run(
             f"{report.continuous.completed} invocations, "
             f"released {released} resources"
         )
-    if (
-        report.state == ExperimentRuntimeState.FAILED
-        or report.continuous.failed > 0
-    ):
+    if report.state == ExperimentRuntimeState.FAILED or report.continuous.failed > 0:
         raise typer.Exit(code=1)
 
 
@@ -653,9 +722,7 @@ def invoke(
         )
         raise typer.Exit(code=1) from error
     recorder = AuditRecorder(JsonLinesAuditSink(audit_log, sync=True))
-    state_store = _operation_or_exit(
-        lambda: SQLiteSharedStateStore(shared_state_db)
-    )
+    state_store = _operation_or_exit(lambda: SQLiteSharedStateStore(shared_state_db))
     runtime = OneShotAgentRuntime(
         deployment_plan,
         substrate,
@@ -667,9 +734,7 @@ def invoke(
         shared_state=state_store,
     )
     try:
-        result = _operation_or_exit(
-            lambda: runtime.invoke(run_id, agent_id, intent)
-        )
+        result = _operation_or_exit(lambda: runtime.invoke(run_id, agent_id, intent))
     finally:
         state_store.close()
     if output_format == OutputFormat.JSON:
@@ -682,9 +747,7 @@ def invoke(
 
 @app.command("schema")
 def print_schema(
-    name: SchemaName = typer.Argument(
-        SchemaName.EXPERIMENT, help="Schema to print."
-    ),
+    name: SchemaName = typer.Argument(SchemaName.EXPERIMENT, help="Schema to print."),
 ) -> None:
     """Print a JSON Schema for a current public document."""
 

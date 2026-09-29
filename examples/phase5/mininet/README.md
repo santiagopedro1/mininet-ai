@@ -23,14 +23,16 @@ cd /vagrant
 sudo scripts/vm-run.sh mininet-ai run \
   examples/phase5/mininet/experiment.yaml \
   --intent 'primary-remediator@s1=Coordinate a safe forwarding repair for s1.' \
+  --stop-after-intents \
   --verbose \
   --format json
 ```
 
 Verbose progress is written to stderr, while the final JSON report remains on
 stdout. The same progress is appended to `.mininet-ai/run.log`; override that
-location with `--log-file PATH`. Wait for the intent to complete, then press
-Ctrl+C. The final JSON report
+location with `--log-file PATH`. The owner automatically drains and tears down
+Mininet after the intent's complete coordinated result is recorded. The final
+JSON report
 contains the versioned coordination outcome under
 `continuous.invocations[0].coordination`. It should contain three messages,
 three invocations, one `execute` arbitration decision, and one `reject`
@@ -65,6 +67,7 @@ sudo env OLLAMA_HOST=http://10.10.10.152:11434 \
   scripts/vm-run.sh mininet-ai run \
   examples/phase5/mininet/experiment-ollama.yaml \
   --intent 'primary-remediator@s1=Coordinate a safe forwarding repair for s1.' \
+  --stop-after-intents \
   --agno-db .mininet-ai/phase5-ollama-agno.sqlite3 \
   --ledger-db .mininet-ai/phase5-ollama-ledger.sqlite3 \
   --shared-state-db .mininet-ai/phase5-ollama-state.sqlite3 \
@@ -73,9 +76,10 @@ sudo env OLLAMA_HOST=http://10.10.10.152:11434 \
   --format json
 ```
 
-Wait until verbose output shows all three `agent.invocation.completed` events,
-then press Ctrl+C. The coordinator and remediators use one persistent Agno
-instance each for the duration of the run. Mininet-AI remains the only component
-allowed to execute their proposed network actions. If agent construction or
-execution fails, verbose output and the run log show the error immediately and
-the owner automatically drains work, tears down Mininet, and exits nonzero.
+The coordinator and remediators use one persistent Agno instance each for the
+duration of the run. After the initial intent's coordination and actions
+finish, the owner automatically drains work, tears down Mininet, prints the
+JSON report, and exits. Mininet-AI remains the only component allowed to execute
+their proposed network actions. If agent construction or execution fails,
+verbose output and the run log show the error immediately and the same teardown
+path exits nonzero.

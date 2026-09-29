@@ -598,6 +598,11 @@ capability, and shared-state failures are reported immediately with their error
 code and message, then request an orderly drain and substrate teardown. A run
 stopped this way exits nonzero after printing its final report.
 
+For finite command-driven experiments, pass `--stop-after-intents`. The owner
+correlates every initial `--intent` with its final continuous-runtime record,
+then drains work and tears down the substrate after all of them finish. Without
+this option, `run` remains continuous and waits for `SIGINT` or `SIGTERM`.
+
 Inspect or stop it from another VM terminal:
 
 ```bash

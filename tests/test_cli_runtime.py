@@ -232,14 +232,14 @@ class RuntimeCLITests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn(
-            "All 2 initial intents completed; requesting automatic stop",
+            "All 2 initial intents finished; requesting automatic stop",
             log,
         )
         self.assertLess(
-            log.index("All 2 initial intents completed"),
+            log.index("All 2 initial intents finished"),
             log.index("Stop requested; draining work and tearing down"),
         )
-        self.assertIn("2 completed", result.output)
+        self.assertIn("2 invocations", result.output)
         self.assertEqual(runtime.inspect("cli-intents-run").run.state, RunState.STOPPED)
 
     def test_run_tears_down_if_reporting_the_started_run_fails(self) -> None:
