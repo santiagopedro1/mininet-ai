@@ -60,16 +60,15 @@ Phases 1 through 3 are implemented:
 - Phase 3: scoped agent invocation, capability contracts, plugins, audit data,
   and the rootless extension example.
 
-Phase 4 continuous runtime is implemented on branch
-`feature/v1alpha1-continuous-runtime`. At the time of this handoff, `HEAD` is
-`c6df5b0` (`test: add Ollama-backed Phase 4 acceptance configuration`). It
-includes native Agno execution, persistent sessions and memory, shared state,
-continuous scheduling, telemetry detectors, supervision, deadlines, verified
-effects and rollback, persistent run ownership, and the autonomous Phase 4
-example.
+Phase 4 continuous runtime is implemented. It includes native Agno execution,
+persistent sessions and memory, shared state, continuous scheduling, telemetry
+detectors, supervision, deadlines, verified effects and rollback, persistent
+run ownership, and the autonomous Phase 4 example.
 
 Phase 5 is implemented on branch `feature/v1alpha2-coordination-runtime`.
-Through `c0887c0`, it includes the approved runtime architecture, executable
+At the time of this handoff, `HEAD` is `65ed712`
+(`feat(runtime): stop after initial intents complete`). The branch includes the
+approved runtime architecture, executable
 coordination graphs, versioned bounded message delivery, explicit intent and
 delegation routing, staged agent execution, capability admission, deterministic
 conflict arbitration, and bounded parallel commits for nonconflicting actions.
@@ -88,41 +87,25 @@ delegation, conflicting action rejection, correlation, normalized results, and
 teardown. The next roadmap phase is Phase 6 placement and isolation. The
 complete roadmap lives in `README.md` and is the source of truth.
 
-## Phase 4 acceptance still to close
+The live Mininet copy under `examples/phase5/mininet/` adds deterministic and
+Ollama-backed operator paths. The Ollama path uses the packaged
+`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` entrypoint,
+`OLLAMA_HOST`, and model `qwen2.5:7b`. CLI runs can stream progress with
+`--verbose`, persist it with `--log-file`, expose fatal agent/runtime failures
+immediately, and stop automatically with `--stop-after-intents`. A successful
+live Ollama run created all three agents lazily, recorded 5,526 model tokens,
+committed the winning OpenFlow action, rejected the conflict, and released all
+11 Mininet resources.
 
-Do not call Phase 4 ready until these checks have evidence:
-
-1. **VM regression:** `scripts/test-phase2-vm.sh` must finish successfully,
-   including its live Mininet/OVS tests and cleanup comparison. The most recent
-   local `trace.md` showed eight errors and one failure because Rich ANSI escape
-   sequences appeared in captured CLI output. The script stopped before the
-   three live tests, so they were reported as skipped. Diagnose and fix this
-   output behavior, rerun the script, and retain the passing result.
-2. **Real Agno model:** run the isolated Ollama acceptance experiment twice in
-   one run and verify a stable session ID, retained history/state, nonzero token
-   metrics, and `mininetActionResults`. The configuration is under
-   `examples/phase4/ollama/` and uses model `qwen3.6:27b`.
-3. **Shutdown under load:** stop a run while telemetry and agent work are active.
-   Verify bounded draining/cancellation, a persisted terminal report, released
-   resources, and a clean subsequent run.
-
-Run the Ollama check from a machine that can reach the server:
-
-```bash
-export OLLAMA_HOST=http://10.10.10.152:11434
-
-uv run mininet-ai run examples/phase4/ollama/experiment.yaml \
-  --intent 'congestion-controller@s1=Perform the first acceptance action.' \
-  --intent 'congestion-controller@s1=Perform the second action using the previous interaction.' \
-  --agno-db .mininet-ai/phase4-ollama-agno.sqlite3 \
-  --ledger-db .mininet-ai/phase4-ollama-ledger.sqlite3 \
-  --shared-state-db .mininet-ai/phase4-ollama-state.sqlite3 \
-  --format json
-```
-
-The Ollama example intentionally uses the fake substrate. It exercises the real
-model, structured proposal, safe action path, metrics, and memory without
-changing a live switch. Press Ctrl+C only after both model requests finish.
+Phase 5 focused verification currently passes: 87 tests and 16 subtests,
+Pyright with zero errors, and validation of the rootless, deterministic
+Mininet, and Ollama-backed Mininet configurations. The broader rootless suite
+passes when the known live-Mininet teardown tests are excluded. On the current
+development machine, `/tmp/c0.log` is owned by `nobody` and cannot be removed by
+the unprivileged test process; that pre-existing host artifact causes seven
+simulated Mininet teardown failures in the complete local suite. Do not delete
+or change it without explicit user approval. Use the disposable VM for clean
+live Mininet/OVS regression evidence.
 
 ## Validation commands
 
@@ -130,11 +113,14 @@ Use focused checks while iterating, then the broad checks relevant to the
 change:
 
 ```bash
-uv run pytest -q
+uv run pytest -q tests/coordination tests/acceptance/test_phase5.py \
+  tests/runtime/test_experiment.py tests/runtime/test_continuous.py \
+  tests/capabilities/test_engine.py tests/test_cli_runtime.py
 uv run pyright
-uv run mininet-ai validate examples/phase4/experiment.yaml
-uv run python -m examples.phase4
-uv run pytest -q tests/acceptance/test_phase4.py
+uv run mininet-ai validate examples/phase5/experiment.yaml
+uv run mininet-ai validate examples/phase5/mininet/experiment.yaml
+uv run mininet-ai validate examples/phase5/mininet/experiment-ollama.yaml
+uv run python -m examples.phase5
 ```
 
 For intentional compiler or schema changes:

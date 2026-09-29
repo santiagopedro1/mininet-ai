@@ -2,8 +2,10 @@
 
 ## Status
 
-Proposed architecture for Phase 5. This document fixes the implementation
-seams and acceptance criteria; it does not change a machine-readable contract.
+Implemented on `feature/v1alpha2-coordination-runtime`. The architecture,
+ownership seams, compatibility gates, and acceptance matrix below describe the
+canonical Phase 5 runtime delivered by this branch. Phase 5 is closed; process,
+namespace, container, and sidecar placement remain Phase 6 work.
 
 ## Objective
 
@@ -242,17 +244,20 @@ changed meaning for an existing compiled edge requires a public specification
 compatibility review under `docs/compatibility.md`. No golden plan is updated
 merely to make an unexplained diff pass.
 
-## Delivery sequence
+## Delivered sequence
 
-1. Resolve and validate an executable graph from the existing deployment plan.
-2. Introduce versioned messages and a bounded in-memory channel.
-3. Route external intents and explicit delegations through the graph.
-4. Split proposal generation from capability commit and add arbitration.
-5. Add eligible Agno team or workflow adapters behind the same seam.
-6. Add end-to-end examples, acceptance tests, and operator documentation.
+1. Resolved and validated executable graphs from the existing deployment plan.
+2. Introduced versioned messages and a bounded in-memory channel.
+3. Routed external intents and explicit delegations through the graph.
+4. Split proposal generation from capability commit and added arbitration.
+5. Evaluated Agno team and workflow adapters and kept them disabled because no
+   Agno 3.0.11 mapping preserves the required execution and safety seam.
+6. Added rootless and live Mininet examples, acceptance tests, verbose logging,
+   immediate fatal-error reporting, and automatic completion after submitted
+   intents finish.
 
-Each slice must leave direct Phase 4 invocation working and keep deterministic,
-rootless coverage on the fake substrate.
+Each delivered slice retained direct Phase 4 invocation compatibility and
+deterministic rootless coverage on the fake substrate.
 
 ## Acceptance matrix
 
@@ -283,6 +288,14 @@ entry routing, two explicit delegations, capability admission, one committed
 conflicting action, one typed rejection, complete arbitration evidence, and
 orderly teardown through the public experiment owner.
 
+The same acceptance module compiles the deterministic and Ollama-backed live
+Mininet variants under `examples/phase5/mininet/`, verifies their three-agent
+graphs and packaged Ollama factory, and confirms that every blueprint resolves
+to `qwen2.5:7b`. The live operator path streams progress and fatal failures to
+stderr and a text log, stops on fatal agent/runtime errors, and supports
+`--stop-after-intents` so a finite experiment drains, tears down its topology,
+prints its terminal report, and exits without requiring Ctrl+C.
+
 The remainder of the matrix is covered at the owning module interface:
 
 - `tests/coordination/test_graph.py` covers independent, centralized,
@@ -296,6 +309,9 @@ The remainder of the matrix is covered at the owning module interface:
   `serialize`, and `priority` policy semantics;
 - `tests/runtime/test_experiment.py` covers continuous event integration,
   correlation retention, centralized entry routing, and shutdown ownership;
+- `tests/test_cli_runtime.py` covers verbose progress and log output, immediate
+  failure visibility and nonzero termination, and automatic stopping after all
+  submitted intents reach terminal coordinated outcomes;
 - `tests/capabilities/test_engine.py` retains the authorization, timeout,
   verification, and rollback safety evidence used by every admitted action.
 
