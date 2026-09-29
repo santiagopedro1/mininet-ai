@@ -1,4 +1,4 @@
-"""Agno factory for reliable Qwen structured responses in Phase 5."""
+"""Agno factory for Ollama models that need prompt-parsed responses."""
 
 from __future__ import annotations
 
@@ -16,17 +16,12 @@ _SAFE_OUTPUT_INSTRUCTIONS = (
 )
 
 
-def create_agent(definition: AgentExecutionDefinition) -> Agent:
-    """Create an Ollama agent using prompt-parsed structured output.
-
-    Qwen 2.5 expands opaque OpenFlow argument strings when Ollama's native
-    recursive JSON schema is used. Agno's prompt-parsed mode preserves those
-    strings while still validating the final response as ``AgentResponse``.
-    """
+def create_prompt_parsed_agent(definition: AgentExecutionDefinition) -> Agent:
+    """Create an Ollama agent without its native recursive JSON schema mode."""
 
     configuration = definition.blueprint.model
     if configuration is None or configuration.provider != "ollama":
-        raise ValueError("the Phase 5 Ollama factory requires an Ollama model")
+        raise ValueError("the prompt-parsed Ollama factory requires an Ollama model")
     instance = definition.instance
     return Agent(
         id=instance.id,

@@ -593,7 +593,10 @@ sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml --verbose
 Run progress is appended to `.mininet-ai/run.log` even without `--verbose`.
 Use `--log-file PATH` to select another destination. The log records lifecycle,
 intent queueing, agent invocation, model request, and capability execution
-updates; `--verbose` mirrors the same updates to the terminal.
+updates; `--verbose` mirrors the same updates to the terminal. Agent, model,
+capability, and shared-state failures are reported immediately with their error
+code and message, then request an orderly drain and substrate teardown. A run
+stopped this way exits nonzero after printing its final report.
 
 Inspect or stop it from another VM terminal:
 

@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, cast
 
 from agno.models.ollama import Ollama
 
-from examples.phase5.mininet.ollama_agents import create_agent
+from mininet_ai.agents.agno.ollama_factory import create_prompt_parsed_agent
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.sdk import ExecutionCatalog
 
@@ -81,12 +83,40 @@ class Phase5AcceptanceTests(unittest.TestCase):
             },
             {("ollama", "qwen2.5:7b")},
         )
-        agent = create_agent(
+        agent = create_prompt_parsed_agent(
             ExecutionCatalog(plan).resolve("primary-remediator@s1")
         )
         self.assertIsInstance(agent.model, Ollama)
         assert isinstance(agent.model, Ollama)
         self.assertFalse(agent.model.supports_native_structured_outputs)
+
+    def test_ollama_agent_entrypoint_loads_from_installed_package(self) -> None:
+        with TemporaryDirectory() as temporary:
+            isolated_root = Path(temporary) / "site"
+            shutil.copytree(ROOT / "mininet_ai", isolated_root / "mininet_ai")
+            script = f"""
+import sys
+from pathlib import Path
+sys.path.insert(0, {str(isolated_root)!r})
+from mininet_ai.agents.agno import AgnoAgentFactory
+from mininet_ai.compiler import compile_experiment
+from mininet_ai.sdk import ExecutionCatalog
+
+plan = compile_experiment(Path({str(OLLAMA_MININET_EXPERIMENT)!r}))
+definition = ExecutionCatalog(plan).resolve("global-coordinator")
+factory = AgnoAgentFactory(database_path=Path({temporary!r}) / "agno.sqlite3")
+factory.create(definition)
+"""
+            result = subprocess.run(
+                [sys.executable, "-I", "-c", script],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
 
     def test_centralized_delegation_and_conflict_rejection_end_to_end(
         self,

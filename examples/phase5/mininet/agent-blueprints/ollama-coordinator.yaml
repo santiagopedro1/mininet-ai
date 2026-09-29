@@ -5,7 +5,7 @@ metadata:
   description: Ollama-backed coordinator that delegates a repair request to both remediators.
 implementation:
   type: python
-  entrypoint: examples.phase5.mininet.ollama_agents:create_agent
+  entrypoint: mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent
 model:
   provider: ollama
   name: qwen2.5:7b

@@ -8,6 +8,7 @@ import os
 import signal
 import stat
 import threading
+from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
 from types import FrameType
@@ -22,7 +23,12 @@ from mininet_ai.agents import (
     OneShotAgentRuntime,
     register_builtin_providers,
 )
-from mininet_ai.audit import AuditEvent, AuditRecorder, JsonLinesAuditSink
+from mininet_ai.audit import (
+    AuditEvent,
+    AuditEventType,
+    AuditRecorder,
+    JsonLinesAuditSink,
+)
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
 from mininet_ai.errors import MininetAIError
@@ -55,6 +61,12 @@ app = typer.Typer(
 )
 console = Console()
 error_console = Console(stderr=True)
+_FAILED_AUDIT_EVENTS = {
+    AuditEventType.AGENT_FAILED,
+    AuditEventType.MODEL_FAILED,
+    AuditEventType.CAPABILITY_FAILED,
+    AuditEventType.SHARED_STATE_FAILED,
+}
 
 
 class _RunLogError(MininetAIError):
@@ -112,11 +124,27 @@ class _RunProgress:
         if self._verbose:
             error_console.print(f"[dim]•[/dim] {message}")
 
+    def error(self, message: str) -> None:
+        self._logger.error(message)
+        if self._verbose:
+            error_console.print(f"[bold red]×[/bold red] {message}")
+
     def audit(self, event: AuditEvent) -> None:
-        self.info(
+        message = (
             f"{event.type.value}: agent={event.agent_id} "
             f"invocation={event.invocation_id}"
         )
+        if event.type in _FAILED_AUDIT_EVENTS:
+            code = event.data.get("code")
+            detail = event.data.get("message")
+            if isinstance(code, str) and code:
+                message += f" code={code}"
+            if isinstance(detail, str) and detail:
+                message += f" message={detail}"
+        if event.type in _FAILED_AUDIT_EVENTS:
+            self.error(message)
+        else:
+            self.info(message)
 
     def close(self) -> None:
         for handler in tuple(self._logger.handlers):
@@ -129,13 +157,23 @@ class _RunProgress:
 class _ReportingAuditSink:
     """Persist audit events to the ledger and mirror concise progress."""
 
-    def __init__(self, ledger: SQLiteRunLedger, progress: _RunProgress) -> None:
+    def __init__(
+        self,
+        ledger: SQLiteRunLedger,
+        progress: _RunProgress,
+        *,
+        on_failure: Callable[[], None],
+    ) -> None:
         self._ledger = LedgerAuditSink(ledger)
         self._progress = progress
+        self._on_failure = on_failure
 
     def write(self, event: AuditEvent) -> None:
         self._ledger.write(event)
         self._progress.audit(event)
+        if event.type in _FAILED_AUDIT_EVENTS:
+            self._progress.info("Runtime failure detected; requesting automatic stop")
+            self._on_failure()
 
 
 class OutputFormat(StrEnum):
@@ -174,6 +212,11 @@ class _SignalLatch:
 
     def _request_stop(self, number: int, frame: FrameType | None) -> None:
         del number, frame
+        self.request_stop()
+
+    def request_stop(self) -> None:
+        """Wake the foreground owner for signal- or runtime-requested stop."""
+
         self._event.set()
 
     def wait(self) -> None:
@@ -386,11 +429,18 @@ def run(
         progress.info(
             f"Starting {deployment_plan.substrate} substrate and runtime services"
         )
+        stop_latch = _SignalLatch()
         owner = ExperimentRuntime(
             deployment_plan,
             substrate,
             registries,
-            audit=AuditRecorder(_ReportingAuditSink(ledger, progress)),
+            audit=AuditRecorder(
+                _ReportingAuditSink(
+                    ledger,
+                    progress,
+                    on_failure=stop_latch.request_stop,
+                )
+            ),
             agent_factory=_operation_or_exit(
                 lambda: AgnoAgentFactory(database_path=agno_db)
             ),
@@ -401,7 +451,7 @@ def run(
                 for plugin in loaded
             ),
         )
-        with _SignalLatch() as stop_latch:
+        with stop_latch:
             run_info = _operation_or_exit(owner.start)
             progress.info(
                 f"Run {run_info.id} is active on {run_info.substrate}"
@@ -454,7 +504,10 @@ def run(
             f"{report.continuous.completed} invocations, "
             f"released {released} resources"
         )
-    if report.state == ExperimentRuntimeState.FAILED:
+    if (
+        report.state == ExperimentRuntimeState.FAILED
+        or report.continuous.failed > 0
+    ):
         raise typer.Exit(code=1)
 
 

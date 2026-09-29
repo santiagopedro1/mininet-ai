@@ -76,4 +76,6 @@ sudo env OLLAMA_HOST=http://10.10.10.152:11434 \
 Wait until verbose output shows all three `agent.invocation.completed` events,
 then press Ctrl+C. The coordinator and remediators use one persistent Agno
 instance each for the duration of the run. Mininet-AI remains the only component
-allowed to execute their proposed network actions.
+allowed to execute their proposed network actions. If agent construction or
+execution fails, verbose output and the run log show the error immediately and
+the owner automatically drains work, tears down Mininet, and exits nonzero.
