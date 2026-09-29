@@ -7,10 +7,10 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock
-from typing import Protocol
+from typing import Literal, Protocol, runtime_checkable
 from uuid import uuid4
 
-from pydantic import Field, JsonValue
+from pydantic import ConfigDict, Field, JsonValue
 
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.coordination.channel import (
@@ -43,6 +43,12 @@ from mininet_ai.substrates import ActionResult
 
 Clock = Callable[[], datetime]
 MessageIdFactory = Callable[[], str]
+COORDINATION_OUTCOME_CONTRACT_VERSION: Literal[
+    "mininet-ai/coordination-outcome/v1alpha1"
+] = "mininet-ai/coordination-outcome/v1alpha1"
+COORDINATION_OUTCOME_SCHEMA_ID = (
+    "urn:mininet-ai:schema:v1alpha1:coordination-outcome"
+)
 
 
 def _utc_now() -> datetime:
@@ -103,6 +109,21 @@ class CoordinatedInvocation(StrictModel):
 class CoordinationOutcome(StrictModel):
     """Ordered routing evidence for one external coordination request."""
 
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": COORDINATION_OUTCOME_SCHEMA_ID,
+        },
+    )
+
+    contract_version: Literal[
+        "mininet-ai/coordination-outcome/v1alpha1"
+    ] = Field(
+        default=COORDINATION_OUTCOME_CONTRACT_VERSION,
+        alias="contractVersion",
+    )
     run_id: str = Field(alias="runId", min_length=1)
     correlation_id: str = Field(alias="correlationId", min_length=1)
     requested_agent_id: str = Field(alias="requestedAgentId", min_length=1)
@@ -111,6 +132,13 @@ class CoordinationOutcome(StrictModel):
     invocations: tuple[CoordinatedInvocation, ...] = ()
     arbitration: ArbitrationReport | None = None
     issues: tuple[CoordinationIssue, ...] = ()
+
+
+@runtime_checkable
+class Coordinator(Protocol):
+    """Coordinate one external request through the canonical runtime seam."""
+
+    def coordinate(self, request: CoordinationRequest) -> CoordinationOutcome: ...
 
 
 @dataclass(frozen=True)

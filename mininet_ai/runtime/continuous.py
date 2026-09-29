@@ -15,6 +15,13 @@ from uuid import uuid4
 
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.compiler.models import AgentInstance
+from mininet_ai.coordination import (
+    CoordinatedInvocation,
+    CoordinationGraph,
+    CoordinationOutcome,
+    CoordinationRequest,
+    Coordinator,
+)
 from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import (
@@ -82,6 +89,16 @@ class _WorkItem:
     coalesce_key: tuple[str, str | None]
 
 
+@dataclass(frozen=True)
+class _InvocationCompletion:
+    result: AgentInvocationResult
+    coordination: CoordinationOutcome | None = None
+
+    @property
+    def status(self) -> InvocationStatus:
+        return self.result.status
+
+
 class ContinuousAgentRuntime:
     """Match runtime events and execute bounded agent invocations."""
 
@@ -89,7 +106,7 @@ class ContinuousAgentRuntime:
         self,
         plan: DeploymentPlan,
         run_id: str,
-        invoker: AgentInvoker,
+        invoker: AgentInvoker | Coordinator,
         *,
         event_bus: RuntimeEventBus | None = None,
         clock: Clock = _utc_now,
@@ -112,6 +129,9 @@ class ContinuousAgentRuntime:
         self._clock = clock
         self._event_id_factory = event_id_factory
         self._agents = {agent.id: agent for agent in plan.agents}
+        self._coordination_graph = (
+            CoordinationGraph(plan) if isinstance(invoker, Coordinator) else None
+        )
         self._queues = {agent.id: deque() for agent in plan.agents}
         self._condition = Condition()
         self._report_lock = Lock()
@@ -495,9 +515,10 @@ class ContinuousAgentRuntime:
         return tuple(matches)
 
     def _enqueue(self, item: _WorkItem) -> None:
-        execution = item.agent.execution
+        execution_agent_id = self._execution_agent_id(item.agent.id)
+        execution = self._agents[execution_agent_id].execution
         with self._condition:
-            queue = self._queues[item.agent.id]
+            queue = self._queues[execution_agent_id]
             if execution.overflow == "coalesce":
                 for index, queued in enumerate(queue):
                     if queued.coalesce_key == item.coalesce_key:
@@ -554,8 +575,8 @@ class ContinuousAgentRuntime:
                 item = queue.popleft()
                 self._queued -= 1
             try:
-                result = self._supervisor.execute(
-                    item.agent.id,
+                completion = self._supervisor.execute(
+                    agent_id,
                     lambda: self._invoke(item),
                 )
             except Exception as error:
@@ -569,9 +590,9 @@ class ContinuousAgentRuntime:
                 with self._report_lock:
                     self._counts["failed"] += 1
                 continue
-            result = result.model_copy(
+            result = completion.result.model_copy(
                 update={
-                    "timings": result.timings.model_copy(
+                    "timings": completion.result.timings.model_copy(
                         update={
                             "event_detection_seconds": max(
                                 0.0,
@@ -584,11 +605,16 @@ class ContinuousAgentRuntime:
                     )
                 }
             )
+            coordination = self._replace_coordination_result(
+                completion.coordination,
+                result,
+            )
             record = ContinuousInvocationRecord(
                 eventId=item.event.event_id,
                 agentId=item.agent.id,
                 trigger=item.trigger,
                 result=result,
+                coordination=coordination,
             )
             with self._report_lock:
                 self._invocations.append(record)
@@ -596,13 +622,74 @@ class ContinuousAgentRuntime:
                 if result.status != InvocationStatus.SUCCEEDED:
                     self._counts["failed"] += 1
 
-    def _invoke(self, item: _WorkItem) -> AgentInvocationResult:
+    def _invoke(self, item: _WorkItem) -> _InvocationCompletion:
         with self._global_slots:
-            return self._invoker.invoke(
-                self._run_id,
-                item.agent.id,
-                item.intent,
+            if isinstance(self._invoker, Coordinator):
+                outcome = self._invoker.coordinate(
+                    CoordinationRequest(
+                        runId=self._run_id,
+                        requestedAgentId=item.agent.id,
+                        intent=item.intent,
+                        correlationId=(
+                            item.event.correlation_id or item.event.event_id
+                        ),
+                        triggeringEventId=item.event.event_id,
+                    )
+                )
+                return _InvocationCompletion(
+                    result=self._root_result(outcome),
+                    coordination=outcome,
+                )
+            return _InvocationCompletion(
+                result=self._invoker.invoke(
+                    self._run_id,
+                    item.agent.id,
+                    item.intent,
+                )
             )
+
+    def _execution_agent_id(self, requested_agent_id: str) -> str:
+        if self._coordination_graph is None:
+            return requested_agent_id
+        return self._coordination_graph.entry_agent(requested_agent_id)
+
+    @staticmethod
+    def _root_result(outcome: CoordinationOutcome) -> AgentInvocationResult:
+        if not outcome.messages:
+            raise ContinuousRuntimeError(
+                "coordination outcome has no root message",
+                code="runtime.coordination.root-missing",
+            )
+        root_message_id = outcome.messages[0].message_id
+        root = next(
+            (
+                invocation.result
+                for invocation in outcome.invocations
+                if invocation.message.message_id == root_message_id
+            ),
+            None,
+        )
+        if root is None:
+            raise ContinuousRuntimeError(
+                "coordination outcome has no root invocation",
+                code="runtime.coordination.root-missing",
+            )
+        return root
+
+    @staticmethod
+    def _replace_coordination_result(
+        outcome: CoordinationOutcome | None,
+        result: AgentInvocationResult,
+    ) -> CoordinationOutcome | None:
+        if outcome is None:
+            return None
+        invocations = tuple(
+            CoordinatedInvocation(message=item.message, result=result)
+            if item.result.invocation_id == result.invocation_id
+            else item
+            for item in outcome.invocations
+        )
+        return outcome.model_copy(update={"invocations": invocations})
 
     def _issue(
         self,

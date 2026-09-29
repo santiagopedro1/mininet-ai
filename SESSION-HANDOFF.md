@@ -78,10 +78,13 @@ The Agno 3.0.11 adapter evaluation found no native team or workflow mapping
 that preserves the current Mininet coordination seam. Teams would bypass
 scoped invocation and explicit message/arbitration records, while `v1alpha2`
 has no deterministic sequence from which to construct a workflow. Direct
-per-agent Agno execution therefore remains canonical. The next Phase 5 slice is
-end-to-end runtime integration, examples, acceptance tests, and operator
-documentation. The complete roadmap lives in `README.md` and is the source of
-truth.
+per-agent Agno execution therefore remains canonical. Continuous experiment
+events now enter the canonical coordination runtime, preserve their correlation
+and triggering-event identities, and retain a versioned coordination outcome
+alongside the representative invocation in runtime reports. Direct Phase 4
+continuous invokers remain compatible. The remaining Phase 5 work is examples,
+acceptance coverage, and operator documentation. The complete roadmap lives in
+`README.md` and is the source of truth.
 
 ## Phase 4 acceptance still to close
 

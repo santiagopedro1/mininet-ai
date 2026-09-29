@@ -14,6 +14,7 @@ from mininet_ai.agents.agno import AgnoAgentFactory
 from mininet_ai.agents.runtime import OneShotAgentRuntime
 from mininet_ai.audit import AuditRecorder
 from mininet_ai.compiler import DeploymentPlan
+from mininet_ai.coordination import CoordinationRuntime
 from mininet_ai.errors import MininetAIError
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime.continuous import ContinuousAgentRuntime
@@ -164,10 +165,11 @@ class ExperimentRuntime:
                 agent_factory=self._agent_factory,
                 shared_state=self._shared_state,
             )
+            coordinator = CoordinationRuntime(self._plan, invoker)
             continuous = ContinuousAgentRuntime(
                 self._plan,
                 run.id,
-                invoker,
+                coordinator,
                 event_bus=event_bus,
                 clock=self._clock,
                 event_id_factory=self._event_id_factory,

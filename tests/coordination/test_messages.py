@@ -12,6 +12,8 @@ from mininet_ai.cli import app
 from mininet_ai.coordination import (
     COORDINATION_MESSAGE_CONTRACT_VERSION,
     COORDINATION_MESSAGE_SCHEMA_ID,
+    COORDINATION_OUTCOME_CONTRACT_VERSION,
+    COORDINATION_OUTCOME_SCHEMA_ID,
     CoordinationMessage,
     CoordinationMessageKind,
     InMemoryMessageChannel,
@@ -106,6 +108,17 @@ class CoordinationMessageContractTests(unittest.TestCase):
         self.assertEqual(
             schema["properties"]["contractVersion"]["const"],
             COORDINATION_MESSAGE_CONTRACT_VERSION,
+        )
+
+    def test_cli_emits_versioned_coordination_outcome_schema(self) -> None:
+        result = CliRunner().invoke(app, ["schema", "coordination-outcome"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        schema = json.loads(result.output)
+        self.assertEqual(schema["$id"], COORDINATION_OUTCOME_SCHEMA_ID)
+        self.assertEqual(
+            schema["properties"]["contractVersion"]["const"],
+            COORDINATION_OUTCOME_CONTRACT_VERSION,
         )
 
 

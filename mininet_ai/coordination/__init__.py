@@ -20,9 +20,12 @@ from mininet_ai.coordination.contracts import (
 )
 from mininet_ai.coordination.graph import CoordinationGraph, CoordinationGraphError
 from mininet_ai.coordination.routing import (
+    COORDINATION_OUTCOME_CONTRACT_VERSION,
+    COORDINATION_OUTCOME_SCHEMA_ID,
     CoordinatedAgentInvoker,
     CoordinatedAgentExecutor,
     CoordinatedInvocation,
+    Coordinator,
     CoordinationIssue,
     CoordinationOutcome,
     CoordinationRequest,
@@ -34,6 +37,8 @@ from mininet_ai.coordination.routing import (
 __all__ = [
     "COORDINATION_MESSAGE_CONTRACT_VERSION",
     "COORDINATION_MESSAGE_SCHEMA_ID",
+    "COORDINATION_OUTCOME_CONTRACT_VERSION",
+    "COORDINATION_OUTCOME_SCHEMA_ID",
     "ArbitrationDecision",
     "ArbitrationReport",
     "ConflictArbitrator",
@@ -47,6 +52,7 @@ __all__ = [
     "CoordinationRequest",
     "CoordinationRuntime",
     "CoordinationRuntimeError",
+    "Coordinator",
     "CoordinatedAgentInvoker",
     "CoordinatedAgentExecutor",
     "CoordinatedInvocation",
