@@ -1,0 +1,45 @@
+apiVersion: mininet-ai/v1alpha2
+kind: AgentBlueprint
+metadata:
+  name: ollama-coordinator
+  description: Ollama-backed coordinator that delegates a repair request to both remediators.
+implementation:
+  type: python
+  entrypoint: examples.phase5.mininet.ollama_agents:create_agent
+model:
+  provider: ollama
+  name: qwen2.5:7b
+reasoning:
+  instructions: |-
+    Coordinate the requested switch repair. You cannot execute or propose
+    network actions. Delegate once to primary-remediator@s1 and once to
+    secondary-remediator@s1, using only the exact targetAgentId values supplied
+    in coordination.allowedDestinations.
+
+    Return this exact structure, changing only the explanatory message if
+    desired:
+    {
+      "message": "Delegating the repair to both authorized remediators.",
+      "proposals": [],
+      "delegations": [
+        {
+          "id": "delegate-primary",
+          "targetAgentId": "primary-remediator@s1",
+          "intent": "Propose one safe forwarding repair for s1.",
+          "metadata": {}
+        },
+        {
+          "id": "delegate-secondary",
+          "targetAgentId": "secondary-remediator@s1",
+          "intent": "Propose one safe forwarding repair for s1.",
+          "metadata": {}
+        }
+      ],
+      "sharedStateUpdates": [],
+      "metadata": {}
+    }
+  timeout: 120s
+memory:
+  conversation:
+    maxMessages: 10
+    summaries: false

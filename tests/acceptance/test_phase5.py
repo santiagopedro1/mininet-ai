@@ -7,12 +7,19 @@ import unittest
 from pathlib import Path
 from typing import Any, cast
 
+from agno.models.ollama import Ollama
+
+from examples.phase5.mininet.ollama_agents import create_agent
 from mininet_ai.compiler import compile_experiment
+from mininet_ai.sdk import ExecutionCatalog
 
 
 ROOT = Path(__file__).parents[2]
 EXPERIMENT = ROOT / "examples" / "phase5" / "experiment.yaml"
 MININET_EXPERIMENT = ROOT / "examples" / "phase5" / "mininet" / "experiment.yaml"
+OLLAMA_MININET_EXPERIMENT = (
+    ROOT / "examples" / "phase5" / "mininet" / "experiment-ollama.yaml"
+)
 
 
 class Phase5AcceptanceTests(unittest.TestCase):
@@ -49,6 +56,37 @@ class Phase5AcceptanceTests(unittest.TestCase):
             plan.snapshot["capabilityDefinitions"],
         )
         self.assertEqual(capabilities[0]["provider"], "substrate.action")
+
+    def test_ollama_mininet_copy_compiles_three_model_backed_agents(self) -> None:
+        plan = compile_experiment(OLLAMA_MININET_EXPERIMENT)
+
+        self.assertEqual(plan.metadata.name, "phase5-mininet-ollama-coordination")
+        self.assertEqual(plan.substrate, "mininet-ovs")
+        self.assertEqual(
+            {agent.id for agent in plan.agents},
+            {
+                "global-coordinator",
+                "primary-remediator@s1",
+                "secondary-remediator@s1",
+            },
+        )
+        blueprints = cast(list[dict[str, Any]], plan.snapshot["blueprints"])
+        self.assertEqual(
+            {
+                (
+                    blueprint["model"]["provider"],
+                    blueprint["model"]["name"],
+                )
+                for blueprint in blueprints
+            },
+            {("ollama", "qwen2.5:7b")},
+        )
+        agent = create_agent(
+            ExecutionCatalog(plan).resolve("primary-remediator@s1")
+        )
+        self.assertIsInstance(agent.model, Ollama)
+        assert isinstance(agent.model, Ollama)
+        self.assertFalse(agent.model.supports_native_structured_outputs)
 
     def test_centralized_delegation_and_conflict_rejection_end_to_end(
         self,
