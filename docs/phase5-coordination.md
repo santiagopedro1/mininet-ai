@@ -177,6 +177,35 @@ workflow is appropriate only for an explicitly deterministic sequence; graph
 shape alone does not invent ordering. Peer graphs remain Mininet-routed unless
 an Agno adapter can demonstrate equivalent directed-message semantics.
 
+### v1alpha2 eligibility decision
+
+The Agno integration locked for this branch is Agno 3.0.11. Its native team
+and workflow execution interfaces do not preserve the coordination runtime's
+required seam for any current `v1alpha2` plan:
+
+| Plan shape | Native candidate | Decision |
+| --- | --- | --- |
+| Independent | None | Use direct per-agent execution; no orchestration object is needed |
+| Centralized | Team | Ineligible: a team invokes members outside the Mininet executor and introduces team-owned leader/session behavior |
+| Hierarchical | Nested teams | Ineligible for the same executor/session reason, and nested delegation would not emit canonical Mininet messages |
+| Distributed | Team | Ineligible: Agno team membership does not preserve the compiled directed peer graph |
+| Any current plan | Workflow | Ineligible: the specification declares no deterministic step sequence |
+
+Consequently, `v1alpha2` does not enable a native Agno team or workflow
+adapter. The existing Agno agent provider remains behind the staged Mininet
+executor, and the canonical coordination runtime remains the only routing and
+commit path. This is an intentional safety decision rather than a missing
+fallback: silently translating one of these graphs would bypass scoped
+context construction, explicit delivery records, capability admission, or
+Mininet-owned arbitration.
+
+A future native adapter requires a second, demonstrably equivalent
+implementation at the existing `Coordinator.coordinate` seam. It must pass the
+same acceptance matrix without adding synthetic agent identities or exposing
+Agno objects through Mininet-owned contracts. Workflow support additionally
+requires an explicit ordering construct in a future specification revision;
+graph topology alone remains insufficient.
+
 ## Failure and shutdown semantics
 
 - A failed agent invocation returns a correlated failure and does not erase

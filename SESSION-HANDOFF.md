@@ -68,10 +68,20 @@ continuous scheduling, telemetry detectors, supervision, deadlines, verified
 effects and rollback, persistent run ownership, and the autonomous Phase 4
 example.
 
-Phase 5 has not started. Its scope is coordination architectures: centralized,
-hierarchical, and peer graphs; Agno teams/workflows where appropriate; message
-channels; intent routing; and Mininet-owned conflict arbitration. The complete
-roadmap lives in `README.md` and is the source of truth.
+Phase 5 is in progress on branch `feature/v1alpha2-coordination-runtime`.
+Through `c0887c0`, it includes the approved runtime architecture, executable
+coordination graphs, versioned bounded message delivery, explicit intent and
+delegation routing, staged agent execution, capability admission, deterministic
+conflict arbitration, and bounded parallel commits for nonconflicting actions.
+
+The Agno 3.0.11 adapter evaluation found no native team or workflow mapping
+that preserves the current Mininet coordination seam. Teams would bypass
+scoped invocation and explicit message/arbitration records, while `v1alpha2`
+has no deterministic sequence from which to construct a workflow. Direct
+per-agent Agno execution therefore remains canonical. The next Phase 5 slice is
+end-to-end runtime integration, examples, acceptance tests, and operator
+documentation. The complete roadmap lives in `README.md` and is the source of
+truth.
 
 ## Phase 4 acceptance still to close
 
