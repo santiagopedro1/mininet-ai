@@ -68,7 +68,7 @@ continuous scheduling, telemetry detectors, supervision, deadlines, verified
 effects and rollback, persistent run ownership, and the autonomous Phase 4
 example.
 
-Phase 5 is in progress on branch `feature/v1alpha2-coordination-runtime`.
+Phase 5 is implemented on branch `feature/v1alpha2-coordination-runtime`.
 Through `c0887c0`, it includes the approved runtime architecture, executable
 coordination graphs, versioned bounded message delivery, explicit intent and
 delegation routing, staged agent execution, capability admission, deterministic
@@ -82,9 +82,11 @@ per-agent Agno execution therefore remains canonical. Continuous experiment
 events now enter the canonical coordination runtime, preserve their correlation
 and triggering-event identities, and retain a versioned coordination outcome
 alongside the representative invocation in runtime reports. Direct Phase 4
-continuous invokers remain compatible. The remaining Phase 5 work is examples,
-acceptance coverage, and operator documentation. The complete roadmap lives in
-`README.md` and is the source of truth.
+continuous invokers remain compatible. The rootless example under
+`examples/phase5/` and `tests/acceptance/test_phase5.py` prove centralized
+delegation, conflicting action rejection, correlation, normalized results, and
+teardown. The next roadmap phase is Phase 6 placement and isolation. The
+complete roadmap lives in `README.md` and is the source of truth.
 
 ## Phase 4 acceptance still to close
 

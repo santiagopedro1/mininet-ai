@@ -1,0 +1,24 @@
+apiVersion: mininet-ai/v1alpha2
+kind: AgentBlueprint
+metadata:
+  name: coordinator
+  description: Deterministic coordinator that delegates one intent twice.
+implementation:
+  type: declarative
+model:
+  provider: mock
+  name: deterministic
+  parameters:
+    response:
+      message: Ask both remediators to propose a safe repair.
+      delegations:
+        - id: delegate-primary
+          targetAgentId: primary-remediator@s1
+          intent: Propose the primary repair for s1.
+        - id: delegate-secondary
+          targetAgentId: secondary-remediator@s1
+          intent: Propose the fallback repair for s1.
+    usage: {inputTokens: 24, outputTokens: 18, totalTokens: 42}
+reasoning:
+  instructions: Delegate only to destinations supplied in the coordination context.
+  timeout: 2s

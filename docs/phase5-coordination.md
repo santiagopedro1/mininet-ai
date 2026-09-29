@@ -272,7 +272,36 @@ rootless coverage on the fake substrate.
 | Loop defense | Cyclic peer proposals terminate at duplicate or hop-limit enforcement |
 | Failure | Agent, delivery, action, verification, and rollback failures remain distinguishable |
 | Shutdown | Accepted work drains or records cancellation, resources release, and the next run starts cleanly |
-| Agno adapter | Team/workflow execution is observably equivalent to direct canonical routing |
+| Agno eligibility | A native adapter is enabled only after proving equivalence; otherwise canonical routing remains mandatory |
+
+## Acceptance evidence
+
+The rootless end-to-end scenario is
+`tests/acceptance/test_phase5.py`, backed by
+`examples/phase5/experiment.yaml`. It proves event correlation, centralized
+entry routing, two explicit delegations, capability admission, one committed
+conflicting action, one typed rejection, complete arbitration evidence, and
+orderly teardown through the public experiment owner.
+
+The remainder of the matrix is covered at the owning module interface:
+
+- `tests/coordination/test_graph.py` covers independent, centralized,
+  hierarchical, and topology-neighbor peer graphs, including invalid shapes;
+- `tests/coordination/test_messages.py` covers versioned envelopes, bounded
+  delivery, duplicate defense, closure, and public schemas;
+- `tests/coordination/test_routing.py` covers directed delegation, queue
+  pressure, peer-loop termination, pre-arbitration admission, conflict
+  rejection, and concurrent nonconflicting commits;
+- `tests/coordination/test_arbitration.py` covers deterministic `reject`,
+  `serialize`, and `priority` policy semantics;
+- `tests/runtime/test_experiment.py` covers continuous event integration,
+  correlation retention, centralized entry routing, and shutdown ownership;
+- `tests/capabilities/test_engine.py` retains the authorization, timeout,
+  verification, and rollback safety evidence used by every admitted action.
+
+Native Agno team/workflow equivalence is not claimed for `v1alpha2`; the
+eligibility decision above keeps those paths disabled until they can satisfy
+the same matrix.
 
 ## Non-goals
 
