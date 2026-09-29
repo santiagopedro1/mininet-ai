@@ -17,9 +17,9 @@ from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from mininet_ai.durations import duration_seconds
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.compiler.models import AgentInstance
+from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import (
     DetectorEventPayload,
@@ -35,7 +35,6 @@ from mininet_ai.specification.models import (
     ThresholdDetector,
 )
 from mininet_ai.substrates import ObservationQuery, SubstrateRuntime
-
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]

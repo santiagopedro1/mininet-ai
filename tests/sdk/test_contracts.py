@@ -9,8 +9,8 @@ from pydantic import ValidationError
 from mininet_ai.sdk import (
     AGENT_RUNTIME_CONTRACT_VERSION,
     ActionProposal,
-    AgentCoordinationContext,
     AgentContext,
+    AgentCoordinationContext,
     AgentInvocationResult,
     AgentProvider,
     AgentProviderError,

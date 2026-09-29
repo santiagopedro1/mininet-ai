@@ -7,7 +7,6 @@ from pathlib import Path
 
 from mininet_ai.compiler import compile_experiment
 
-
 ROOT = Path(__file__).parents[1]
 GOLDEN_DIRECTORY = ROOT / "tests" / "golden"
 GOLDEN_CASES = {

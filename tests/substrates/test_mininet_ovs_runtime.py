@@ -601,10 +601,9 @@ class MininetOVSRuntimeTests(unittest.TestCase):
             patch(
                 "mininet_ai.substrates.mininet_ovs.runtime.time.monotonic",
                 side_effect=[0, 31],
-            ),
+            ),self.assertRaises(RuntimeOperationError) as context
         ):
-            with self.assertRaises(RuntimeOperationError) as context:
-                controller.request_stop(run.id, timeout_seconds=30)
+            controller.request_stop(run.id, timeout_seconds=30)
 
         self.assertEqual(context.exception.code, "runtime.stop.timeout")
         owner.teardown(run.id)

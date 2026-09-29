@@ -17,7 +17,6 @@ from mininet_ai.specification.models import (
     Topology,
 )
 
-
 T = TypeVar("T", bound=BaseModel)
 
 

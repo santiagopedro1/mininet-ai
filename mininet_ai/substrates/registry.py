@@ -11,7 +11,6 @@ from mininet_ai.substrates.protocol import (
     SubstrateManifest,
 )
 
-
 SubstrateFactory = Callable[[Mapping[str, Any] | None], SubstrateDriver]
 
 

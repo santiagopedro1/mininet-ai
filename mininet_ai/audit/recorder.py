@@ -12,7 +12,6 @@ from mininet_ai.audit.sinks import AuditSink
 from mininet_ai.errors import AuditError
 from mininet_ai.sdk import AgentContext
 
-
 Clock = Callable[[], datetime]
 
 

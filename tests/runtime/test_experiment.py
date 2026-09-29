@@ -24,10 +24,9 @@ from mininet_ai.runtime import (
     SQLiteRunLedger,
     TelemetryPipelineReport,
 )
-from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 from mininet_ai.specification.models import CoordinationMode
+from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 from tests.agents.test_runtime import configured_plan
-
 
 NOW = datetime(2026, 1, 2, tzinfo=UTC)
 

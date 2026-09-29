@@ -11,7 +11,6 @@ from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.sdk import ActionProposal, AgentContext, ExecutionCatalog
 from mininet_ai.specification.models import StrictModel
 
-
 ArbitrationPolicy = Literal["reject", "serialize", "priority"]
 
 

@@ -18,7 +18,6 @@ from mininet_ai.sdk import (
 )
 from mininet_ai.specification.models import RestartConfiguration
 
-
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 

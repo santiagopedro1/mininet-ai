@@ -15,9 +15,8 @@ from pydantic import (
 )
 
 from mininet_ai.coordination import CoordinationOutcome
-from mininet_ai.specification.models import StrictModel
 from mininet_ai.sdk import AgentInvocationResult
-
+from mininet_ai.specification.models import StrictModel
 
 RUNTIME_EVENT_CONTRACT_VERSION: Literal["mininet-ai/runtime-event/v1alpha1"] = (
     "mininet-ai/runtime-event/v1alpha1"

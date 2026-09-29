@@ -37,7 +37,6 @@ from mininet_ai.transports import (
     JsonHttpTransport,
 )
 
-
 _DEFAULT_OUTPUT_LIMIT = 1024 * 1024
 
 

@@ -9,7 +9,6 @@ from pydantic import AwareDatetime, ConfigDict, Field, JsonValue, model_validato
 
 from mininet_ai.specification.models import StrictModel
 
-
 COORDINATION_MESSAGE_CONTRACT_VERSION: Literal[
     "mininet-ai/coordination-message/v1alpha1"
 ] = "mininet-ai/coordination-message/v1alpha1"

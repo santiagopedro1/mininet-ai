@@ -19,7 +19,6 @@ from agno.models.base import Model
 from agno.run.agent import RunOutput
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from mininet_ai.durations import duration_seconds
 from mininet_ai.agents.agno.contracts import (
     AgentRunMetrics,
     AgnoExecutionResult,
@@ -28,6 +27,7 @@ from mininet_ai.agents.agno.contracts import (
 )
 from mininet_ai.agents.agno.models import DeterministicAgnoModel
 from mininet_ai.agents.agno.storage import create_agno_database
+from mininet_ai.durations import duration_seconds
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
 from mininet_ai.sdk.contracts import (
     AGENT_RUNTIME_CONTRACT_VERSION,
@@ -37,7 +37,6 @@ from mininet_ai.sdk.contracts import (
 )
 from mininet_ai.specification.models import ModelConfiguration
 from mininet_ai.substrates import ActionResult
-
 
 _ENTRYPOINT_PATTERN = re.compile(
     r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$"

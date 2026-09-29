@@ -22,7 +22,6 @@ from mininet_ai.sdk import (
 )
 from mininet_ai.storage import PrivateStoragePathError, prepare_private_sqlite_file
 
-
 SharedScope = Literal["run", "deployment"]
 Clock = Callable[[], datetime]
 

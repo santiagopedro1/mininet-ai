@@ -40,7 +40,6 @@ from mininet_ai.runtime.supervision import AgentSupervisor
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification.models import EventTrigger, IntervalTrigger
 
-
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
 InvocationListener = Callable[[ContinuousInvocationRecord], None]

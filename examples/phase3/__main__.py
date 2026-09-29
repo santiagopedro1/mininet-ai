@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from importlib.metadata import EntryPoint
 from pathlib import Path
-from typing import Sequence
 
 from mininet_ai.agents import (
     AgnoAgentFactory,
@@ -19,7 +19,6 @@ from mininet_ai.plugins import ProviderRegistries, discover_plugins
 from mininet_ai.runtime import SQLiteSharedStateStore
 from mininet_ai.sdk import InvocationStatus
 from mininet_ai.substrates import FakeSubstrateRuntime
-
 
 EXPERIMENT = Path(__file__).with_name("experiment.yaml")
 DEFAULT_AUDIT_LOG = Path(".mininet-ai/phase3-demo-audit.jsonl")

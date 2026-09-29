@@ -19,8 +19,8 @@ from mininet_ai.errors import MininetAIError
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime.continuous import ContinuousAgentRuntime
 from mininet_ai.runtime.contracts import (
-    ContinuousRuntimeReport,
     ContinuousInvocationRecord,
+    ContinuousRuntimeReport,
     ManualIntentPayload,
     RuntimeEvent,
     RuntimeEventType,
@@ -39,7 +39,6 @@ from mininet_ai.runtime.state import SharedStateStore
 from mininet_ai.runtime.telemetry import TelemetryPipeline
 from mininet_ai.specification.models import StrictModel
 from mininet_ai.substrates import RunInfo, SubstrateRuntime, TeardownResult
-
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]

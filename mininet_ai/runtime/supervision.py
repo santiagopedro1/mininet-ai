@@ -8,15 +8,14 @@ from datetime import UTC, datetime
 from threading import Condition
 from typing import Protocol, TypeVar
 
-from mininet_ai.errors import MininetAIError
 from mininet_ai.durations import duration_seconds
+from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import (
     AgentLifecycleState,
     AgentLifecycleTransition,
 )
 from mininet_ai.sdk import InvocationStatus
 from mininet_ai.specification.models import RestartConfiguration
-
 
 Clock = Callable[[], datetime]
 Sleeper = Callable[[float], None]

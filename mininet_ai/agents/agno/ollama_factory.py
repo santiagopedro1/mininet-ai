@@ -7,7 +7,6 @@ from agno.models.ollama import Ollama
 
 from mininet_ai.sdk import AgentContext, AgentExecutionDefinition, AgentResponse
 
-
 _SAFE_OUTPUT_INSTRUCTIONS = (
     "Return a response matching the required schema. Action proposals must use "
     "only capabilities and targets present in the supplied scoped context. "

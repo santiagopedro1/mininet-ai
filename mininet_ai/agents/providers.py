@@ -23,7 +23,6 @@ from mininet_ai.sdk.contracts import (
     ModelRole,
 )
 
-
 _ENTRYPOINT_PATTERN = re.compile(
     r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$"
 )

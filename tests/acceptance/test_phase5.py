@@ -15,7 +15,6 @@ from mininet_ai.agents.agno.ollama_factory import create_prompt_parsed_agent
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.sdk import ExecutionCatalog
 
-
 ROOT = Path(__file__).parents[2]
 EXPERIMENT = ROOT / "examples" / "phase5" / "experiment.yaml"
 MININET_EXPERIMENT = ROOT / "examples" / "phase5" / "mininet" / "experiment.yaml"

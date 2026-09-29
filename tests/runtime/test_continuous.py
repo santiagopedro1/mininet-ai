@@ -8,8 +8,8 @@ from typing import Any
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.runtime import (
-    AgentLifecycleState,
     AgentInvoker,
+    AgentLifecycleState,
     ContinuousAgentRuntime,
     ContinuousRuntimeError,
     ContinuousRuntimeState,
@@ -25,7 +25,6 @@ from mininet_ai.sdk import (
 )
 from mininet_ai.specification.models import Experiment
 from tests.compiler.helpers import example_snapshot, named
-
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 

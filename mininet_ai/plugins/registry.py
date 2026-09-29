@@ -22,7 +22,6 @@ from mininet_ai.specification.models import (
     ModelConfiguration,
 )
 
-
 ConfigurationT = TypeVar("ConfigurationT")
 
 

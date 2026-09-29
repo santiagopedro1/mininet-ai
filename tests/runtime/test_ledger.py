@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import stat
 import sqlite3
+import stat
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -23,7 +23,6 @@ from mininet_ai.runtime import (
     RuntimeEventType,
     SQLiteRunLedger,
 )
-
 
 ROOT = Path(__file__).parents[2]
 EXPERIMENT = ROOT / "examples" / "phase1" / "experiment.yaml"
