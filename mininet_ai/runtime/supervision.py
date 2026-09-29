@@ -6,6 +6,7 @@ import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from threading import Condition
+from typing import Protocol, TypeVar
 
 from mininet_ai.errors import MininetAIError
 from mininet_ai.durations import duration_seconds
@@ -13,14 +14,21 @@ from mininet_ai.runtime.contracts import (
     AgentLifecycleState,
     AgentLifecycleTransition,
 )
-from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
+from mininet_ai.sdk import InvocationStatus
 from mininet_ai.specification.models import RestartConfiguration
 
 
 Clock = Callable[[], datetime]
 Sleeper = Callable[[float], None]
 TransitionListener = Callable[[AgentLifecycleTransition], None]
-Invocation = Callable[[], AgentInvocationResult]
+
+
+class InvocationOutcome(Protocol):
+    @property
+    def status(self) -> InvocationStatus: ...
+
+
+InvocationResult = TypeVar("InvocationResult", bound=InvocationOutcome)
 
 
 def _utc_now() -> datetime:
@@ -122,7 +130,11 @@ class AgentSupervisor:
                 )
             return state
 
-    def execute(self, agent_id: str, invocation: Invocation) -> AgentInvocationResult:
+    def execute(
+        self,
+        agent_id: str,
+        invocation: Callable[[], InvocationResult],
+    ) -> InvocationResult:
         """Run an invocation, retrying failures within the restart budget."""
 
         while True:

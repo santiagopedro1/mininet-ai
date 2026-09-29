@@ -74,21 +74,9 @@ class CapabilityEngine:
         """Return a normalized result without leaking provider exceptions."""
 
         try:
-            definition = self._resolve(context)
-            capability = self._authorize(definition, context, proposal)
-            proposal = self._bounded_proposal(definition, proposal)
-            self._validate_schema(
-                capability.input_schema,
-                proposal.arguments,
-                invalid_code="capability.input.invalid",
-                invalid_status=ActionStatus.REJECTED,
-                label="input",
-            )
+            definition, capability, proposal = self._admit(context, proposal)
             if capability.provider is None:
-                self._fail(
-                    "capability.provider.missing",
-                    f"capability {proposal.capability!r} has no provider",
-                )
+                raise AssertionError("admitted capability has no provider")
             provider = self._providers.create(capability.provider, capability)
             raw_outcome = provider.execute(context, proposal)
             provider_result = self._provider_result(context, proposal, raw_outcome)
@@ -177,6 +165,72 @@ class CapabilityEngine:
             outcome,
             result,
         )
+
+    def validate(
+        self,
+        context: AgentContext,
+        proposal: ActionProposal,
+    ) -> ActionResult | None:
+        """Return a normalized admission failure, or ``None`` when admissible."""
+
+        try:
+            self._admit(context, proposal)
+        except _CapabilityError as error:
+            return self._result(
+                context,
+                proposal,
+                status=error.status,
+                issue=RuntimeIssue(
+                    code=error.code,
+                    message=error.message,
+                    target=proposal.target,
+                ),
+            )
+        except AgentRuntimeError as error:
+            return self._result(
+                context,
+                proposal,
+                status=ActionStatus.FAILED,
+                issue=RuntimeIssue(
+                    code=error.code,
+                    message=str(error),
+                    target=proposal.target,
+                ),
+            )
+        except Exception as error:
+            return self._result(
+                context,
+                proposal,
+                status=ActionStatus.FAILED,
+                issue=RuntimeIssue(
+                    code="capability.execution.failed",
+                    message=f"capability admission failed: {error}",
+                    target=proposal.target,
+                ),
+            )
+        return None
+
+    def _admit(
+        self,
+        context: AgentContext,
+        proposal: ActionProposal,
+    ) -> tuple[AgentExecutionDefinition, CapabilityDefinition, ActionProposal]:
+        definition = self._resolve(context)
+        capability = self._authorize(definition, context, proposal)
+        proposal = self._bounded_proposal(definition, proposal)
+        self._validate_schema(
+            capability.input_schema,
+            proposal.arguments,
+            invalid_code="capability.input.invalid",
+            invalid_status=ActionStatus.REJECTED,
+            label="input",
+        )
+        if capability.provider is None:
+            self._fail(
+                "capability.provider.missing",
+                f"capability {proposal.capability!r} has no provider",
+            )
+        return definition, capability, proposal
 
     def _verify_effect(
         self,

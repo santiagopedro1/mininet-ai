@@ -100,6 +100,12 @@ class AuditedModelProvider:
 
 
 class CapabilityExecutor(Protocol):
+    def validate(
+        self,
+        context: AgentContext,
+        proposal: ActionProposal,
+    ) -> ActionResult | None: ...
+
     def execute(
         self,
         context: AgentContext,
@@ -117,6 +123,26 @@ class AuditedCapabilityExecutor:
     ) -> None:
         self._executor = executor
         self._recorder = recorder
+
+    def validate(
+        self,
+        context: AgentContext,
+        proposal: ActionProposal,
+    ) -> ActionResult | None:
+        result = self._executor.validate(context, proposal)
+        if result is None:
+            return None
+        self._recorder.record(
+            AuditEventType.CAPABILITY_STARTED,
+            context,
+            {"proposal": proposal.model_dump(mode="json", by_alias=True)},
+        )
+        self._recorder.record(
+            AuditEventType.CAPABILITY_COMPLETED,
+            context,
+            {"result": result.model_dump(mode="json", by_alias=True)},
+        )
+        return result
 
     def execute(
         self,

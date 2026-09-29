@@ -5,6 +5,7 @@ from mininet_ai.sdk.catalog import AgentExecutionDefinition, ExecutionCatalog
 from mininet_ai.sdk.contracts import (
     AGENT_RUNTIME_CONTRACT_VERSION,
     ActionProposal,
+    AgentCoordinationContext,
     AgentContext,
     AgentInvocationResult,
     AgentProvider,
@@ -14,6 +15,7 @@ from mininet_ai.sdk.contracts import (
     CapabilityOutcome,
     CapabilityProvider,
     CapabilityProviderError,
+    DelegationProposal,
     InvocationStatus,
     InvocationTimings,
     ModelMessage,
@@ -33,6 +35,7 @@ from mininet_ai.sdk.contracts import (
 __all__ = [
     "AGENT_RUNTIME_CONTRACT_VERSION",
     "ActionProposal",
+    "AgentCoordinationContext",
     "AgentContext",
     "AgentExecutionDefinition",
     "AgentInvocationResult",
@@ -44,6 +47,7 @@ __all__ = [
     "CapabilityOutcome",
     "CapabilityProvider",
     "CapabilityProviderError",
+    "DelegationProposal",
     "ExecutionCatalog",
     "InvocationStatus",
     "InvocationTimings",

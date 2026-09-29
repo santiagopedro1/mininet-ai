@@ -14,11 +14,13 @@ from mininet_ai.agents.agno import AgnoAgentFactory
 from mininet_ai.agents.runtime import OneShotAgentRuntime
 from mininet_ai.audit import AuditRecorder
 from mininet_ai.compiler import DeploymentPlan
+from mininet_ai.coordination import CoordinationRuntime
 from mininet_ai.errors import MininetAIError
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime.continuous import ContinuousAgentRuntime
 from mininet_ai.runtime.contracts import (
     ContinuousRuntimeReport,
+    ContinuousInvocationRecord,
     ManualIntentPayload,
     RuntimeEvent,
     RuntimeEventType,
@@ -97,6 +99,7 @@ class ExperimentRuntime:
         plugins: tuple[PluginManifest, ...] = (),
         clock: Clock = _utc_now,
         event_id_factory: EventIdFactory = _event_id,
+        invocation_listener: Callable[[ContinuousInvocationRecord], None] | None = None,
     ) -> None:
         self._plan = plan
         self._substrate = substrate
@@ -108,6 +111,7 @@ class ExperimentRuntime:
         self._plugins = plugins
         self._clock = clock
         self._event_id_factory = event_id_factory
+        self._invocation_listener = invocation_listener
         self._lock = Lock()
         self._state = ExperimentRuntimeState.CREATED
         self._run: RunInfo | None = None
@@ -164,11 +168,13 @@ class ExperimentRuntime:
                 agent_factory=self._agent_factory,
                 shared_state=self._shared_state,
             )
+            coordinator = CoordinationRuntime(self._plan, invoker)
             continuous = ContinuousAgentRuntime(
                 self._plan,
                 run.id,
-                invoker,
+                coordinator,
                 event_bus=event_bus,
+                invocation_listener=self._invocation_listener,
                 clock=self._clock,
                 event_id_factory=self._event_id_factory,
             )

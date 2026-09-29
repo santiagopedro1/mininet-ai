@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from mininet_ai.sdk import (
     AGENT_RUNTIME_CONTRACT_VERSION,
     ActionProposal,
+    AgentCoordinationContext,
     AgentContext,
     AgentInvocationResult,
     AgentProvider,
@@ -18,6 +19,7 @@ from mininet_ai.sdk import (
     CapabilityOutcome,
     CapabilityProvider,
     CapabilityProviderError,
+    DelegationProposal,
     InvocationStatus,
     ModelMessage,
     ModelProvider,
@@ -93,6 +95,13 @@ class AgentRuntimeContractTests(unittest.TestCase):
         response = AgentResponse(
             message="A forwarding update is required.",
             proposals=(proposal,),
+            delegations=(
+                DelegationProposal(
+                    id="delegate-1",
+                    targetAgentId="router@s2",
+                    intent="Inspect the adjacent switch",
+                ),
+            ),
         )
         result = AgentInvocationResult(
             invocationId=invocation.invocation_id,
@@ -114,6 +123,10 @@ class AgentRuntimeContractTests(unittest.TestCase):
         self.assertEqual(
             payload["response"]["proposals"][0]["timeoutSeconds"],
             5,
+        )
+        self.assertEqual(
+            payload["response"]["delegations"][0]["targetAgentId"],
+            "router@s2",
         )
         self.assertEqual(
             CapabilityOutcome(changed=True, output={"installed": True})
@@ -179,6 +192,43 @@ class AgentRuntimeContractTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValidationError, "targets must be unique"):
             AgentContext.model_validate(payload)
+
+    def test_coordination_context_rejects_duplicate_destinations(self) -> None:
+        with self.assertRaisesRegex(
+            ValidationError,
+            "allowedDestinations must be unique",
+        ):
+            AgentCoordinationContext(
+                messageId="message-1",
+                correlationId="request-1",
+                kind="intent",
+                requestedAgentId="router@s1",
+                allowedDestinations=("router@s2", "router@s2"),
+            )
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "delegation context requires sourceAgentId",
+        ):
+            AgentCoordinationContext(
+                messageId="message-1",
+                correlationId="request-1",
+                kind="delegation",
+                requestedAgentId="router@s1",
+            )
+
+    def test_response_rejects_duplicate_delegation_ids(self) -> None:
+        duplicate = DelegationProposal(
+            id="delegate-1",
+            targetAgentId="router@s2",
+            intent="Inspect the adjacent switch",
+        )
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "delegation proposal ids must be unique",
+        ):
+            AgentResponse(delegations=(duplicate, duplicate))
 
     def test_provider_errors_require_a_failure_status_and_identity(self) -> None:
         cases = (

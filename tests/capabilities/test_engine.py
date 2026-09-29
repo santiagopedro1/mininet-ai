@@ -197,6 +197,20 @@ class CapabilityEngineTests(unittest.TestCase):
         self.assertEqual(result.completed_at, NOW)
         self.assertEqual(self.provider.calls, [(context, proposal)])
 
+    def test_validates_admission_without_executing_provider(self) -> None:
+        valid = self.engine.validate(self.context(), self.proposal())
+        invalid = self.engine.validate(
+            self.context(),
+            self.proposal(arguments={"match": "ip"}),
+        )
+
+        self.assertIsNone(valid)
+        self.assertIsNotNone(invalid)
+        assert invalid is not None
+        self.assertEqual(invalid.status, ActionStatus.REJECTED)
+        self.assert_issue_code(invalid, "capability.input.invalid")
+        self.assertEqual(self.provider.calls, [])
+
     def test_compiled_action_timeout_caps_agent_proposal(self) -> None:
         agents = tuple(
             agent.model_copy(

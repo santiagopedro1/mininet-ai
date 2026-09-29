@@ -209,9 +209,11 @@ shutdown reverses that dependency order—telemetry, draining agents, then the
 substrate—and returns one structured report. If a producer or worker misses its
 shutdown deadline, the owner leaves the substrate running and permits a later
 stop retry instead of tearing resources out from under active work. The
-`mininet-ai run` command now
-uses this owner until `SIGINT` or `SIGTERM`; accepted runtime events and Agno
-audit records are persisted to the same ordered ledger.
+`mininet-ai run` uses this owner until `SIGINT` or `SIGTERM`; accepted runtime
+events and Agno audit records are persisted to the same ordered ledger. Every
+live run also appends concise lifecycle and audit progress to the owner-only
+`.mininet-ai/run.log`. Pass `--verbose` to mirror those updates to stderr while
+the experiment is running without contaminating JSON output on stdout.
 
 ## Installation
 
@@ -246,6 +248,8 @@ uv run mininet-ai schema agent-blueprint
 uv run mininet-ai schema capability
 uv run mininet-ai schema deployment-plan
 uv run mininet-ai schema runtime-event
+uv run mininet-ai schema coordination-message
+uv run mininet-ai schema coordination-outcome
 ```
 
 Schemas are emitted as JSON Schema Draft 2020-12 documents. The deployment-plan
@@ -286,6 +290,23 @@ It detects synthetic queue congestion, triggers an Agno agent without a manual
 prompt, authorizes and applies its proposed flow, verifies the live effect, and
 prints the final runtime and teardown report. See
 [`examples/phase4/README.md`](examples/phase4/README.md) for database options.
+
+Run the rootless Phase 5 coordination experiment:
+
+```bash
+uv run mininet-ai validate examples/phase5/experiment.yaml
+uv run python -m examples.phase5
+uv run pytest -q tests/acceptance/test_phase5.py
+```
+
+The example routes a leaf-targeted intent through a centralized coordinator,
+records two explicit delegations, and arbitrates two valid proposals for the
+same switch effect. The first action commits and the second receives a typed
+conflict rejection. The JSON report retains the correlated messages,
+invocations, conflict keys, winner, and action results under the versioned
+coordination outcome. See
+[`examples/phase5/README.md`](examples/phase5/README.md) for the expected trace
+and the native Agno adapter decision.
 
 See [the Phase 3 example](examples/phase3/README.md) for its extension layout.
 
@@ -566,8 +587,21 @@ Python objects also owns cleanup. Start a run in one VM terminal and copy the
 reported run ID:
 
 ```bash
-sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml
+sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml --verbose
 ```
+
+Run progress is appended to `.mininet-ai/run.log` even without `--verbose`.
+Use `--log-file PATH` to select another destination. The log records lifecycle,
+intent queueing, agent invocation, model request, and capability execution
+updates; `--verbose` mirrors the same updates to the terminal. Agent, model,
+capability, and shared-state failures are reported immediately with their error
+code and message, then request an orderly drain and substrate teardown. A run
+stopped this way exits nonzero after printing its final report.
+
+For finite command-driven experiments, pass `--stop-after-intents`. The owner
+correlates every initial `--intent` with its final continuous-runtime record,
+then drains work and tears down the substrate after all of them finish. Without
+this option, `run` remains continuous and waits for `SIGINT` or `SIGTERM`.
 
 Inspect or stop it from another VM terminal:
 
@@ -683,6 +717,15 @@ Adopt Agno as the v1 agent runtime, using its model integrations, sessions, loca
 ### Phase 5: Coordination architectures
 
 Support centralized, hierarchical, and peer-to-peer agent graphs, translating the canonical Mininet coordination plan into Agno teams or workflows where appropriate. Add message channels, intent routing, and Mininet-owned conflict arbitration for concurrent network actions.
+
+The runtime now provides executable directed graphs, versioned bounded
+messages and outcomes, explicit intent/delegation routing, staged Agno
+invocation, capability admission, deterministic conflict arbitration, and
+bounded parallel commits for independent effects. Continuous experiment events
+use this canonical coordination path. Native Agno teams/workflows remain
+disabled where they cannot preserve the same safety semantics. The architecture,
+ownership seams, compatibility gates, and acceptance evidence are documented
+in [`docs/phase5-coordination.md`](docs/phase5-coordination.md).
 
 ### Phase 6: Placement and isolation
 

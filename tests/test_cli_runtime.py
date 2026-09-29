@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -27,6 +28,26 @@ class StoppableFakeRuntime(FakeSubstrateRuntime):
     def request_stop(self, run_id: str, *, timeout_seconds: float = 30):
         self.stop_requests.append((run_id, timeout_seconds))
         return self.teardown(run_id)
+
+
+class AutoStopLatch:
+    """Test latch that only releases when runtime failure requests a stop."""
+
+    def __init__(self) -> None:
+        self._event = threading.Event()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *error: object) -> None:
+        pass
+
+    def request_stop(self) -> None:
+        self._event.set()
+
+    def wait(self) -> None:
+        if not self._event.wait(1):
+            raise TimeoutError("run did not stop after its invocation failed")
 
 
 class RuntimeCLITests(unittest.TestCase):
@@ -104,6 +125,123 @@ class RuntimeCLITests(unittest.TestCase):
             RunState.STOPPED,
         )
 
+    def test_run_verbose_streams_progress_and_writes_text_log(self) -> None:
+        plan = configured_plan({"message": "handled"})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-verbose-run")
+        with TemporaryDirectory() as temporary:
+            log_path = Path(temporary) / "run.log"
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+                patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--verbose",
+                        "--intent",
+                        "switch-router@s1=inspect forwarding",
+                        *self.run_databases(temporary),
+                    ],
+                )
+
+            log = log_path.read_text(encoding="utf-8")
+            log_mode = log_path.stat().st_mode & 0o777
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Starting fake substrate and runtime services", result.output)
+        self.assertIn("Queued intent", result.output)
+        self.assertIn("agent.invocation.started", result.output)
+        self.assertIn("Run cli-verbose-run stopped", result.output)
+        self.assertIn("Prepared experiment", log)
+        self.assertIn("agent.invocation.completed", log)
+        self.assertIn("Run cli-verbose-run stopped", log)
+        self.assertEqual(log_mode, 0o600)
+
+    def test_run_reports_invocation_failure_live_and_stops_automatically(self) -> None:
+        plan = configured_plan({"metadata": {}})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-failed-run")
+        with TemporaryDirectory() as temporary:
+            log_path = Path(temporary) / "run.log"
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+                patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--verbose",
+                        "--intent",
+                        "switch-router@s1=inspect forwarding",
+                        *self.run_databases(temporary),
+                    ],
+                )
+
+            log = log_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertNotIsInstance(result.exception, TimeoutError)
+        self.assertIn("agent.agno.deterministic-response-invalid", result.output)
+        self.assertIn("agent.agno.deterministic-response-invalid", log)
+        self.assertIn(" ERROR agent.invocation.failed:", log)
+        self.assertLess(
+            log.index("agent.agno.deterministic-response-invalid"),
+            log.index("Stop requested; draining work and tearing down"),
+        )
+        self.assertEqual(runtime.inspect("cli-failed-run").run.state, RunState.STOPPED)
+
+    def test_run_can_stop_after_all_initial_intents_complete(self) -> None:
+        plan = configured_plan({"message": "handled"})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-intents-run")
+        with TemporaryDirectory() as temporary:
+            log_path = Path(temporary) / "run.log"
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+                patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--stop-after-intents",
+                        "--intent",
+                        "switch-router@s1=first intent",
+                        "--intent",
+                        "switch-router@s1=second intent",
+                        *self.run_databases(temporary),
+                    ],
+                )
+
+            log = log_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn(
+            "All 2 initial intents finished; requesting automatic stop",
+            log,
+        )
+        self.assertLess(
+            log.index("All 2 initial intents finished"),
+            log.index("Stop requested; draining work and tearing down"),
+        )
+        self.assertIn("2 invocations", result.output)
+        self.assertEqual(runtime.inspect("cli-intents-run").run.state, RunState.STOPPED)
+
     def test_run_tears_down_if_reporting_the_started_run_fails(self) -> None:
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-broken-output")
         with TemporaryDirectory() as temporary:
@@ -136,6 +274,8 @@ class RuntimeCLITests(unittest.TestCase):
             str(root / "agno.sqlite3"),
             "--shared-state-db",
             str(root / "state.sqlite3"),
+            "--log-file",
+            str(root / "run.log"),
         ]
 
     def test_status_supports_text_and_machine_readable_output(self) -> None:

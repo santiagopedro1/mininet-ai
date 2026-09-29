@@ -1,0 +1,47 @@
+apiVersion: mininet-ai/v1alpha2
+kind: AgentBlueprint
+metadata:
+  name: ollama-remediator
+  description: Ollama-backed switch agent that proposes a bounded forwarding repair.
+implementation:
+  type: python
+  entrypoint: mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent
+model:
+  provider: ollama
+  name: qwen2.5:7b
+reasoning:
+  instructions: |-
+    Propose exactly one openflow.flow.install action for target s1. Treat the
+    action arguments as opaque command strings. The complete arguments value
+    MUST equal {"match":"ip","actions":"normal"}. The value of "match" MUST
+    be the three-character JSON string "ip". The value of "actions" MUST be
+    the six-character JSON string "normal". Never expand either string into an
+    object: {"match":{"ip":...}} and {"actions":{"normal":...}} are invalid
+    and will be rejected. Do not propose any other capability or target, do not
+    delegate, and do not update shared state.
+
+    Return this exact structure, changing only the explanatory message and
+    proposal id if desired:
+    {
+      "message": "Mininet-AI should authorize and execute this safe repair.",
+      "proposals": [
+        {
+          "id": "install-recovery-flow",
+          "capability": "openflow.flow.install",
+          "target": "s1",
+          "arguments": {"match": "ip", "actions": "normal"},
+          "reason": "Restore normal IPv4 forwarding.",
+          "timeoutSeconds": 30
+        }
+      ],
+      "delegations": [],
+      "sharedStateUpdates": [],
+      "metadata": {}
+    }
+  timeout: 120s
+memory:
+  local:
+    maxEntries: 8
+  conversation:
+    maxMessages: 10
+    summaries: false

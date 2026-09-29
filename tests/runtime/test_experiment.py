@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from mininet_ai.agents import register_builtin_providers
 from mininet_ai.audit import AuditRecorder
+from mininet_ai.compiler.models import CoordinationEdge, CoordinationPlan
 from mininet_ai.experiment import (
     ExperimentRuntime,
     ExperimentRuntimeState,
@@ -24,6 +25,7 @@ from mininet_ai.runtime import (
     TelemetryPipelineReport,
 )
 from mininet_ai.substrates import FakeSubstrateRuntime, RunState
+from mininet_ai.specification.models import CoordinationMode
 from tests.agents.test_runtime import configured_plan
 
 
@@ -64,6 +66,26 @@ class ExperimentRuntimeTests(unittest.TestCase):
         self.assertEqual(report.state, ExperimentRuntimeState.STOPPED)
         self.assertEqual(report.continuous.completed, 1)
         self.assertEqual(report.continuous.failed, 0)
+        invocation = report.continuous.invocations[0]
+        self.assertIsNotNone(invocation.coordination)
+        assert invocation.coordination is not None
+        self.assertEqual(invocation.coordination.correlation_id, event.event_id)
+        self.assertEqual(
+            invocation.coordination.requested_agent_id,
+            "switch-router@s1",
+        )
+        self.assertEqual(
+            invocation.coordination.entry_agent_id,
+            "switch-router@s1",
+        )
+        self.assertEqual(
+            invocation.coordination.messages[0].triggering_event_id,
+            event.event_id,
+        )
+        self.assertEqual(
+            invocation.result.invocation_id,
+            invocation.coordination.invocations[0].result.invocation_id,
+        )
         self.assertEqual(report, repeated)
         assert report.teardown is not None
         self.assertEqual(report.teardown.run.state, RunState.STOPPED)
@@ -80,6 +102,49 @@ class ExperimentRuntimeTests(unittest.TestCase):
             [record.category for record in records],
         )
         self.assertEqual(records[-1].type, "run.stopped")
+
+    def test_owner_routes_manual_intent_through_central_coordinator(self) -> None:
+        plan = configured_plan({"message": "coordinated"})
+        coordinator = "global-router"
+        plan = plan.model_copy(
+            update={
+                "coordination": CoordinationPlan(
+                    mode=CoordinationMode.CENTRALIZED,
+                    edges=tuple(
+                        CoordinationEdge(
+                            source=coordinator,
+                            target=agent.id,
+                            relationship="coordinates",
+                        )
+                        for agent in plan.agents
+                        if agent.id != coordinator
+                    ),
+                )
+            }
+        )
+        substrate = FakeSubstrateRuntime(run_id_factory=lambda: "central-run")
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, substrate)
+        owner = ExperimentRuntime(
+            plan,
+            substrate,
+            registries,
+            event_id_factory=lambda: "central-event-1",
+        )
+
+        owner.start()
+        owner.submit_intent("switch-router@s1", "inspect forwarding")
+        report = owner.stop()
+
+        record = report.continuous.invocations[0]
+        self.assertIsNotNone(record.coordination)
+        assert record.coordination is not None
+        self.assertEqual(record.coordination.entry_agent_id, coordinator)
+        self.assertEqual(record.result.agent_id, coordinator)
+        self.assertEqual(
+            record.coordination.messages[0].target_agent_id,
+            coordinator,
+        )
 
     def test_manifest_failure_rolls_back_the_deployed_substrate(self) -> None:
         plan = configured_plan({"message": "unused"})

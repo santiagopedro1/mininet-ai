@@ -1,0 +1,102 @@
+apiVersion: mininet-ai/v1alpha2
+kind: Experiment
+metadata:
+  name: phase5-mininet-ollama-coordination
+  description: Live Mininet/OVS Phase 5 coordination with Ollama-backed agents.
+
+substrate:
+  driver: mininet-ovs
+  topology:
+    addressing:
+      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
+      mac: {prefix: "02:00:00", strategy: sequential}
+    resources:
+      - {name: network, kind: network}
+      - name: c0
+        kind: controller
+        parent: network
+        type: builtin
+        port: 6653
+      - name: s1
+        kind: switch
+        parent: network
+        failMode: secure
+        datapath: kernel
+        controllers: [c0]
+        protocols: [OpenFlow13]
+        labels: {role: managed}
+        ports:
+          - {name: s1-eth1, number: 1}
+          - {name: s1-eth2, number: 2}
+      - name: h1
+        kind: host
+        parent: network
+        interfaces:
+          - {name: h1-eth0, ipv4: auto, mac: auto}
+      - name: h2
+        kind: host
+        parent: network
+        interfaces:
+          - {name: h2-eth0, ipv4: auto, mac: auto}
+    links:
+      - name: h1-s1
+        endpoints:
+          - {node: h1, adapter: h1-eth0}
+          - {node: s1, adapter: s1-eth1}
+        bandwidth: 100
+        delay: 1ms
+      - name: s1-h2
+        endpoints:
+          - {node: s1, adapter: s1-eth2}
+          - {node: h2, adapter: h2-eth0}
+        bandwidth: 100
+        delay: 1ms
+
+blueprints:
+  - ./agent-blueprints/ollama-coordinator.yaml
+  - ./agent-blueprints/ollama-remediator.yaml
+
+capabilityDefinitions:
+  - ./capabilities/install-flow.yaml
+
+agents:
+  - name: global-coordinator
+    blueprint: ollama-coordinator
+    placement:
+      layer: global
+      targets: {kind: network, names: [network]}
+      cardinality: singleton
+      runtime: orchestrator
+
+  - name: primary-remediator
+    blueprint: ollama-remediator
+    placement:
+      layer: data
+      targets: {kind: switch, names: [s1]}
+      cardinality: per-target
+      runtime: device-sidecar
+    capabilities: [openflow.flow.install]
+    execution: {maxConcurrency: 1, queueCapacity: 4, overflow: reject}
+
+  - name: secondary-remediator
+    blueprint: ollama-remediator
+    placement:
+      layer: data
+      targets: {kind: switch, names: [s1]}
+      cardinality: per-target
+      runtime: device-sidecar
+    capabilities: [openflow.flow.install]
+    execution: {maxConcurrency: 1, queueCapacity: 4, overflow: reject}
+
+coordination:
+  mode: centralized
+  coordinator: global-coordinator
+
+policies:
+  conflicting-actions: reject
+  require-postcondition-check: false
+
+resourceLimits:
+  max-instances: 8
+  max-concurrent-invocations: 3
+  max-queued-events: 16

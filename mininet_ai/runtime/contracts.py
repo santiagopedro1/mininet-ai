@@ -14,6 +14,7 @@ from pydantic import (
     model_validator,
 )
 
+from mininet_ai.coordination import CoordinationOutcome
 from mininet_ai.specification.models import StrictModel
 from mininet_ai.sdk import AgentInvocationResult
 
@@ -172,6 +173,7 @@ class ContinuousInvocationRecord(StrictModel):
     agent_id: str = Field(alias="agentId", min_length=1)
     trigger: str = Field(min_length=1)
     result: AgentInvocationResult
+    coordination: CoordinationOutcome | None = None
 
 
 class ContinuousRuntimeIssue(StrictModel):

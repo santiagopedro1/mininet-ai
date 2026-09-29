@@ -304,6 +304,9 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
             report.invocations[0].result.timings.event_detection_seconds,
             0,
         )
+        self.assertTrue(
+            all(record.coordination is None for record in report.invocations)
+        )
         self.assertEqual(
             [record.trigger for record in report.invocations],
             ["operator", "queue-alert"],
