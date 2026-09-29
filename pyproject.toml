@@ -30,6 +30,7 @@ build-backend = "setuptools.build_meta"
 dev = [
     "pyright>=1.1.414",
     "pytest>=9.1.1",
+    "ruff>=0.16.9",
 ]
 
 [tool.pyright]
