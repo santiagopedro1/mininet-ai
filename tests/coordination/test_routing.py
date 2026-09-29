@@ -3,20 +3,27 @@ from __future__ import annotations
 import unittest
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
+from threading import Barrier
+
+from pydantic import JsonValue
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.coordination import (
     CoordinationRequest,
     CoordinationRuntime,
     InMemoryMessageChannel,
+    PreparedAgentInvocation,
 )
 from mininet_ai.sdk import (
+    ActionProposal,
     AgentCoordinationContext,
     AgentInvocationResult,
     AgentResponse,
+    AgentRuntimeIssue,
     DelegationProposal,
     InvocationStatus,
 )
+from mininet_ai.substrates import ActionResult, ActionStatus, RuntimeIssue
 from tests.compiler.helpers import example_snapshot, experiment_from
 
 
@@ -41,30 +48,121 @@ class RecordingInvoker:
         response: ResponseFactory | None = None,
     ) -> None:
         self.calls: list[tuple[str, str, str, AgentCoordinationContext]] = []
+        self.executed: list[tuple[str, str]] = []
         self._response = response or (
             lambda agent_id, context: AgentResponse(message=f"done:{agent_id}")
         )
 
-    def invoke(
+    def prepare(
         self,
         run_id: str,
         agent_id: str,
         intent: str,
         *,
         coordination: AgentCoordinationContext | None = None,
-    ) -> AgentInvocationResult:
+    ) -> PreparedAgentInvocation:
         if coordination is None:
             raise AssertionError("coordinated invocation requires context")
         self.calls.append((run_id, agent_id, intent, coordination))
         response = self._response(agent_id, coordination)
+        from tests.sdk.test_contracts import context as base_context
+
+        context = base_context().model_copy(
+            update={
+                "invocation_id": f"invoke-{len(self.calls)}",
+                "run_id": run_id,
+                "agent_id": agent_id,
+                "priority": 0,
+                "coordination": coordination,
+            }
+        )
+        return PreparedAgentInvocation(
+            context=context,
+            response=response,
+            token=len(self.calls),
+        )
+
+    def execute(
+        self,
+        prepared: PreparedAgentInvocation,
+        proposal: ActionProposal,
+    ) -> ActionResult:
+        self.executed.append((prepared.context.agent_id, proposal.id))
+        return ActionResult(
+            run_id=prepared.context.run_id,
+            request_id=proposal.id,
+            status=ActionStatus.SUCCEEDED,
+            completed_at=NOW,
+        )
+
+    def validate(
+        self,
+        prepared: PreparedAgentInvocation,
+        proposal: ActionProposal,
+    ) -> ActionResult | None:
+        if {"match", "actions"} <= proposal.arguments.keys():
+            return None
+        return ActionResult(
+            run_id=prepared.context.run_id,
+            request_id=proposal.id,
+            status=ActionStatus.REJECTED,
+            completed_at=NOW,
+            issue=RuntimeIssue(
+                code="capability.input.invalid",
+                message="required action arguments are missing",
+                target=proposal.target,
+            ),
+        )
+
+    def reject(
+        self,
+        prepared: PreparedAgentInvocation,
+        proposal: ActionProposal,
+        *,
+        code: str,
+        message: str,
+    ) -> ActionResult:
+        return ActionResult(
+            run_id=prepared.context.run_id,
+            request_id=proposal.id,
+            status=ActionStatus.REJECTED,
+            completed_at=NOW,
+            issue=RuntimeIssue(code=code, message=message, target=proposal.target),
+        )
+
+    def complete(
+        self,
+        prepared: PreparedAgentInvocation,
+        action_results: tuple[ActionResult, ...],
+    ) -> AgentInvocationResult:
         return AgentInvocationResult(
-            invocationId=f"invoke-{len(self.calls)}",
-            runId=run_id,
-            agentId=agent_id,
-            status=InvocationStatus.SUCCEEDED,
+            invocationId=prepared.context.invocation_id,
+            runId=prepared.context.run_id,
+            agentId=prepared.context.agent_id,
+            status=(
+                InvocationStatus.REJECTED
+                if any(
+                    result.status == ActionStatus.REJECTED
+                    for result in action_results
+                )
+                else InvocationStatus.SUCCEEDED
+            ),
             startedAt=NOW,
             completedAt=NOW,
-            response=response,
+            response=prepared.response,
+            actionResults=action_results,
+            issue=(
+                None
+                if all(
+                    result.status == ActionStatus.SUCCEEDED
+                    for result in action_results
+                )
+                else AgentRuntimeIssue(
+                    code="coordination.conflict.rejected",
+                    message="action proposal was rejected",
+                    agentId=prepared.context.agent_id,
+                )
+            ),
         )
 
 
@@ -276,7 +374,7 @@ class CoordinationRoutingTests(unittest.TestCase):
 
     def test_invalid_invocation_identity_stops_delegation(self) -> None:
         class WrongInvoker(RecordingInvoker):
-            def invoke(
+            def prepare(
                 self,
                 run_id: str,
                 agent_id: str,
@@ -284,13 +382,21 @@ class CoordinationRoutingTests(unittest.TestCase):
                 *,
                 coordination: AgentCoordinationContext | None = None,
             ) -> AgentInvocationResult:
-                result = super().invoke(
+                prepared = super().prepare(
                     run_id,
                     agent_id,
                     intent,
                     coordination=coordination,
                 )
-                return result.model_copy(update={"agent_id": "another-agent"})
+                return AgentInvocationResult(
+                    invocationId=prepared.context.invocation_id,
+                    runId=run_id,
+                    agentId="another-agent",
+                    status=InvocationStatus.SUCCEEDED,
+                    startedAt=NOW,
+                    completedAt=NOW,
+                    response=prepared.response,
+                )
 
         runtime = CoordinationRuntime(
             plan_for({"mode": "independent"}),
@@ -306,6 +412,200 @@ class CoordinationRoutingTests(unittest.TestCase):
             outcome.issues[0].code,
             "coordination.invocation.invalid-identity",
         )
+
+    def test_conflicting_delegated_actions_are_arbitrated_before_commit(
+        self,
+    ) -> None:
+        def respond(
+            agent_id: str,
+            context: AgentCoordinationContext,
+        ) -> AgentResponse:
+            del context
+            if agent_id == "global-router":
+                return AgentResponse(
+                    delegations=(
+                        DelegationProposal(
+                            id="delegate-1",
+                            targetAgentId="switch-router@s1",
+                            intent="Repair s1",
+                        ),
+                        DelegationProposal(
+                            id="delegate-2",
+                            targetAgentId="switch-router@s2",
+                            intent="Also repair s1",
+                        ),
+                    )
+                )
+            return AgentResponse(
+                proposals=(
+                    ActionProposal(
+                        id=f"action-{agent_id}",
+                        capability="openflow.flow.install",
+                        target="s1",
+                        arguments={"match": "ip", "actions": "normal"},
+                    ),
+                )
+            )
+
+        invoker = RecordingInvoker(respond)
+        runtime = CoordinationRuntime(
+            plan_for({"mode": "centralized", "coordinator": "global-router"}),
+            invoker,
+            clock=lambda: NOW,
+            message_id_factory=ids("message-1", "message-2", "message-3"),
+        )
+
+        outcome = runtime.coordinate(request())
+
+        self.assertEqual(
+            invoker.executed,
+            [("switch-router@s1", "action-switch-router@s1")],
+        )
+        self.assertIsNotNone(outcome.arbitration)
+        assert outcome.arbitration is not None
+        decisions = outcome.arbitration.decisions
+        self.assertEqual(
+            [decision.disposition for decision in decisions],
+            ["execute", "reject"],
+        )
+        results = {
+            record.result.agent_id: record.result
+            for record in outcome.invocations
+        }
+        self.assertEqual(
+            results["switch-router@s2"].status,
+            InvocationStatus.REJECTED,
+        )
+        rejected_issue = results["switch-router@s2"].action_results[0].issue
+        self.assertIsNotNone(rejected_issue)
+        assert rejected_issue is not None
+        self.assertEqual(
+            rejected_issue.code,
+            "coordination.conflict.rejected",
+        )
+
+    def test_invalid_proposal_cannot_block_valid_conflicting_action(self) -> None:
+        def respond(
+            agent_id: str,
+            context: AgentCoordinationContext,
+        ) -> AgentResponse:
+            del context
+            if agent_id == "global-router":
+                return AgentResponse(
+                    delegations=(
+                        DelegationProposal(
+                            id="delegate-1",
+                            targetAgentId="switch-router@s1",
+                            intent="Invalid repair",
+                        ),
+                        DelegationProposal(
+                            id="delegate-2",
+                            targetAgentId="switch-router@s2",
+                            intent="Valid repair",
+                        ),
+                    )
+                )
+            arguments: dict[str, JsonValue] = (
+                {}
+                if agent_id == "switch-router@s1"
+                else {"match": "ip", "actions": "normal"}
+            )
+            return AgentResponse(
+                proposals=(
+                    ActionProposal(
+                        id=f"action-{agent_id}",
+                        capability="openflow.flow.install",
+                        target="s1",
+                        arguments=arguments,
+                    ),
+                )
+            )
+
+        invoker = RecordingInvoker(respond)
+        runtime = CoordinationRuntime(
+            plan_for({"mode": "centralized", "coordinator": "global-router"}),
+            invoker,
+            clock=lambda: NOW,
+            message_id_factory=ids("message-1", "message-2", "message-3"),
+        )
+
+        outcome = runtime.coordinate(request())
+
+        self.assertEqual(
+            invoker.executed,
+            [("switch-router@s2", "action-switch-router@s2")],
+        )
+        results = {
+            record.result.agent_id: record.result
+            for record in outcome.invocations
+        }
+        invalid = results["switch-router@s1"].action_results[0]
+        self.assertIsNotNone(invalid.issue)
+        assert invalid.issue is not None
+        self.assertEqual(invalid.issue.code, "capability.input.invalid")
+        self.assertIsNotNone(outcome.arbitration)
+        assert outcome.arbitration is not None
+        self.assertEqual(
+            [decision.agent_id for decision in outcome.arbitration.decisions],
+            ["switch-router@s2"],
+        )
+
+    def test_nonconflicting_actions_execute_concurrently(self) -> None:
+        barrier = Barrier(2)
+
+        class ConcurrentInvoker(RecordingInvoker):
+            def execute(
+                self,
+                prepared: PreparedAgentInvocation,
+                proposal: ActionProposal,
+            ) -> ActionResult:
+                barrier.wait(timeout=2)
+                return super().execute(prepared, proposal)
+
+        def respond(
+            agent_id: str,
+            context: AgentCoordinationContext,
+        ) -> AgentResponse:
+            del context
+            if agent_id == "global-router":
+                return AgentResponse(
+                    delegations=(
+                        DelegationProposal(
+                            id="delegate-1",
+                            targetAgentId="switch-router@s1",
+                            intent="Repair s1",
+                        ),
+                        DelegationProposal(
+                            id="delegate-2",
+                            targetAgentId="switch-router@s2",
+                            intent="Repair s2",
+                        ),
+                    )
+                )
+            return AgentResponse(
+                proposals=(
+                    ActionProposal(
+                        id=f"action-{agent_id}",
+                        capability="openflow.flow.install",
+                        target=agent_id.rsplit("@", 1)[1],
+                        arguments={"match": "ip", "actions": "normal"},
+                    ),
+                )
+            )
+
+        invoker = ConcurrentInvoker(respond)
+        runtime = CoordinationRuntime(
+            plan_for({"mode": "centralized", "coordinator": "global-router"}),
+            invoker,
+            clock=lambda: NOW,
+            message_id_factory=ids("message-1", "message-2", "message-3"),
+        )
+
+        outcome = runtime.coordinate(request())
+
+        self.assertEqual(len(invoker.executed), 2)
+        self.assertEqual(len(outcome.invocations), 3)
+        self.assertEqual(outcome.issues, ())
 
 
 if __name__ == "__main__":

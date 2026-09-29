@@ -89,6 +89,12 @@ class EchoModel:
 
 
 class RejectingExecutor:
+    def validate(
+        self, context: AgentContext, proposal: ActionProposal
+    ) -> ActionResult | None:
+        del context, proposal
+        return None
+
     def execute(
         self, context: AgentContext, proposal: ActionProposal
     ) -> ActionResult:

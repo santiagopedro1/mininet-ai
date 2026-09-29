@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from threading import Lock
 from time import monotonic
 from uuid import uuid4
 
@@ -22,6 +24,7 @@ from mininet_ai.capabilities import (
     SubstrateObservationProvider,
 )
 from mininet_ai.compiler import DeploymentPlan
+from mininet_ai.coordination.routing import PreparedAgentInvocation
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.plugins import (
     ProviderKind,
@@ -35,6 +38,7 @@ from mininet_ai.runtime import (
     SharedStateStore,
 )
 from mininet_ai.sdk import (
+    ActionProposal,
     AgentCoordinationContext,
     AgentContext,
     AgentInvocationResult,
@@ -54,6 +58,7 @@ from mininet_ai.substrates import (
     ActionResult,
     ActionStatus,
     ObservationQuery,
+    RuntimeIssue,
     RunState,
     SubstrateRuntime,
 )
@@ -71,6 +76,21 @@ def _utc_now() -> datetime:
 
 def _invocation_id() -> str:
     return f"invoke-{uuid4()}"
+
+
+@dataclass
+class _OneShotPreparation:
+    context: AgentContext
+    response: AgentResponse
+    provider: AgnoAgentProvider
+    started_at: datetime
+    started_tick: float
+    context_seconds: float
+    model_queueing_seconds: float
+    reasoning_seconds: float
+    state_changes: tuple[SharedStateChange, ...]
+    action_total_seconds: float = 0
+    action_timing_lock: Lock = field(default_factory=Lock)
 
 
 def register_builtin_providers(
@@ -156,6 +176,30 @@ class OneShotAgentRuntime:
         *,
         coordination: AgentCoordinationContext | None = None,
     ) -> AgentInvocationResult:
+        prepared = self.prepare(
+            run_id,
+            agent_id,
+            intent,
+            coordination=coordination,
+        )
+        if isinstance(prepared, AgentInvocationResult):
+            return prepared
+        action_results = tuple(
+            self.execute(prepared, proposal)
+            for proposal in prepared.response.proposals
+        )
+        return self.complete(prepared, action_results)
+
+    def prepare(
+        self,
+        run_id: str,
+        agent_id: str,
+        intent: str,
+        *,
+        coordination: AgentCoordinationContext | None = None,
+    ) -> PreparedAgentInvocation | AgentInvocationResult:
+        """Run reasoning and shared-state updates without committing actions."""
+
         started_at = self._clock()
         started_tick = self._monotonic()
         invocation_id = self._invocation_id_factory()
@@ -289,12 +333,91 @@ class OneShotAgentRuntime:
                 ),
             )
 
-        action_tick = self._monotonic()
-        action_results = tuple(
-            self._capabilities.execute(context, proposal)
-            for proposal in response.proposals
+        state = _OneShotPreparation(
+            context=context,
+            response=response,
+            provider=provider,
+            started_at=started_at,
+            started_tick=started_tick,
+            context_seconds=context_seconds,
+            model_queueing_seconds=execution.model_queueing_seconds,
+            reasoning_seconds=reasoning_seconds,
+            state_changes=state_changes,
         )
-        action_total_seconds = self._elapsed(action_tick)
+        return PreparedAgentInvocation(
+            context=context,
+            response=response,
+            token=state,
+        )
+
+    def execute(
+        self,
+        prepared: PreparedAgentInvocation,
+        proposal: ActionProposal,
+    ) -> ActionResult:
+        """Commit one admitted proposal through the capability engine."""
+
+        state = self._prepared_state(prepared)
+        action_tick = self._monotonic()
+        result = self._capabilities.execute(prepared.context, proposal)
+        elapsed = self._elapsed(action_tick)
+        with state.action_timing_lock:
+            state.action_total_seconds += elapsed
+        return result
+
+    def validate(
+        self,
+        prepared: PreparedAgentInvocation,
+        proposal: ActionProposal,
+    ) -> ActionResult | None:
+        """Validate one proposal before it enters conflict arbitration."""
+
+        self._prepared_state(prepared)
+        return self._capabilities.validate(prepared.context, proposal)
+
+    def reject(
+        self,
+        prepared: PreparedAgentInvocation,
+        proposal: ActionProposal,
+        *,
+        code: str,
+        message: str,
+    ) -> ActionResult:
+        """Normalize an arbitration rejection without calling a provider."""
+
+        self._prepared_state(prepared)
+        return ActionResult(
+            run_id=prepared.context.run_id,
+            request_id=proposal.id,
+            status=ActionStatus.REJECTED,
+            completed_at=self._clock(),
+            issue=RuntimeIssue(
+                code=code,
+                message=message,
+                target=proposal.target,
+            ),
+        )
+
+    def complete(
+        self,
+        prepared: PreparedAgentInvocation,
+        action_results: tuple[ActionResult, ...],
+    ) -> AgentInvocationResult:
+        """Finalize timings, session state, and status after arbitration."""
+
+        state = self._prepared_state(prepared)
+        expected_ids = tuple(proposal.id for proposal in state.response.proposals)
+        actual_ids = tuple(result.request_id for result in action_results)
+        if actual_ids != expected_ids:
+            raise AgentRuntimeError(
+                "completed action results do not match prepared proposals",
+                code="agent.actions.result-mismatch",
+                agent_id=state.context.agent_id,
+                invocation_id=state.context.invocation_id,
+            )
+        if state.action_total_seconds == 0:
+            action_tick = self._monotonic()
+            state.action_total_seconds += self._elapsed(action_tick)
         effect_latencies = tuple(
             result.effect_latency_seconds
             for result in action_results
@@ -305,50 +428,66 @@ class OneShotAgentRuntime:
         )
         action_seconds = max(
             0.0,
-            action_total_seconds - (effect_seconds or 0.0),
+            state.action_total_seconds - (effect_seconds or 0.0),
         )
         timings = self._timings(
-            started_tick,
-            context_seconds=context_seconds,
-            model_queueing_seconds=execution.model_queueing_seconds,
-            reasoning_seconds=reasoning_seconds,
+            state.started_tick,
+            context_seconds=state.context_seconds,
+            model_queueing_seconds=state.model_queueing_seconds,
+            reasoning_seconds=state.reasoning_seconds,
             action_seconds=action_seconds,
             effect_seconds=effect_seconds,
         )
         try:
-            provider.record_action_results(context, action_results)
+            state.provider.record_action_results(state.context, action_results)
         except Exception as error:
             if self._audit is not None:
                 self._audit.record(
                     AuditEventType.AGENT_FAILED,
-                    context,
+                    state.context,
                     self._error_data(error),
                 )
             return AgentInvocationResult(
-                invocationId=context.invocation_id,
-                runId=context.run_id,
-                agentId=context.agent_id,
+                invocationId=state.context.invocation_id,
+                runId=state.context.run_id,
+                agentId=state.context.agent_id,
                 status=InvocationStatus.FAILED,
-                startedAt=started_at,
+                startedAt=state.started_at,
                 completedAt=self._clock(),
-                response=response,
+                response=state.response,
                 actionResults=action_results,
-                sharedStateChanges=state_changes,
+                sharedStateChanges=state.state_changes,
                 timings=timings,
                 issue=AgentRuntimeIssue(
                     code=self._error_code(error),
                     message=str(error) or type(error).__name__,
-                    agentId=context.agent_id,
+                    agentId=state.context.agent_id,
                 ),
             )
         return self._result(
-            context,
-            started_at,
-            response,
+            state.context,
+            state.started_at,
+            state.response,
             action_results,
-            state_changes,
+            state.state_changes,
             timings,
         )
+
+    @staticmethod
+    def _prepared_state(prepared: PreparedAgentInvocation) -> _OneShotPreparation:
+        state = prepared.token
+        if (
+            not isinstance(state, _OneShotPreparation)
+            or state.context != prepared.context
+            or state.response != prepared.response
+        ):
+            raise AgentRuntimeError(
+                "prepared invocation does not belong to this agent runtime",
+                code="agent.invocation.invalid-preparation",
+                agent_id=prepared.context.agent_id,
+                invocation_id=prepared.context.invocation_id,
+            )
+        return state
 
     def _observe(
         self,
