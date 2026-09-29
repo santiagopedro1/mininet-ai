@@ -201,6 +201,47 @@ class RuntimeCLITests(unittest.TestCase):
         )
         self.assertEqual(runtime.inspect("cli-failed-run").run.state, RunState.STOPPED)
 
+    def test_run_can_stop_after_all_initial_intents_complete(self) -> None:
+        plan = configured_plan({"message": "handled"})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-intents-run")
+        with TemporaryDirectory() as temporary:
+            log_path = Path(temporary) / "run.log"
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.create_substrate_runtime",
+                    return_value=runtime,
+                ),
+                patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--stop-after-intents",
+                        "--intent",
+                        "switch-router@s1=first intent",
+                        "--intent",
+                        "switch-router@s1=second intent",
+                        *self.run_databases(temporary),
+                    ],
+                )
+
+            log = log_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn(
+            "All 2 initial intents completed; requesting automatic stop",
+            log,
+        )
+        self.assertLess(
+            log.index("All 2 initial intents completed"),
+            log.index("Stop requested; draining work and tearing down"),
+        )
+        self.assertIn("2 completed", result.output)
+        self.assertEqual(runtime.inspect("cli-intents-run").run.state, RunState.STOPPED)
+
     def test_run_tears_down_if_reporting_the_started_run_fails(self) -> None:
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-broken-output")
         with TemporaryDirectory() as temporary:

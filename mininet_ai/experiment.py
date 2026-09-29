@@ -20,6 +20,7 @@ from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime.continuous import ContinuousAgentRuntime
 from mininet_ai.runtime.contracts import (
     ContinuousRuntimeReport,
+    ContinuousInvocationRecord,
     ManualIntentPayload,
     RuntimeEvent,
     RuntimeEventType,
@@ -98,6 +99,7 @@ class ExperimentRuntime:
         plugins: tuple[PluginManifest, ...] = (),
         clock: Clock = _utc_now,
         event_id_factory: EventIdFactory = _event_id,
+        invocation_listener: Callable[[ContinuousInvocationRecord], None] | None = None,
     ) -> None:
         self._plan = plan
         self._substrate = substrate
@@ -109,6 +111,7 @@ class ExperimentRuntime:
         self._plugins = plugins
         self._clock = clock
         self._event_id_factory = event_id_factory
+        self._invocation_listener = invocation_listener
         self._lock = Lock()
         self._state = ExperimentRuntimeState.CREATED
         self._run: RunInfo | None = None
@@ -171,6 +174,7 @@ class ExperimentRuntime:
                 run.id,
                 coordinator,
                 event_bus=event_bus,
+                invocation_listener=self._invocation_listener,
                 clock=self._clock,
                 event_id_factory=self._event_id_factory,
             )

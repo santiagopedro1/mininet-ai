@@ -43,6 +43,7 @@ from mininet_ai.specification.models import EventTrigger, IntervalTrigger
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
+InvocationListener = Callable[[ContinuousInvocationRecord], None]
 
 
 def _utc_now() -> datetime:
@@ -109,6 +110,7 @@ class ContinuousAgentRuntime:
         invoker: AgentInvoker | Coordinator,
         *,
         event_bus: RuntimeEventBus | None = None,
+        invocation_listener: InvocationListener | None = None,
         clock: Clock = _utc_now,
         event_id_factory: EventIdFactory = _event_id,
     ) -> None:
@@ -128,6 +130,7 @@ class ContinuousAgentRuntime:
         self._bus = bus
         self._clock = clock
         self._event_id_factory = event_id_factory
+        self._invocation_listener = invocation_listener
         self._agents = {agent.id: agent for agent in plan.agents}
         self._coordination_graph = (
             CoordinationGraph(plan) if isinstance(invoker, Coordinator) else None
@@ -621,6 +624,8 @@ class ContinuousAgentRuntime:
                 self._counts["completed"] += 1
                 if result.status != InvocationStatus.SUCCEEDED:
                     self._counts["failed"] += 1
+            if self._invocation_listener is not None:
+                self._invocation_listener(record)
 
     def _invoke(self, item: _WorkItem) -> _InvocationCompletion:
         with self._global_slots:
