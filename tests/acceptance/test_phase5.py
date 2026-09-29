@@ -12,9 +12,44 @@ from mininet_ai.compiler import compile_experiment
 
 ROOT = Path(__file__).parents[2]
 EXPERIMENT = ROOT / "examples" / "phase5" / "experiment.yaml"
+MININET_EXPERIMENT = ROOT / "examples" / "phase5" / "mininet" / "experiment.yaml"
 
 
 class Phase5AcceptanceTests(unittest.TestCase):
+    def test_mininet_copy_compiles_with_live_topology_and_capability(self) -> None:
+        plan = compile_experiment(MININET_EXPERIMENT)
+
+        self.assertEqual(plan.metadata.name, "phase5-mininet-coordination")
+        self.assertEqual(plan.substrate, "mininet-ovs")
+        self.assertEqual(
+            {resource.name for resource in plan.resources},
+            {
+                "network",
+                "c0",
+                "s1",
+                "s1-eth1",
+                "s1-eth2",
+                "h1",
+                "h1-eth0",
+                "h2",
+                "h2-eth0",
+                "h1-s1",
+                "s1-h2",
+            },
+        )
+        self.assertEqual(
+            {(edge.source, edge.target) for edge in plan.coordination.edges},
+            {
+                ("global-coordinator", "primary-remediator@s1"),
+                ("global-coordinator", "secondary-remediator@s1"),
+            },
+        )
+        capabilities = cast(
+            list[dict[str, Any]],
+            plan.snapshot["capabilityDefinitions"],
+        )
+        self.assertEqual(capabilities[0]["provider"], "substrate.action")
+
     def test_centralized_delegation_and_conflict_rejection_end_to_end(
         self,
     ) -> None:

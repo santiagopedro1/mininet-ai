@@ -25,3 +25,8 @@ requires neither model credentials nor root privileges. Native Agno teams and
 workflows are intentionally not used because the current Agno interfaces do
 not preserve Mininet-owned scoped invocation, explicit message delivery, and
 action arbitration semantics.
+
+For the equivalent live topology, see the
+[Mininet/OVS variant](mininet/README.md). It uses the same coordination graph
+and agent responses but replaces the fake substrate capability with the live
+`substrate.action` provider.
