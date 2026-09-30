@@ -365,7 +365,12 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
                 self.assertTrue(invoker.entered.wait(timeout=1))
                 runtime.publish(manual_event("event-2", sequence=2))
                 runtime.publish(manual_event("event-3", sequence=3))
-                wait_until(lambda: getattr(runtime.report(), counter) == 1)
+                wait_until(
+                    lambda runtime=runtime, counter=counter: getattr(
+                        runtime.report(), counter
+                    )
+                    == 1
+                )
                 invoker.release.set()
 
                 report = runtime.stop()

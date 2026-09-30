@@ -579,7 +579,7 @@ class ContinuousAgentRuntime:
             try:
                 completion = self._supervisor.execute(
                     agent_id,
-                    lambda: self._invoke(item),
+                    lambda item=item: self._invoke(item),
                 )
             except Exception as error:
                 self._issue(

@@ -509,7 +509,7 @@ def _aggregate_samples(
             raise AssertionError(f"unsupported aggregation {aggregation!r}")
         target_values = result.setdefault(target, {})
         if not isinstance(target_values, dict):
-            raise AssertionError("target aggregation must be an object")
+            raise TypeError("target aggregation must be an object")
         _assign(target_values, path, aggregated)
     return result
 

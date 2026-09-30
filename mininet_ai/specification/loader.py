@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, ValidationError
@@ -16,8 +16,6 @@ from mininet_ai.specification.models import (
     Experiment,
     Topology,
 )
-
-T = TypeVar("T", bound=BaseModel)
 
 
 @dataclass(frozen=True)
@@ -41,7 +39,7 @@ def _read_yaml(path: Path) -> Any:
         raise SpecificationError(f"invalid YAML in {path}: {error}") from error
 
 
-def _parse(model: type[T], data: Any, path: Path) -> T:
+def _parse[T: BaseModel](model: type[T], data: Any, path: Path) -> T:
     try:
         return model.model_validate(data)
     except ValidationError as error:
@@ -57,7 +55,7 @@ def _resolve(path: str, base: Path) -> Path:
     return candidate if candidate.is_absolute() else (base / candidate).resolve()
 
 
-def _load_references(
+def _load_references[T: BaseModel](
     values: list[T | str], model: type[T], base: Path
 ) -> tuple[T, ...]:
     resolved: list[T] = []

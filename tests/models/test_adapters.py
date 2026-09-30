@@ -253,9 +253,11 @@ class ModelAdapterTests(unittest.TestCase):
         )
 
         for endpoint in invalid:
-            with self.subTest(endpoint=endpoint):
-                with self.assertRaises(ValueError):
-                    OllamaModelProvider(endpoint)
+            with (
+                self.subTest(endpoint=endpoint),
+                self.assertRaises(ValueError),
+            ):
+                OllamaModelProvider(endpoint)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from tempfile import TemporaryDirectory
 from typing import Any, NoReturn, cast
 
+from pydantic import ValidationError
+
 from mininet_ai.audit import (
     AUDIT_CONTRACT_VERSION,
     AuditedAgentProvider,
@@ -124,7 +126,7 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(event.invocation_id, "invoke-1")
         self.assertEqual(event.agent_id, "router@s1")
         self.assertEqual(sink.events, (event,))
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValidationError):
             event.type = AuditEventType.AGENT_FAILED
 
     def test_json_lines_sink_appends_private_machine_readable_events(self) -> None:

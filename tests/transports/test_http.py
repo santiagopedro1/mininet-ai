@@ -48,7 +48,9 @@ class HttpxJsonTransportTests(unittest.TestCase):
 
         for response, limit, expected_code in cases:
             with self.subTest(expected_code=expected_code):
-                transport = httpx.MockTransport(lambda request: response)
+                transport = httpx.MockTransport(
+                    lambda request, response=response: response
+                )
                 with self.assertRaises(HttpTransportError) as context:
                     self.post(transport, limit=limit)
                 self.assertEqual(context.exception.code, expected_code)
