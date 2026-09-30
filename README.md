@@ -223,21 +223,22 @@ Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.as
 uv sync
 ```
 
-Phase 1 does not require Mininet, root privileges, or a model provider.
+Validation and planning do not require root privileges or a running Mininet
+network.
 
 ## Usage
 
-Validate the acceptance experiment:
+Validate the iperf throughput experiment:
 
 ```bash
-uv run mininet-ai validate examples/phase1/experiment.yaml
+uv run mininet-ai validate examples/iperf-throughput/experiment.yaml
 ```
 
 Inspect its deployment plan as a table or JSON:
 
 ```bash
-uv run mininet-ai plan examples/phase1/experiment.yaml
-uv run mininet-ai plan examples/phase1/experiment.yaml --format json
+uv run mininet-ai plan examples/iperf-throughput/experiment.yaml
+uv run mininet-ai plan examples/iperf-throughput/experiment.yaml --format json
 ```
 
 Print one of the public JSON Schemas:
@@ -267,48 +268,11 @@ invalidate existing documents or alter their compiled representation require a
 new contract version. See [Compatibility and versioning](docs/compatibility.md)
 for the complete rules and review checklist.
 
-The example compiles one reusable blueprint into a singleton global agent, one controller-domain agent, two switch-local agents, and two host agents.
-
-Phase 3 has a separate rootless acceptance example containing user-authored
-telemetry and action plugins, a deterministic declarative agent, and an
-out-of-scope action check:
-
-```bash
-uv run mininet-ai validate examples/phase3/experiment.yaml
-uv run python -m examples.phase3
-uv run pytest -q tests/acceptance/test_phase3.py
-```
-
-Run the rootless Phase 4 autonomous experiment:
-
-```bash
-uv run python -m examples.phase4
-uv run pytest -q tests/acceptance/test_phase4.py
-```
-
-It detects synthetic queue congestion, triggers an Agno agent without a manual
-prompt, authorizes and applies its proposed flow, verifies the live effect, and
-prints the final runtime and teardown report. See
-[`examples/phase4/README.md`](examples/phase4/README.md) for database options.
-
-Run the rootless Phase 5 coordination experiment:
-
-```bash
-uv run mininet-ai validate examples/phase5/experiment.yaml
-uv run python -m examples.phase5
-uv run pytest -q tests/acceptance/test_phase5.py
-```
-
-The example routes a leaf-targeted intent through a centralized coordinator,
-records two explicit delegations, and arbitrates two valid proposals for the
-same switch effect. The first action commits and the second receives a typed
-conflict rejection. The JSON report retains the correlated messages,
-invocations, conflict keys, winner, and action results under the versioned
-coordination outcome. See
-[`examples/phase5/README.md`](examples/phase5/README.md) for the expected trace
-and the native Agno adapter decision.
-
-See [the Phase 3 example](examples/phase3/README.md) for its extension layout.
+The repository's single maintained example places an Ollama-backed iperf server
+agent and client agent on two Mininet hosts. Mininet AI authorizes their
+`host.process.start` proposals and runs a TCP throughput test across an OVS
+switch. See the [iperf throughput guide](examples/iperf-throughput/README.md)
+for VM setup, startup intents, and traffic inspection commands.
 
 ## Specification overview
 
@@ -380,7 +344,9 @@ concrete host interfaces and switch ports, and their bandwidth is expressed in
 Mbps. An endpoint may omit `adapter`; the compiler will then allocate a stable
 interface or port name and number before producing the deployment plan.
 
-See [the complete Phase 1 example](examples/phase1/experiment.yaml) for external blueprints, typed capabilities, links, multiple layers, and safety policies.
+See [the complete iperf experiment](examples/iperf-throughput/experiment.yaml)
+for external blueprints, a typed capability, host placement, links, and safety
+policies.
 
 Phase 4 continuous-runtime declarations are also part of the compiled contract.
 An agent deployment can select manual, interval, and normalized event triggers,
@@ -508,7 +474,7 @@ commands inside the VM through the checked-in wrapper:
 vagrant ssh
 cd /vagrant
 scripts/vm-run.sh python -m unittest discover -v
-scripts/vm-run.sh mininet-ai validate examples/phase1/experiment.yaml
+scripts/vm-run.sh mininet-ai validate examples/iperf-throughput/experiment.yaml
 ```
 
 From the host, run the complete environment check with:
@@ -557,8 +523,9 @@ deployment while a live or orphaned run exists. A fresh runtime can inspect an
 orphan and recover it by calling `teardown` with the recorded run ID; recovery
 targets only the processes, bridges, interfaces, and temporary files named by
 that deployment plan. A bounded stopped-run record makes repeated teardown and
-`stop` requests idempotent until the next deployment. See the
-[Phase 2 acceptance experiment](examples/phase2/experiment.yaml).
+`stop` requests idempotent until the next deployment. The
+[iperf throughput experiment](examples/iperf-throughput/experiment.yaml) uses
+this driver and runtime.
 
 The live runtime refreshes resource operational state during inspection and
 normalizes all observations advertised by the driver: topology resources and
@@ -579,7 +546,7 @@ result and refreshes the live resource snapshot after success.
 Preview a deployment without requiring root or changing networking state:
 
 ```bash
-mininet-ai run examples/phase2/experiment.yaml --dry-run
+mininet-ai run examples/iperf-throughput/experiment.yaml --dry-run
 ```
 
 Live Mininet/OVS runs are foreground-owned so the process holding Mininet's
@@ -587,7 +554,11 @@ Python objects also owns cleanup. Start a run in one VM terminal and copy the
 reported run ID:
 
 ```bash
-sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml --verbose
+sudo scripts/vm-run.sh mininet-ai run \
+  examples/iperf-throughput/experiment.yaml \
+  --intent 'iperf-server@server=Start the iperf server on server.' \
+  --intent 'iperf-client@client=Run a TCP throughput test against 10.0.0.12.' \
+  --verbose
 ```
 
 Run progress is appended to `.mininet-ai/run.log` even without `--verbose`.
@@ -646,7 +617,7 @@ uses the recorded ownership data to recover only that run's resources.
 
 ### Golden deployment plans
 
-The acceptance experiment has a canonical deployment plan under `tests/golden`.
+The compiler fixture has a canonical deployment plan under `tests/golden`.
 Tests compare the complete compiled plan—including resolved resources, agent
 instances, coordination, policies, normalized specification, and digest—against
 this fixture. The source path is made repository-relative so the result is

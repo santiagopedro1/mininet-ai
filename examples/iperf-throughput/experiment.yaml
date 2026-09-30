@@ -1,0 +1,98 @@
+apiVersion: mininet-ai/v1alpha2
+kind: Experiment
+metadata:
+  name: iperf-tcp-throughput
+  description: Ollama-driven iperf TCP throughput test between two Mininet hosts.
+
+substrate:
+  driver: mininet-ovs
+  topology:
+    addressing:
+      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
+      mac: {prefix: "02:00:00", strategy: sequential}
+    resources:
+      - {name: network, kind: network}
+      - name: main-controller
+        kind: controller
+        parent: network
+        type: builtin
+        port: 6653
+      - name: s1
+        kind: switch
+        parent: network
+        failMode: secure
+        datapath: kernel
+        controllers: [main-controller]
+        protocols: [OpenFlow13]
+        labels: {role: edge}
+        ports:
+          - {name: s1-eth1, number: 1}
+          - {name: s1-eth2, number: 2}
+      - name: client
+        kind: host
+        parent: network
+        interfaces:
+          - {name: client-eth0, ipv4: 10.0.0.11/24, mac: auto}
+      - name: server
+        kind: host
+        parent: network
+        interfaces:
+          - {name: server-eth0, ipv4: 10.0.0.12/24, mac: auto}
+    links:
+      - name: client-link
+        endpoints:
+          - {node: client, adapter: client-eth0}
+          - {node: s1, adapter: s1-eth1}
+        bandwidth: 100
+        delay: 1ms
+      - name: server-link
+        endpoints:
+          - {node: server, adapter: server-eth0}
+          - {node: s1, adapter: s1-eth2}
+        bandwidth: 100
+        delay: 1ms
+
+blueprints:
+  - ./agent-blueprints/ollama-iperf-server.yaml
+  - ./agent-blueprints/ollama-iperf-client.yaml
+
+capabilityDefinitions:
+  - ./capabilities/start-process.yaml
+
+agents:
+  - name: iperf-server
+    blueprint: ollama-iperf-server
+    placement:
+      layer: host
+      targets: {kind: host, names: [server]}
+      cardinality: per-target
+      runtime: host-namespace
+    capabilities: [host.process.start]
+    triggers:
+      - {type: manual, name: operator}
+    execution: {maxConcurrency: 1, queueCapacity: 4, overflow: reject}
+
+  - name: iperf-client
+    blueprint: ollama-iperf-client
+    placement:
+      layer: host
+      targets: {kind: host, names: [client]}
+      cardinality: per-target
+      runtime: host-namespace
+    observe: [host.reachability]
+    capabilities: [host.process.start]
+    triggers:
+      - {type: manual, name: operator}
+    execution: {maxConcurrency: 1, queueCapacity: 4, overflow: reject}
+
+coordination:
+  mode: independent
+
+policies:
+  conflicting-actions: reject
+  require-postcondition-check: false
+
+resourceLimits:
+  max-instances: 4
+  max-concurrent-invocations: 1
+  max-queued-events: 16

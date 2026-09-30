@@ -16,10 +16,17 @@ from mininet_ai.compiler import compile_experiment
 from mininet_ai.sdk import ExecutionCatalog
 
 ROOT = Path(__file__).parents[2]
-EXPERIMENT = ROOT / "examples" / "phase5" / "experiment.yaml"
-MININET_EXPERIMENT = ROOT / "examples" / "phase5" / "mininet" / "experiment.yaml"
+EXPERIMENT = ROOT / "tests" / "fixtures" / "phase5" / "experiment.yaml"
+MININET_EXPERIMENT = (
+    ROOT / "tests" / "fixtures" / "phase5" / "mininet" / "experiment.yaml"
+)
 OLLAMA_MININET_EXPERIMENT = (
-    ROOT / "examples" / "phase5" / "mininet" / "experiment-ollama.yaml"
+    ROOT
+    / "tests"
+    / "fixtures"
+    / "phase5"
+    / "mininet"
+    / "experiment-ollama.yaml"
 )
 
 
@@ -124,7 +131,7 @@ factory.create(definition)
         self.assertEqual(plan.metadata.name, "phase5-centralized-coordination")
 
         result = subprocess.run(
-            [sys.executable, "-m", "examples.phase5"],
+            [sys.executable, "-m", "tests.fixtures.phase5"],
             cwd=ROOT,
             capture_output=True,
             text=True,

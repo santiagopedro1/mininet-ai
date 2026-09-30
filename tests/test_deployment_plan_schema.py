@@ -15,7 +15,7 @@ from mininet_ai.compiler import (
 )
 
 ROOT = Path(__file__).parents[1]
-EXAMPLE = ROOT / "examples" / "phase1" / "experiment.yaml"
+EXAMPLE = ROOT / "tests" / "fixtures" / "compiler-experiment" / "experiment.yaml"
 
 
 class DeploymentPlanSchemaTests(unittest.TestCase):

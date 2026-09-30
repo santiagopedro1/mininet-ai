@@ -16,7 +16,9 @@ from mininet_ai.substrates.mininet_ovs.observations import (
 from tests.substrates.test_mininet_ovs_runtime import mininet_plan
 
 ROOT = Path(__file__).parents[2]
-PHASE2_EXPERIMENT = ROOT / "examples" / "phase2" / "experiment.yaml"
+PHASE2_EXPERIMENT = (
+    ROOT / "tests" / "fixtures" / "mininet-ovs-experiment" / "experiment.yaml"
+)
 
 
 class Node:

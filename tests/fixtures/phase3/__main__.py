@@ -31,12 +31,12 @@ def _entry_points() -> tuple[EntryPoint, ...]:
     return (
         EntryPoint(
             name="example.telemetry",
-            value="examples.phase3.providers:telemetry_plugin",
+            value="tests.fixtures.phase3.providers:telemetry_plugin",
             group=group,
         ),
         EntryPoint(
             name="example.action",
-            value="examples.phase3.providers:action_plugin",
+            value="tests.fixtures.phase3.providers:action_plugin",
             group=group,
         ),
     )

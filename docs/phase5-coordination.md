@@ -282,21 +282,15 @@ deterministic rootless coverage on the fake substrate.
 ## Acceptance evidence
 
 The rootless end-to-end scenario is
-`tests/acceptance/test_phase5.py`, backed by
-`examples/phase5/experiment.yaml`. It proves event correlation, centralized
-entry routing, two explicit delegations, capability admission, one committed
+`tests/acceptance/test_phase5.py`, backed by the application fixture under
+`tests/fixtures/phase5/`. It proves event correlation, centralized entry
+routing, two explicit delegations, capability admission, one committed
 conflicting action, one typed rejection, complete arbitration evidence, and
-orderly teardown through the public experiment owner.
+orderly teardown through the public experiment owner. The same test compiles
+the deterministic and Ollama-backed live Mininet fixtures.
 
-The same acceptance module compiles the deterministic and Ollama-backed live
-Mininet variants under `examples/phase5/mininet/`, verifies their three-agent
-graphs and packaged Ollama factory, and confirms that every blueprint resolves
-to `qwen2.5:7b`. The live operator path streams progress and fatal failures to
-stderr and a text log, stops on fatal agent/runtime errors, and supports
-`--stop-after-intents` so a finite experiment drains, tears down its topology,
-prints its terminal report, and exits without requiring Ctrl+C.
-
-The remainder of the matrix is covered at the owning module interface:
+The remainder of the acceptance matrix is covered at the owning module
+interface:
 
 - `tests/coordination/test_graph.py` covers independent, centralized,
   hierarchical, and topology-neighbor peer graphs, including invalid shapes;

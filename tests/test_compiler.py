@@ -12,11 +12,11 @@ from mininet_ai.errors import CompilationError
 from mininet_ai.specification.models import Experiment, ResourceKind
 
 ROOT = Path(__file__).parents[1]
-EXAMPLE = ROOT / "examples" / "phase1" / "experiment.yaml"
+EXAMPLE = ROOT / "tests" / "fixtures" / "compiler-experiment" / "experiment.yaml"
 
 
 class CompilerTests(unittest.TestCase):
-    def test_acceptance_example_compiles_same_blueprint_at_four_layers(self) -> None:
+    def test_fixture_compiles_same_blueprint_at_four_layers(self) -> None:
         plan = compile_experiment(EXAMPLE)
 
         self.assertEqual(len(plan.agents), 6)

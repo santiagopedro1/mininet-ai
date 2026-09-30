@@ -58,12 +58,12 @@ Phases 1 through 3 are implemented:
 - Phase 2: Mininet/OVS substrate, lifecycle, observations, actions, recovery,
   and cleanup tooling.
 - Phase 3: scoped agent invocation, capability contracts, plugins, audit data,
-  and the rootless extension example.
+  and the rootless extension test fixture.
 
 Phase 4 continuous runtime is implemented. It includes native Agno execution,
 persistent sessions and memory, shared state, continuous scheduling, telemetry
 detectors, supervision, deadlines, verified effects and rollback, persistent
-run ownership, and the autonomous Phase 4 example.
+run ownership, and the autonomous Phase 4 test fixture.
 
 Phase 5 is implemented on branch `feature/v1alpha2-coordination-runtime`.
 At the time of this handoff, `HEAD` is `65ed712`
@@ -81,21 +81,11 @@ per-agent Agno execution therefore remains canonical. Continuous experiment
 events now enter the canonical coordination runtime, preserve their correlation
 and triggering-event identities, and retain a versioned coordination outcome
 alongside the representative invocation in runtime reports. Direct Phase 4
-continuous invokers remain compatible. The rootless example under
-`examples/phase5/` and `tests/acceptance/test_phase5.py` prove centralized
+continuous invokers remain compatible. The rootless application fixture under
+`tests/fixtures/phase5/` and `tests/acceptance/test_phase5.py` prove centralized
 delegation, conflicting action rejection, correlation, normalized results, and
 teardown. The next roadmap phase is Phase 6 placement and isolation. The
 complete roadmap lives in `README.md` and is the source of truth.
-
-The live Mininet copy under `examples/phase5/mininet/` adds deterministic and
-Ollama-backed operator paths. The Ollama path uses the packaged
-`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` entrypoint,
-`OLLAMA_HOST`, and model `qwen2.5:7b`. CLI runs can stream progress with
-`--verbose`, persist it with `--log-file`, expose fatal agent/runtime failures
-immediately, and stop automatically with `--stop-after-intents`. A successful
-live Ollama run created all three agents lazily, recorded 5,526 model tokens,
-committed the winning OpenFlow action, rejected the conflict, and released all
-11 Mininet resources.
 
 Phase 5 focused verification currently passes: 87 tests and 16 subtests,
 Pyright with zero errors, and validation of the rootless, deterministic
@@ -117,10 +107,7 @@ uv run pytest -q tests/coordination tests/acceptance/test_phase5.py \
   tests/runtime/test_experiment.py tests/runtime/test_continuous.py \
   tests/capabilities/test_engine.py tests/test_cli_runtime.py
 uv run pyright
-uv run mininet-ai validate examples/phase5/experiment.yaml
-uv run mininet-ai validate examples/phase5/mininet/experiment.yaml
-uv run mininet-ai validate examples/phase5/mininet/experiment-ollama.yaml
-uv run python -m examples.phase5
+uv run mininet-ai validate examples/iperf-throughput/experiment.yaml
 ```
 
 For intentional compiler or schema changes:

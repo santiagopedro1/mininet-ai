@@ -20,7 +20,9 @@ from mininet_ai.substrates import (
 )
 
 ROOT = Path(__file__).parents[2]
-EXPERIMENT = ROOT / "examples" / "phase2" / "experiment.yaml"
+EXPERIMENT = (
+    ROOT / "tests" / "fixtures" / "mininet-ovs-experiment" / "experiment.yaml"
+)
 LIVE_TESTS = os.environ.get("MININET_AI_LIVE_TESTS") == "1"
 
 

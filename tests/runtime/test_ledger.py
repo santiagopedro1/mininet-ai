@@ -25,7 +25,9 @@ from mininet_ai.runtime import (
 )
 
 ROOT = Path(__file__).parents[2]
-EXPERIMENT = ROOT / "examples" / "phase1" / "experiment.yaml"
+EXPERIMENT = (
+    ROOT / "tests" / "fixtures" / "compiler-experiment" / "experiment.yaml"
+)
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 

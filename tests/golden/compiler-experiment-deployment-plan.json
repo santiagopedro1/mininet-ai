@@ -922,6 +922,6 @@
       }
     }
   },
-  "source": "examples/phase1/experiment.yaml",
+  "source": "tests/fixtures/compiler-experiment/experiment.yaml",
   "substrate": "fake"
 }

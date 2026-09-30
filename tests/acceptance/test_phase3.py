@@ -29,7 +29,7 @@ from mininet_ai.sdk import InvocationStatus
 from mininet_ai.substrates import ActionStatus, FakeSubstrateRuntime
 
 ROOT = Path(__file__).parents[2]
-EXPERIMENT = ROOT / "examples" / "phase3" / "experiment.yaml"
+EXPERIMENT = ROOT / "tests" / "fixtures" / "phase3" / "experiment.yaml"
 
 
 def capability_entry_points() -> tuple[EntryPoint, ...]:
@@ -37,12 +37,12 @@ def capability_entry_points() -> tuple[EntryPoint, ...]:
     return (
         EntryPoint(
             name="example.telemetry",
-            value="examples.phase3.providers:telemetry_plugin",
+            value="tests.fixtures.phase3.providers:telemetry_plugin",
             group=group,
         ),
         EntryPoint(
             name="example.action",
-            value="examples.phase3.providers:action_plugin",
+            value="tests.fixtures.phase3.providers:action_plugin",
             group=group,
         ),
     )
@@ -236,7 +236,7 @@ class Phase3AcceptanceTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "examples.phase3",
+                    "tests.fixtures.phase3",
                     "--audit-log",
                     str(audit_path),
                     "--agno-db",

@@ -17,7 +17,7 @@ from mininet_ai.substrates import (
 from tests.golden_plans import GOLDEN_CASES
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
 
-EXAMPLE = GOLDEN_CASES["phase1"][0]
+EXAMPLE = GOLDEN_CASES["compiler-experiment"][0]
 
 
 class IncrementingClock:

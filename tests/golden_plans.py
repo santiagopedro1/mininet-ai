@@ -10,9 +10,9 @@ from mininet_ai.compiler import compile_experiment
 ROOT = Path(__file__).parents[1]
 GOLDEN_DIRECTORY = ROOT / "tests" / "golden"
 GOLDEN_CASES = {
-    "phase1": (
-        ROOT / "examples" / "phase1" / "experiment.yaml",
-        GOLDEN_DIRECTORY / "phase1-deployment-plan.json",
+    "compiler-experiment": (
+        ROOT / "tests" / "fixtures" / "compiler-experiment" / "experiment.yaml",
+        GOLDEN_DIRECTORY / "compiler-experiment-deployment-plan.json",
     )
 }
 

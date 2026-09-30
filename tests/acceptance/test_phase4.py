@@ -11,7 +11,7 @@ from typing import Any, cast
 from mininet_ai.compiler import compile_experiment
 
 ROOT = Path(__file__).parents[2]
-EXPERIMENT = ROOT / "examples" / "phase4" / "experiment.yaml"
+EXPERIMENT = ROOT / "tests" / "fixtures" / "phase4" / "experiment.yaml"
 
 
 class Phase4AcceptanceTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class Phase4AcceptanceTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "examples.phase4",
+                    "tests.fixtures.phase4",
                     "--ledger-db",
                     str(root / "ledger.sqlite3"),
                     "--agno-db",
