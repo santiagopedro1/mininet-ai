@@ -1,0 +1,20 @@
+apiVersion: mininet-ai/v1alpha2
+kind: Capability
+metadata:
+  name: host.process.start
+  description: Start one managed process on a scoped host (e.g. iperf).
+targets: [host]
+layers: [host]
+effects: [host.exec]
+input-schema:
+  type: object
+  required: [command, arguments]
+  properties:
+    command: {type: string}
+    arguments:
+      type: array
+      items: {type: string}
+  additionalProperties: false
+output-schema: {type: object}
+reversible: false
+provider: substrate.action
