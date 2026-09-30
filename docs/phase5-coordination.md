@@ -252,9 +252,11 @@ merely to make an unexplained diff pass.
 4. Split proposal generation from capability commit and added arbitration.
 5. Evaluated Agno team and workflow adapters and kept them disabled because no
    Agno 3.0.11 mapping preserves the required execution and safety seam.
-6. Added rootless and live Mininet examples, acceptance tests, verbose logging,
-   immediate fatal-error reporting, and automatic completion after submitted
-   intents finish.
+6. Added verbose logging, immediate fatal-error reporting, and automatic
+   completion after submitted intents finish. The phase-specific examples and
+   acceptance tests used during delivery were removed in the repository
+   cleanup after their focused coverage was established at the owning module
+   interfaces.
 
 Each delivered slice retained direct Phase 4 invocation compatibility and
 deterministic rootless coverage on the fake substrate.
@@ -281,16 +283,7 @@ deterministic rootless coverage on the fake substrate.
 
 ## Acceptance evidence
 
-The rootless end-to-end scenario is
-`tests/acceptance/test_phase5.py`, backed by the application fixture under
-`tests/fixtures/phase5/`. It proves event correlation, centralized entry
-routing, two explicit delegations, capability admission, one committed
-conflicting action, one typed rejection, complete arbitration evidence, and
-orderly teardown through the public experiment owner. The same test compiles
-the deterministic and Ollama-backed live Mininet fixtures.
-
-The remainder of the acceptance matrix is covered at the owning module
-interface:
+The acceptance matrix is covered at the owning module interface:
 
 - `tests/coordination/test_graph.py` covers independent, centralized,
   hierarchical, and topology-neighbor peer graphs, including invalid shapes;
