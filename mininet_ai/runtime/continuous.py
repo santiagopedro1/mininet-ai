@@ -40,7 +40,6 @@ from mininet_ai.runtime.supervision import AgentSupervisor
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification.models import EventTrigger, IntervalTrigger
 
-
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
 InvocationListener = Callable[[ContinuousInvocationRecord], None]
@@ -580,7 +579,7 @@ class ContinuousAgentRuntime:
             try:
                 completion = self._supervisor.execute(
                     agent_id,
-                    lambda: self._invoke(item),
+                    lambda item=item: self._invoke(item),
                 )
             except Exception as error:
                 self._issue(

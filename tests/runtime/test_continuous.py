@@ -8,8 +8,8 @@ from typing import Any
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.runtime import (
-    AgentLifecycleState,
     AgentInvoker,
+    AgentLifecycleState,
     ContinuousAgentRuntime,
     ContinuousRuntimeError,
     ContinuousRuntimeState,
@@ -25,7 +25,6 @@ from mininet_ai.sdk import (
 )
 from mininet_ai.specification.models import Experiment
 from tests.compiler.helpers import example_snapshot, named
-
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
@@ -366,7 +365,12 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
                 self.assertTrue(invoker.entered.wait(timeout=1))
                 runtime.publish(manual_event("event-2", sequence=2))
                 runtime.publish(manual_event("event-3", sequence=3))
-                wait_until(lambda: getattr(runtime.report(), counter) == 1)
+                wait_until(
+                    lambda runtime=runtime, counter=counter: getattr(
+                        runtime.report(), counter
+                    )
+                    == 1
+                )
                 invoker.release.set()
 
                 report = runtime.stop()

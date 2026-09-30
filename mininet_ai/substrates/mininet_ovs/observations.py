@@ -782,15 +782,11 @@ class MininetOVSObservations:
         for resource in self._plan.resources:
             if resource.kind not in kinds:
                 continue
-            if resource.name in descendants:
-                selected.append(resource)
-            elif (
+            if resource.name in descendants or (
                 resource.kind == ResourceKind.SWITCH
                 and target_resource.kind == ResourceKind.CONTROLLER
                 and target in cast("PlannedSwitch", resource).controllers
-            ):
-                selected.append(resource)
-            elif (
+            ) or (
                 resource.kind == ResourceKind.CONTROLLER
                 and target_resource.kind == ResourceKind.CONTROLLER_DOMAIN
                 and resource.name

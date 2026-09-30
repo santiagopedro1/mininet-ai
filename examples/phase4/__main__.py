@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from mininet_ai.agents import (
     AgnoAgentFactory,
@@ -18,7 +18,6 @@ from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime import LedgerAuditSink, SQLiteRunLedger, SQLiteSharedStateStore
 
 from .runtime import CongestedFakeRuntime
-
 
 EXPERIMENT = Path(__file__).with_name("experiment.yaml")
 DEFAULT_LEDGER_DB = Path(".mininet-ai/phase4-demo-ledger.sqlite3")

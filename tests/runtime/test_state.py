@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import stat
 import sqlite3
+import stat
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
@@ -15,7 +15,6 @@ from mininet_ai.runtime import (
     SQLiteSharedStateStore,
 )
 from mininet_ai.sdk import SharedStateUpdate
-
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 

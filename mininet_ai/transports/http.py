@@ -53,26 +53,25 @@ class HttpxJsonTransport:
                 transport=self._transport,
                 follow_redirects=False,
                 timeout=timeout_seconds,
-            ) as client:
-                with client.stream(
-                    "POST",
-                    url,
-                    json=payload,
-                    headers=headers,
-                ) as response:
-                    if not 200 <= response.status_code < 300:
+            ) as client, client.stream(
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+            ) as response:
+                if not 200 <= response.status_code < 300:
+                    raise HttpTransportError(
+                        f"HTTP endpoint returned status {response.status_code}",
+                        code="http-status",
+                    )
+                body = bytearray()
+                for chunk in response.iter_bytes():
+                    body.extend(chunk)
+                    if len(body) > max_response_bytes:
                         raise HttpTransportError(
-                            f"HTTP endpoint returned status {response.status_code}",
-                            code="http-status",
+                            "HTTP response exceeded the configured size limit",
+                            code="response-too-large",
                         )
-                    body = bytearray()
-                    for chunk in response.iter_bytes():
-                        body.extend(chunk)
-                        if len(body) > max_response_bytes:
-                            raise HttpTransportError(
-                                "HTTP response exceeded the configured size limit",
-                                code="response-too-large",
-                            )
         except httpx.TimeoutException as error:
             raise TimeoutError("HTTP request timed out") from error
         except HttpTransportError:

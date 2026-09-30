@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 
-
 _DURATION_PATTERN = re.compile(r"([0-9]+(?:\.[0-9]+)?)(us|ms|s)")
 _DURATION_FACTORS = {"us": 0.000001, "ms": 0.001, "s": 1.0}
 

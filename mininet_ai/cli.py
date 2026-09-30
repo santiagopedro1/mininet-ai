@@ -12,7 +12,7 @@ from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
 from types import FrameType
-from typing import Self, cast
+from typing import Annotated, Self, cast
 
 import typer
 from rich.console import Console
@@ -68,6 +68,7 @@ _FAILED_AUDIT_EVENTS = {
     AuditEventType.CAPABILITY_FAILED,
     AuditEventType.SHARED_STATE_FAILED,
 }
+_DEFAULT_INITIAL_INTENTS: list[str] = []
 
 
 class _RunLogError(MininetAIError):
@@ -110,7 +111,8 @@ class _RunProgress:
                 os.close(descriptor)
             raise _RunLogError(f"could not open run log {path}: {error}") from error
 
-        self._logger = logging.Logger(f"mininet-ai.run.{id(self)}", logging.INFO)
+        self._logger = logging.getLogger(f"mininet-ai.run.{id(self)}")
+        self._logger.setLevel(logging.INFO)
         self._logger.propagate = False
         handler = logging.StreamHandler(self._stream)
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
@@ -319,9 +321,12 @@ def _print_invocation(result: AgentInvocationResult, audit_log: Path) -> None:
 
 @app.command()
 def validate(
-    experiment: Path = typer.Argument(
-        ..., exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
-    ),
+    experiment: Annotated[
+        Path,
+        typer.Argument(
+            exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
+        ),
+    ],
 ) -> None:
     """Validate schema, references, selectors, and substrate compatibility."""
 
@@ -361,12 +366,15 @@ def _print_text_plan(plan: DeploymentPlan) -> None:
 
 @app.command()
 def plan(
-    experiment: Path = typer.Argument(
-        ..., exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
-    ),
-    output_format: OutputFormat = typer.Option(
-        OutputFormat.TEXT, "--format", "-f", help="Output format."
-    ),
+    experiment: Annotated[
+        Path,
+        typer.Argument(
+            exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
+        ),
+    ],
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Output format.")
+    ] = OutputFormat.TEXT,
 ) -> None:
     """Compile an experiment into an inspectable deployment plan."""
 
@@ -379,58 +387,79 @@ def plan(
 
 @app.command()
 def run(
-    experiment: Path = typer.Argument(
-        ..., exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Compile and print the plan without creating network resources.",
-    ),
-    output_format: OutputFormat = typer.Option(
-        OutputFormat.TEXT, "--format", "-f", help="Output format."
-    ),
-    initial_intents: list[str] = typer.Option(
-        [],
-        "--intent",
-        help="Initial manual intent as AGENT=TEXT; may be repeated.",
-    ),
-    stop_after_intents: bool = typer.Option(
-        False,
-        "--stop-after-intents",
-        help="Stop after every initial --intent reaches a final result.",
-    ),
-    ledger_db: Path = typer.Option(
-        Path(".mininet-ai/runs.sqlite3"),
-        "--ledger-db",
-        help="Persistent experiment ledger database.",
-    ),
-    agno_db: Path = typer.Option(
-        Path(".mininet-ai/agno.sqlite3"),
-        "--agno-db",
-        help="Private SQLite database for Agno sessions and memory.",
-    ),
-    shared_state_db: Path = typer.Option(
-        Path(".mininet-ai/shared-state.sqlite3"),
-        "--shared-state-db",
-        help="Private SQLite database for shared operational state.",
-    ),
-    discover: bool = typer.Option(
-        False,
-        "--discover-plugins",
-        help="Load installed capability plugins.",
-    ),
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Show live lifecycle, invocation, model, and capability progress.",
-    ),
-    log_file: Path = typer.Option(
-        Path(".mininet-ai/run.log"),
-        "--log-file",
-        help="Append human-readable run progress to this file.",
-    ),
+    experiment: Annotated[
+        Path,
+        typer.Argument(
+            exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
+        ),
+    ],
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Compile and print the plan without creating network resources.",
+        ),
+    ] = False,
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Output format.")
+    ] = OutputFormat.TEXT,
+    initial_intents: Annotated[
+        list[str],
+        typer.Option(
+            "--intent",
+            help="Initial manual intent as AGENT=TEXT; may be repeated.",
+        ),
+    ] = _DEFAULT_INITIAL_INTENTS,
+    stop_after_intents: Annotated[
+        bool,
+        typer.Option(
+            "--stop-after-intents",
+            help="Stop after every initial --intent reaches a final result.",
+        ),
+    ] = False,
+    ledger_db: Annotated[
+        Path,
+        typer.Option(
+            "--ledger-db",
+            help="Persistent experiment ledger database.",
+        ),
+    ] = Path(".mininet-ai/runs.sqlite3"),
+    agno_db: Annotated[
+        Path,
+        typer.Option(
+            "--agno-db",
+            help="Private SQLite database for Agno sessions and memory.",
+        ),
+    ] = Path(".mininet-ai/agno.sqlite3"),
+    shared_state_db: Annotated[
+        Path,
+        typer.Option(
+            "--shared-state-db",
+            help="Private SQLite database for shared operational state.",
+        ),
+    ] = Path(".mininet-ai/shared-state.sqlite3"),
+    discover: Annotated[
+        bool,
+        typer.Option(
+            "--discover-plugins",
+            help="Load installed capability plugins.",
+        ),
+    ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Show live lifecycle, invocation, model, and capability progress.",
+        ),
+    ] = False,
+    log_file: Annotated[
+        Path,
+        typer.Option(
+            "--log-file",
+            help="Append human-readable run progress to this file.",
+        ),
+    ] = Path(".mininet-ai/run.log"),
 ) -> None:
     """Own a complete continuous experiment until interrupted or stopped."""
 
@@ -587,13 +616,13 @@ def _snapshot_or_exit(substrate: str, run_id: str) -> RuntimeSnapshot:
 
 @app.command()
 def status(
-    run_id: str = typer.Argument(..., help="Substrate run identifier."),
-    substrate: str = typer.Option(
-        "mininet-ovs", "--substrate", help="Runtime adapter name."
-    ),
-    output_format: OutputFormat = typer.Option(
-        OutputFormat.TEXT, "--format", "-f", help="Output format."
-    ),
+    run_id: Annotated[str, typer.Argument(help="Substrate run identifier.")],
+    substrate: Annotated[
+        str, typer.Option("--substrate", help="Runtime adapter name.")
+    ] = "mininet-ovs",
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Output format.")
+    ] = OutputFormat.TEXT,
 ) -> None:
     """Show lifecycle state for a substrate run."""
 
@@ -615,13 +644,13 @@ def status(
 
 @app.command()
 def topology(
-    run_id: str = typer.Argument(..., help="Substrate run identifier."),
-    substrate: str = typer.Option(
-        "mininet-ovs", "--substrate", help="Runtime adapter name."
-    ),
-    output_format: OutputFormat = typer.Option(
-        OutputFormat.TEXT, "--format", "-f", help="Output format."
-    ),
+    run_id: Annotated[str, typer.Argument(help="Substrate run identifier.")],
+    substrate: Annotated[
+        str, typer.Option("--substrate", help="Runtime adapter name.")
+    ] = "mininet-ovs",
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Output format.")
+    ] = OutputFormat.TEXT,
 ) -> None:
     """Show the normalized resource graph for a substrate run."""
 
@@ -642,16 +671,18 @@ def topology(
 
 @app.command()
 def stop(
-    run_id: str = typer.Argument(..., help="Substrate run identifier."),
-    substrate: str = typer.Option(
-        "mininet-ovs", "--substrate", help="Runtime adapter name."
-    ),
-    timeout_seconds: float = typer.Option(
-        30,
-        "--timeout",
-        min=0.001,
-        help="Maximum seconds to wait for owner teardown.",
-    ),
+    run_id: Annotated[str, typer.Argument(help="Substrate run identifier.")],
+    substrate: Annotated[
+        str, typer.Option("--substrate", help="Runtime adapter name.")
+    ] = "mininet-ovs",
+    timeout_seconds: Annotated[
+        float,
+        typer.Option(
+            "--timeout",
+            min=0.001,
+            help="Maximum seconds to wait for owner teardown.",
+        ),
+    ] = 30,
 ) -> None:
     """Stop an owned run, recovering it first if the owner has exited."""
 
@@ -673,38 +704,50 @@ def stop(
 
 @app.command()
 def invoke(
-    experiment: Path = typer.Argument(
-        ..., exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
-    ),
-    run_id: str = typer.Argument(..., help="Running substrate identifier."),
-    agent_id: str = typer.Argument(..., help="Compiled agent instance identifier."),
-    intent: str = typer.Option(..., "--intent", "-i", help="One-shot agent intent."),
-    audit_log: Path = typer.Option(
-        Path(".mininet-ai/audit.jsonl"),
-        "--audit-log",
-        help="Append-only JSONL audit destination.",
-    ),
-    agno_db: Path = typer.Option(
-        Path(".mininet-ai/agno.sqlite3"),
-        "--agno-db",
-        help="Private SQLite database for Agno sessions and memory.",
-    ),
-    shared_state_db: Path = typer.Option(
-        Path(".mininet-ai/shared-state.sqlite3"),
-        "--shared-state-db",
-        help="Private SQLite database for scoped shared operational state.",
-    ),
-    discover: bool = typer.Option(
-        False,
-        "--discover-plugins",
-        help="Load capability and deprecated provider entry points.",
-    ),
-    output_format: OutputFormat = typer.Option(
-        OutputFormat.TEXT,
-        "--format",
-        "-f",
-        help="Invocation result format.",
-    ),
+    experiment: Annotated[
+        Path,
+        typer.Argument(
+            exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
+        ),
+    ],
+    run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
+    agent_id: Annotated[
+        str, typer.Argument(help="Compiled agent instance identifier.")
+    ],
+    intent: Annotated[
+        str, typer.Option("--intent", "-i", help="One-shot agent intent.")
+    ],
+    audit_log: Annotated[
+        Path,
+        typer.Option(
+            "--audit-log",
+            help="Append-only JSONL audit destination.",
+        ),
+    ] = Path(".mininet-ai/audit.jsonl"),
+    agno_db: Annotated[
+        Path,
+        typer.Option(
+            "--agno-db",
+            help="Private SQLite database for Agno sessions and memory.",
+        ),
+    ] = Path(".mininet-ai/agno.sqlite3"),
+    shared_state_db: Annotated[
+        Path,
+        typer.Option(
+            "--shared-state-db",
+            help="Private SQLite database for scoped shared operational state.",
+        ),
+    ] = Path(".mininet-ai/shared-state.sqlite3"),
+    discover: Annotated[
+        bool,
+        typer.Option(
+            "--discover-plugins",
+            help="Load capability and deprecated provider entry points.",
+        ),
+    ] = False,
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Invocation result format.")
+    ] = OutputFormat.TEXT,
 ) -> None:
     """Invoke one compiled agent against an already-running experiment."""
 
@@ -747,7 +790,9 @@ def invoke(
 
 @app.command("schema")
 def print_schema(
-    name: SchemaName = typer.Argument(SchemaName.EXPERIMENT, help="Schema to print."),
+    name: Annotated[
+        SchemaName, typer.Argument(help="Schema to print.")
+    ] = SchemaName.EXPERIMENT,
 ) -> None:
     """Print a JSON Schema for a current public document."""
 

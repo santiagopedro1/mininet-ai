@@ -61,12 +61,12 @@ _AdapterRole = Literal["host-interface", "switch-port"]
 _CoordinationRelationship = Literal["coordinates", "parent", "peer"]
 
 
-def _unique_by_name[_NamedItem](
-    items: Iterable[_NamedItem],
+def _unique_by_name[NamedItem](
+    items: Iterable[NamedItem],
     category: str,
-    key: Callable[[_NamedItem], str],
-) -> dict[str, _NamedItem]:
-    result: dict[str, _NamedItem] = {}
+    key: Callable[[NamedItem], str],
+) -> dict[str, NamedItem]:
+    result: dict[str, NamedItem] = {}
     for item in items:
         name = key(item)
         if name in result:

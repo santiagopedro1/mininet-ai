@@ -12,7 +12,6 @@ from typing import Protocol, runtime_checkable
 from mininet_ai.audit.contracts import AuditEvent
 from mininet_ai.errors import AuditError
 
-
 _DEFAULT_EVENT_LIMIT = 4 * 1024 * 1024
 
 

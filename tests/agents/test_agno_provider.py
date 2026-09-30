@@ -34,7 +34,6 @@ from mininet_ai.substrates import ActionResult, ActionStatus
 from tests.agents.agno_helpers import SlowAsyncModel, StaticModel
 from tests.compiler.helpers import EXAMPLE
 
-
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 

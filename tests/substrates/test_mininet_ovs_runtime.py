@@ -5,7 +5,7 @@ import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, ClassVar, cast
 from unittest.mock import patch
 
 from mininet_ai.compiler import compile_experiment
@@ -84,7 +84,7 @@ class RecordingLink:
 
 
 class RecordingNetwork:
-    instances: list[RecordingNetwork] = []
+    instances: ClassVar[list[RecordingNetwork]] = []
     wait_result = True
 
     def __init__(self, **parameters: Any) -> None:
@@ -196,7 +196,7 @@ class DegradedObservations(RecordingObservations):
 
 
 class RecordingActions:
-    instances = []
+    instances: ClassVar[list[RecordingActions]] = []
 
     def __init__(self, plan, network) -> None:
         self.plan = plan
@@ -601,10 +601,9 @@ class MininetOVSRuntimeTests(unittest.TestCase):
             patch(
                 "mininet_ai.substrates.mininet_ovs.runtime.time.monotonic",
                 side_effect=[0, 31],
-            ),
+            ),self.assertRaises(RuntimeOperationError) as context
         ):
-            with self.assertRaises(RuntimeOperationError) as context:
-                controller.request_stop(run.id, timeout_seconds=30)
+            controller.request_stop(run.id, timeout_seconds=30)
 
         self.assertEqual(context.exception.code, "runtime.stop.timeout")
         owner.teardown(run.id)
@@ -672,7 +671,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
                 ),
             )
 
-        actions = RecordingActions.instances[-1]
+        actions = cast(OwningActions, RecordingActions.instances[-1])
         self.assertEqual(result.status, ActionStatus.FAILED)
         self.assertEqual(actions.released, (ProcessOwner.current().pid,))
         self.assertEqual(actions.owned_pids(), ())

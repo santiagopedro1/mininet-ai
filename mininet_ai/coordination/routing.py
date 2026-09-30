@@ -13,15 +13,15 @@ from uuid import uuid4
 from pydantic import ConfigDict, Field, JsonValue
 
 from mininet_ai.compiler import DeploymentPlan
-from mininet_ai.coordination.channel import (
-    InMemoryMessageChannel,
-    MessageChannel,
-    MessageChannelError,
-)
 from mininet_ai.coordination.arbitration import (
     ArbitrationCandidate,
     ArbitrationReport,
     ConflictArbitrator,
+)
+from mininet_ai.coordination.channel import (
+    InMemoryMessageChannel,
+    MessageChannel,
+    MessageChannelError,
 )
 from mininet_ai.coordination.contracts import (
     CoordinationIntentPayload,
@@ -32,14 +32,13 @@ from mininet_ai.coordination.graph import CoordinationGraph, CoordinationGraphEr
 from mininet_ai.errors import MininetAIError
 from mininet_ai.sdk import (
     ActionProposal,
-    AgentCoordinationContext,
     AgentContext,
+    AgentCoordinationContext,
     AgentInvocationResult,
     AgentResponse,
 )
 from mininet_ai.specification.models import StrictModel
 from mininet_ai.substrates import ActionResult
-
 
 Clock = Callable[[], datetime]
 MessageIdFactory = Callable[[], str]

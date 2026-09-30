@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -212,10 +213,10 @@ class MininetOVSActions:
                 configured.append(interface)
         except Exception as error:
             for interface in reversed(configured):
-                try:
+                # Best-effort rollback: a failed restore must not mask the
+                # original configuration error.
+                with contextlib.suppress(Exception):
                     interface.config(**self._mininet_link_parameters(previous))
-                except Exception:
-                    pass
             raise ActionExecutionError(
                 f"could not configure link {link.name!r}: {error}",
                 code="runtime.action.failed",

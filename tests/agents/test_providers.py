@@ -18,7 +18,6 @@ from mininet_ai.sdk import (
 from mininet_ai.specification.models import Implementation
 from tests.compiler.helpers import EXAMPLE
 
-
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 

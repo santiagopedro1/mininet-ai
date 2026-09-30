@@ -9,8 +9,8 @@ from pydantic import ValidationError
 from mininet_ai.sdk import (
     AGENT_RUNTIME_CONTRACT_VERSION,
     ActionProposal,
-    AgentCoordinationContext,
     AgentContext,
+    AgentCoordinationContext,
     AgentInvocationResult,
     AgentProvider,
     AgentProviderError,
@@ -182,9 +182,11 @@ class AgentRuntimeContractTests(unittest.TestCase):
         )
 
         for build in cases:
-            with self.subTest(build=build):
-                with self.assertRaises(ValidationError):
-                    build()
+            with (
+                self.subTest(build=build),
+                self.assertRaises(ValidationError),
+            ):
+                build()
 
     def test_context_rejects_scope_ambiguity(self) -> None:
         payload = context().model_dump(by_alias=True)
@@ -242,9 +244,11 @@ class AgentRuntimeContractTests(unittest.TestCase):
         )
 
         for parameters in cases:
-            with self.subTest(parameters=parameters):
-                with self.assertRaises(ValueError):
-                    CapabilityProviderError(**cast(Any, parameters))
+            with (
+                self.subTest(parameters=parameters),
+                self.assertRaises(ValueError),
+            ):
+                CapabilityProviderError(**cast(Any, parameters))
 
         with self.assertRaises(ValueError):
             ModelProviderError("", code="model.failed")

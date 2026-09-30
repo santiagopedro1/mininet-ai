@@ -33,7 +33,6 @@ from mininet_ai.substrates.runtime import (
     RuntimeIssue,
 )
 
-
 Clock = Callable[[], datetime]
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 _FORMAT_CHECKER = FormatChecker()

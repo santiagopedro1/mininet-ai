@@ -27,7 +27,6 @@ from mininet_ai.substrates import (
 )
 from tests.compiler.helpers import example_snapshot, named
 
-
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 

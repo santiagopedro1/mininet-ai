@@ -7,8 +7,9 @@ contract, which both the fake and Mininet/OVS drivers must satisfy.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Mapping, Protocol, Sequence, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from mininet_ai.specification.models import AttachmentLayer, ResourceKind
 

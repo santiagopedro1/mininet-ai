@@ -21,7 +21,6 @@ from mininet_ai.coordination import (
     MessageChannelError,
 )
 
-
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 
@@ -92,12 +91,14 @@ class CoordinationMessageContractTests(unittest.TestCase):
             (("message-0", "message-0"), "must be unique"),
             (("message-1",), "cannot appear in its own"),
         ):
-            with self.subTest(history=history):
-                with self.assertRaisesRegex(ValidationError, expected):
-                    message(
-                        causation_id="message-0",
-                        traversed_message_ids=history,
-                    )
+            with (
+                self.subTest(history=history),
+                self.assertRaisesRegex(ValidationError, expected),
+            ):
+                message(
+                    causation_id="message-0",
+                    traversed_message_ids=history,
+                )
 
     def test_cli_emits_versioned_coordination_message_schema(self) -> None:
         result = CliRunner().invoke(app, ["schema", "coordination-message"])

@@ -201,9 +201,10 @@ def parse_default_route(value: str) -> tuple[str, ...]:
                 ip_address(token)
             except ValueError as error:
                 raise ValueError(f"invalid default-route address {token!r}") from error
-        elif index > 0 and tokens[index - 1] == "dev":
-            if not re.fullmatch(NAME_PATTERN, token):
-                raise ValueError(f"invalid default-route interface {token!r}")
+        elif index > 0 and tokens[index - 1] == "dev" and not re.fullmatch(
+            NAME_PATTERN, token
+        ):
+            raise ValueError(f"invalid default-route interface {token!r}")
     return tokens
 
 

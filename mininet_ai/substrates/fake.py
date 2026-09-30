@@ -19,7 +19,6 @@ from mininet_ai.substrates.protocol import (
     SubstrateManifest,
 )
 
-
 _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
     AttachmentLayer.GLOBAL: frozenset({"topology.resources", "topology.neighbors"}),
     AttachmentLayer.MANAGEMENT: frozenset(

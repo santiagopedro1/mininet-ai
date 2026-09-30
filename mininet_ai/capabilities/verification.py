@@ -20,7 +20,6 @@ from mininet_ai.substrates.runtime import (
     RuntimeIssue,
 )
 
-
 Clock = Callable[[], datetime]
 MonotonicClock = Callable[[], float]
 Sleeper = Callable[[float], None]

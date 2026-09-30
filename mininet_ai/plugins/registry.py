@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Generic, Protocol, TypeVar, cast
+from typing import Any, Protocol, cast
 
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
@@ -23,14 +23,8 @@ from mininet_ai.specification.models import (
 )
 
 
-ConfigurationT = TypeVar("ConfigurationT")
-
-
 class _VersionedProvider(Protocol):
     contract_version: str
-
-
-ProviderT = TypeVar("ProviderT", bound=_VersionedProvider)
 
 
 class ProviderKind(StrEnum):
@@ -40,7 +34,7 @@ class ProviderKind(StrEnum):
 
 
 @dataclass(frozen=True)
-class ProviderPlugin(Generic[ConfigurationT, ProviderT]):
+class ProviderPlugin[ConfigurationT, ProviderT: _VersionedProvider]:
     """Versioned provider factory exported by a plugin entry point."""
 
     kind: ProviderKind
@@ -48,7 +42,7 @@ class ProviderPlugin(Generic[ConfigurationT, ProviderT]):
     contract_version: str = AGENT_RUNTIME_CONTRACT_VERSION
 
 
-class ProviderRegistry(Generic[ConfigurationT, ProviderT]):
+class ProviderRegistry[ConfigurationT, ProviderT: _VersionedProvider]:
     """Register factories and construct contract-checked provider adapters."""
 
     def __init__(self, kind: ProviderKind, provider_type: type[Any]) -> None:

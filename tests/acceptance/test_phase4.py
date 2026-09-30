@@ -10,7 +10,6 @@ from typing import Any, cast
 
 from mininet_ai.compiler import compile_experiment
 
-
 ROOT = Path(__file__).parents[2]
 EXPERIMENT = ROOT / "examples" / "phase4" / "experiment.yaml"
 

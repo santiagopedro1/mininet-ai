@@ -14,7 +14,6 @@ from mininet_ai.compiler import (
     compile_experiment,
 )
 
-
 ROOT = Path(__file__).parents[1]
 EXAMPLE = ROOT / "examples" / "phase1" / "experiment.yaml"
 

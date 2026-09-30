@@ -11,21 +11,20 @@ from typer.testing import CliRunner
 
 from mininet_ai.cli import app
 from mininet_ai.runtime import (
+    RUNTIME_EVENT_CONTRACT_VERSION,
+    RUNTIME_EVENT_SCHEMA_ID,
     AgentLifecyclePayload,
     AgentLifecycleState,
     EventBusError,
     InMemoryRuntimeEventBus,
     IntervalElapsedPayload,
-    ObservationRecordedPayload,
-    RUNTIME_EVENT_CONTRACT_VERSION,
-    RUNTIME_EVENT_SCHEMA_ID,
     ManualIntentPayload,
-    RuntimeFailurePayload,
+    ObservationRecordedPayload,
     RuntimeEvent,
     RuntimeEventBus,
     RuntimeEventType,
+    RuntimeFailurePayload,
 )
-
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 

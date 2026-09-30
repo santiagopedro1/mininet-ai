@@ -15,7 +15,6 @@ from mininet_ai.specification.models import (
 )
 from mininet_ai.substrates.runtime import ActionResult, ActionStatus
 
-
 AGENT_RUNTIME_CONTRACT_VERSION = "mininet-ai/agent-runtime/v1alpha3"
 
 

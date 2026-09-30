@@ -9,7 +9,6 @@ from mininet_ai.substrates.runtime import (
     SubstrateRuntime,
 )
 
-
 RuntimeFactory = Callable[[], SubstrateRuntime]
 
 

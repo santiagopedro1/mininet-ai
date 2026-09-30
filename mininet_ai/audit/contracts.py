@@ -9,7 +9,6 @@ from pydantic import AwareDatetime, ConfigDict, Field, JsonValue
 
 from mininet_ai.specification.models import StrictModel
 
-
 AUDIT_CONTRACT_VERSION: Literal["mininet-ai/audit/v1alpha1"] = (
     "mininet-ai/audit/v1alpha1"
 )

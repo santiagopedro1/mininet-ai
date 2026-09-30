@@ -23,7 +23,6 @@ from mininet_ai.transports import (
     JsonHttpTransport,
 )
 
-
 _DEFAULT_RESPONSE_LIMIT = 4 * 1024 * 1024
 
 

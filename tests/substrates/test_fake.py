@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import unittest
+from dataclasses import replace
 
 from mininet_ai.specification.models import AttachmentLayer, ResourceKind
 from mininet_ai.substrates import (

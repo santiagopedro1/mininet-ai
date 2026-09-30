@@ -8,7 +8,6 @@ from mininet_ai.coordination import ConflictArbitrator
 from mininet_ai.sdk import ActionProposal, AgentContext, ExecutionCatalog
 from tests.compiler.helpers import example_snapshot, experiment_from
 
-
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 

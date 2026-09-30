@@ -14,7 +14,6 @@ from mininet_ai.plugins.registry import (
     ProviderRegistries,
 )
 
-
 ENTRY_POINT_GROUPS = {
     ProviderKind.AGENT: "mininet_ai.agents",
     ProviderKind.CAPABILITY: "mininet_ai.capabilities",
