@@ -11,7 +11,10 @@ capabilities execute them.
 
 ## Current capabilities
 
-The current specification contract is `mininet-ai/v1alpha2`.
+The current specification contract is `mininet-ai/v1alpha3`. When upgrading
+from `v1alpha2`, update `apiVersion` on the experiment and every agent blueprint
+and capability, then recompile saved deployment plans. See the
+[migration guide](docs/compatibility.md#public-specification-v1alpha2-to-v1alpha3).
 
 - YAML and Python specifications, with inline definitions or external YAML files.
 - Deterministic deployment plans, scoped placement, target selectors, and

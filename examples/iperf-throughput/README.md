@@ -92,9 +92,11 @@ Edit the client blueprint arguments to
   collisions. Pin an explicit DPID if identity must survive renaming or topology
   changes involving collisions. Switch and interface names remain limited to
   15 bytes, including generated interface suffixes.
-- Existing experiment inputs remain valid with `apiVersion: mininet-ai/v1alpha2`.
-  Compiled plans now require a `dpid` field on switches; recompile previously
-  saved deployment plans before using them with this version.
+- The public contract is `mininet-ai/v1alpha3`. Update `apiVersion` on existing
+  experiments, agent blueprints, and capabilities from `v1alpha2` to `v1alpha3`,
+  then recompile saved deployment plans. Switch entries now require a resolved
+  `dpid`; earlier versioned inputs and plans are rejected. See the
+  [migration guide](../../docs/compatibility.md#public-specification-v1alpha2-to-v1alpha3).
 
 - Managed-process output goes to `DEVNULL`, so the Mbit/s number is not in
   the report — the report proves `SUCCEEDED` starts; counters prove traffic.

@@ -23,9 +23,10 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
             schema["$schema"], "https://json-schema.org/draft/2020-12/schema"
         )
         self.assertEqual(schema["$id"], DEPLOYMENT_PLAN_SCHEMA_ID)
+        self.assertEqual(schema["$id"], "urn:mininet-ai:schema:v1alpha3:deployment-plan")
         self.assertEqual(
             schema["properties"]["apiVersion"]["const"],
-            "mininet-ai/v1alpha2",
+            "mininet-ai/v1alpha3",
         )
         self.assertEqual(schema["properties"]["kind"]["const"], "DeploymentPlan")
         self.assertIn("PlannedController", schema["$defs"])
@@ -46,7 +47,7 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
 
         self.assertEqual(restored, original)
 
-    def test_runtime_fields_have_v1alpha2_defaults_when_omitted(self) -> None:
+    def test_runtime_fields_keep_defaults_when_omitted(self) -> None:
         payload = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).model_dump(
             mode="json",
             by_alias=True,
@@ -65,15 +66,16 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
             all(agent.triggers[0].type == "manual" for agent in restored.agents)
         )
 
-    def test_v1alpha1_plan_is_rejected_instead_of_silently_reinterpreted(self) -> None:
+    def test_older_plans_are_rejected_instead_of_silently_reinterpreted(self) -> None:
         payload = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).model_dump(
             mode="json",
             by_alias=True,
         )
-        payload["apiVersion"] = "mininet-ai/v1alpha1"
-
-        with self.assertRaises(ValidationError):
-            DeploymentPlan.model_validate(payload)
+        for version in ("mininet-ai/v1alpha1", "mininet-ai/v1alpha2"):
+            with self.subTest(version=version):
+                payload["apiVersion"] = version
+                with self.assertRaises(ValidationError):
+                    DeploymentPlan.model_validate(payload)
 
     def test_cli_exposes_deployment_plan_schema(self) -> None:
         result = CliRunner().invoke(app, ["schema", "deployment-plan"])

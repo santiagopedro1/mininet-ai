@@ -46,7 +46,7 @@ The alpha releases and planned v1 are deliberately **Agno-centric**:
 - Agents propose structured actions; they never mutate the network directly.
   Every action still passes through Mininet-AI capability and policy checks.
 
-The current public specification is `mininet-ai/v1alpha2`. Follow
+The current public specification is `mininet-ai/v1alpha3`. Follow
 `docs/compatibility.md` when changing public models or compiled output, and
 regenerate golden plans only for intentional contract changes.
 

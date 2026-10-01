@@ -22,7 +22,7 @@ def named(items: list[dict[str, Any]], name: str) -> dict[str, Any]:
 def switch_experiment(*names: str) -> Experiment:
     return Experiment.model_validate(
         {
-            "apiVersion": "mininet-ai/v1alpha2",
+            "apiVersion": "mininet-ai/v1alpha3",
             "kind": "Experiment",
             "metadata": {"name": "switch-names"},
             "substrate": {

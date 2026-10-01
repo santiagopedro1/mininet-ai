@@ -1,7 +1,7 @@
 # YAML authoring reference
 
 Use this reference when generating Mininet AI experiment YAML. The public
-contract is `mininet-ai/v1alpha2`; unknown fields are rejected.
+contract is `mininet-ai/v1alpha3`; unknown fields are rejected.
 
 The authoritative definitions are the Pydantic models in
 `mininet_ai/specification/models.py`. Before returning generated files, always
@@ -51,7 +51,7 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 
 ## Common rules
 
-- Use `apiVersion: mininet-ai/v1alpha2` exactly.
+- Use `apiVersion: mininet-ai/v1alpha3` exactly.
 - Names start with a letter, contain only letters, digits, `_`, `.`, or `-`, and
   are at most 128 characters.
 - Metadata supports `name`, optional `description`, and optional string
@@ -72,7 +72,7 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 Minimal shape:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: Experiment
 metadata:
   name: example
@@ -169,7 +169,7 @@ Declarable resource kinds and their additional fields:
 | `network`, `region`, `flow` | Common resource fields only |
 | `controller` | required `type: builtin\|remote`; optional `address`, `protocol: tcp\|ssl`, `port` |
 | `controller-domain` | non-empty `controllers` |
-| `switch` | `failMode: secure\|standalone`, `datapath: kernel\|userspace`, `controllers`, `protocols`, `ports` |
+| `switch` | optional `dpid`; `failMode: secure\|standalone`, `datapath: kernel\|userspace`, `controllers`, `protocols`, `ports` |
 | `host` | `interfaces`, optional `defaultRoute` |
 
 Every resource also accepts optional `parent`, string `labels`, and free-form
@@ -177,6 +177,14 @@ Every resource also accepts optional `parent`, string `labels`, and free-form
 an address with prefix, `auto`, or `none`; `mac` is `auto` or a unicast MAC.
 Port numbers may be positive integers or `auto`. A link has exactly two
 different node endpoints; omit `adapter` to request deterministic allocation.
+
+Switch `dpid` is an optional non-zero string of 1–16 hexadecimal digits, for
+example `dpid: "abc"`. It is normalized to 16 lowercase digits. Without an
+override, canonical `sN` switches retain their numeric DPID; other names receive
+a deterministic generated DPID. Fixed IDs must be unique, and generated IDs
+skip collisions. Deployment plans always include the resolved switch `dpid`.
+Noncanonical names such as `edge-sw` are supported, subject to the Mininet/OVS
+15-byte limit for switch and interface names (including generated suffixes).
 
 ### Agent deployments
 
@@ -319,7 +327,7 @@ Coordination names refer to agent deployment names, not expanded instance IDs.
 Declarative Agno agent:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: AgentBlueprint
 metadata:
   name: operator
@@ -352,7 +360,7 @@ loop:
 Python-authored Agno agent or factory:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: AgentBlueprint
 metadata: {name: operator}
 implementation:
@@ -400,7 +408,7 @@ Memory rules:
 ## Capability
 
 ```yaml
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: Capability
 metadata:
   name: openflow.flow.install

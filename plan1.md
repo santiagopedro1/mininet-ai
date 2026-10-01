@@ -14,4 +14,4 @@
 
 6. Tests: compiler passthrough + auto-stable/unique + duplicate/invalid reject; driver DPID tests; runtime fake-bindings assert dpid passed.
 
-7. Docs: update iperf-throughput/README.md caveat, add edge-sw example. Backward compatible — optional field, v1alpha2 unchanged. Golden plans get new dpid field.
+7. Docs: update iperf-throughput/README.md caveat, add edge-sw example. Advance the shared public contract to v1alpha3: although the input field is optional, the required planned dpid changes serialized plans and digests. Update experiment, blueprint, and capability versions, the deployment-plan schema ID, migration guidance, and golden plans.

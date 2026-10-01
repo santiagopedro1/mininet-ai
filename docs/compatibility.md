@@ -9,10 +9,10 @@ driver contract.
 
 The project currently defines ten contract families:
 
-- `mininet-ai/v1alpha2` covers `Experiment`, `AgentBlueprint`, and `Capability`
+- `mininet-ai/v1alpha3` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
   plan JSON Schema uses the matching identifier
-  `urn:mininet-ai:schema:v1alpha2:deployment-plan`.
+  `urn:mininet-ai:schema:v1alpha3:deployment-plan`.
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
@@ -74,7 +74,7 @@ action result, runtime event, and ledger records remain Mininet-owned
 contracts. Agno run and session data will be translated into those records at
 the agent-runtime seam.
 
-### Public specification v1alpha1 to v1alpha2
+### Public specification v1alpha1 to v1alpha2 (historical)
 
 `v1alpha2` adds triggers, observation policies, memory, execution controls,
 resource limits, postconditions, and rollback declarations. Those fields also
@@ -86,6 +86,49 @@ The compiler no longer accepts `mininet-ai/v1alpha1` documents. Change the
 `mininet-ai/v1alpha2`, then regenerate and review its deployment plan. Defaults
 preserve manual one-shot behavior, but the serialized plan and digest
 intentionally change.
+
+### Public specification v1alpha2 to v1alpha3
+
+`v1alpha3` adds an optional switch `dpid` input and a required, resolved `dpid`
+on every planned switch. The compiler preserves numeric DPIDs for canonical
+`sN` names, generates deterministic non-zero 64-bit IDs for other switch names,
+and normalizes explicit IDs to 16 lowercase hexadecimal digits. Fixed IDs must
+be unique; generated IDs skip collisions in stable switch-name order. This
+enables noncanonical Mininet switch names without relying on Mininet's
+name-derived DPID.
+
+Even experiments omitting the new field produce different serialized plans,
+normalized snapshots, and digests. The shared public contract and deployment-plan
+schema therefore advance together to `mininet-ai/v1alpha3` and
+`urn:mininet-ai:schema:v1alpha3:deployment-plan`. This is not a compatible
+extension of `v1alpha2`.
+
+To migrate:
+
+1. Stop active runs using the old software before upgrading. Their persisted
+   ownership records embed old deployment plans; the new software rejects those
+   plans even though the runtime-state envelope version is unchanged. Stopped-run
+   records also retain old plans, so the new `status` and `topology` commands
+   cannot inspect those snapshots. Capture any needed reports with the old
+   software before upgrading; stopping a run does not migrate its saved plan.
+2. Change `apiVersion` to `mininet-ai/v1alpha3` on the experiment and every
+   agent blueprint and capability, including inline definitions and external
+   YAML files. Unversioned topology files need no header change. Python-authored
+   documents must use the new version too.
+3. Optionally set `dpid: "abc"` on switches whose identity must be pinned.
+   Otherwise leave the input field omitted for automatic allocation.
+4. Run `validate` and `plan` again; regenerate saved plans and golden fixtures.
+   Do not just change a saved plan's version header: recompilation supplies the
+   required DPIDs and recomputes its snapshot and digest.
+5. Update downstream plan validators to the new schema identifier. Old run
+   ledger history remains stored, but interpreting archived plans requires their
+   original schema; no automatic migration of stored records is provided.
+
+`Experiment`, `AgentBlueprint`, `Capability`, and `DeploymentPlan` accept only
+`mininet-ai/v1alpha3`; `v1alpha1` and `v1alpha2` documents are rejected, not
+silently upgraded. The package version and independently versioned substrate,
+runtime-state, agent-runtime, audit, event, coordination, and ledger contracts
+are unchanged.
 
 ### Agent runtime v1alpha1 to v1alpha2
 
@@ -148,6 +191,10 @@ Old active records therefore need no manual conversion. Operators should use
 the normal targeted `stop RUN_ID` recovery before upgrading when practical;
 if an old active record remains, the new runtime can inspect and recover it
 using its recorded owner, plan, and process groups.
+
+This compatibility applies to the ownership envelope, not to the embedded
+deployment plan. When upgrading the public specification version, follow its
+migration guide and stop old runs with the old software first.
 
 ## Changes allowed within a contract version
 

@@ -1,4 +1,4 @@
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: Capability
 metadata:
   name: host.process.start

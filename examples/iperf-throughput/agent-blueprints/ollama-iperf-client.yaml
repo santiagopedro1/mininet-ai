@@ -1,4 +1,4 @@
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: AgentBlueprint
 metadata:
   name: ollama-iperf-client

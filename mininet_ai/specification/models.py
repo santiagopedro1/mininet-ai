@@ -1,4 +1,4 @@
-"""The ``mininet-ai/v1alpha2`` public schema.
+"""The ``mininet-ai/v1alpha3`` public schema.
 
 The models intentionally describe logical placement. Process isolation and real
 network attachment are substrate/runtime concerns introduced in later phases.
@@ -22,7 +22,7 @@ from pydantic import (
 
 from mininet_ai.durations import duration_seconds
 
-API_VERSION: Literal["mininet-ai/v1alpha2"] = "mininet-ai/v1alpha2"
+API_VERSION: Literal["mininet-ai/v1alpha3"] = "mininet-ai/v1alpha3"
 NAME_PATTERN = r"^[a-zA-Z][a-zA-Z0-9_.-]*$"
 
 
@@ -334,7 +334,7 @@ class MemoryConfiguration(StrictModel):
 
 
 class AgentBlueprint(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
     kind: Literal["AgentBlueprint"]
     metadata: Metadata
     implementation: Implementation = Field(default_factory=Implementation)
@@ -375,7 +375,7 @@ class CapabilityRollbackConfiguration(StrictModel):
 
 
 class CapabilityDefinition(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
     kind: Literal["Capability"]
     metadata: Metadata
     targets: list[ResourceKind] = Field(min_length=1)
@@ -640,7 +640,7 @@ class ResourceLimits(StrictModel):
 
 
 class Experiment(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
     kind: Literal["Experiment"]
     metadata: Metadata
     substrate: Substrate
