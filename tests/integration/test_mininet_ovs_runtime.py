@@ -18,11 +18,9 @@ from mininet_ai.substrates import (
     ObservationQuery,
     ResourceOperationalState,
 )
+from tests.specification_fixtures import MININET_OVS_SMOKE_SPECIFICATION
 
 ROOT = Path(__file__).parents[2]
-EXPERIMENT = (
-    ROOT / "tests" / "fixtures" / "mininet-ovs-experiment" / "experiment.yaml"
-)
 LIVE_TESTS = os.environ.get("MININET_AI_LIVE_TESTS") == "1"
 
 
@@ -36,7 +34,7 @@ def command(*arguments: str, check: bool = True) -> subprocess.CompletedProcess[
 
 
 def deploy_and_exit_without_teardown(connection: Connection) -> None:
-    plan = compile_experiment(EXPERIMENT)
+    plan = compile_experiment(MININET_OVS_SMOKE_SPECIFICATION)
     runtime = MininetOVSRuntime(run_id_factory=lambda: "live-crash-recovery")
     run = runtime.deploy(plan)
     process = runtime.execute(
@@ -65,7 +63,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 "-m",
                 "mininet_ai.cli",
                 "run",
-                str(EXPERIMENT),
+                str(MININET_OVS_SMOKE_SPECIFICATION),
             ],
             cwd=ROOT,
             stdout=subprocess.PIPE,
@@ -217,7 +215,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
         self.assertFalse(Path(f"/proc/{managed_pid}").exists())
 
     def test_deploys_inspects_and_tears_down_real_topology(self) -> None:
-        plan = compile_experiment(EXPERIMENT)
+        plan = compile_experiment(MININET_OVS_SMOKE_SPECIFICATION)
         runtime = MininetOVSRuntime(run_id_factory=lambda: "live-acceptance")
         run = None
 

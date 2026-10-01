@@ -17,12 +17,12 @@ from mininet_ai.specification.models import (
     LocalMemoryConfiguration,
     SharedMemoryConfiguration,
 )
-from tests.compiler.helpers import example_snapshot, named
+from tests.compiler.helpers import compiler_multilayer_snapshot, named
 
 
 class ContinuousConfigurationTests(unittest.TestCase):
     def test_triggers_are_compiled_into_each_expanded_agent(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         deployment = named(snapshot["agents"], "switch-router")
         deployment["triggers"] = [
             {"type": "manual", "name": "operator"},
@@ -61,7 +61,7 @@ class ContinuousConfigurationTests(unittest.TestCase):
     def test_observation_policies_are_compiled_and_reference_declared_inputs(
         self,
     ) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         deployment = named(snapshot["agents"], "switch-router")
         deployment["observationPolicies"] = [
             {
@@ -112,7 +112,7 @@ class ContinuousConfigurationTests(unittest.TestCase):
             compile_experiment(Experiment.model_validate(snapshot))
 
     def test_memory_execution_and_runtime_limits_are_normalized_in_plan(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         blueprint = next(
             item
             for item in snapshot["blueprints"]
@@ -173,7 +173,7 @@ class ContinuousConfigurationTests(unittest.TestCase):
     def test_capability_postconditions_and_rollback_are_typed_in_snapshot(
         self,
     ) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         capability = next(
             item
             for item in snapshot["capabilityDefinitions"]
@@ -238,7 +238,7 @@ class ContinuousConfigurationTests(unittest.TestCase):
             Experiment.model_validate(snapshot)
 
     def test_invalid_continuous_timing_is_rejected_by_the_schema(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         deployment = named(snapshot["agents"], "switch-router")
         deployment["triggers"] = [
             {"type": "interval", "name": "invalid", "every": "0s"}
@@ -246,7 +246,7 @@ class ContinuousConfigurationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "interval must be positive"):
             Experiment.model_validate(snapshot)
 
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         deployment = named(snapshot["agents"], "switch-router")
         deployment["observationPolicies"] = [
             {
@@ -261,7 +261,7 @@ class ContinuousConfigurationTests(unittest.TestCase):
         ):
             Experiment.model_validate(snapshot)
 
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         deployment = named(snapshot["agents"], "switch-router")
         deployment["execution"]["actionTimeout"] = "0s"
         with self.assertRaisesRegex(
@@ -270,7 +270,7 @@ class ContinuousConfigurationTests(unittest.TestCase):
         ):
             Experiment.model_validate(snapshot)
 
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         blueprint = next(
             item
             for item in snapshot["blueprints"]

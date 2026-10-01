@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import unittest
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
 from mininet_ai.compiler import compile_experiment
@@ -13,12 +12,8 @@ from mininet_ai.substrates.mininet_ovs.observations import (
     MininetOVSObservations,
     ObservationCollectionError,
 )
+from tests.specification_fixtures import MININET_OVS_SMOKE_SPECIFICATION
 from tests.substrates.test_mininet_ovs_runtime import mininet_plan
-
-ROOT = Path(__file__).parents[2]
-PHASE2_EXPERIMENT = (
-    ROOT / "tests" / "fixtures" / "mininet-ovs-experiment" / "experiment.yaml"
-)
 
 
 class Node:
@@ -328,7 +323,7 @@ class MininetOVSObservationTests(unittest.TestCase):
         )
 
     def test_snapshot_discovers_operational_state_and_interface_details(self) -> None:
-        plan = compile_experiment(PHASE2_EXPERIMENT)
+        plan = compile_experiment(MININET_OVS_SMOKE_SPECIFICATION)
         network = network_for(plan, pid=os.getpid())
         executor = ScriptedExecutor()
         executor.add(("ovs-vsctl", "--timeout=5", "br-exists", "s1"))

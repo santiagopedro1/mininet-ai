@@ -4,13 +4,11 @@ from typing import Any
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.specification.models import Experiment
-from tests.golden_plans import GOLDEN_CASES
-
-EXAMPLE = GOLDEN_CASES["compiler-experiment"][0]
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 
-def example_snapshot() -> dict[str, Any]:
-    return compile_experiment(EXAMPLE).snapshot
+def compiler_multilayer_snapshot() -> dict[str, Any]:
+    return compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
 
 
 def experiment_from(snapshot: dict[str, Any]) -> Experiment:

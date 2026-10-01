@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import unittest
-from pathlib import Path
 
 from pydantic import ValidationError
 from typer.testing import CliRunner
@@ -13,9 +12,7 @@ from mininet_ai.compiler import (
     DeploymentPlan,
     compile_experiment,
 )
-
-ROOT = Path(__file__).parents[1]
-EXAMPLE = ROOT / "tests" / "fixtures" / "compiler-experiment" / "experiment.yaml"
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 
 class DeploymentPlanSchemaTests(unittest.TestCase):
@@ -40,7 +37,7 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
         self.assertIn("ExecutionConfiguration", schema["$defs"])
 
     def test_compiled_plan_round_trips_through_public_model(self) -> None:
-        original = compile_experiment(EXAMPLE)
+        original = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
 
         restored = DeploymentPlan.model_validate_json(
             original.model_dump_json(by_alias=True)
@@ -49,7 +46,7 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
         self.assertEqual(restored, original)
 
     def test_runtime_fields_have_v1alpha2_defaults_when_omitted(self) -> None:
-        payload = compile_experiment(EXAMPLE).model_dump(
+        payload = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).model_dump(
             mode="json",
             by_alias=True,
         )
@@ -68,7 +65,7 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
         )
 
     def test_v1alpha1_plan_is_rejected_instead_of_silently_reinterpreted(self) -> None:
-        payload = compile_experiment(EXAMPLE).model_dump(
+        payload = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).model_dump(
             mode="json",
             by_alias=True,
         )

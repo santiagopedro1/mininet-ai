@@ -24,7 +24,7 @@ from mininet_ai.sdk import (
     InvocationStatus,
 )
 from mininet_ai.specification.models import Experiment
-from tests.compiler.helpers import example_snapshot, named
+from tests.compiler.helpers import compiler_multilayer_snapshot, named
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
@@ -38,7 +38,7 @@ def configured_plan(
     global_concurrency: int = 4,
     restart: dict[str, Any] | None = None,
 ):
-    snapshot = example_snapshot()
+    snapshot = compiler_multilayer_snapshot()
     deployment = named(snapshot["agents"], "switch-router")
     deployment["placement"]["targets"]["names"] = ["s1"]
     deployment["placement"]["targets"]["matchLabels"] = {}

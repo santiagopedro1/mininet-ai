@@ -6,13 +6,13 @@ from datetime import UTC, datetime
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.coordination import ConflictArbitrator
 from mininet_ai.sdk import ActionProposal, AgentContext, ExecutionCatalog
-from tests.compiler.helpers import example_snapshot, experiment_from
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 
 def configured_plan(policy: str):
-    snapshot = example_snapshot()
+    snapshot = compiler_multilayer_snapshot()
     snapshot["policies"]["conflicting-actions"] = policy
     return compile_experiment(experiment_from(snapshot))
 

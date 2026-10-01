@@ -278,6 +278,10 @@ for VM setup, startup intents, and traffic inspection commands.
 
 An experiment declares its topology, reusable agent blueprints, capabilities, and concrete placements:
 
+Agents generating YAML should follow the
+[YAML authoring reference](docs/yaml-authoring-reference.md), then run both
+`validate` and `plan` on the resulting experiment.
+
 ```yaml
 apiVersion: mininet-ai/v1alpha2
 kind: Experiment
@@ -694,9 +698,7 @@ messages and outcomes, explicit intent/delegation routing, staged Agno
 invocation, capability admission, deterministic conflict arbitration, and
 bounded parallel commits for independent effects. Continuous experiment events
 use this canonical coordination path. Native Agno teams/workflows remain
-disabled where they cannot preserve the same safety semantics. The architecture,
-ownership seams, compatibility gates, and acceptance evidence are documented
-in [`docs/phase5-coordination.md`](docs/phase5-coordination.md).
+disabled where they cannot preserve the same safety semantics.
 
 ### Phase 6: Placement and isolation
 

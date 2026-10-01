@@ -12,13 +12,13 @@ from mininet_ai.plugins import (
 )
 from mininet_ai.sdk import AGENT_RUNTIME_CONTRACT_VERSION, ExecutionCatalog
 from mininet_ai.specification.models import ModelConfiguration
-from tests.compiler.helpers import EXAMPLE
 from tests.plugins.helpers import plugin
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 
 class ProviderRegistryTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.plan = compile_experiment(EXAMPLE)
+        self.plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
         catalog = ExecutionCatalog(self.plan)
         self.agent_definition = catalog.resolve("switch-router@s1")
         self.capability_definition = self.agent_definition.capabilities[0]

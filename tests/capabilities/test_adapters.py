@@ -32,7 +32,7 @@ from mininet_ai.substrates import (
     SubstrateRuntime,
 )
 from mininet_ai.transports import HttpTransportError
-from tests.compiler.helpers import EXAMPLE
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -82,7 +82,7 @@ class RecordingTransport:
 class CapabilityAdapterTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        plan = compile_experiment(EXAMPLE)
+        plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
         definition = ExecutionCatalog(plan).resolve("switch-router@s1")
         cls.capability = definition.capabilities[0]
         attachment = definition.instance.attachment

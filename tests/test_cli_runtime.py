@@ -13,11 +13,11 @@ from mininet_ai.cli import app
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 from tests.agents.test_runtime import configured_plan
-from tests.compiler.helpers import example_snapshot, experiment_from
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
 
 
 def fake_plan():
-    return compile_experiment(experiment_from(example_snapshot()))
+    return compile_experiment(experiment_from(compiler_multilayer_snapshot()))
 
 
 class StoppableFakeRuntime(FakeSubstrateRuntime):

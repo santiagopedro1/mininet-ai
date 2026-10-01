@@ -11,8 +11,8 @@ from mininet_ai.plugins import (
     ProviderRegistries,
     discover_plugins,
 )
-from tests.compiler.helpers import EXAMPLE
 from tests.plugins.helpers import FakeEntryPoint, plugin
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 
 class PluginDiscoveryTests(unittest.TestCase):
@@ -119,7 +119,7 @@ class PluginDiscoveryTests(unittest.TestCase):
         with patch(
             "mininet_ai.plugins.discovery.metadata.entry_points"
         ) as entry_points:
-            compile_experiment(EXAMPLE)
+            compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
 
         entry_points.assert_not_called()
 

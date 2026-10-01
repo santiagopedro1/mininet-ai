@@ -23,7 +23,7 @@ from mininet_ai.substrates import (
     ObservationResult,
     RuntimeIssue,
 )
-from tests.compiler.helpers import EXAMPLE
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -96,7 +96,7 @@ class RecordingObserver:
 
 class CapabilityEngineTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.plan = compile_experiment(EXAMPLE)
+        self.plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
         self.catalog = ExecutionCatalog(self.plan)
         self.definition = self.catalog.resolve("switch-router@s1")
         self.provider = RecordingProvider()

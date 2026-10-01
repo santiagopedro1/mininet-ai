@@ -15,7 +15,7 @@ from mininet_ai.substrates.mininet_ovs.actions import (
     MininetOVSActions,
 )
 from mininet_ai.substrates.mininet_ovs.observations import CommandResult
-from tests.compiler.helpers import example_snapshot, experiment_from
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
 
 
 class RecordingExecutor:
@@ -121,7 +121,7 @@ class RecordingNetwork:
 
 
 def mininet_plan():
-    snapshot = example_snapshot()
+    snapshot = compiler_multilayer_snapshot()
     snapshot["substrate"]["driver"] = "mininet-ovs"
     return compile_experiment(experiment_from(snapshot))
 

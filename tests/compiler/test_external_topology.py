@@ -8,7 +8,7 @@ import yaml
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import SpecificationError
-from tests.compiler.helpers import example_snapshot, experiment_from
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
 
 
 class ExternalTopologyTests(unittest.TestCase):
@@ -31,7 +31,7 @@ class ExternalTopologyTests(unittest.TestCase):
         return experiment_path
 
     def test_relative_external_topology_matches_inline_plan(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         inline = compile_experiment(experiment_from(snapshot))
         topology_text = yaml.safe_dump(
             snapshot["substrate"]["topology"], sort_keys=False
@@ -51,7 +51,7 @@ class ExternalTopologyTests(unittest.TestCase):
         self.assertEqual(external.snapshot, inline.snapshot)
 
     def test_missing_external_topology_reports_resolved_path(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = Path(temporary_directory)
             experiment_path = self._write_experiment(
@@ -65,7 +65,7 @@ class ExternalTopologyTests(unittest.TestCase):
                 compile_experiment(experiment_path)
 
     def test_malformed_external_topology_reports_its_path(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = Path(temporary_directory)
             experiment_path = self._write_experiment(
@@ -79,7 +79,7 @@ class ExternalTopologyTests(unittest.TestCase):
                 compile_experiment(experiment_path)
 
     def test_schema_invalid_external_topology_reports_its_path(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = Path(temporary_directory)
             experiment_path = self._write_experiment(
