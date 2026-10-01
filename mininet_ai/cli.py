@@ -20,14 +20,12 @@ from rich.table import Table
 
 from mininet_ai.agents import (
     AgnoAgentFactory,
-    OneShotAgentRuntime,
     register_builtin_providers,
 )
 from mininet_ai.audit import (
     AuditEvent,
     AuditEventType,
     AuditRecorder,
-    JsonLinesAuditSink,
 )
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
@@ -42,7 +40,11 @@ from mininet_ai.runtime import (
     SQLiteRunLedger,
     SQLiteSharedStateStore,
 )
-from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
+from mininet_ai.runtime.control import (
+    DEFAULT_CONTROL_DIRECTORY,
+    IntentClient,
+    IntentServer,
+)
 from mininet_ai.specification import (
     AgentBlueprint,
     CapabilityDefinition,
@@ -301,24 +303,6 @@ def _print_json(model) -> None:
     console.print_json(model.model_dump_json(by_alias=True, exclude_none=True))
 
 
-def _print_invocation(result: AgentInvocationResult, audit_log: Path) -> None:
-    color = "green" if result.status == InvocationStatus.SUCCEEDED else "red"
-    console.print(
-        f"[{color}]{result.status.value.title()}[/{color}] "
-        f"{result.invocation_id} for {result.agent_id}"
-    )
-    if result.response is not None and result.response.message is not None:
-        console.print(result.response.message)
-    for action in result.action_results:
-        console.print(
-            f"  {action.request_id}: {action.status.value}"
-            + (f" ({action.issue.code})" if action.issue is not None else "")
-        )
-    if result.issue is not None:
-        console.print(f"Issue: {result.issue.code}: {result.issue.message}")
-    console.print(f"Audit: {audit_log}")
-
-
 @app.command()
 def validate(
     experiment: Annotated[
@@ -460,6 +444,10 @@ def run(
             help="Append human-readable run progress to this file.",
         ),
     ] = Path(".mininet-ai/run.log"),
+    control_dir: Annotated[
+        Path,
+        typer.Option("--control-dir", help="Private directory for local intent submission."),
+    ] = DEFAULT_CONTROL_DIRECTORY,
 ) -> None:
     """Own a complete continuous experiment until interrupted or stopped."""
 
@@ -501,6 +489,7 @@ def run(
     ledger = None
     state_store = None
     owner = None
+    intent_server = None
     report = None
     try:
         progress.info(f"Opening run ledger {ledger_db}")
@@ -548,6 +537,14 @@ def run(
         )
         with stop_latch:
             run_info = _operation_or_exit(owner.start)
+            intent_server = IntentServer(
+                owner,
+                control_dir,
+                on_submit=lambda event: progress.info(
+                    f"Queued terminal intent {event.event_id} for agent {event.subject}"
+                ),
+            )
+            _operation_or_exit(intent_server.__enter__)
             progress.info(f"Run {run_info.id} is active on {run_info.substrate}")
             for agent_id, intent in parsed_intents:
                 event = _operation_or_exit(
@@ -576,20 +573,24 @@ def run(
             stop_latch.wait()
     finally:
         try:
-            if owner is not None and owner.state == ExperimentRuntimeState.RUNNING:
-                progress.info("Stop requested; draining work and tearing down")
-                report = _operation_or_exit(owner.stop)
-                progress.info(
-                    f"Run {report.run.id} stopped with "
-                    f"{report.continuous.completed} completed and "
-                    f"{report.continuous.failed} failed invocations"
-                )
+            if intent_server is not None:
+                intent_server.close()
         finally:
-            if state_store is not None:
-                state_store.close()
-            if ledger is not None:
-                ledger.close()
-            progress.close()
+            try:
+                if owner is not None and owner.state == ExperimentRuntimeState.RUNNING:
+                    progress.info("Stop requested; draining work and tearing down")
+                    report = _operation_or_exit(owner.stop)
+                    progress.info(
+                        f"Run {report.run.id} stopped with "
+                        f"{report.continuous.completed} completed and "
+                        f"{report.continuous.failed} failed invocations"
+                    )
+            finally:
+                if state_store is not None:
+                    state_store.close()
+                if ledger is not None:
+                    ledger.close()
+                progress.close()
     if report is None:
         return
     if output_format == OutputFormat.JSON:
@@ -715,77 +716,61 @@ def invoke(
         str, typer.Argument(help="Compiled agent instance identifier.")
     ],
     intent: Annotated[
-        str, typer.Option("--intent", "-i", help="One-shot agent intent.")
+        str,
+        typer.Option("--intent", "-i", help="Manual intent to queue in the foreground owner."),
     ],
+    control_dir: Annotated[
+        Path,
+        typer.Option("--control-dir", help="The foreground owner's private control directory."),
+    ] = DEFAULT_CONTROL_DIRECTORY,
+    timeout_seconds: Annotated[
+        float,
+        typer.Option(
+            "--timeout", min=0.001,
+            help="Seconds to wait for intent acceptance, not completion.",
+        ),
+    ] = 5,
     audit_log: Annotated[
-        Path,
-        typer.Option(
-            "--audit-log",
-            help="Append-only JSONL audit destination.",
-        ),
-    ] = Path(".mininet-ai/audit.jsonl"),
+        Path | None,
+        typer.Option("--audit-log", help="Deprecated: audit is recorded by the owner."),
+    ] = None,
     agno_db: Annotated[
-        Path,
-        typer.Option(
-            "--agno-db",
-            help="Private SQLite database for Agno sessions and memory.",
-        ),
-    ] = Path(".mininet-ai/agno.sqlite3"),
+        Path | None,
+        typer.Option("--agno-db", help="Deprecated: configure sessions on run."),
+    ] = None,
     shared_state_db: Annotated[
-        Path,
-        typer.Option(
-            "--shared-state-db",
-            help="Private SQLite database for scoped shared operational state.",
-        ),
-    ] = Path(".mininet-ai/shared-state.sqlite3"),
+        Path | None,
+        typer.Option("--shared-state-db", help="Deprecated: configure shared state on run."),
+    ] = None,
     discover: Annotated[
         bool,
-        typer.Option(
-            "--discover-plugins",
-            help="Load capability and deprecated provider entry points.",
-        ),
+        typer.Option("--discover-plugins", help="Deprecated: discover plugins on run."),
     ] = False,
     output_format: Annotated[
-        OutputFormat, typer.Option("--format", "-f", help="Invocation result format.")
+        OutputFormat, typer.Option("--format", "-f", help="Accepted event format.")
     ] = OutputFormat.TEXT,
 ) -> None:
-    """Invoke one compiled agent against an already-running experiment."""
+    """Queue an intent in an already-running owner, including from another terminal."""
 
-    deployment_plan = _compile_or_exit(experiment)
-    substrate = _runtime_or_exit(deployment_plan.substrate)
-    registries = ProviderRegistries()
-    register_builtin_providers(registries, substrate)
-    if discover:
-        _operation_or_exit(lambda: discover_plugins(registries))
-    try:
-        audit_log.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    except OSError as error:
+    if any(value is not None for value in (audit_log, agno_db, shared_state_db)) or discover:
         error_console.print(
-            f"[bold red]Error:[/bold red] cannot create audit directory: {error}"
+            "[yellow]Deprecated invoke configuration options are ignored; "
+            "the foreground owner uses the databases, audit, and plugins configured on run.[/yellow]"
         )
-        raise typer.Exit(code=1) from error
-    recorder = AuditRecorder(JsonLinesAuditSink(audit_log, sync=True))
-    state_store = _operation_or_exit(lambda: SQLiteSharedStateStore(shared_state_db))
-    runtime = OneShotAgentRuntime(
-        deployment_plan,
-        substrate,
-        registries,
-        audit=recorder,
-        agent_factory=_operation_or_exit(
-            lambda: AgnoAgentFactory(database_path=agno_db)
-        ),
-        shared_state=state_store,
+    deployment_plan = _compile_or_exit(experiment)
+    event = _operation_or_exit(
+        lambda: IntentClient(control_dir).submit(
+            run_id, deployment_plan.digest, agent_id, intent,
+            timeout_seconds=timeout_seconds,
+        )
     )
-    try:
-        result = _operation_or_exit(lambda: runtime.invoke(run_id, agent_id, intent))
-    finally:
-        state_store.close()
     if output_format == OutputFormat.JSON:
-        _print_json(result)
+        _print_json(event)
     else:
-        _print_invocation(result, audit_log)
-    if result.status != InvocationStatus.SUCCEEDED:
-        raise typer.Exit(code=1)
+        console.print(
+            f"[green]Queued[/green] {event.event_id} for {agent_id}; "
+            "follow the owner's run log for results"
+        )
 
 
 @app.command("schema")

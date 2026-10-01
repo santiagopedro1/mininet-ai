@@ -58,6 +58,21 @@ sudo ovs-ofctl -O OpenFlow13 dump-flows s1
 sudo ovs-vsctl --timeout=5 get Interface s1-eth2 statistics
 ```
 
+You can also submit another client intent while the owner remains active:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai invoke \
+  examples/iperf-throughput/experiment.yaml <run-id> iperf-client@client \
+  --intent 'Run a TCP throughput test against 10.0.0.12.'
+```
+
+Use the run ID printed by terminal 1 or written to `.mininet-ai/run.log`.
+The command returns when the intent is queued, not when iperf finishes. Results
+are logged and persisted by terminal 1; it already has the Ollama configuration.
+Both terminals must use the same user and working directory (or the same
+absolute `--control-dir`). Keep terminal 1 running without
+`--stop-after-intents` to accept later requests.
+
 Back in terminal 1: `Ctrl+C`, or `sudo scripts/vm-run.sh mininet-ai stop <run-id>`.
 
 ## UDP instead of TCP
@@ -83,4 +98,5 @@ Edit the client blueprint arguments to
 
 - Managed-process output goes to `DEVNULL`, so the Mbit/s number is not in
   the report — the report proves `SUCCEEDED` starts; counters prove traffic.
-- Cross-process `invoke` is unsupported; all intents must be passed at startup.
+- Cross-terminal `invoke` requires a live foreground owner. Startup and later
+  intents share its scheduler, authorization, model sessions, and ledger.

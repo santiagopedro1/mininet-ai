@@ -72,8 +72,8 @@ sudo env OLLAMA_HOST=http://YOUR_OLLAMA_HOST:11434 \
   --verbose
 ```
 
-Pass startup intents as `AGENT=TEXT`, server first. Cross-terminal intent
-submission is not yet supported. Runs remain in the foreground until `Ctrl+C`
+Pass startup intents as `AGENT=TEXT`, server first. Runs remain in the foreground
+until `Ctrl+C`
 or a stop request, then drain accepted work and tear down the network.
 `--stop-after-intents` instead stops after all submitted intents finish;
 for iperf, keep the run alive while observing traffic because process-start
@@ -85,8 +85,23 @@ From another VM terminal:
 cd /vagrant
 sudo scripts/vm-run.sh mininet-ai status <run-id>
 sudo scripts/vm-run.sh mininet-ai topology <run-id>
+sudo scripts/vm-run.sh mininet-ai invoke \
+  examples/iperf-throughput/experiment.yaml <run-id> iperf-client@client \
+  --intent 'Run a TCP throughput test against 10.0.0.12.'
 sudo scripts/vm-run.sh mininet-ai stop <run-id>
 ```
+
+`invoke` queues the intent in the foreground owner's scheduler and returns an
+accepted event (`--format json`) or its ID. Acceptance is not execution success;
+follow the owner's log and ledger for completion or failure. Submit only to
+agents with a manual trigger, using the unchanged experiment file from `run`.
+Run both commands as the same OS user, on the same machine, from the same
+working directory. If using different directories, pass the same absolute
+`--control-dir` to both commands (default: `.mininet-ai/control`). The directory
+is private (0700), and the owner removes its socket on shutdown. There is no
+automatic retry after a timeout because the owner may have accepted the intent.
+Intents are limited to 8192 characters. Configure databases, models, and plugins
+on `run`, not `invoke`.
 
 `status` and `topology` support `--format json`. Progress is written to
 `.mininet-ai/run.log`; `--verbose` also streams it to stderr. Run history, Agno
@@ -159,7 +174,7 @@ From [TODO.md](TODO.md):
 
 ### v1alpha3
 
-- [ ] Support submitting `--intent` from another terminal.
+- [x] Support submitting `--intent` from another terminal.
 - [ ] Allow the Ollama host to be specified in the configuration file.
-- [ ] Support noncanonical names in Mininet networks, if possible.
+- [x] Support noncanonical names in Mininet networks, if possible.
 - [ ] Add better, more practical examples.

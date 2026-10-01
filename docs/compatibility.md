@@ -151,6 +151,25 @@ using its recorded owner, plan, and process groups.
 
 ## Changes allowed within a contract version
 
+### Cross-terminal CLI intent submission
+
+`invoke EXPERIMENT RUN_ID AGENT_ID --intent TEXT` now submits a manual event to
+the existing foreground `run` owner through a private local socket. It no longer
+constructs a separate one-shot agent runtime. Its JSON output is the accepted
+`RuntimeEvent`, not an `AgentInvocationResult`; exit status zero means accepted,
+not successfully executed. Execution results remain in the owner's ledger and
+log. The SDK's `OneShotAgentRuntime` is unchanged.
+
+The old `invoke --audit-log`, `--agno-db`, `--shared-state-db`, and
+`--discover-plugins` options remain accepted but are deprecated and ignored with
+a warning on stderr: session, state, audit, and plugin configuration belongs to
+the owner. Set database and plugin options on `run`.
+Use the same OS user and working directory, or an identical absolute
+`--control-dir` on both commands. The private socket protocol is internal and
+does not change the versioned runtime-event or agent-runtime contracts.
+
+### Contract-preserving changes
+
 A change may keep the current contract version when it does not alter the
 accepted meaning or serialized result of an existing valid document. Examples
 include:

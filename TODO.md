@@ -2,7 +2,7 @@
 
 ## v1alpha3
 
-- [ ] Add support for `--intent` to be ran from another terminal.
+- [x] Add support for `--intent` to be ran from another terminal.
 
 - [ ] Add support for ollama host to be specified in the config file.
 

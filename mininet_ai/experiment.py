@@ -218,6 +218,12 @@ class ExperimentRuntime:
         if not agent_id or not intent or not source:
             raise ValueError("manual intent requires agent, intent, and source")
         continuous = self._require_running()
+        agent = next((agent for agent in self._plan.agents if agent.id == agent_id), None)
+        if agent is None or not any(trigger.type == "manual" for trigger in agent.triggers):
+            raise ExperimentRuntimeError(
+                f"agent {agent_id!r} is unknown or has no manual trigger",
+                code="experiment.intent.invalid-agent",
+            )
         with self._lock:
             sequence = self._source_sequences.get(source, 0)
             self._source_sequences[source] = sequence + 1
