@@ -6,6 +6,6 @@
 
 - [ ] Add support for ollama host to be specified in the config file.
 
-- [ ] Add support for noncanonical names in mininet network (if possible).
+- [x] Add support for noncanonical names in mininet network (if possible).
 
 - [ ] Add better and more practical examples.
