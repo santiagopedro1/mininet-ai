@@ -53,7 +53,7 @@ def deploy_and_exit_without_teardown(connection: Connection) -> None:
     os._exit(0)
 
 
-@unittest.skipUnless(LIVE_TESTS, "set MININET_AI_LIVE_TESTS=1 inside the Phase 2 VM")
+@unittest.skipUnless(LIVE_TESTS, "set MININET_AI_LIVE_TESTS=1 inside the development VM")
 class LiveMininetOVSRuntimeTests(unittest.TestCase):
     def test_cli_runs_inspects_and_cooperatively_stops_owner(self) -> None:
         state_path = Path("/run/mininet-ai/mininet-ovs.json")

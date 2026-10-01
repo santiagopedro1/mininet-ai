@@ -21,7 +21,7 @@ The captured state includes OVS bridges and ports, Linux network namespaces,
 veth and Mininet-style interfaces, Linux bridges, qdiscs, Mininet/controller
 processes, runtime registry files, and Mininet temporary files.
 
-Run this script only inside the disposable Phase 2 VM. The recover command can
+Run this script only inside the disposable development VM. The recover command can
 remove every Mininet/OVS topology on the machine, including one it did not
 create.
 EOF

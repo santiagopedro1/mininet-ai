@@ -135,10 +135,13 @@ git diff -- tests/golden
 For privileged integration tests and the VM environment check, run from the host:
 
 ```bash
-scripts/test-phase2-vm.sh
+scripts/test-vm.sh
 ```
 
-This script invokes `mn -c`; use it only with the disposable VM. For manual
+The runner reports PASS, FAIL, or SKIP for each check, continues independent
+checks after failures, and exits nonzero if any check fails. It checks tests,
+lint, types, CLI output, networking prerequisites, live integration, and cleanup.
+It invokes `mn -c`; use it only with the disposable VM. For manual
 cleanup checks inside that VM:
 
 ```bash

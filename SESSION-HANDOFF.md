@@ -85,7 +85,7 @@ continuous invokers remain compatible. The next roadmap phase is Phase 6
 placement and isolation. The complete roadmap lives in `README.md` and is the
 source of truth.
 
-The current rootless suite passes 341 tests and 90 subtests; three live
+The current rootless suite passes 352 tests and 90 subtests; three live
 Mininet/OVS integration tests are skipped outside their development VM. Pyright
 reports zero errors. Use the disposable VM for live Mininet/OVS regression
 evidence.
@@ -113,7 +113,7 @@ git diff -- tests/golden
 For real Mininet/OVS coverage, use the disposable Vagrant VM:
 
 ```bash
-scripts/test-phase2-vm.sh
+scripts/test-vm.sh
 ```
 
 Cleanup and recovery commands can affect every Mininet topology in the VM. Use
