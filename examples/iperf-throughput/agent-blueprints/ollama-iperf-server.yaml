@@ -9,6 +9,8 @@ implementation:
 model:
   provider: ollama
   name: qwen3.5:latest
+  parameters:
+    host: http://localhost:11434
 reasoning:
   instructions: |-
     Start the iperf traffic server on this host. You can only propose the

@@ -26,6 +26,7 @@ from mininet_ai.agents.agno.contracts import (
     ModelRunMetrics,
 )
 from mininet_ai.agents.agno.models import DeterministicAgnoModel
+from mininet_ai.agents.agno.ollama_model import create_ollama_model
 from mininet_ai.agents.agno.storage import create_agno_database
 from mininet_ai.durations import duration_seconds
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
@@ -96,6 +97,8 @@ def _default_model_resolver(configuration: ModelConfiguration) -> Model | str:
             configuration.parameters["response"],
             usage=usage,
         )
+    if configuration.provider == "ollama" and configuration.parameters:
+        return create_ollama_model(configuration)
     if configuration.parameters:
         raise AgentProviderError(
             "declarative Agno models do not accept legacy model parameters; "

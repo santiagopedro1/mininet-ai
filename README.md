@@ -63,12 +63,24 @@ vagrant ssh
 cd /vagrant
 ```
 
-Replace the Ollama endpoint below with one reachable from the VM, with the
-example's `qwen3.5:latest` model available:
+Set `model.parameters.host` in both example agent blueprints to an endpoint
+reachable from the VM, with the example's `qwen3.5:latest` model available:
+
+```yaml
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://YOUR_OLLAMA_HOST:11434
+```
+
+The explicit host overrides `OLLAMA_HOST`. Omit `parameters.host` to preserve
+Agno/Ollama's environment and default behavior. Keep credentials in environment
+variables, not in the endpoint URL. The checked-in example uses
+`http://localhost:11434`, which requires Ollama inside the VM unless you change it.
 
 ```bash
-sudo env OLLAMA_HOST=http://YOUR_OLLAMA_HOST:11434 \
-  scripts/vm-run.sh mininet-ai run \
+sudo scripts/vm-run.sh mininet-ai run \
   examples/iperf-throughput/experiment.yaml \
   --intent 'iperf-server@server=Start the iperf server on server.' \
   --intent 'iperf-client@client=Run a TCP throughput test against 10.0.0.12.' \
@@ -178,6 +190,6 @@ From [TODO.md](TODO.md):
 ### v1alpha3
 
 - [x] Support submitting `--intent` from another terminal.
-- [ ] Allow the Ollama host to be specified in the configuration file.
+- [x] Allow the Ollama host to be specified in the configuration file.
 - [x] Support noncanonical names in Mininet networks, if possible.
 - [ ] Add better, more practical examples.

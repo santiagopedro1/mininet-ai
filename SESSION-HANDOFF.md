@@ -37,9 +37,10 @@ The alpha releases and planned v1 are deliberately **Agno-centric**:
 - Mininet-AI owns topology and substrate operations, placement, observation
   scope, shared operational state, capability authorization, conflict policy,
   postcondition verification, rollback, lifecycle supervision, and auditing.
-- Declarative models use Agno's `provider:model` resolution. Provider-specific
-  configuration belongs in standard provider environment variables or a
-  Python-authored Agno factory.
+- Declarative models use Agno's `provider:model` resolution, with explicit
+  Ollama endpoints supported through `model.parameters.host`. Other
+  provider-specific configuration belongs in standard provider environment
+  variables or a Python-authored Agno factory.
 - Framework-neutral agent/model implementations are not a current target.
   Reconsider that abstraction only when a concrete second production agent
   runtime exists.

@@ -65,7 +65,8 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 - References use metadata names. An agent's `blueprint` names a loaded
   blueprint; entries in `capabilities` name loaded capability definitions.
 - Keep credentials outside YAML. Agno providers read their standard environment
-  variables; Python factories may supply provider-specific configuration.
+   variables; Ollama endpoints can also be set through `model.parameters.host`.
+   Python factories may supply other provider-specific configuration.
 
 ## Experiment
 
@@ -375,13 +376,36 @@ reasoning:
 
 On the active Agno runtime, an entrypoint uses `module:attribute` syntax and
 must resolve to an Agno `Agent` or a factory returning one. Use a Python factory
-for custom endpoints or provider-specific options. Declarative agents require
+for provider-specific options not supported declaratively. Declarative agents require
 `model`. `reasoning.output-schema` is an optional legacy string identifier; the
 active Agno path always requests the structured `AgentResponse` contract.
 
-For ordinary declarative providers, the active Agno path rejects non-empty
-`model.parameters`. The deterministic `mock` provider is the exception and is
-useful for offline generated experiments:
+Ollama declarative agents and the bundled
+`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` factory support
+an optional endpoint:
+
+```yaml
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://ollama.example:11434
+```
+
+`host` must be a non-empty HTTP/HTTPS URL with a hostname and no embedded
+credentials. Invalid hosts fail during `validate` and `plan`, without deploying
+a network or contacting Ollama. Explicit configuration overrides `OLLAMA_HOST`;
+omitting the host preserves Agno/Ollama's environment and default behavior,
+including its cloud endpoint behavior when an API key is configured. Each
+blueprint can use a different endpoint; the runtime does not modify process
+environment variables. Only `host` is supported for these Ollama construction
+paths; other parameters are rejected at agent construction. Custom Python
+factories remain responsible for consuming their own configuration. Keep
+credentials in environment variables, not YAML or URL user-info.
+
+Other ordinary declarative providers still reject non-empty `model.parameters`.
+The deterministic `mock` provider accepts its existing response and usage
+parameters and is useful for offline generated experiments:
 
 ```yaml
 model:

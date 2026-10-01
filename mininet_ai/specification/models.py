@@ -10,12 +10,15 @@ import re
 from enum import StrEnum
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    HttpUrl,
     JsonValue,
+    TypeAdapter,
     field_validator,
     model_validator,
 )
@@ -274,10 +277,38 @@ class Implementation(StrictModel):
         return self
 
 
+_HTTP_ENDPOINT = TypeAdapter(HttpUrl)
+
+
+def validate_ollama_host(value: object) -> str:
+    """Validate an explicit endpoint without normalizing serialized input."""
+    if not isinstance(value, str) or not value or any(
+        char.isspace() or ord(char) < 32 or ord(char) == 127 or char == "\\"
+        for char in value
+    ):
+        raise ValueError("Ollama host must be a non-empty HTTP/HTTPS URL")
+    try:
+        parsed = urlsplit(value)
+        _HTTP_ENDPOINT.validate_python(value)
+    except ValueError as error:
+        raise ValueError("Ollama host must be a valid HTTP/HTTPS URL") from error
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Ollama host must be an HTTP/HTTPS URL with a hostname")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("Ollama host must not contain credentials; use environment variables")
+    return value
+
+
 class ModelConfiguration(StrictModel):
     provider: Name
     name: str = Field(min_length=1)
     parameters: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def ollama_host_is_valid(self) -> ModelConfiguration:
+        if self.provider == "ollama" and "host" in self.parameters:
+            validate_ollama_host(self.parameters["host"])
+        return self
 
 
 class ReasoningConfiguration(StrictModel):

@@ -28,8 +28,26 @@ Expect 2 instances: `iperf-server@server`, `iperf-client@client`.
 
 ## Run (Vagrant VM only)
 
-Pass `OLLAMA_HOST` through `sudo` so the privileged runtime inherits the model
-endpoint.
+Set `model.parameters.host` in both
+`agent-blueprints/ollama-iperf-server.yaml` and
+`agent-blueprints/ollama-iperf-client.yaml` to your Ollama endpoint:
+
+```yaml
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://10.10.10.152:11434
+```
+
+Replace that example address with one reachable from the VM. The checked-in
+blueprints use `http://localhost:11434`, which only works if Ollama is running
+inside the VM. An explicit host overrides `OLLAMA_HOST`, so no endpoint
+environment variable needs to be passed through `sudo`. To use the environment
+instead, remove `parameters.host` from both blueprints and pass
+`OLLAMA_HOST` through `sudo env`. Endpoint URLs must use HTTP/HTTPS and contain
+no credentials; credentials remain in environment variables.
+
 Terminal 1 — intents run at startup, then it idles for inspection (no
 `--stop-after-intents`):
 
@@ -37,8 +55,7 @@ Terminal 1 — intents run at startup, then it idles for inspection (no
 vagrant up
 vagrant ssh
 cd /vagrant
-sudo env OLLAMA_HOST=http://10.10.10.152:11434 \
-  scripts/vm-run.sh mininet-ai run \
+sudo scripts/vm-run.sh mininet-ai run \
   examples/iperf-throughput/experiment.yaml \
   --intent 'iperf-server@server=Start the iperf server on server.' \
   --intent 'iperf-client@client=Run a TCP throughput test against 10.0.0.12.' \

@@ -217,6 +217,14 @@ does not change the versioned runtime-event or agent-runtime contracts.
 
 ### Contract-preserving changes
 
+Ollama endpoint configuration uses the existing `model.parameters.host` key,
+without adding serialized fields or changing omitted-host plans, snapshots,
+digests, or schemas. The public contract stays at `mininet-ai/v1alpha3`.
+Explicit host values are validated as HTTP/HTTPS URLs without credentials and
+are now honored by declarative agents and the bundled prompt-parsed factory.
+The runtime does not mutate environment variables; other Python factories
+continue to interpret their own provider-specific options.
+
 A change may keep the current contract version when it does not alter the
 accepted meaning or serialized result of an existing valid document. Examples
 include:
