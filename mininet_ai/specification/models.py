@@ -160,11 +160,23 @@ class SwitchDatapath(StrEnum):
 
 class SwitchResource(ResourceBase):
     kind: Literal[ResourceKind.SWITCH]
+    dpid: str | None = None
     fail_mode: SwitchFailMode = Field(default=SwitchFailMode.SECURE, alias="failMode")
     datapath: SwitchDatapath = SwitchDatapath.KERNEL
     controllers: list[Name] = Field(default_factory=list)
     protocols: list[OpenFlowProtocol] = Field(default_factory=list)
     ports: list[SwitchPort] = Field(default_factory=list)
+
+    @field_validator("dpid")
+    @classmethod
+    def valid_dpid(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not re.fullmatch(r"[0-9a-fA-F]{1,16}", value):
+            raise ValueError("DPID must contain 1 to 16 hexadecimal digits")
+        if int(value, 16) == 0:
+            raise ValueError("DPID must be non-zero")
+        return value.lower().zfill(16)
 
 
 class HostResource(ResourceBase):

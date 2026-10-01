@@ -5,9 +5,8 @@ Two host agents generate real traffic: `iperf-server@server` starts
 `10.0.0.12`. Both agents reason with `qwen3.5` on your Ollama server; Mininet
 AI authorizes and executes their `host.process.start` proposals.
 
-Topology: `client` (10.0.0.11) and `server` (10.0.0.12) through `s1`
-(the switch name must stay canonical — Mininet derives its datapath ID from
-it), `main-controller`, 100 Mbps links. `max-concurrent-invocations: 1`
+Topology: `client` (10.0.0.11) and `server` (10.0.0.12) through `s1`,
+`main-controller`, 100 Mbps links. `max-concurrent-invocations: 1`
 serializes the two intents so the server is up before the client connects.
 
 ## iperf vs iperf3
@@ -68,6 +67,19 @@ Edit the client blueprint arguments to
 (and the instructions to match), re-validate, rerun.
 
 ## Caveats
+
+- Switch names need not be canonical. To use `edge-sw`, replace `s1` and
+  `s1-ethN` in the experiment and inspection commands with `edge-sw` and
+  `edge-sw-ethN`. The compiler generates a deterministic non-zero 64-bit DPID;
+  canonical `sN` names retain their numeric DPID. An optional switch `dpid`
+  field (for example, `dpid: "abc"`) overrides it and is normalized to 16
+  lowercase hexadecimal digits. Fixed IDs must be unique; generated IDs skip
+  collisions. Pin an explicit DPID if identity must survive renaming or topology
+  changes involving collisions. Switch and interface names remain limited to
+  15 bytes, including generated interface suffixes.
+- Existing experiment inputs remain valid with `apiVersion: mininet-ai/v1alpha2`.
+  Compiled plans now require a `dpid` field on switches; recompile previously
+  saved deployment plans before using them with this version.
 
 - Managed-process output goes to `DEVNULL`, so the Mbit/s number is not in
   the report — the report proves `SUCCEEDED` starts; counters prove traffic.

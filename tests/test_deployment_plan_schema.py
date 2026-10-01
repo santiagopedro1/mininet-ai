@@ -31,6 +31,7 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
         self.assertIn("PlannedController", schema["$defs"])
         self.assertIn("PlannedPort", schema["$defs"])
         self.assertIn("PlannedLink", schema["$defs"])
+        self.assertIn("dpid", schema["$defs"]["PlannedSwitch"]["required"])
         self.assertIn("EventTrigger", schema["$defs"])
         self.assertIn("ObservationPolicy", schema["$defs"])
         self.assertIn("MemoryConfiguration", schema["$defs"])

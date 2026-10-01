@@ -247,7 +247,7 @@
     "edges": [],
     "mode": "independent"
   },
-  "digest": "sha256:207a832babc4d2a37869921cbe96d7e0f3995285b617cf9e920f3434e8d6ec45",
+  "digest": "sha256:b1ebfdc79c5f9e3331cd9762c220a1b5847f0549c4c9b121a8894c46da55faa6",
   "kind": "DeploymentPlan",
   "metadata": {
     "description": "Compiler fixture using one blueprint at four attachment layers.",
@@ -419,6 +419,7 @@
         "c0"
       ],
       "datapath": "kernel",
+      "dpid": "0000000000000001",
       "failMode": "secure",
       "kind": "switch",
       "labels": {
@@ -437,6 +438,7 @@
         "c0"
       ],
       "datapath": "kernel",
+      "dpid": "0000000000000002",
       "failMode": "secure",
       "kind": "switch",
       "labels": {
@@ -828,6 +830,7 @@
               "c0"
             ],
             "datapath": "kernel",
+            "dpid": null,
             "failMode": "secure",
             "kind": "switch",
             "labels": {
@@ -858,6 +861,7 @@
               "c0"
             ],
             "datapath": "kernel",
+            "dpid": null,
             "failMode": "secure",
             "kind": "switch",
             "labels": {

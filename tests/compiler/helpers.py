@@ -17,3 +17,19 @@ def experiment_from(snapshot: dict[str, Any]) -> Experiment:
 
 def named(items: list[dict[str, Any]], name: str) -> dict[str, Any]:
     return next(item for item in items if item["name"] == name)
+
+
+def switch_experiment(*names: str) -> Experiment:
+    return Experiment.model_validate(
+        {
+            "apiVersion": "mininet-ai/v1alpha2",
+            "kind": "Experiment",
+            "metadata": {"name": "switch-names"},
+            "substrate": {
+                "driver": "mininet-ovs",
+                "topology": {
+                    "resources": [{"name": name, "kind": "switch"} for name in names]
+                },
+            },
+        }
+    )

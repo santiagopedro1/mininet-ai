@@ -63,6 +63,7 @@ class PlannedControllerDomain(PlannedResourceBase):
 
 class PlannedSwitch(PlannedResourceBase):
     kind: Literal[ResourceKind.SWITCH]
+    dpid: str
     fail_mode: SwitchFailMode = Field(alias="failMode")
     datapath: SwitchDatapath
     controllers: tuple[str, ...]

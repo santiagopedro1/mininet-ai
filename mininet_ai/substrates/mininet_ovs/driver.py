@@ -79,9 +79,7 @@ _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
         }
     ),
 }
-_OBSERVATIONS[AttachmentLayer.OBSERVER] = frozenset().union(
-    *_OBSERVATIONS.values()
-)
+_OBSERVATIONS[AttachmentLayer.OBSERVER] = frozenset().union(*_OBSERVATIONS.values())
 
 
 _LAYERS = MappingProxyType(
@@ -111,9 +109,7 @@ _LAYERS = MappingProxyType(
                     ResourceKind.SWITCH,
                 }
             ),
-            runtimes=frozenset(
-                {"controller-sidecar", "process", "container"}
-            ),
+            runtimes=frozenset({"controller-sidecar", "process", "container"}),
             observations=_OBSERVATIONS[AttachmentLayer.CONTROL],
         ),
         AttachmentLayer.DATA: LayerSupport(
@@ -130,9 +126,7 @@ _LAYERS = MappingProxyType(
         ),
         AttachmentLayer.HOST: LayerSupport(
             targets=frozenset({ResourceKind.HOST}),
-            runtimes=frozenset(
-                {"host-namespace", "process", "container"}
-            ),
+            runtimes=frozenset({"host-namespace", "process", "container"}),
             observations=_OBSERVATIONS[AttachmentLayer.HOST],
         ),
         AttachmentLayer.OBSERVER: LayerSupport(
@@ -144,9 +138,7 @@ _LAYERS = MappingProxyType(
 )
 
 
-def _issue(
-    suffix: str, message: str, *, index: int, field: str
-) -> SubstrateIssue:
+def _issue(suffix: str, message: str, *, index: int, field: str) -> SubstrateIssue:
     return SubstrateIssue(
         code=f"mininet-ovs.{suffix}",
         message=message,
@@ -201,8 +193,10 @@ def parse_default_route(value: str) -> tuple[str, ...]:
                 ip_address(token)
             except ValueError as error:
                 raise ValueError(f"invalid default-route address {token!r}") from error
-        elif index > 0 and tokens[index - 1] == "dev" and not re.fullmatch(
-            NAME_PATTERN, token
+        elif (
+            index > 0
+            and tokens[index - 1] == "dev"
+            and not re.fullmatch(NAME_PATTERN, token)
         ):
             raise ValueError(f"invalid default-route interface {token!r}")
     return tokens
@@ -234,6 +228,7 @@ class MininetOVSDriver(ManifestSubstrateDriver):
     ) -> tuple[SubstrateIssue, ...]:
         issues = list(super().validate_resources(resources))
         local_controllers: dict[int, tuple[int, str]] = {}
+        switch_dpids: dict[str, str] = {}
         ports_by_owner: dict[str, set[str]] = {}
         for resource in resources:
             if resource.kind == ResourceKind.PORT:
@@ -249,6 +244,29 @@ class MininetOVSDriver(ManifestSubstrateDriver):
         for index, resource in enumerate(resources):
             if resource.kind == ResourceKind.SWITCH:
                 switch = cast("PlannedSwitch", resource)
+                if (
+                    not re.fullmatch(r"[0-9a-f]{16}", switch.dpid)
+                    or int(switch.dpid, 16) == 0
+                ):
+                    issues.append(
+                        _issue(
+                            "resource.dpid",
+                            "DPID must contain 16 lowercase hexadecimal digits and be non-zero",
+                            index=index,
+                            field="dpid",
+                        )
+                    )
+                elif switch.dpid in switch_dpids:
+                    issues.append(
+                        _issue(
+                            "resource.dpid",
+                            f"switches {switch_dpids[switch.dpid]!r} and {switch.name!r} share DPID {switch.dpid}",
+                            index=index,
+                            field="dpid",
+                        )
+                    )
+                else:
+                    switch_dpids[switch.dpid] = switch.name
                 name_issue = _interface_name_issue(switch.name, index=index)
                 if name_issue:
                     issues.append(name_issue)

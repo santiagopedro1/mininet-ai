@@ -932,6 +932,7 @@ class MininetOVSRuntime:
                 switch = cast("PlannedSwitch", resource)
                 network.addSwitch(
                     switch.name,
+                    dpid=switch.dpid,
                     cls=bindings.ovs_switch_class,
                     failMode=switch.fail_mode.value,
                     datapath=(
