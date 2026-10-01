@@ -1,14 +1,48 @@
 [project]
-name = "mininet-agentic-interactive"
+name = "mininet-ai"
 version = "0.1.0"
-description = "Add your description here"
+description = "A declarative experiment compiler and runtime for agentic networks"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-	"agno>=2.6.4",
+	"agno[ollama,openai,sqlite]>=3.0.11,<3.1",
+	"httpx>=0.28.1",
+	"jsonschema>=4.23.0",
 	"mininet>=2.3.0.dev6",
-	"networkx>=3.6.1",
-	"ollama>=0.6.1",
-	"openai>=2.33.0",
+	"pydantic>=2.13.3",
+	"pyyaml>=6.0.3",
 	"rich>=15.0.0",
+	"sqlalchemy[asyncio]>=2.1,<2.2",
+	"typer>=0.25.0",
 ]
+
+[project.scripts]
+mininet-ai = "mininet_ai.cli:app"
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["setuptools>=82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[tool.ruff.lint]
+# Runtime supervision, rollback, and teardown code deliberately catches broad
+# exceptions so one failed operation becomes a reported issue instead of a
+# crashed run.
+ignore = ["BLE001"]
+
+[tool.pyright]
+include = ["mininet_ai", "tests"]
+pythonVersion = "3.14"
+typeCheckingMode = "basic"
+
+[tool.setuptools.packages.find]
+include = ["mininet_ai*"]

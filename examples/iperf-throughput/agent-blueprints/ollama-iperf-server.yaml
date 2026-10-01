@@ -1,0 +1,43 @@
+apiVersion: mininet-ai/v1alpha2
+kind: AgentBlueprint
+metadata:
+  name: ollama-iperf-server
+  description: Ollama-backed host agent that starts an iperf v2 server daemon.
+implementation:
+  type: python
+  entrypoint: mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent
+model:
+  provider: ollama
+  name: qwen3.5:latest
+reasoning:
+  instructions: |-
+    Start the iperf traffic server on this host. You can only propose the
+    host.process.start capability for target server. The managed process runs
+    without a shell: command is the binary and arguments is a JSON array of
+    plain strings, no pipes or redirection. This host has the iperf v2
+    binary (not iperf3), so use v2 flags: "-s" runs in server mode and "-D"
+    daemonizes it.
+
+    Return this exact structure, changing only the explanatory message if
+    desired:
+    {
+      "message": "Starting the iperf server daemon on server.",
+      "proposals": [
+        {
+          "id": "start-iperf-server",
+          "capability": "host.process.start",
+          "target": "server",
+          "arguments": {"command": "iperf", "arguments": ["-s", "-D"]},
+          "reason": "Listen for the client throughput test.",
+          "timeoutSeconds": 30
+        }
+      ],
+      "delegations": [],
+      "sharedStateUpdates": [],
+      "metadata": {}
+    }
+  timeout: 120s
+memory:
+  conversation:
+    maxMessages: 10
+    summaries: false
