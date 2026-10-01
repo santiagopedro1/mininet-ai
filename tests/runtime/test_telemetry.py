@@ -25,7 +25,7 @@ from mininet_ai.substrates import (
     ObservationQuery,
     ObservationResult,
 )
-from tests.compiler.helpers import example_snapshot, named
+from tests.compiler.helpers import compiler_multilayer_snapshot, named
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
@@ -37,7 +37,7 @@ def configured_plan(
     every: str = "1s",
     window: str = "10s",
 ):
-    snapshot = example_snapshot()
+    snapshot = compiler_multilayer_snapshot()
     deployment = named(snapshot["agents"], "switch-router")
     deployment["placement"]["targets"]["names"] = ["s1"]
     deployment["placement"]["targets"]["matchLabels"] = {}

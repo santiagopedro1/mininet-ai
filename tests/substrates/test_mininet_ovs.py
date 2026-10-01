@@ -7,12 +7,12 @@ from mininet_ai.compiler.models import PlannedSwitch
 from mininet_ai.errors import CompilationError
 from mininet_ai.specification.models import Experiment
 from mininet_ai.substrates import MininetOVSDriver, substrate_registry
-from tests.compiler.helpers import example_snapshot, experiment_from, named
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from, named
 from tests.substrates.contract import SubstrateDriverContract
 
 
 def mininet_experiment() -> Experiment:
-    snapshot = example_snapshot()
+    snapshot = compiler_multilayer_snapshot()
     snapshot["substrate"]["driver"] = "mininet-ovs"
     return experiment_from(snapshot)
 
@@ -29,7 +29,7 @@ class MininetOVSDriverTests(unittest.TestCase):
         self.assertIsInstance(driver, MininetOVSDriver)
         self.assertEqual(driver.name, "mininet-ovs")
 
-    def test_phase1_topology_compiles_for_mininet_without_importing_it(self) -> None:
+    def test_multilayer_topology_compiles_without_importing_mininet(self) -> None:
         plan = compile_experiment(mininet_experiment())
 
         self.assertEqual(plan.substrate, "mininet-ovs")
@@ -37,7 +37,7 @@ class MininetOVSDriverTests(unittest.TestCase):
         self.assertEqual(len(plan.agents), 6)
 
     def test_unknown_options_are_rejected_deterministically(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         snapshot["substrate"]["options"] = {"z-option": True, "a-option": True}
 
@@ -52,7 +52,7 @@ class MininetOVSDriverTests(unittest.TestCase):
         )
 
     def test_userspace_ovs_datapath_is_accepted(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         resources = snapshot["substrate"]["topology"]["resources"]
         named(resources, "s1")["datapath"] = "userspace"
@@ -64,7 +64,7 @@ class MininetOVSDriverTests(unittest.TestCase):
         self.assertEqual(switch.datapath.value, "userspace")
 
     def test_unsupported_controller_and_tc_combinations_are_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         resources = snapshot["substrate"]["topology"]["resources"]
         named(resources, "c0")["protocol"] = "ssl"
@@ -82,7 +82,7 @@ class MininetOVSDriverTests(unittest.TestCase):
         self.assertIn("link jitter requires a base delay", message)
 
     def test_linux_interface_and_openflow_port_limits_are_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         topology = snapshot["substrate"]["topology"]
         resources = topology["resources"]
@@ -101,7 +101,7 @@ class MininetOVSDriverTests(unittest.TestCase):
         self.assertIn("OpenFlow physical port number 65280", message)
 
     def test_builtin_controllers_must_use_distinct_local_ports(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         resources = snapshot["substrate"]["topology"]["resources"]
         controller = dict(named(resources, "c0"))
@@ -115,7 +115,7 @@ class MininetOVSDriverTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_declared_ports_must_be_attached_to_links(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         resources = snapshot["substrate"]["topology"]["resources"]
         named(resources, "s1")["ports"].append(
@@ -128,7 +128,7 @@ class MininetOVSDriverTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_controller_addresses_and_host_routes_must_be_mininet_safe(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         resources = snapshot["substrate"]["topology"]["resources"]
         controller = named(resources, "c0")

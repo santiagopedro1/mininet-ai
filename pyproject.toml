@@ -40,7 +40,7 @@ dev = [
 ignore = ["BLE001"]
 
 [tool.pyright]
-include = ["mininet_ai", "examples/phase3", "examples/phase4", "tests"]
+include = ["mininet_ai", "tests"]
 pythonVersion = "3.14"
 typeCheckingMode = "basic"
 

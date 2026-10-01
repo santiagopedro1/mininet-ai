@@ -5,12 +5,12 @@ import unittest
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.sdk import ExecutionCatalog
-from tests.compiler.helpers import EXAMPLE
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 
 class ExecutionCatalogTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.plan = compile_experiment(EXAMPLE)
+        self.plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
 
     def test_resolves_execution_definition_from_normalized_snapshot(self) -> None:
         catalog = ExecutionCatalog(self.plan)

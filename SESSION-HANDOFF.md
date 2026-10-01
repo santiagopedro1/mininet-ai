@@ -57,13 +57,13 @@ Phases 1 through 3 are implemented:
 - Phase 1: specification and deterministic compiler.
 - Phase 2: Mininet/OVS substrate, lifecycle, observations, actions, recovery,
   and cleanup tooling.
-- Phase 3: scoped agent invocation, capability contracts, plugins, audit data,
-  and the rootless extension example.
+- Phase 3: scoped agent invocation, capability contracts, plugins, and audit
+  data.
 
 Phase 4 continuous runtime is implemented. It includes native Agno execution,
 persistent sessions and memory, shared state, continuous scheduling, telemetry
-detectors, supervision, deadlines, verified effects and rollback, persistent
-run ownership, and the autonomous Phase 4 example.
+detectors, supervision, deadlines, verified effects and rollback, and
+persistent run ownership.
 
 Phase 5 is implemented on branch `feature/v1alpha2-coordination-runtime`.
 At the time of this handoff, `HEAD` is `65ed712`
@@ -81,31 +81,14 @@ per-agent Agno execution therefore remains canonical. Continuous experiment
 events now enter the canonical coordination runtime, preserve their correlation
 and triggering-event identities, and retain a versioned coordination outcome
 alongside the representative invocation in runtime reports. Direct Phase 4
-continuous invokers remain compatible. The rootless example under
-`examples/phase5/` and `tests/acceptance/test_phase5.py` prove centralized
-delegation, conflicting action rejection, correlation, normalized results, and
-teardown. The next roadmap phase is Phase 6 placement and isolation. The
-complete roadmap lives in `README.md` and is the source of truth.
+continuous invokers remain compatible. The next roadmap phase is Phase 6
+placement and isolation. The complete roadmap lives in `README.md` and is the
+source of truth.
 
-The live Mininet copy under `examples/phase5/mininet/` adds deterministic and
-Ollama-backed operator paths. The Ollama path uses the packaged
-`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` entrypoint,
-`OLLAMA_HOST`, and model `qwen2.5:7b`. CLI runs can stream progress with
-`--verbose`, persist it with `--log-file`, expose fatal agent/runtime failures
-immediately, and stop automatically with `--stop-after-intents`. A successful
-live Ollama run created all three agents lazily, recorded 5,526 model tokens,
-committed the winning OpenFlow action, rejected the conflict, and released all
-11 Mininet resources.
-
-Phase 5 focused verification currently passes: 87 tests and 16 subtests,
-Pyright with zero errors, and validation of the rootless, deterministic
-Mininet, and Ollama-backed Mininet configurations. The broader rootless suite
-passes when the known live-Mininet teardown tests are excluded. On the current
-development machine, `/tmp/c0.log` is owned by `nobody` and cannot be removed by
-the unprivileged test process; that pre-existing host artifact causes seven
-simulated Mininet teardown failures in the complete local suite. Do not delete
-or change it without explicit user approval. Use the disposable VM for clean
-live Mininet/OVS regression evidence.
+The current rootless suite passes 352 tests and 90 subtests; three live
+Mininet/OVS integration tests are skipped outside their development VM. Pyright
+reports zero errors. Use the disposable VM for live Mininet/OVS regression
+evidence.
 
 ## Validation commands
 
@@ -113,14 +96,11 @@ Use focused checks while iterating, then the broad checks relevant to the
 change:
 
 ```bash
-uv run pytest -q tests/coordination tests/acceptance/test_phase5.py \
+uv run pytest -q tests/coordination \
   tests/runtime/test_experiment.py tests/runtime/test_continuous.py \
   tests/capabilities/test_engine.py tests/test_cli_runtime.py
 uv run pyright
-uv run mininet-ai validate examples/phase5/experiment.yaml
-uv run mininet-ai validate examples/phase5/mininet/experiment.yaml
-uv run mininet-ai validate examples/phase5/mininet/experiment-ollama.yaml
-uv run python -m examples.phase5
+uv run mininet-ai validate examples/iperf-throughput/experiment.yaml
 ```
 
 For intentional compiler or schema changes:
@@ -133,7 +113,7 @@ git diff -- tests/golden
 For real Mininet/OVS coverage, use the disposable Vagrant VM:
 
 ```bash
-scripts/test-phase2-vm.sh
+scripts/test-vm.sh
 ```
 
 Cleanup and recovery commands can affect every Mininet topology in the VM. Use

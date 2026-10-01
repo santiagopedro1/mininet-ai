@@ -1,736 +1,165 @@
 # Mininet AI
 
-Mininet AI is a declarative experiment compiler and multi-layer runtime for agentic networking research. Users choose where agents attach to an emulated network, what resources they can observe and change, where they execute, and how they coordinate.
+Mininet AI is a declarative experiment compiler and runtime for agentic networking
+research. Define a topology, choose where agents attach, and specify what they
+can observe and change.
 
-The project is being built as an experiment framework rather than a collection of predefined agents. Experiments should be reproducible, inspectable, and portable across networking substrates.
-
-## AI runtime direction
-
-The alpha releases and planned v1 are **Agno-centric**. Agno will own agent and
-model execution, sessions, conversation history, agent-local state, learned
-memory, summaries, and AI usage metrics. Mininet AI will own experiment
-specifications, topology and substrate lifecycle, event delivery, scheduling,
-capability authorization, network action execution, cross-agent operational
-state, and the reproducibility ledger.
-
-Agno agents produce Mininet `ActionProposal` values; they do not mutate the
-network directly. Every proposal continues through the Mininet capability
-engine, which validates identity, scope, target, effects, input, and output.
-Agno usage measurements are normalized into the experiment ledger alongside
-the network events and action outcomes they caused.
-
-The framework-neutral agent and model provider layer introduced in Phase 3 is
-deprecated and will be removed before v1. Framework neutrality will be
-reconsidered when a concrete second production agent runtime is required. Agno
-objects will remain confined to the agent-runtime implementation so Mininet's
-experiment, proposal, capability, event, and ledger contracts do not expose
-them. See [ADR 0001](docs/adr/0001-use-agno-as-v1-agent-runtime.md) for the
-decision and its consequences.
+Agno handles agent execution, models, sessions, and memory. Mininet AI owns the
+network lifecycle, scheduling, coordination, capability authorization, shared
+operational state, and experiment ledger. Agents propose actions; authorized
+capabilities execute them.
 
 ## Current capabilities
 
-Phase 1 introduced the public experiment contract; the current
-continuous-runtime shape is `mininet-ai/v1alpha2`. The compiler operates without
-root access or a running Mininet network:
+The current specification contract is `mininet-ai/v1alpha2`.
 
-- Strict schemas for experiments, agent blueprints, placements, capabilities, topology resources, coordination, policies, and resource limits.
-- YAML documents and Python-created specifications.
-- Inline definitions or external YAML references resolved relative to the experiment file.
-- Target selectors by resource kind, explicit name, and labels.
-- Singleton, per-target, and per-group agent expansion.
-- Global, management, control, data, host, observer, and registered custom attachment layers.
-- Compile-time substrate, observation, runtime, and capability compatibility checks.
-- Least-privilege calculation from capability effects.
-- Centralized, hierarchical, distributed, and independent coordination plans.
-- Deterministic deployment plans containing the normalized experiment snapshot and a SHA-256 digest.
-- A fake substrate that validates experiments without changing the host system.
+- YAML and Python specifications, with inline definitions or external YAML files.
+- Deterministic deployment plans, scoped placement, target selectors, and
+  singleton, per-target, or per-group agent expansion.
+- Fake and Mininet/OVS substrates, with topology inspection and network telemetry.
+- Agno agents defined declaratively or through Python factories.
+- Manual, interval, and event triggers; observation aggregation and detectors;
+  bounded queues, concurrency, and restart policies.
+- Independent, centralized, hierarchical, and distributed coordination with
+  conflict arbitration.
+- Capability authorization, schema validation, deadlines, postcondition checks,
+  and supported rollback operations.
+- Persistent sessions, shared state, audit records, model usage, and run manifests.
 
-Logical placement is intentionally separate from physical execution. For example, an agent may be attached to the data plane of a switch while its model executes in an external process. The attachment controls its network scope and available capabilities.
+Placement currently describes logical scope, not enforced process or namespace
+isolation. Python agent factories run as trusted code in the orchestrator.
+Legacy generic agent/model providers remain deprecated; Agno is the active
+runtime.
 
-The Phase 3 foundation introduced the independent
-`mininet-ai/agent-runtime/v1alpha2` SDK contract. Its scoped invocation context,
-structured action proposals, normalized invocation results, capability
-contracts, and execution catalog remain part of the Mininet domain. Its generic
-agent and model provider protocols are now deprecated; the Phase 4 Agno
-migration will replace them rather than extend them.
+## Installation and quick start
 
-The current implementation still has explicit agent, capability, and model
-provider registries. Only capability extensibility remains a v1 direction;
-generic agent and model registration is transitional and deprecated. Plugin
-discovery remains opt-in and transactional while the migration is in progress:
-compiling or validating an experiment does not import plugins, and failed
-discovery leaves existing registrations unchanged.
-
-`CapabilityEngine` is the single execution seam for agent proposals. Before a
-provider can run, it verifies the compiled agent identity and scope, assigned
-capability, target kind, attachment layer, and effects; validates input against
-JSON Schema; and then validates and normalizes provider output. Authorization
-violations are rejected without invoking plugin code, while provider and output
-failures use typed action results.
-
-Built-in capability adapters connect authorized proposals to substrate actions
-or observations, local executables, and HTTP services. External adapters use a
-versioned JSON request containing the scoped context and proposal, and require a
-`CapabilityOutcome` response. Process adapters never invoke a shell, use a
-minimal explicit environment, bound output, enforce deadlines, and terminate
-the complete process group. HTTP adapters reject embedded URL credentials,
-disable redirects, and bound response bodies.
-
-The built-in OpenAI-compatible and Ollama model adapters are deprecated
-transitional implementations. Agno will replace their model invocation,
-structured-output, retry, and usage-accounting responsibilities. Credentials
-will continue to stay outside experiment documents.
-
-The current declarative and Python agent providers are also deprecated.
-Declarative blueprints will construct Agno agents, and Python entrypoints will
-return configured Agno agents or factories. User code will still be imported
-only at runtime, never during validation or compilation, and will initially run
-as trusted code in the orchestrator process; process and namespace isolation
-belongs to Phase 6.
-
-The native Agno module now drives one-shot agent invocation. It
-constructs declarative agents with Agno's canonical `provider:model` resolver,
-loads Python-authored Agno agents or factories, requires structured
-`AgentResponse` output, and validates the compiled Mininet scope before each
-run. It deliberately supplies no network mutation tools: returned proposals
-still require capability authorization. Agno run identity, model identity, and
-normalized token, cache, reasoning, audio, cost, and timing metrics are written
-to the completed-invocation audit record and therefore to ledger-backed audit
-sinks. Continuous invocation now reuses this exact path through
-`ContinuousAgentRuntime`; event scheduling does not bypass Agno execution,
-shared state, capability authorization, or audit recording.
-
-The active Agno path records scoped invocation context, normalized responses,
-Agno run and session identity, model identity, usage metrics, action proposals,
-results, and typed failures as versioned JSON events. Deprecated model-provider
-decorators still support the previous prompt-level audit shape until their
-removal.
-The JSON Lines sink serializes concurrent appenders,
-limits individual event size, and creates owner-only files. Audit records can
-contain prompts and observations and must therefore be treated as sensitive
-experiment artifacts. Writes are synchronous: failure to record a start event
-prevents the wrapped operation from running instead of silently losing audit
-coverage.
-
-`OneShotAgentRuntime` connects those seams for manual invocations. It verifies
-that the supplied deployment plan matches a running substrate, collects only
-declared observations, invokes the Agno agent, and passes every proposal through
-capability authorization. Agno supplies the Ollama and OpenAI integrations; a
-deterministic Agno model keeps tests and offline examples reproducible. The
-deprecated agent and model provider registries remain temporarily for removal
-in the cleanup commit and are no longer consulted by this runtime.
-
-The Phase 4 runtime-event contract provides one immutable, versioned envelope
-for manual intents, interval ticks, normalized observations, agent lifecycle
-changes, runtime failures, and plugin-defined event names. Each event carries
-run and event identity, source ordering, occurrence and observation timestamps,
-correlation and causation identifiers, and a JSON payload. Standard event
-payloads have typed models. `InMemoryRuntimeEventBus` provides bounded,
-thread-safe FIFO delivery: a full or closed bus rejects publication explicitly,
-and closure wakes blocked consumers after already queued events are drained.
-
-`ContinuousAgentRuntime` consumes that event stream and matches compiled
-manual, interval, and named event triggers. Events without an explicit trigger
-subject remain scoped to the attached agent target; explicit subjects, sources,
-and cooldowns are enforced. Each agent has a FIFO queue with its declared
-`queueCapacity`, `maxConcurrency`, and `reject`, `drop-oldest`, or `coalesce`
-overflow behavior. The deployment-wide concurrency and queued-event limits are
-also enforced. Source sequence replay is rejected, interval ticks are emitted
-as normalized runtime events, and `stop(drain=True)` completes accepted work
-before returning a structured `ContinuousRuntimeReport`.
-
-Each compiled agent is now supervised through `starting`, `running`, `paused`,
-`restarting`, `failed`, `stopping`, and `stopped` states. The continuous runtime
-exposes explicit per-agent `pause`, `resume`, and state inspection operations;
-paused agents retain queued work, and a draining stop resumes them so shutdown
-cannot deadlock. Raised invocation errors and structured `failed` results use
-the agent's compiled `restart` policy, bounded attempt count, and backoff before
-retrying the same event. Structured `rejected` results are policy outcomes and
-are never restarted. Every transition is timestamped in the continuous runtime
-report, including its recovery attempt number, and the experiment owner records
-those transitions as part of the complete run lifecycle.
-
-Reasoning deadlines are enforced through Agno's asynchronous cancellation path
-when a blueprint declares `reasoning.timeout`. Action proposals are capped by
-the smaller of their requested timeout and the agent's compiled
-`execution.actionTimeout`, so an agent cannot extend its own execution budget.
-Built-in substrate, process, and HTTP adapters enforce that deadline. Trusted
-in-process capability plugins receive the bounded deadline but must cooperate;
-hard cancellation of arbitrary Python belongs to the process-isolation work in
-Phase 6.
-Every invocation result carries separate event-detection, context-building,
-model-queueing, reasoning, action-execution, action-effect, and total timings.
-Model queueing measures time waiting for the persistent per-agent Agno execution
-slot; provider-internal queueing remains unavailable unless the provider reports
-it separately.
-
-When `require-postcondition-check` is enabled, declared capability
-postconditions are polled against the live substrate until they succeed or
-their individual deadlines expire. Paths are relative to the proposal target
-and may traverse objects and list indexes. Results retain every check, its last
-observed value, attempt count, and observation error, while action-effect
-latency is reported separately from action execution. A changed action with a
-configured rollback invokes the provider's reversible interface after failed
-verification. Successful rollback reports a failed action with `changed: false`;
-failed or unsupported rollback preserves `changed: true` and returns a typed
-rollback failure. The built-in substrate adapter supplies conservative inverses
-for flow installation, link enable/disable, and managed process start.
-
-`TelemetryPipeline` executes the compiled observation policies without sending
-raw high-frequency samples to agents. It samples only each agent's declared
-targets, retains a time- and count-bounded window, and supports `latest`,
-`minimum`, `maximum`, `mean`, and `sum` aggregation while preserving the nested
-observation shape. Every sample produces a typed `observation.recorded` event.
-Threshold and z-score detectors evaluate numeric paths over the aggregated
-window and publish their configured event names with the triggering value,
-window, baseline, score, and detector identity. Detector cooldowns are scoped
-per agent, detector, and target. The detector event identifies its aggregated
-observation event as both correlation and causation evidence.
-
-The continuous runtime is a `RuntimeEventPublisher`, so the two modules compose
-directly: start the continuous runtime before the telemetry pipeline, then stop
-telemetry before draining the runtime. Sampling failures and publication
-failures are retained in a structured `TelemetryPipelineReport` instead of
-silently terminating sampler threads.
-
-`SQLiteRunLedger` persists the reproducibility manifest and append-only history
-for experiment runs. A manifest captures the normalized specification, complete
-deployment plan, plugin versions and source digests, and runtime configuration.
-Records receive durable per-run sequence numbers and can be read forward from a
-cursor after restart. Runtime-event and audit-sink adapters preserve their
-original versioned records, including invocation, model, capability, and timing
-data. Ledger files must be owner-only regular files; unsupported database
-versions and unsafe paths are rejected instead of being rewritten.
-
-`ExperimentRuntime` is the lifecycle owner for a complete long-running run. It
-deploys the substrate, writes the manifest, starts continuous consumers before
-telemetry producers, and exposes manual intent plus pause/resume controls. Its
-shutdown reverses that dependency order—telemetry, draining agents, then the
-substrate—and returns one structured report. If a producer or worker misses its
-shutdown deadline, the owner leaves the substrate running and permits a later
-stop retry instead of tearing resources out from under active work. The
-`mininet-ai run` uses this owner until `SIGINT` or `SIGTERM`; accepted runtime
-events and Agno audit records are persisted to the same ordered ledger. Every
-live run also appends concise lifecycle and audit progress to the owner-only
-`.mininet-ai/run.log`. Pass `--verbose` to mirror those updates to stderr while
-the experiment is running without contaminating JSON output on stdout.
-
-## Installation
-
-Mininet AI currently requires Python 3.14 or newer and uses [uv](https://docs.astral.sh/uv/) for environment management:
+Requires **Python 3.14+** and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync
+uv run mininet-ai validate examples/iperf-throughput/experiment.yaml
+uv run mininet-ai plan examples/iperf-throughput/experiment.yaml
+uv run mininet-ai run examples/iperf-throughput/experiment.yaml --dry-run
 ```
 
-Phase 1 does not require Mininet, root privileges, or a model provider.
+Validation, planning, and dry runs need neither root access nor a running Mininet
+network or model service. Use `plan --format json` for machine-readable output.
 
-## Usage
+The maintained [iperf throughput example](examples/iperf-throughput/README.md)
+uses two Ollama-backed host agents to start an iperf server and client across an
+OVS switch. See its guide for model setup, traffic inspection, and limitations.
 
-Validate the acceptance experiment:
+## Running a live experiment
 
-```bash
-uv run mininet-ai validate examples/phase1/experiment.yaml
-```
-
-Inspect its deployment plan as a table or JSON:
-
-```bash
-uv run mininet-ai plan examples/phase1/experiment.yaml
-uv run mininet-ai plan examples/phase1/experiment.yaml --format json
-```
-
-Print one of the public JSON Schemas:
-
-```bash
-uv run mininet-ai schema experiment
-uv run mininet-ai schema agent-blueprint
-uv run mininet-ai schema capability
-uv run mininet-ai schema deployment-plan
-uv run mininet-ai schema runtime-event
-uv run mininet-ai schema coordination-message
-uv run mininet-ai schema coordination-outcome
-```
-
-Schemas are emitted as JSON Schema Draft 2020-12 documents. The deployment-plan
-schema has the stable versioned identifier
-`urn:mininet-ai:schema:v1alpha2:deployment-plan` and can be saved for external
-validation or tooling:
-
-```bash
-uv run mininet-ai schema deployment-plan > deployment-plan.schema.json
-```
-
-The `v1alpha2` identifier denotes a specific machine-readable contract, even
-while the project is in alpha. Compatible additions may retain it; changes that
-invalidate existing documents or alter their compiled representation require a
-new contract version. See [Compatibility and versioning](docs/compatibility.md)
-for the complete rules and review checklist.
-
-The example compiles one reusable blueprint into a singleton global agent, one controller-domain agent, two switch-local agents, and two host agents.
-
-Phase 3 has a separate rootless acceptance example containing user-authored
-telemetry and action plugins, a deterministic declarative agent, and an
-out-of-scope action check:
-
-```bash
-uv run mininet-ai validate examples/phase3/experiment.yaml
-uv run python -m examples.phase3
-uv run pytest -q tests/acceptance/test_phase3.py
-```
-
-Run the rootless Phase 4 autonomous experiment:
-
-```bash
-uv run python -m examples.phase4
-uv run pytest -q tests/acceptance/test_phase4.py
-```
-
-It detects synthetic queue congestion, triggers an Agno agent without a manual
-prompt, authorizes and applies its proposed flow, verifies the live effect, and
-prints the final runtime and teardown report. See
-[`examples/phase4/README.md`](examples/phase4/README.md) for database options.
-
-Run the rootless Phase 5 coordination experiment:
-
-```bash
-uv run mininet-ai validate examples/phase5/experiment.yaml
-uv run python -m examples.phase5
-uv run pytest -q tests/acceptance/test_phase5.py
-```
-
-The example routes a leaf-targeted intent through a centralized coordinator,
-records two explicit delegations, and arbitrates two valid proposals for the
-same switch effect. The first action commits and the second receives a typed
-conflict rejection. The JSON report retains the correlated messages,
-invocations, conflict keys, winner, and action results under the versioned
-coordination outcome. See
-[`examples/phase5/README.md`](examples/phase5/README.md) for the expected trace
-and the native Agno adapter decision.
-
-See [the Phase 3 example](examples/phase3/README.md) for its extension layout.
-
-## Specification overview
-
-An experiment declares its topology, reusable agent blueprints, capabilities, and concrete placements:
-
-```yaml
-apiVersion: mininet-ai/v1alpha2
-kind: Experiment
-metadata:
-  name: distributed-routing
-
-substrate:
-  driver: fake
-  topology:
-    addressing:
-      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
-      mac: {prefix: "02:00:00", strategy: sequential}
-    resources:
-      - {name: network, kind: network}
-      - name: c0
-        kind: controller
-        parent: network
-        type: builtin
-        port: 6653
-      - name: s1
-        kind: switch
-        parent: network
-        labels: {role: edge}
-        failMode: secure
-        controllers: [c0]
-        protocols: [OpenFlow13]
-        ports:
-          - {name: s1-eth1, number: 1}
-      - name: h1
-        kind: host
-        parent: network
-        interfaces:
-          - {name: h1-eth0, ipv4: auto, mac: auto}
-    links:
-      - name: h1-s1
-        endpoints:
-          - {node: h1, adapter: h1-eth0}
-          - {node: s1, adapter: s1-eth1}
-        bandwidth: 100
-        delay: 2ms
-        loss: 0
-
-blueprints:
-  - ./agent-blueprints/local-router.yaml
-
-agents:
-  - name: switch-router
-    blueprint: local-router
-    placement:
-      layer: data
-      targets:
-        kind: switch
-        matchLabels: {role: edge}
-      cardinality: per-target
-      runtime: device-sidecar
-    observe: [ovs.port-counters, topology.neighbors]
-
-coordination:
-  mode: independent
-```
-
-IP addresses and MAC addresses are assigned to host interfaces. Links connect
-concrete host interfaces and switch ports, and their bandwidth is expressed in
-Mbps. An endpoint may omit `adapter`; the compiler will then allocate a stable
-interface or port name and number before producing the deployment plan.
-
-See [the complete Phase 1 example](examples/phase1/experiment.yaml) for external blueprints, typed capabilities, links, multiple layers, and safety policies.
-
-Phase 4 continuous-runtime declarations are also part of the compiled contract.
-An agent deployment can select manual, interval, and normalized event triggers,
-bind aggregation and detector policies to its declared observations, and set
-bounded queue, concurrency, overflow, and restart behavior:
-
-```yaml
-agents:
-  - name: switch-router
-    # placement, observe, and capabilities omitted
-    triggers:
-      - {type: manual, name: operator}
-      - {type: interval, name: periodic-health, every: 5s}
-      - type: event
-        name: queue-alert
-        event: queue.threshold-exceeded
-        cooldown: 10s
-    observationPolicies:
-      - observation: tc.queue-occupancy
-        every: 1s
-        window: 10s
-        aggregation: mean
-        detectors:
-          - type: threshold
-            name: queue-high
-            event: queue.threshold-exceeded
-            path: queue.depth
-            operator: gte
-            value: 80
-    execution:
-      queueCapacity: 16
-      maxConcurrency: 1
-      overflow: coalesce
-      restart: {policy: on-failure, maxAttempts: 3, backoff: 2s}
-```
-
-Blueprint memory is typed as local structured state, bounded conversation
-history, opt-in learned memory, and optional shared deployment/run scopes:
-
-```yaml
-memory:
-  local: {maxEntries: 200}
-  conversation: {maxMessages: 20, summaries: true}
-  learned: {scope: run, mode: automatic}
-  shared: {scopes: [deployment], maxEntries: 50}
-```
-
-Agno now persists local session state, conversation history, summaries, and
-learned memory in SQLite. A stable Agno session ID combines the experiment run
-and agent instance. Learned memory is disabled when `learned` is absent;
-`scope: run` isolates it to that experiment run, while the explicit
-`scope: agent` option reuses it for the same compiled agent ID across runs.
-When local state is enabled, completed action and postcondition results are
-stored after execution under `mininetActionResults`, so the next invocation can
-reason from observed effects rather than only from its original proposal.
-Mininet AI implements `shared` deployment/run state separately because it
-participates in cross-agent coordination. Authorized values are included in
-the next `AgentContext` as `sharedState`. Agents return structured updates with
-their response, for example:
-
-```yaml
-sharedStateUpdates:
-  - scope: run
-    operation: set
-    key: preferred-path
-    value: west
-    expectedVersion: 0
-```
-
-Updates are applied atomically before network proposals. `expectedVersion: 0`
-means “create only”; later updates can use the observed version for
-compare-and-set conflict detection. Run state is visible to authorized agents
-across deployments, while deployment state is isolated by run and deployment.
-The strictest `maxEntries` declared by agents sharing a namespace is enforced.
-Capability definitions may declare typed postcondition observations and
-rollback timeouts.
-
-## Development
-
-Run the test suite:
-
-```bash
-uv run python -m unittest discover -v
-```
-
-Focused compiler suites under `tests/compiler` cover coordination expansion,
-reference validation, resource graph cycles, instance limits, observer safety,
-and external topology loading. The golden-plan test separately detects changes
-to the complete compiled contract.
-
-The code is organized by responsibility:
-
-```text
-mininet_ai/
-├── agents/          # Agent orchestration; migrating to the Agno runtime
-├── audit/           # Versioned runtime events, sinks, and decorators
-├── specification/   # Versioned user-facing models and YAML loading
-├── compiler/        # Specification to deterministic deployment plan
-├── capabilities/    # Proposal authorization, validation, and execution
-├── models/          # Deprecated transitional model adapters
-├── plugins/         # Capability plugins and transitional provider registries
-├── runtime/         # Continuous runtime events and bounded delivery
-├── substrates/      # Substrate contracts and the Phase 1 fake driver
-├── sdk/             # Mininet invocation, proposal, and capability contracts
-├── transports/      # Bounded I/O shared by external adapters
-└── cli.py            # compile-time and live-runtime commands
-```
-
-### Phase 2 development VM
-
-Phase 2 uses a disposable Ubuntu VM because Mininet and Open vSwitch require
-Linux networking privileges. Create or reprovision it from the host:
+Live Mininet/OVS execution needs Linux networking privileges. Use the disposable
+Vagrant VM:
 
 ```bash
 vagrant up --provision
-```
-
-Provisioning installs a pinned `uv`, Mininet, and Open vSwitch, then creates a
-VM-local environment at `/home/vagrant/.venvs/mininet-ai`. The environment is
-kept outside `/vagrant` so it never conflicts with the host's `.venv`, and it
-includes Ubuntu's system packages so Python can import Mininet. Run project
-commands inside the VM through the checked-in wrapper:
-
-```bash
 vagrant ssh
 cd /vagrant
-scripts/vm-run.sh python -m unittest discover -v
-scripts/vm-run.sh mininet-ai validate examples/phase1/experiment.yaml
 ```
 
-From the host, run the complete environment check with:
+Replace the Ollama endpoint below with one reachable from the VM, with the
+example's `qwen3.5:latest` model available:
 
 ```bash
-scripts/test-phase2-vm.sh
+sudo env OLLAMA_HOST=http://YOUR_OLLAMA_HOST:11434 \
+  scripts/vm-run.sh mininet-ai run \
+  examples/iperf-throughput/experiment.yaml \
+  --intent 'iperf-server@server=Start the iperf server on server.' \
+  --intent 'iperf-client@client=Run a TCP throughput test against 10.0.0.12.' \
+  --verbose
 ```
 
-The check runs the project suite inside the VM, verifies Mininet/OVS access,
-executes a `pingall` smoke test, and restores the clean networking baseline.
-It invokes `mn -c`, so use it only with the disposable Phase 2 VM.
+Pass startup intents as `AGENT=TEXT`, server first. Cross-terminal intent
+submission is not yet supported. Runs remain in the foreground until `Ctrl+C`
+or a stop request, then drain accepted work and tear down the network.
+`--stop-after-intents` instead stops after all submitted intents finish;
+for iperf, keep the run alive while observing traffic because process-start
+completion is not throughput-test completion.
 
-### Substrate contracts
-
-Every substrate implements the versioned
-`mininet-ai/substrate/v1alpha1` planning contract. A driver publishes a
-manifest containing its supported resource kinds, attachment layers, runtimes,
-and observations, and provides validators for options, compiled resources, and
-agent bindings. The compiler resolves drivers through the public substrate
-registry instead of importing a concrete implementation.
-
-The fake driver is the reference implementation. New drivers should use
-`ManifestSubstrateDriver` for the shared validation behavior, register a factory
-with `register_substrate_driver`, and run the reusable
-`tests.substrates.contract.SubstrateDriverContract` test mixin.
-
-Stateful execution uses the separate
-`mininet-ai/substrate-runtime/v1alpha2` lifecycle contract. Its five operations
-are `deploy`, `inspect`, `observe`, `execute`, and `teardown`; deployment must
-roll back on failure, and teardown must be idempotent and limited to resources
-owned by the run. Runtime adapters register independently with
-`register_substrate_runtime`. `FakeSubstrateRuntime` is the in-memory reference
-adapter, and `tests.substrates.runtime_contract.SubstrateRuntimeContract`
-provides reusable conformance tests. The Mininet/OVS implementation uses this
-same interface without introducing privileged work into compilation.
-
-`MininetOVSDriver` is the rootless, compiler-facing adapter for Phase 2. Select
-it with `substrate.driver: mininet-ovs`. It validates the planned OVS bridges,
-Linux interface names, OpenFlow port numbers, controller configuration, and
-traffic-control parameters. `MininetOVSRuntime` then creates the accepted plan
-with explicit controller assignments, OVS modes and protocols, interface
-addresses and MTUs, and TC link shaping. Deployment rolls back on failure and
-normal teardown is idempotent. It writes an atomic ownership record under
-`/run/mininet-ai`, holds an exclusive process-lifetime lock, and rejects a new
-deployment while a live or orphaned run exists. A fresh runtime can inspect an
-orphan and recover it by calling `teardown` with the recorded run ID; recovery
-targets only the processes, bridges, interfaces, and temporary files named by
-that deployment plan. A bounded stopped-run record makes repeated teardown and
-`stop` requests idempotent until the next deployment. See the
-[Phase 2 acceptance experiment](examples/phase2/experiment.yaml).
-
-The live runtime refreshes resource operational state during inspection and
-normalizes all observations advertised by the driver: topology resources and
-neighbors, controller events, OpenFlow flows, OVS port counters, traffic-control
-queue state, host interfaces and processes, and active host reachability.
-Observation targets are checked against the requested telemetry scope, and
-command or parser failures return typed runtime errors. The runtime also
-supports typed `link.enable`, `link.disable`, and `link.configure` mutations;
-`openflow.flow.install` and `openflow.flow.remove`; and managed
-`host.process.start` and `host.process.stop` operations. Action parameters and
-target kinds are validated before mutation, link-state changes roll back a
-partially updated endpoint, and processes started by a run are stopped during
-teardown. Every operation returns a normalized succeeded, rejected, or failed
-result and refreshes the live resource snapshot after success.
-
-### Runtime CLI
-
-Preview a deployment without requiring root or changing networking state:
+From another VM terminal:
 
 ```bash
-mininet-ai run examples/phase2/experiment.yaml --dry-run
-```
-
-Live Mininet/OVS runs are foreground-owned so the process holding Mininet's
-Python objects also owns cleanup. Start a run in one VM terminal and copy the
-reported run ID:
-
-```bash
-sudo scripts/vm-run.sh mininet-ai run examples/phase2/experiment.yaml --verbose
-```
-
-Run progress is appended to `.mininet-ai/run.log` even without `--verbose`.
-Use `--log-file PATH` to select another destination. The log records lifecycle,
-intent queueing, agent invocation, model request, and capability execution
-updates; `--verbose` mirrors the same updates to the terminal. Agent, model,
-capability, and shared-state failures are reported immediately with their error
-code and message, then request an orderly drain and substrate teardown. A run
-stopped this way exits nonzero after printing its final report.
-
-For finite command-driven experiments, pass `--stop-after-intents`. The owner
-correlates every initial `--intent` with its final continuous-runtime record,
-then drains work and tears down the substrate after all of them finish. Without
-this option, `run` remains continuous and waits for `SIGINT` or `SIGTERM`.
-
-Inspect or stop it from another VM terminal:
-
-```bash
+cd /vagrant
 sudo scripts/vm-run.sh mininet-ai status <run-id>
 sudo scripts/vm-run.sh mininet-ai topology <run-id>
 sudo scripts/vm-run.sh mininet-ai stop <run-id>
 ```
 
-Invoke one compiled agent from another terminal while its matching experiment
-is running:
+`status` and `topology` support `--format json`. Progress is written to
+`.mininet-ai/run.log`; `--verbose` also streams it to stderr. Run history, Agno
+sessions, and shared state are stored in private SQLite files under
+`.mininet-ai/`. Treat these artifacts as sensitive: they may contain prompts and
+observations. Keep model credentials outside experiment YAML.
+
+## Writing experiments
+
+Use the [YAML authoring reference](docs/yaml-authoring-reference.md) when
+generating experiments, topologies, agent blueprints, or capabilities. It covers
+field names, compatible placement, triggers, coordination, and validation.
+Always run both `validate` and `plan` before live execution.
+
+Export input schemas with:
 
 ```bash
-sudo scripts/vm-run.sh mininet-ai invoke experiment.yaml <run-id> \
-  switch-router@s1 --intent "Inspect forwarding and repair it safely"
+uv run mininet-ai schema experiment
+uv run mininet-ai schema agent-blueprint
+uv run mininet-ai schema capability
 ```
 
-The command refuses a plan whose digest differs from the deployed run. It
-prints a normalized `AgentInvocationResult` and appends scoped context, Agno
-run metadata and usage, proposals, and action results to
-`.mininet-ai/audit.jsonl` by default. Use
-`--format json` or `--audit-log PATH` when needed. Agno sessions and memory are
-stored in `.mininet-ai/agno.sqlite3`; use `--agno-db PATH` to select another
-private SQLite file. Shared operational state is stored separately in
-`.mininet-ai/shared-state.sqlite3`; use `--shared-state-db PATH` to select its
-location. Existing database files must have mode `0600`. Shared-state changes
-and conflicts are appended to the audit/ledger stream. Completed invocation
-audit records include the Agno version, stable session/user IDs, effective
-memory settings, and model metrics. Model providers use their
-standard Agno environment variables, such as `OPENAI_API_KEY`; custom endpoints
-and provider-specific options belong in a Python-authored Agno factory. Add
-`--discover-plugins` to explicitly load installed provider entry points during
-the transition. Capabilities implemented by the active substrate use provider
-`substrate.action` or
-`substrate.observation`.
+The CLI also exports deployment-plan, runtime-event, coordination-message, and
+coordination-outcome schemas. See
+[compatibility and versioning](docs/compatibility.md) for contract-change rules
+and [ADR 0001](docs/adr/0001-use-agno-as-v1-agent-runtime.md) for the Agno decision.
 
-`status` and `topology` accept `--format json`. `stop` signals only the owner
-whose PID, boot identity, and process start time match the protected run-state
-record; the foreground owner then performs normal teardown. `Ctrl+C` in the
-owner terminal follows the same path. If the owner has already crashed, `stop`
-uses the recorded ownership data to recover only that run's resources.
+## Development
 
-### Golden deployment plans
+```bash
+uv run pytest -q
+uv run ruff check .
+uv run pyright
+```
 
-The acceptance experiment has a canonical deployment plan under `tests/golden`.
-Tests compare the complete compiled plan—including resolved resources, agent
-instances, coordination, policies, normalized specification, and digest—against
-this fixture. The source path is made repository-relative so the result is
-stable across machines.
-
-When an intentional compiler or schema change affects the plan, regenerate it
-explicitly and review the resulting Git diff before committing:
+Shared YAML test inputs live in
+[`tests/fixtures/specifications/`](tests/fixtures/specifications/README.md).
+Golden plans detect changes to the compiled contract. After an intentional
+compiler or specification change, regenerate and review them:
 
 ```bash
 uv run python -m tests.update_golden_plans
 git diff -- tests/golden
 ```
 
-The classification and migration requirements for such changes are defined in
-[Compatibility and versioning](docs/compatibility.md).
+For privileged integration tests and the VM environment check, run from the host:
 
-### Mininet cleanup acceptance
+```bash
+scripts/test-vm.sh
+```
 
-Phase 2 development should run inside a disposable VM. Before starting an
-experiment, capture its clean networking state:
+The runner reports PASS, FAIL, or SKIP for each check, continues independent
+checks after failures, and exits nonzero if any check fails. It checks tests,
+lint, types, CLI output, networking prerequisites, live integration, and cleanup.
+It invokes `mn -c`; use it only with the disposable VM. For manual
+cleanup checks inside that VM:
 
 ```bash
 sudo scripts/check-mininet-cleanup.sh snapshot
-```
-
-After both a normal teardown and a deliberately interrupted experiment, verify
-that the machine returned to that baseline:
-
-```bash
+# Run and stop an experiment, then compare against the baseline:
 sudo scripts/check-mininet-cleanup.sh check
 ```
 
-The live integration suite deliberately crashes a runtime owner and verifies
-that a fresh runtime's `teardown(run_id)` restores the baseline. If targeted
-recovery itself fails and leaves resources behind, restore the disposable VM
-with the emergency cleanup path:
+`scripts/check-mininet-cleanup.sh recover` is an emergency fallback that may
+remove every Mininet/OVS topology on the machine, not just the current run.
 
-```bash
-sudo scripts/check-mininet-cleanup.sh recover
-```
+## Plans
 
-`recover` invokes `mn -c`, which may remove every Mininet/OVS topology on the
-machine; it is a test-environment fallback, not the runtime recovery mechanism.
-Use it only in the isolated Phase 2 VM. The comparison covers OVS
-bridges and ports, namespaces, veth and Mininet-style interfaces, Linux
-bridges, qdiscs, Mininet/controller processes, runtime registry files, and
-Mininet temporary files. Use `snapshot --force` only when intentionally
-accepting a new clean baseline.
+From [TODO.md](TODO.md):
 
-## Roadmap
+### v1alpha3
 
-### Phase 1: Specification and compiler
-
-Define versioned experiment, agent, placement, capability, coordination, policy, and topology schemas. Validate and compile them into deterministic deployment plans using a fake substrate.
-
-### Phase 2: Mininet and OVS substrate
-
-Add deterministic network creation and teardown, resource discovery, normalized telemetry, and core OVS, OpenFlow, traffic-control, link, and host-process actions behind a substrate interface.
-
-### Phase 3: User-defined agents and capabilities
-
-Establish scoped invocation, capability, structured-action, policy, and plugin contracts for user-authored agents. The generic agent and model provider implementations created in this phase are transitional and will be replaced by Agno during Phase 4.
-
-### Phase 4: Continuous runtime
-
-Adopt Agno as the v1 agent runtime, using its model integrations, sessions, local state, memory, summaries, and usage metrics. Add event-driven agent lifecycles, triggers, scoped observations, Mininet-owned shared operational state, supervision, failure recovery, authorized action execution, and a persistent experiment run ledger.
-
-### Phase 5: Coordination architectures
-
-Support centralized, hierarchical, and peer-to-peer agent graphs, translating the canonical Mininet coordination plan into Agno teams or workflows where appropriate. Add message channels, intent routing, and Mininet-owned conflict arbitration for concurrent network actions.
-
-The runtime now provides executable directed graphs, versioned bounded
-messages and outcomes, explicit intent/delegation routing, staged Agno
-invocation, capability admission, deterministic conflict arbitration, and
-bounded parallel commits for independent effects. Continuous experiment events
-use this canonical coordination path. Native Agno teams/workflows remain
-disabled where they cannot preserve the same safety semantics. The architecture,
-ownership seams, compatibility gates, and acceptance evidence are documented
-in [`docs/phase5-coordination.md`](docs/phase5-coordination.md).
-
-### Phase 6: Placement and isolation
-
-Turn logical placements into isolated processes, namespaces, containers, controller-side runtimes, host runtimes, and device-local sidecars with explicit privilege boundaries.
-
-### Phase 7: Programmable targets and research harness
-
-Add P4 and SmartNIC adapters, fault injection, workloads, replay, benchmark definitions, experiment comparisons, and reproducible evaluation reports.
+- [ ] Support submitting `--intent` from another terminal.
+- [ ] Allow the Ollama host to be specified in the configuration file.
+- [ ] Support noncanonical names in Mininet networks, if possible.
+- [ ] Add better, more practical examples.

@@ -2,7 +2,7 @@ apiVersion: mininet-ai/v1alpha2
 kind: Experiment
 metadata:
   name: mininet-ovs-smoke
-  description: Deterministic Phase 2 live-topology acceptance experiment.
+  description: Deterministic live Mininet/OVS topology fixture.
 
 substrate:
   driver: mininet-ovs

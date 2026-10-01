@@ -23,16 +23,15 @@ from mininet_ai.runtime import (
     RuntimeEventType,
     SQLiteRunLedger,
 )
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
-ROOT = Path(__file__).parents[2]
-EXPERIMENT = ROOT / "examples" / "phase1" / "experiment.yaml"
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 
 def run_manifest() -> RunManifest:
     return RunManifest.from_plan(
         "run-1",
-        compile_experiment(EXPERIMENT),
+        compile_experiment(COMPILER_MULTILAYER_SPECIFICATION),
         created_at=NOW,
         plugins=(
             PluginManifest(

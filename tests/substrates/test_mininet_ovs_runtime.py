@@ -33,7 +33,7 @@ from mininet_ai.substrates.mininet_ovs.state import (
     RunStateStore,
     StateStoreError,
 )
-from tests.compiler.helpers import example_snapshot, experiment_from
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
 
 
@@ -267,7 +267,7 @@ def bindings(network_class: type = RecordingNetwork) -> _MininetBindings:
 
 
 def mininet_plan():
-    snapshot = example_snapshot()
+    snapshot = compiler_multilayer_snapshot()
     snapshot["substrate"]["driver"] = "mininet-ovs"
     return compile_experiment(experiment_from(snapshot))
 
@@ -401,7 +401,7 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertTrue(RecordingNetwork.instances[-1].stopped)
 
     def test_default_routes_are_executed_as_validated_argument_lists(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         resources = snapshot["substrate"]["topology"]["resources"]
         next(resource for resource in resources if resource["name"] == "h1")[

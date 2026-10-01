@@ -6,11 +6,11 @@ from mininet_ai.compiler import compile_experiment
 from mininet_ai.compiler.models import CoordinationEdge, CoordinationPlan
 from mininet_ai.coordination import CoordinationGraph, CoordinationGraphError
 from mininet_ai.specification.models import CoordinationMode
-from tests.compiler.helpers import example_snapshot, experiment_from
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
 
 
 def graph_for(configuration: dict[str, object]) -> CoordinationGraph:
-    snapshot = example_snapshot()
+    snapshot = compiler_multilayer_snapshot()
     snapshot["coordination"] = configuration
     return CoordinationGraph(compile_experiment(experiment_from(snapshot)))
 
@@ -54,7 +54,7 @@ class CoordinationGraphTests(unittest.TestCase):
         self.assertEqual(edge.relationship, "coordinates")
 
     def test_singleton_centralized_graph_needs_no_synthetic_edge(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["agents"] = [snapshot["agents"][0]]
         snapshot["coordination"] = {
             "mode": "centralized",
@@ -120,7 +120,7 @@ class CoordinationGraphTests(unittest.TestCase):
         self.assertEqual(raised.exception.target, "missing-agent")
 
     def test_edge_with_unknown_agent_makes_plan_unexecutable(self) -> None:
-        plan = compile_experiment(experiment_from(example_snapshot()))
+        plan = compile_experiment(experiment_from(compiler_multilayer_snapshot()))
         invalid = plan.model_copy(
             update={
                 "coordination": CoordinationPlan(
@@ -143,7 +143,7 @@ class CoordinationGraphTests(unittest.TestCase):
         self.assertIn("unknown target", str(raised.exception))
 
     def test_relationship_that_does_not_match_mode_is_rejected(self) -> None:
-        plan = compile_experiment(experiment_from(example_snapshot()))
+        plan = compile_experiment(experiment_from(compiler_multilayer_snapshot()))
         invalid = plan.model_copy(
             update={
                 "coordination": CoordinationPlan(
@@ -166,7 +166,7 @@ class CoordinationGraphTests(unittest.TestCase):
             CoordinationGraph(invalid)
 
     def test_hierarchical_cycle_makes_plan_unexecutable(self) -> None:
-        plan = compile_experiment(experiment_from(example_snapshot()))
+        plan = compile_experiment(experiment_from(compiler_multilayer_snapshot()))
         invalid = plan.model_copy(
             update={
                 "coordination": CoordinationPlan(
@@ -191,7 +191,7 @@ class CoordinationGraphTests(unittest.TestCase):
             CoordinationGraph(invalid)
 
     def test_asymmetric_peer_graph_makes_plan_unexecutable(self) -> None:
-        plan = compile_experiment(experiment_from(example_snapshot()))
+        plan = compile_experiment(experiment_from(compiler_multilayer_snapshot()))
         invalid = plan.model_copy(
             update={
                 "coordination": CoordinationPlan(
@@ -211,7 +211,7 @@ class CoordinationGraphTests(unittest.TestCase):
             CoordinationGraph(invalid)
 
     def test_incomplete_centralized_graph_makes_plan_unexecutable(self) -> None:
-        plan = compile_experiment(experiment_from(example_snapshot()))
+        plan = compile_experiment(experiment_from(compiler_multilayer_snapshot()))
         invalid = plan.model_copy(
             update={
                 "coordination": CoordinationPlan(

@@ -2,7 +2,7 @@ apiVersion: mininet-ai/v1alpha2
 kind: Experiment
 metadata:
   name: multi-layer-placement
-  description: Phase 1 acceptance experiment using one blueprint at four layers.
+  description: Compiler fixture using one blueprint at four attachment layers.
 
 substrate:
   driver: fake

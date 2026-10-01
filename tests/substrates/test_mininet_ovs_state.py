@@ -18,7 +18,7 @@ from mininet_ai.substrates.mininet_ovs.state import (
     StateLockHeld,
     StateStoreError,
 )
-from tests.compiler.helpers import example_snapshot, experiment_from
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
 
 
 class RunStateStoreTests(unittest.TestCase):
@@ -29,7 +29,7 @@ class RunStateStoreTests(unittest.TestCase):
         self.store = RunStateStore(root / "state", root / "runtime.lock")
 
     def record(self) -> PersistedRun:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         plan = compile_experiment(experiment_from(snapshot))
         return PersistedRun(

@@ -10,14 +10,12 @@ from pydantic import ValidationError
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import CompilationError
 from mininet_ai.specification.models import Experiment, ResourceKind
-
-ROOT = Path(__file__).parents[1]
-EXAMPLE = ROOT / "examples" / "phase1" / "experiment.yaml"
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 
 class CompilerTests(unittest.TestCase):
-    def test_acceptance_example_compiles_same_blueprint_at_four_layers(self) -> None:
-        plan = compile_experiment(EXAMPLE)
+    def test_fixture_compiles_same_blueprint_at_four_layers(self) -> None:
+        plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
 
         self.assertEqual(len(plan.agents), 6)
         self.assertEqual({agent.blueprint for agent in plan.agents}, {"local-router"})
@@ -31,14 +29,14 @@ class CompilerTests(unittest.TestCase):
         )
 
     def test_compilation_is_deterministic(self) -> None:
-        first = compile_experiment(EXAMPLE)
-        second = compile_experiment(EXAMPLE)
+        first = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
+        second = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
 
         self.assertEqual(first.digest, second.digest)
         self.assertEqual(first.model_dump(), second.model_dump())
 
     def test_topology_compiles_to_mininet_ready_resources(self) -> None:
-        plan = compile_experiment(EXAMPLE)
+        plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
         resources: dict[str, Any] = {
             resource.name: resource for resource in plan.resources
         }
@@ -65,7 +63,7 @@ class CompilerTests(unittest.TestCase):
         self.assertEqual(link.loss, 0.1)
 
     def test_omitted_adapters_are_created_deterministically(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         topology = snapshot["substrate"]["topology"]
         for resource in topology["resources"]:
             if resource["kind"] == "host":
@@ -87,7 +85,7 @@ class CompilerTests(unittest.TestCase):
         self.assertEqual(resources["h2-eth0"].ipv4, "10.0.0.2/24")
 
     def test_explicit_addresses_are_preserved_and_auto_allocation_skips_them(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         resources = snapshot["substrate"]["topology"]["resources"]
         h1 = next(resource for resource in resources if resource["name"] == "h1")
         h1["interfaces"][0]["ipv4"] = "10.0.0.10/24"
@@ -104,7 +102,7 @@ class CompilerTests(unittest.TestCase):
         self.assertEqual(planned["h2-eth0"].mac, "02:00:00:00:00:01")
 
     def test_unknown_controller_is_rejected(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         resources = snapshot["substrate"]["topology"]["resources"]
         switch = next(resource for resource in resources if resource["name"] == "s1")
         switch["controllers"] = ["missing-controller"]
@@ -113,7 +111,7 @@ class CompilerTests(unittest.TestCase):
             compile_experiment(Experiment.model_validate(snapshot))
 
     def test_unknown_substrate_driver_is_rejected_by_registry(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         snapshot["substrate"]["driver"] = "missing-driver"
 
         with self.assertRaisesRegex(
@@ -122,7 +120,7 @@ class CompilerTests(unittest.TestCase):
             compile_experiment(Experiment.model_validate(snapshot))
 
     def test_invalid_substrate_options_are_rejected_before_compilation(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         snapshot["substrate"]["options"] = {"unknown-option": True}
 
         with self.assertRaisesRegex(
@@ -131,7 +129,7 @@ class CompilerTests(unittest.TestCase):
             compile_experiment(Experiment.model_validate(snapshot))
 
     def test_adapter_cannot_be_reused_by_multiple_links(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         links = snapshot["substrate"]["topology"]["links"]
         links[1]["endpoints"][0]["adapter"] = "s1-eth1"
 
@@ -139,7 +137,7 @@ class CompilerTests(unittest.TestCase):
             compile_experiment(Experiment.model_validate(snapshot))
 
     def test_explicit_address_must_belong_to_allocation_subnet(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         resources = snapshot["substrate"]["topology"]["resources"]
         host = next(resource for resource in resources if resource["name"] == "h1")
         host["interfaces"][0]["ipv4"] = "192.168.1.10/24"
@@ -148,7 +146,7 @@ class CompilerTests(unittest.TestCase):
             compile_experiment(Experiment.model_validate(snapshot))
 
     def test_duplicate_ip_and_mac_allocations_are_rejected(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         hosts = [
             resource
             for resource in snapshot["substrate"]["topology"]["resources"]
@@ -166,7 +164,7 @@ class CompilerTests(unittest.TestCase):
             compile_experiment(Experiment.model_validate(snapshot))
 
     def test_remote_controller_and_link_constraints_are_schema_validated(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         resources = snapshot["substrate"]["topology"]["resources"]
         controller = next(
             resource for resource in resources if resource["kind"] == "controller"
@@ -183,7 +181,7 @@ class CompilerTests(unittest.TestCase):
             Experiment.model_validate(snapshot)
 
     def test_topology_neighbor_coordination_uses_port_owners(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         snapshot["coordination"] = {
             "mode": "distributed",
             "peers": "topology-neighbors",
@@ -198,7 +196,7 @@ class CompilerTests(unittest.TestCase):
         self.assertIn(("switch-router@s2", "host-router@h2"), edges)
 
     def test_python_specification_api_compiles_normalized_snapshot(self) -> None:
-        yaml_plan = compile_experiment(EXAMPLE)
+        yaml_plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
         specification = Experiment.model_validate(yaml_plan.snapshot)
 
         python_plan = compile_experiment(specification)
@@ -207,7 +205,7 @@ class CompilerTests(unittest.TestCase):
         self.assertEqual(python_plan.agents, yaml_plan.agents)
 
     def test_capability_effects_become_least_privilege_set(self) -> None:
-        plan = compile_experiment(EXAMPLE)
+        plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
         switches = [
             agent for agent in plan.agents if agent.deployment == "switch-router"
         ]
@@ -216,7 +214,7 @@ class CompilerTests(unittest.TestCase):
         self.assertTrue(all(agent.privileges == ("dataplane.write",) for agent in switches))
 
     def test_per_group_cardinality_collects_targets_by_label(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         resources = snapshot["substrate"]["topology"]["resources"]
         next(item for item in resources if item["name"] == "s2")["labels"][
             "region"
@@ -236,7 +234,7 @@ class CompilerTests(unittest.TestCase):
         self.assertEqual(grouped.attachment.targets, ("s1", "s2"))
 
     def test_centralized_coordination_expands_to_instance_edges(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         snapshot["coordination"] = {
             "mode": "centralized",
             "coordinator": "global-router",
@@ -250,7 +248,7 @@ class CompilerTests(unittest.TestCase):
         )
 
     def test_registered_custom_layer_compiles(self) -> None:
-        snapshot = compile_experiment(EXAMPLE).snapshot
+        snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         snapshot["substrate"]["options"] = {
             "custom-layers": [
                 {
@@ -282,16 +280,26 @@ class CompilerTests(unittest.TestCase):
         )
 
     def test_invalid_layer_target_is_rejected(self) -> None:
-        source = EXAMPLE.read_text().replace("layer: data", "layer: host", 1)
+        source = COMPILER_MULTILAYER_SPECIFICATION.read_text().replace(
+            "layer: data", "layer: host", 1
+        )
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "experiment.yaml"
             # Make referenced paths absolute because this temporary experiment moved.
             source = source.replace(
                 "./agent-blueprints/local-router.yaml",
-                str(EXAMPLE.parent / "agent-blueprints" / "local-router.yaml"),
+                str(
+                    COMPILER_MULTILAYER_SPECIFICATION.parent
+                    / "agent-blueprints"
+                    / "local-router.yaml"
+                ),
             ).replace(
                 "./capabilities/openflow-flow-install.yaml",
-                str(EXAMPLE.parent / "capabilities" / "openflow-flow-install.yaml"),
+                str(
+                    COMPILER_MULTILAYER_SPECIFICATION.parent
+                    / "capabilities"
+                    / "openflow-flow-install.yaml"
+                ),
             )
             path.write_text(source)
 
@@ -299,7 +307,7 @@ class CompilerTests(unittest.TestCase):
                 compile_experiment(path)
 
     def test_unknown_capability_is_rejected(self) -> None:
-        source = EXAMPLE.read_text().replace(
+        source = COMPILER_MULTILAYER_SPECIFICATION.read_text().replace(
             "capabilities: [openflow.flow.install]",
             "capabilities: [missing.capability]",
         )
@@ -307,10 +315,18 @@ class CompilerTests(unittest.TestCase):
             path = Path(directory) / "experiment.yaml"
             source = source.replace(
                 "./agent-blueprints/local-router.yaml",
-                str(EXAMPLE.parent / "agent-blueprints" / "local-router.yaml"),
+                str(
+                    COMPILER_MULTILAYER_SPECIFICATION.parent
+                    / "agent-blueprints"
+                    / "local-router.yaml"
+                ),
             ).replace(
                 "./capabilities/openflow-flow-install.yaml",
-                str(EXAMPLE.parent / "capabilities" / "openflow-flow-install.yaml"),
+                str(
+                    COMPILER_MULTILAYER_SPECIFICATION.parent
+                    / "capabilities"
+                    / "openflow-flow-install.yaml"
+                ),
             )
             path.write_text(source)
 

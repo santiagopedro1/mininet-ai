@@ -4,19 +4,19 @@ import unittest
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import CompilationError
-from tests.compiler.helpers import example_snapshot, experiment_from, named
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from, named
 
 
 class CompilerReferenceTests(unittest.TestCase):
     def test_unknown_blueprint_is_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["agents"][0]["blueprint"] = "missing-blueprint"
 
         with self.assertRaisesRegex(CompilationError, "unknown blueprint"):
             compile_experiment(experiment_from(snapshot))
 
     def test_explicit_selector_name_must_exist_at_selected_kind(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         global_agent = named(snapshot["agents"], "global-router")
         global_agent["placement"]["targets"]["names"] = ["s1"]
 
@@ -26,7 +26,7 @@ class CompilerReferenceTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_unknown_resource_parent_is_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         resources = snapshot["substrate"]["topology"]["resources"]
         named(resources, "h1")["parent"] = "missing-parent"
 
@@ -34,7 +34,7 @@ class CompilerReferenceTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_unknown_link_endpoint_node_is_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         endpoint = snapshot["substrate"]["topology"]["links"][0]["endpoints"][0]
         endpoint["node"] = "missing-node"
 
@@ -42,7 +42,7 @@ class CompilerReferenceTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_unknown_link_adapter_is_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         endpoint = snapshot["substrate"]["topology"]["links"][0]["endpoints"][0]
         endpoint["adapter"] = "missing-adapter"
 
@@ -50,7 +50,7 @@ class CompilerReferenceTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_link_adapter_must_belong_to_endpoint_node(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         endpoint = snapshot["substrate"]["topology"]["links"][0]["endpoints"][0]
         endpoint["adapter"] = "h2-eth0"
 
@@ -60,7 +60,7 @@ class CompilerReferenceTests(unittest.TestCase):
 
 class ResourceGraphValidationTests(unittest.TestCase):
     def test_self_parent_cycle_is_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         resources = snapshot["substrate"]["topology"]["resources"]
         named(resources, "h1")["parent"] = "h1"
 
@@ -68,7 +68,7 @@ class ResourceGraphValidationTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_multi_resource_parent_cycle_is_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         resources = snapshot["substrate"]["topology"]["resources"]
         named(resources, "network")["parent"] = "h1"
         named(resources, "h1")["parent"] = "network"
@@ -79,7 +79,7 @@ class ResourceGraphValidationTests(unittest.TestCase):
 
 class ResourceLimitTests(unittest.TestCase):
     def test_expanded_instance_count_cannot_exceed_limit(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["resourceLimits"]["max-instances"] = 5
 
         with self.assertRaisesRegex(
@@ -88,7 +88,7 @@ class ResourceLimitTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_expanded_instance_count_may_equal_limit(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         snapshot["resourceLimits"]["max-instances"] = 6
 
         plan = compile_experiment(experiment_from(snapshot))
@@ -98,7 +98,7 @@ class ResourceLimitTests(unittest.TestCase):
 
 class ObserverValidationTests(unittest.TestCase):
     def test_read_only_observer_compiles(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         observer = named(snapshot["agents"], "host-router")
         observer["placement"]["layer"] = "observer"
         observer["placement"]["runtime"] = "process"
@@ -112,7 +112,7 @@ class ObserverValidationTests(unittest.TestCase):
         self.assertTrue(all(not instance.capabilities for instance in instances))
 
     def test_observer_with_capability_is_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         observer = named(snapshot["agents"], "switch-router")
         observer["placement"]["layer"] = "observer"
         observer["placement"]["runtime"] = "process"
@@ -123,7 +123,7 @@ class ObserverValidationTests(unittest.TestCase):
             compile_experiment(experiment_from(snapshot))
 
     def test_unavailable_observation_is_rejected(self) -> None:
-        snapshot = example_snapshot()
+        snapshot = compiler_multilayer_snapshot()
         global_agent = named(snapshot["agents"], "global-router")
         global_agent["observe"] = ["host.interfaces"]
 

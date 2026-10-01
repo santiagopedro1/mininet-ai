@@ -24,14 +24,14 @@ from mininet_ai.sdk import (
     InvocationStatus,
 )
 from mininet_ai.substrates import ActionResult, ActionStatus, RuntimeIssue
-from tests.compiler.helpers import example_snapshot, experiment_from
+from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 ResponseFactory = Callable[[str, AgentCoordinationContext], AgentResponse]
 
 
 def plan_for(configuration: dict[str, object]):
-    snapshot = example_snapshot()
+    snapshot = compiler_multilayer_snapshot()
     snapshot["coordination"] = configuration
     return compile_experiment(experiment_from(snapshot))
 

@@ -14,13 +14,13 @@ from mininet_ai.runtime import InMemorySharedStateStore
 from mininet_ai.sdk import AgentCoordinationContext, InvocationStatus
 from mininet_ai.specification.models import Experiment
 from mininet_ai.substrates import ActionStatus, FakeSubstrateRuntime
-from tests.compiler.helpers import EXAMPLE
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def configured_plan(response, *, implementation=None):
-    plan = compile_experiment(EXAMPLE)
+    plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
     snapshot = copy.deepcopy(plan.snapshot)
     blueprint = snapshot["blueprints"][0]
     if implementation is None:
@@ -36,7 +36,7 @@ def configured_plan(response, *, implementation=None):
 
 
 def configured_shared_plan(response):
-    plan = compile_experiment(EXAMPLE)
+    plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
     snapshot = copy.deepcopy(plan.snapshot)
     blueprint = snapshot["blueprints"][0]
     blueprint["model"] = {

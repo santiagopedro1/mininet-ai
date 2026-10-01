@@ -6,13 +6,14 @@ import json
 from pathlib import Path
 
 from mininet_ai.compiler import compile_experiment
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 ROOT = Path(__file__).parents[1]
 GOLDEN_DIRECTORY = ROOT / "tests" / "golden"
 GOLDEN_CASES = {
-    "phase1": (
-        ROOT / "examples" / "phase1" / "experiment.yaml",
-        GOLDEN_DIRECTORY / "phase1-deployment-plan.json",
+    "compiler-multilayer": (
+        COMPILER_MULTILAYER_SPECIFICATION,
+        GOLDEN_DIRECTORY / "compiler-multilayer-deployment-plan.json",
     )
 }
 

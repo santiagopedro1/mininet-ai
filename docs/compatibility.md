@@ -215,7 +215,8 @@ as an implementation diff:
    substrate version only when that independent contract changes.
 3. Add focused tests for schema validation, references, normalization, and
    compilation behavior affected by the change.
-4. Run the full test suite and compile the Phase 1 example through the CLI.
+4. Run the full test suite and compile the maintained iperf example through the
+   CLI.
 5. If the deployment plan changes intentionally, regenerate the golden fixture
    and review the complete diff, including resources, agents, coordination,
    normalized snapshot, and digest:

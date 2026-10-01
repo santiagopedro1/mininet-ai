@@ -14,10 +14,8 @@ from mininet_ai.substrates import (
     create_substrate_runtime,
     runtime_registry,
 )
-from tests.golden_plans import GOLDEN_CASES
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
-
-EXAMPLE = GOLDEN_CASES["phase1"][0]
 
 
 class IncrementingClock:
@@ -38,12 +36,12 @@ class FakeRuntimeContractTests(SubstrateRuntimeContract, unittest.TestCase):
         )
 
     def make_plan(self):
-        return compile_experiment(EXAMPLE)
+        return compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
 
 
 class FakeRuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.plan = compile_experiment(EXAMPLE)
+        self.plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
         self.runtime = FakeSubstrateRuntime(
             clock=IncrementingClock(),
             run_id_factory=lambda: "test-run",

@@ -29,7 +29,8 @@ Expect 2 instances: `iperf-server@server`, `iperf-client@client`.
 
 ## Run (Vagrant VM only)
 
-Pass `OLLAMA_HOST` through `sudo` as in the Phase 5 Ollama variant.
+Pass `OLLAMA_HOST` through `sudo` so the privileged runtime inherits the model
+endpoint.
 Terminal 1 — intents run at startup, then it idles for inspection (no
 `--stop-after-intents`):
 
@@ -48,7 +49,7 @@ sudo env OLLAMA_HOST=http://10.10.10.152:11434 \
 Each `--intent` is `AGENT=TEXT` and order matters: server first. Give each
 LLM call up to 120s (`reasoning.timeout`).
 
-Terminal 2 — while terminal 1 is up, watch the traffic cross `edge-sw`:
+Terminal 2 — while terminal 1 is up, watch the traffic cross `s1`:
 
 ```bash
 vagrant ssh
@@ -70,5 +71,4 @@ Edit the client blueprint arguments to
 
 - Managed-process output goes to `DEVNULL`, so the Mbit/s number is not in
   the report — the report proves `SUCCEEDED` starts; counters prove traffic.
-- Cross-process `invoke` is unsupported (same limitation as hello-agent);
-  all intents must be passed at startup.
+- Cross-process `invoke` is unsupported; all intents must be passed at startup.

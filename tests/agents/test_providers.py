@@ -16,7 +16,7 @@ from mininet_ai.sdk import (
     ModelResponse,
 )
 from mininet_ai.specification.models import Implementation
-from tests.compiler.helpers import EXAMPLE
+from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -36,7 +36,7 @@ class RecordingModel:
 class AgentProviderTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        plan = compile_experiment(EXAMPLE)
+        plan = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION)
         cls.definition = ExecutionCatalog(plan).resolve("switch-router@s1")
         attachment = cls.definition.instance.attachment
         cls.context = AgentContext(
