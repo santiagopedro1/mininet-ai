@@ -1,0 +1,29 @@
+apiVersion: mininet-ai/v1alpha3
+kind: Capability
+metadata:
+  name: openflow.flow.install
+  description: Install an OpenFlow entry to reroute traffic during congestion.
+targets: [switch]
+layers: [control, data]
+effects: [dataplane.write]
+input-schema:
+  type: object
+  required: [match, actions]
+  properties:
+    match: {type: object}
+    actions:
+      type: array
+      items: {type: string}
+  additionalProperties: false
+output-schema:
+  type: object
+reversible: true
+rollback: {timeout: 30s}
+postconditions:
+  - observation: openflow.flows
+    path: flows.0.state
+    operator: eq
+    expected: installed
+    timeout: 5s
+    interval: 250ms
+provider: fake.openflow

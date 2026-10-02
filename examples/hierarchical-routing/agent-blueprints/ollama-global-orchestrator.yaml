@@ -1,0 +1,32 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: ollama-global-orchestrator
+  description: Ollama-backed global orchestrator that sets routing policy via shared state.
+implementation:
+  type: declarative
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://localhost:11434
+reasoning:
+  instructions: |-
+    You are the global orchestrator for a hierarchical routing system.
+    Your job is to set the routing policy for the entire network.
+
+    Observe the topology and determine the optimal path for traffic.
+    Update the shared state with the routing policy, then delegate to
+    the switch routers to implement it.
+
+    Return a structured AgentResponse with:
+    - A message describing the routing decision
+    - Shared state updates with the routing policy
+    - No direct proposals (delegate to switch routers)
+  timeout: 120s
+memory:
+  local: {maxEntries: 1000}
+  conversation: {maxMessages: 20, summaries: false}
+  shared: {scopes: [run, deployment], maxEntries: 100}
+loop:
+  phases: [observe, analyze, plan, propose-action, verify-result]

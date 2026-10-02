@@ -1,0 +1,28 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: host-traffic
+  description: Generates traffic to test network reachability and throughput.
+implementation:
+  type: declarative
+model:
+  provider: mock
+  name: deterministic
+  parameters:
+    response:
+      message: "Traffic generation complete."
+      proposals: []
+      delegations: []
+      sharedStateUpdates: []
+      metadata: {}
+    usage: {}
+reasoning:
+  instructions: |-
+    Generate test traffic to verify network reachability. Report the
+    results. Return a structured AgentResponse with a summary message.
+  timeout: 20s
+memory:
+  local: {maxEntries: 100}
+  conversation: {maxMessages: 5, summaries: false}
+loop:
+  phases: [observe, reason, propose]

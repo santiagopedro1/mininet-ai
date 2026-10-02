@@ -1,0 +1,31 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: ollama-switch-router
+  description: Ollama-backed switch router that installs flows based on global policy.
+implementation:
+  type: declarative
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://localhost:11434
+reasoning:
+  instructions: |-
+    You are a switch router in a hierarchical routing system.
+    Your job is to install OpenFlow entries based on the global policy.
+
+    Read the routing policy from shared state, then propose
+    openflow.flow.install capabilities to implement it on your switch.
+
+    Return a structured AgentResponse with:
+    - A message describing the flows you installed
+    - Proposals for openflow.flow.install
+    - No shared state updates (the orchestrator owns the policy)
+  timeout: 120s
+memory:
+  local: {maxEntries: 1000}
+  conversation: {maxMessages: 20, summaries: false}
+  shared: {scopes: [run], maxEntries: 100}
+loop:
+  phases: [observe, analyze, plan, propose-action, verify-result]

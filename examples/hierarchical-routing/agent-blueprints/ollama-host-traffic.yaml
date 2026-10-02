@@ -1,0 +1,43 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: ollama-host-traffic
+  description: Ollama-backed host agent that generates iperf traffic to test routing.
+implementation:
+  type: python
+  entrypoint: mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://localhost:11434
+reasoning:
+  instructions: |-
+    Run one TCP throughput test from this host against the server at
+    10.0.0.13. You can only propose the host.process.start capability
+    for your target. The managed process runs without a shell: command is
+    the binary and arguments is a JSON array of plain strings.
+
+    Return this exact structure, changing only the explanatory message if
+    desired:
+    {
+      "message": "Running a 20s TCP throughput test against 10.0.0.13.",
+      "proposals": [
+        {
+          "id": "run-iperf-client",
+          "capability": "host.process.start",
+          "target": "h1",
+          "arguments": {"command": "iperf", "arguments": ["-c", "10.0.0.13", "-t", "20", "-f", "m"]},
+          "reason": "Measure TCP throughput to the server.",
+          "timeoutSeconds": 30
+        }
+      ],
+      "delegations": [],
+      "sharedStateUpdates": [],
+      "metadata": {}
+    }
+  timeout: 120s
+memory:
+  conversation:
+    maxMessages: 10
+    summaries: false

@@ -1,0 +1,165 @@
+apiVersion: mininet-ai/v1alpha3
+kind: Experiment
+metadata:
+  name: autonomous-operation
+  description: Self-healing network — monitors queue occupancy, detects congestion, and reroutes traffic with rollback.
+
+substrate:
+  driver: fake
+  topology:
+    addressing:
+      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
+      mac: {prefix: "02:00:00", strategy: sequential}
+    resources:
+      - {name: network, kind: network}
+      - name: c0
+        kind: controller
+        parent: network
+        type: builtin
+        port: 6653
+      - name: s1
+        kind: switch
+        parent: network
+        failMode: secure
+        datapath: kernel
+        controllers: [c0]
+        protocols: [OpenFlow13]
+        labels: {role: edge, region: west}
+        ports:
+          - {name: s1-eth1, number: 1}
+          - {name: s1-eth2, number: 2}
+          - {name: s1-eth3, number: 3}
+      - name: s2
+        kind: switch
+        parent: network
+        failMode: secure
+        datapath: kernel
+        controllers: [c0]
+        protocols: [OpenFlow13]
+        labels: {role: edge, region: east}
+        ports:
+          - {name: s2-eth1, number: 1}
+          - {name: s2-eth2, number: 2}
+          - {name: s2-eth3, number: 3}
+      - name: h1
+        kind: host
+        parent: network
+        labels: {role: client}
+        interfaces:
+          - {name: h1-eth0, ipv4: auto, mac: auto}
+      - name: h2
+        kind: host
+        parent: network
+        labels: {role: client}
+        interfaces:
+          - {name: h2-eth0, ipv4: auto, mac: auto}
+      - name: h3
+        kind: host
+        parent: network
+        labels: {role: server}
+        interfaces:
+          - {name: h3-eth0, ipv4: auto, mac: auto}
+    links:
+      - name: h1-s1
+        endpoints:
+          - {node: h1, adapter: h1-eth0}
+          - {node: s1, adapter: s1-eth1}
+        bandwidth: 100
+        delay: 1ms
+      - name: h2-s1
+        endpoints:
+          - {node: h2, adapter: h2-eth0}
+          - {node: s1, adapter: s1-eth2}
+        bandwidth: 100
+        delay: 1ms
+      - name: s1-s2
+        endpoints:
+          - {node: s1, adapter: s1-eth3}
+          - {node: s2, adapter: s2-eth1}
+        bandwidth: 1000
+        delay: 2ms
+      - name: s2-h3
+        endpoints:
+          - {node: s2, adapter: s2-eth2}
+          - {node: h3, adapter: h3-eth0}
+        bandwidth: 100
+        delay: 1ms
+
+blueprints:
+  - ./agent-blueprints/switch-monitor.yaml
+  - ./agent-blueprints/host-traffic.yaml
+
+capabilityDefinitions:
+  - ./capabilities/openflow-flow-install.yaml
+
+agents:
+  - name: switch-monitor
+    blueprint: switch-monitor
+    placement:
+      layer: data
+      targets:
+        kind: switch
+        matchLabels: {role: edge}
+      cardinality: per-target
+      runtime: device-sidecar
+    observe: [openflow.flows, ovs.port-counters, tc.queue-occupancy, topology.neighbors]
+    capabilities: [openflow.flow.install]
+    triggers:
+      - {type: manual, name: operator}
+      - type: event
+        name: congestion
+        event: queue.threshold-exceeded
+        source: telemetry
+        subject: s1
+        cooldown: 10s
+    observationPolicies:
+      - observation: tc.queue-occupancy
+        every: 1s
+        window: 10s
+        aggregation: mean
+        detectors:
+          - type: threshold
+            name: queue-high
+            event: queue.threshold-exceeded
+            path: queue.depth
+            operator: gte
+            value: 80
+            cooldown: 10s
+    execution:
+      queueCapacity: 16
+      maxConcurrency: 1
+      overflow: reject
+      actionTimeout: 30s
+      restart:
+        policy: on-failure
+        maxAttempts: 3
+        backoff: 1s
+
+  - name: host-traffic
+    blueprint: host-traffic
+    placement:
+      layer: host
+      targets:
+        kind: host
+        matchLabels: {role: client}
+      cardinality: per-target
+      runtime: host-namespace
+    observe: [host.interfaces]
+    triggers:
+      - {type: manual, name: operator}
+    execution:
+      queueCapacity: 8
+      maxConcurrency: 1
+      overflow: reject
+
+coordination:
+  mode: independent
+
+policies:
+  conflicting-actions: reject
+  require-postcondition-check: true
+
+resourceLimits:
+  max-instances: 10
+  max-concurrent-invocations: 4
+  max-queued-events: 64

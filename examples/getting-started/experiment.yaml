@@ -1,0 +1,84 @@
+apiVersion: mininet-ai/v1alpha3
+kind: Experiment
+metadata:
+  name: getting-started
+  description: Minimal offline experiment — one agent observes the topology and reports status.
+
+substrate:
+  driver: fake
+  topology:
+    addressing:
+      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
+      mac: {prefix: "02:00:00", strategy: sequential}
+    resources:
+      - {name: network, kind: network}
+      - name: c0
+        kind: controller
+        parent: network
+        type: builtin
+        port: 6653
+      - name: s1
+        kind: switch
+        parent: network
+        failMode: secure
+        datapath: kernel
+        controllers: [c0]
+        protocols: [OpenFlow13]
+        ports:
+          - {name: s1-eth1, number: 1}
+          - {name: s1-eth2, number: 2}
+      - name: h1
+        kind: host
+        parent: network
+        interfaces:
+          - {name: h1-eth0, ipv4: auto, mac: auto}
+      - name: h2
+        kind: host
+        parent: network
+        interfaces:
+          - {name: h2-eth0, ipv4: auto, mac: auto}
+    links:
+      - name: h1-s1
+        endpoints:
+          - {node: h1, adapter: h1-eth0}
+          - {node: s1, adapter: s1-eth1}
+        bandwidth: 100
+        delay: 1ms
+      - name: s1-h2
+        endpoints:
+          - {node: s1, adapter: s1-eth2}
+          - {node: h2, adapter: h2-eth0}
+        bandwidth: 100
+        delay: 1ms
+
+blueprints:
+  - ./agent-blueprints/observer.yaml
+
+capabilityDefinitions:
+  - ./capabilities/inspect.yaml
+
+agents:
+  - name: global-observer
+    blueprint: observer
+    placement:
+      layer: global
+      targets: {kind: network, names: [network]}
+      cardinality: singleton
+      runtime: orchestrator
+    observe: [topology.resources]
+    capabilities: [topology.inspect]
+    triggers:
+      - type: manual
+        name: operator
+
+coordination:
+  mode: independent
+
+policies:
+  conflicting-actions: reject
+  require-postcondition-check: false
+
+resourceLimits:
+  max-instances: 1
+  max-concurrent-invocations: 1
+  max-queued-events: 16

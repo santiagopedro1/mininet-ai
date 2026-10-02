@@ -40,9 +40,9 @@ Requires **Python 3.14+** and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync
-uv run mininet-ai validate examples/iperf-throughput/experiment.yaml
-uv run mininet-ai plan examples/iperf-throughput/experiment.yaml
-uv run mininet-ai run examples/iperf-throughput/experiment.yaml --dry-run
+uv run mininet-ai validate examples/getting-started/experiment.yaml
+uv run mininet-ai plan examples/getting-started/experiment.yaml
+uv run mininet-ai run examples/getting-started/experiment.yaml --dry-run
 ```
 
 Validation, planning, and dry runs need neither root access nor a running Mininet
@@ -51,6 +51,7 @@ network or model service. Use `plan --format json` for machine-readable output.
 The maintained [iperf throughput example](examples/iperf-throughput/README.md)
 uses two Ollama-backed host agents to start an iperf server and client across an
 OVS switch. See its guide for model setup, traffic inspection, and limitations.
+For a simpler starting point, see the [getting started example](examples/getting-started/README.md).
 
 ## Running a live experiment
 
@@ -124,6 +125,17 @@ sessions, and shared state are stored in private SQLite files under
 `.mininet-ai/`. Treat these artifacts as sensitive: they may contain prompts and
 observations. Keep model credentials outside experiment YAML.
 
+## Examples
+
+| Example | Description | Substrate | Provider |
+| --- | --- | --- | --- |
+| [Getting Started](examples/getting-started/README.md) | Minimal offline experiment | `fake` | `mock` |
+| [Autonomous Network Operation](examples/autonomous-operation/README.md) | Self-healing network with event triggers, detectors, rollback | `fake` | `mock` |
+| [Hierarchical Routing Coordination](examples/hierarchical-routing/README.md) | Three-tier routing with hierarchical coordination | `mininet-ovs` | `ollama` |
+| [iperf Throughput](examples/iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` |
+
+See the [examples index](examples/README.md) for a feature matrix and progression guide.
+
 ## Writing experiments
 
 Use the [YAML authoring reference](docs/yaml-authoring-reference.md) when
@@ -183,6 +195,10 @@ sudo scripts/check-mininet-cleanup.sh check
 `scripts/check-mininet-cleanup.sh recover` is an emergency fallback that may
 remove every Mininet/OVS topology on the machine, not just the current run.
 
+Maintained examples in `examples/` are validated and planned as part of the
+test suite (`tests/examples/test_examples.py`). After an intentional compiler
+or specification change, run the tests to verify the examples still compile.
+
 ## Plans
 
 ### v1alpha3
@@ -190,4 +206,4 @@ remove every Mininet/OVS topology on the machine, not just the current run.
 - [x] Support submitting `--intent` from another terminal.
 - [x] Allow the Ollama host to be specified in the configuration file.
 - [x] Support noncanonical names in Mininet networks, if possible.
-- [ ] Add better, more practical examples.
+- [x] Add better, more practical examples.

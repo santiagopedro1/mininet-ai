@@ -1,0 +1,29 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: observer
+  description: Observes the network topology and reports status.
+implementation:
+  type: declarative
+model:
+  provider: mock
+  name: deterministic
+  parameters:
+    response:
+      message: "Topology observation complete. No action required."
+      proposals: []
+      delegations: []
+      sharedStateUpdates: []
+      metadata: {}
+    usage: {}
+reasoning:
+  instructions: |-
+    Observe the supplied topology context. Report the number of hosts,
+    switches, and links. Return a structured AgentResponse with a summary
+    message and no proposals.
+  timeout: 20s
+memory:
+  local: {maxEntries: 100}
+  conversation: {maxMessages: 5, summaries: false}
+loop:
+  phases: [observe, reason, propose]

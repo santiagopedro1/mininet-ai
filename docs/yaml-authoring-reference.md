@@ -405,7 +405,9 @@ credentials in environment variables, not YAML or URL user-info.
 
 Other ordinary declarative providers still reject non-empty `model.parameters`.
 The deterministic `mock` provider accepts its existing response and usage
-parameters and is useful for offline generated experiments:
+parameters and is useful for offline generated experiments (see
+[Getting Started](../examples/getting-started/README.md) for a complete
+mock-provider experiment):
 
 ```yaml
 model:
@@ -478,6 +480,9 @@ postconditions:
 - Postconditions execute only when the experiment policy
   `require-postcondition-check` is enabled.
 
+See [Autonomous Network Operation](../examples/autonomous-operation/README.md)
+for a complete example with rollback and postconditions.
+
 ## Built-in observations
 
 Observation availability depends on substrate and placement layer. The
@@ -516,3 +521,14 @@ Before considering generated YAML complete:
 The maintained complete example is
 `examples/iperf-throughput/experiment.yaml` with adjacent blueprint and
 capability files.
+
+## See also
+
+- [Getting Started](../examples/getting-started/README.md) — the simplest
+  possible experiment; one agent, one capability, no external services.
+- [Autonomous Network Operation](../examples/autonomous-operation/README.md) —
+  event triggers, detectors, rollback, and shared state.
+- [Hierarchical Routing Coordination](../examples/hierarchical-routing/README.md) —
+  multi-layer placement and hierarchical coordination.
+- [Examples index](../examples/README.md) — feature matrix and progression
+  guide.
