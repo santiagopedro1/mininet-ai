@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
@@ -22,6 +23,34 @@ from tests.agents.test_runtime import configured_plan
 
 
 class IntentControlTests(unittest.TestCase):
+    def test_two_owners_cleanup_independently(self) -> None:
+        first, second = self.make_owner(), self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(second, directory), IntentServer(first, directory) as server:
+                server.close()
+                self.assertEqual(IntentClient(directory).describe(second.run.id).run_id, second.run.id)
+                self.assertEqual(len(list(directory.iterdir())), 1)
+            self.assertEqual(list(directory.iterdir()), [])
+
+    def test_partial_bind_failure_removes_only_owned_run_directory(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with patch("socket.socket.bind", side_effect=OSError("failure")):
+                with self.assertRaises(IntentControlError):
+                    IntentServer(owner, directory).__enter__()
+            self.assertEqual(list(directory.iterdir()), [])
+
+    def test_symlink_and_long_override_rejected(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "link").symlink_to(directory, target_is_directory=True)
+            for override in (directory / "link/control", directory / ("x" * 100)):
+                with self.assertRaises(IntentControlError):
+                    IntentServer(owner, override).__enter__()
+
     def test_describe_and_submit_without_digest(self) -> None:
         owner = self.make_owner()
         with TemporaryDirectory() as temporary:
@@ -43,7 +72,7 @@ class IntentControlTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             directory = Path(temporary) / "control"
             with IntentServer(owner, directory):
-                path = next(directory.iterdir())
+                path = next(directory.glob("*/control.sock"))
                 for run_id in (owner.run.id, "wrong-run"):
                     with socket.socket(
                         socket.AF_UNIX, socket.SOCK_STREAM
@@ -73,7 +102,7 @@ class IntentControlTests(unittest.TestCase):
                 IntentServer(owner, directory),
                 socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
             ):
-                connection.connect(str(next(directory.iterdir())))
+                connection.connect(str(next(directory.glob("*/control.sock"))))
                 connection.sendall(
                     (
                         json.dumps(
@@ -97,7 +126,7 @@ class IntentControlTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             directory = Path(temporary) / "control"
             with IntentServer(owner, directory):
-                path = next(directory.iterdir())
+                path = next(directory.glob("*/control.sock"))
                 for payload in (
                     {"kind": "unknown", "runId": owner.run.id},
                     {"kind": "describe", "runId": owner.run.id, "intent": "inspect"},
@@ -205,7 +234,7 @@ class IntentControlTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             directory = Path(temporary) / "control"
             with IntentServer(owner, directory):
-                path = next(directory.iterdir())
+                path = next(directory.glob("*/control.sock"))
                 for message in (b"not-json\n", b"x" * 65_537):
                     with (
                         self.subTest(message_size=len(message)),
@@ -257,7 +286,7 @@ class IntentControlTests(unittest.TestCase):
                 IntentServer(owner, directory) as server,
                 socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
             ):
-                connection.connect(str(next(directory.iterdir())))
+                connection.connect(str(next(directory.glob("*/control.sock"))))
                 connection.sendall(b'{"intent":')
                 # Allow the server to accept the connection before stopping it.
                 time.sleep(0.05)
@@ -278,7 +307,7 @@ class IntentControlTests(unittest.TestCase):
                 socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
             ):
                 connection.settimeout(3)
-                connection.connect(str(next(directory.iterdir())))
+                connection.connect(str(next(directory.glob("*/control.sock"))))
                 stopped = Event()
 
                 def trickle() -> None:
