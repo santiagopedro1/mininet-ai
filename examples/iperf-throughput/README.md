@@ -81,12 +81,15 @@ sudo ovs-vsctl --timeout=5 get Interface s1-eth2 statistics
 You can also submit another client intent while the owner remains active:
 
 ```bash
+sudo scripts/vm-run.sh mininet-ai agents <run-id>
 sudo scripts/vm-run.sh mininet-ai invoke \
-  examples/iperf-throughput/experiment.yaml <run-id> iperf-client@client \
+  <run-id> iperf-client@client \
   --intent 'Run a TCP throughput test against 10.0.0.12.'
 ```
 
 Use the run ID printed by terminal 1 or written to `.mininet-ai/run.log`.
+`agents` lists live instance IDs and whether they accept manual intents.
+Neither `agents` nor `invoke` needs the experiment YAML.
 The command returns when the intent is queued, not when iperf finishes. Results
 are logged and persisted by terminal 1; it already has the Ollama configuration.
 Both terminals must use the same user and working directory (or the same

@@ -101,8 +101,9 @@ From another VM terminal:
 cd /vagrant
 sudo scripts/vm-run.sh mininet-ai status <run-id>
 sudo scripts/vm-run.sh mininet-ai topology <run-id>
+sudo scripts/vm-run.sh mininet-ai agents <run-id>
 sudo scripts/vm-run.sh mininet-ai invoke \
-  examples/iperf-throughput/experiment.yaml <run-id> iperf-client@client \
+  <run-id> iperf-client@client \
   --intent 'Run a TCP throughput test against 10.0.0.12.'
 sudo scripts/vm-run.sh mininet-ai stop <run-id>
 ```
@@ -110,7 +111,11 @@ sudo scripts/vm-run.sh mininet-ai stop <run-id>
 `invoke` queues the intent in the foreground owner's scheduler and returns an
 accepted event (`--format json`) or its ID. Acceptance is not execution success;
 follow the owner's log and ledger for completion or failure. Submit only to
-agents with a manual trigger, using the unchanged experiment file from `run`.
+agents with a manual trigger. `agents <run-id>` lists compiled instance IDs and
+whether they accept manual intents; `--format json` includes the run ID, plan
+digest, `agents`, and `manualAgents`. Both commands contact the live owner;
+neither reads or recompiles experiment YAML. Editing the original files does
+not change the running experiment.
 Run both commands as the same OS user, on the same machine, from the same
 working directory. If using different directories, pass the same absolute
 `--control-dir` to both commands (default: `.mininet-ai/control`). The directory

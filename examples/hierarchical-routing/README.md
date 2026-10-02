@@ -57,13 +57,19 @@ Terminal 2 — generate traffic from the hosts:
 ```bash
 vagrant ssh
 cd /vagrant
+sudo scripts/vm-run.sh mininet-ai agents <run-id>
 sudo scripts/vm-run.sh mininet-ai invoke \
-  examples/hierarchical-routing/experiment.yaml <run-id> host-traffic@h1 \
+  <run-id> host-traffic@h1 \
   --intent 'Run a TCP throughput test against 10.0.0.13.'
 sudo scripts/vm-run.sh mininet-ai invoke \
-  examples/hierarchical-routing/experiment.yaml <run-id> host-traffic@h2 \
+  <run-id> host-traffic@h2 \
   --intent 'Run a TCP throughput test against 10.0.0.13.'
 ```
+
+Use the run ID from terminal 1. `agents` lists available IDs and manual-intent
+eligibility. Neither command needs the original experiment file; both require
+the live owner, the same user, and the same working directory (or an identical
+absolute `--control-dir`). `invoke` acknowledges acceptance, not completion.
 
 ## How it works
 

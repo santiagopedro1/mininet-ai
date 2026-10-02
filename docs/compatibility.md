@@ -200,12 +200,30 @@ migration guide and stop old runs with the old software first.
 
 ### Cross-terminal CLI intent submission
 
-`invoke EXPERIMENT RUN_ID AGENT_ID --intent TEXT` now submits a manual event to
+`invoke RUN_ID AGENT_ID --intent TEXT` submits a manual event to
 the existing foreground `run` owner through a private local socket. It no longer
 constructs a separate one-shot agent runtime. Its JSON output is the accepted
 `RuntimeEvent`, not an `AgentInvocationResult`; exit status zero means accepted,
 not successfully executed. Execution results remain in the owner's ledger and
 log. The SDK's `OneShotAgentRuntime` is unchanged.
+
+The experiment-path positional argument has been removed. Update existing
+scripts from `invoke EXPERIMENT RUN_ID AGENT_ID --intent TEXT` to
+`invoke RUN_ID AGENT_ID --intent TEXT`. The client no longer reads or compiles
+YAML: the live owner uses its original compiled plan to authorize agent IDs and
+require a manual trigger. Editing the input files cannot change that plan.
+
+Use `agents RUN_ID` to discover the owner's compiled instance IDs and manual
+intent eligibility, or `agents RUN_ID --format json` for `runId`, `planDigest`,
+`agents`, and `manualAgents`. Discovery is read-only and requires a live owner;
+it does not read archived ledger or substrate ownership records. Both commands
+support `--control-dir` and `--timeout`.
+
+The internal socket accepts submit and describe requests. A submit request may
+omit `planDigest`; when supplied it is still checked against the owner. Legacy
+requests without a request kind are interpreted as submissions. Run identity,
+private-directory ownership, socket ownership, and peer-user checks remain in
+force. This change does not alter any versioned public document contract.
 
 The old `invoke --audit-log`, `--agno-db`, `--shared-state-db`, and
 `--discover-plugins` options remain accepted but are deprecated and ignored with
