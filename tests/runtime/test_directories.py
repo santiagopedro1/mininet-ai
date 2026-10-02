@@ -58,6 +58,14 @@ def test_wrong_owner_is_rejected_without_chown(tmp_path):
         _private_directory(tmp_path, create=False)
 
 
+def test_shared_storage_errors_keep_control_permission_code(tmp_path):
+    directory = tmp_path / "public"
+    directory.mkdir(mode=0o755)
+    with pytest.raises(IntentControlError) as error:
+        _private_directory(directory, create=False)
+    assert error.value.code == "runtime.control.permissions"
+
+
 def test_public_and_symlink_xdg_fail_without_fallback(tmp_path):
     public = tmp_path / "public"
     public.mkdir(mode=0o755)

@@ -20,6 +20,11 @@ from pydantic import Field, TypeAdapter, ValidationError
 from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import RuntimeEvent
 from mininet_ai.specification.models import StrictModel
+from mininet_ai.storage import (
+    PrivateStoragePathError,
+    check_private_directory,
+    open_private_directory,
+)
 
 if TYPE_CHECKING:
     from mininet_ai.experiment import ExperimentRuntime
@@ -93,55 +98,33 @@ def resolve_control_directory(directory: Path | None = None) -> Path:
 
 
 def _private_directory(directory: Path, *, create: bool) -> None:
-    descriptor = _open_directory(directory, create=create)
+    descriptor = _open_control_directory(directory, create=create)
     os.close(descriptor)
 
 
-def _open_directory(
+def _open_control_directory(
     directory: Path,
     *,
     create: bool,
-    private_parent: bool = False,
     private_levels: int = 1,
 ) -> int:
-    """Walk without following symlinks, validating every newly owned boundary."""
-    path = directory.absolute()
-    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
-        for index, part in enumerate(path.parts[1:]):
-            owned = index >= len(path.parts) - 1 - max(
-                private_levels, 2 if private_parent else 1
-            )
-            created = False
-            if create:
-                try:
-                    os.mkdir(part, 0o700, dir_fd=descriptor)
-                    created = True
-                except FileExistsError:
-                    pass
-            child = os.open(
-                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
-            )
-            os.close(descriptor)
-            descriptor = child
-            if owned or created:
-                _check_directory(os.fstat(descriptor), path)
-        return descriptor
-    except BaseException:
-        os.close(descriptor)
-        raise
+        return open_private_directory(
+            directory, create=create, private_levels=private_levels
+        )
+    except PrivateStoragePathError as error:
+        raise IntentControlError(
+            f"control {error}", code="runtime.control.permissions"
+        ) from error
 
 
 def _check_directory(metadata: os.stat_result, directory: Path) -> None:
-    if (
-        not stat.S_ISDIR(metadata.st_mode)
-        or metadata.st_uid != os.geteuid()
-        or stat.S_IMODE(metadata.st_mode) & 0o077
-    ):
+    try:
+        check_private_directory(metadata, directory)
+    except PrivateStoragePathError as error:
         raise IntentControlError(
-            f"control directory {directory} must be an owner-only directory owned by the current user",
-            code="runtime.control.permissions",
-        )
+            f"control {error}", code="runtime.control.permissions"
+        ) from error
 
 
 def _check_socket_length(path: Path) -> None:
@@ -210,7 +193,7 @@ class IntentServer:
         try:
             path = _socket_path(self._directory, self._owner.run.id)
             _check_socket_length(path)
-            self._base_fd = _open_directory(
+            self._base_fd = _open_control_directory(
                 self._directory,
                 create=True,
                 private_levels=2 if self._default_directory else 1,
@@ -248,7 +231,9 @@ class IntentServer:
             return self
         except BaseException as error:
             self.close()
-            if not isinstance(error, Exception) or isinstance(error, IntentControlError):
+            if not isinstance(error, Exception) or isinstance(
+                error, IntentControlError
+            ):
                 raise
             raise IntentControlError(
                 f"could not open intent endpoint in {self._directory}: {error}"
@@ -438,7 +423,7 @@ class IntentClient:
         try:
             path = _socket_path(self._directory, run_id)
             _check_socket_length(path)
-            descriptor = _open_directory(
+            descriptor = _open_control_directory(
                 path.parent,
                 create=False,
                 private_levels=3 if self._default_directory else 2,

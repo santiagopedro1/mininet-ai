@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from mininet_ai.errors import MininetAIError
-from mininet_ai.runtime.control import _open_directory
+from mininet_ai.storage import open_private_directory
 
 
 @dataclass(frozen=True)
@@ -31,19 +31,19 @@ def reserve_artifacts(
     )
     directory = root / name
     try:
-        descriptor = _open_directory(root, create=True)
+        descriptor = open_private_directory(root, create=True)
         try:
             os.mkdir(name, 0o700, dir_fd=descriptor)
         finally:
             os.close(descriptor)
         for child in ("logs", "dbs", "artifacts"):
-            descriptor = _open_directory(
-                directory / child, create=True, private_parent=True
+            descriptor = open_private_directory(
+                directory / child, create=True, private_levels=2
             )
             os.close(descriptor)
         if persistent_memory:
-            descriptor = _open_directory(
-                root / "memory", create=True, private_parent=True
+            descriptor = open_private_directory(
+                root / "memory", create=True, private_levels=2
             )
             os.close(descriptor)
     except (OSError, MininetAIError) as error:
