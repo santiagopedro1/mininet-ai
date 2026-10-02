@@ -9,6 +9,9 @@ Topology: `client` (10.0.0.11) and `server` (10.0.0.12) through `s1`,
 `main-controller`, 100 Mbps links. `max-concurrent-invocations: 1`
 serializes the two intents so the server is up before the client connects.
 
+*Primary goal: realistic scenario — a plausible TCP throughput-measurement
+workflow using real traffic on `mininet-ovs`.*
+
 ## iperf vs iperf3
 
 Not a problem. `host.process.start` execs argv directly with no shell, so
@@ -119,3 +122,12 @@ Edit the client blueprint arguments to
   the report — the report proves `SUCCEEDED` starts; counters prove traffic.
 - Cross-terminal `invoke` requires a live foreground owner. Startup and later
   intents share its scheduler, authorization, model sessions, and ledger.
+
+## Next steps
+
+- [Getting Started](../getting-started/README.md) — the simplest possible
+  experiment
+- [Autonomous Network Operation](../autonomous-operation/README.md) — event
+  triggers, detectors, rollback, and shared state
+- [Hierarchical Routing Coordination](../hierarchical-routing/README.md) —
+  multi-layer placement and hierarchical coordination

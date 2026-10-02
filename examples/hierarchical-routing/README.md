@@ -4,6 +4,9 @@ A three-tier routing system: a global orchestrator sets policy, switch-level
 routers install flows, and host-level agents generate traffic. Requires a
 Vagrant VM and Ollama server.
 
+*Primary goal: both — a plausible three-tier routing scenario that showcases
+multi-layer placement and hierarchical coordination.*
+
 ## What it demonstrates
 
 - Multi-layer placement (global + data + host)
@@ -84,5 +87,7 @@ clients; `h3` is the server.
 
 - [Getting Started](../getting-started/README.md) — the simplest possible
   experiment
+- [iperf Throughput](../iperf-throughput/README.md) — Ollama-driven TCP
+  throughput test with real traffic
 - [Autonomous Network Operation](../autonomous-operation/README.md) — event
   triggers, detectors, rollback, and shared state

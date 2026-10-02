@@ -16,6 +16,7 @@ EXAMPLE_NAMES = [
     "getting-started",
     "autonomous-operation",
     "hierarchical-routing",
+    "iperf-throughput",
 ]
 
 
@@ -51,3 +52,11 @@ def test_hierarchical_routing_has_five_agents() -> None:
     experiment = load_experiment(experiment_path)
     plan = compile_experiment(experiment)
     assert len(plan.agents) == 5
+
+
+def test_iperf_throughput_has_two_agents() -> None:
+    """The iperf-throughput example has two agent instances."""
+    experiment_path = EXAMPLES_DIR / "iperf-throughput" / "experiment.yaml"
+    experiment = load_experiment(experiment_path)
+    plan = compile_experiment(experiment)
+    assert len(plan.agents) == 2

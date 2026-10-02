@@ -3,6 +3,9 @@
 The simplest possible Mininet AI experiment. One agent observes the topology
 and reports status. No external services, no root access, no VM.
 
+*Primary goal: feature demonstration — showcases the basic `validate` →
+`plan` → `run` workflow.*
+
 ## What it demonstrates
 
 - Basic `validate` → `plan` → `run --dry-run` workflow
@@ -42,3 +45,5 @@ controller (`c0`). 100 Mbps links with 1 ms delay.
   triggers, detectors, rollback, and shared state
 - [Hierarchical Routing Coordination](../hierarchical-routing/README.md) —
   multi-layer placement and hierarchical coordination
+- [iperf Throughput](../iperf-throughput/README.md) — Ollama-driven TCP
+  throughput test with real traffic
