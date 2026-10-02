@@ -145,7 +145,8 @@ class ExperimentRuntime:
     def manual_agent_ids(self) -> tuple[str, ...]:
         """Instances eligible for manual intents, before coordination routing."""
         return tuple(
-            agent.id for agent in self._plan.agents
+            agent.id
+            for agent in self._plan.agents
             if any(trigger.type == "manual" for trigger in agent.triggers)
         )
 
@@ -237,7 +238,7 @@ class ExperimentRuntime:
                 f"unknown agent {agent_id!r}; valid agents: {', '.join(self.agent_ids)}",
                 code="experiment.intent.invalid-agent",
             )
-        if not any(trigger.type == "manual" for trigger in agent.triggers):
+        if agent_id not in self.manual_agent_ids:
             raise ExperimentRuntimeError(
                 f"agent {agent_id!r} has no manual trigger",
                 code="experiment.intent.invalid-agent",

@@ -92,6 +92,30 @@ class IntentControlTests(unittest.TestCase):
                 self.assertIn("event", response)
         self.assertEqual(owner.stop().continuous.completed, 1)
 
+    def test_invalid_request_kinds_and_describe_fields_are_rejected(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(owner, directory):
+                path = next(directory.iterdir())
+                for payload in (
+                    {"kind": "unknown", "runId": owner.run.id},
+                    {"kind": "describe", "runId": owner.run.id, "intent": "inspect"},
+                ):
+                    with socket.socket(
+                        socket.AF_UNIX, socket.SOCK_STREAM
+                    ) as connection:
+                        connection.connect(str(path))
+                        connection.sendall((json.dumps(payload) + "\n").encode())
+                        with connection.makefile("rb") as stream:
+                            response = json.loads(stream.readline())
+                        self.assertEqual(
+                            response["error"]["code"], "runtime.control.invalid-request"
+                        )
+                description = IntentClient(directory).describe(owner.run.id)
+                self.assertEqual(description.run_id, owner.run.id)
+        self.assertEqual(owner.stop().continuous.completed, 0)
+
     def make_owner(self) -> ExperimentRuntime:
         plan = configured_plan({"message": "handled"})
         substrate = FakeSubstrateRuntime()
@@ -326,11 +350,24 @@ class IntentControlTests(unittest.TestCase):
                 assert match is not None
                 experiment.unlink()
                 discovery = subprocess.run(
-                    [*command, "agents", match[1], "--control-dir", str(control), "--format", "json"],
-                    capture_output=True, text=True, timeout=10, check=False,
+                    [
+                        *command,
+                        "agents",
+                        match[1],
+                        "--control-dir",
+                        str(control),
+                        "--format",
+                        "json",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
                 )
                 self.assertEqual(discovery.returncode, 0, discovery.stderr)
-                self.assertIn("switch-router@s1", json.loads(discovery.stdout)["manualAgents"])
+                self.assertIn(
+                    "switch-router@s1", json.loads(discovery.stdout)["manualAgents"]
+                )
                 result = subprocess.run(
                     [
                         *command,

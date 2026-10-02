@@ -341,6 +341,6 @@ class IntentClient:
             raise
         except (OSError, ValueError, KeyError, TypeError, ValidationError) as error:
             raise IntentControlError(
-                f"could not submit intent to run {run_id!r}: {error}; use the owner's user and control directory; do not retry automatically after a timeout",
+                f"could not contact run {run_id!r}: {error}; use the owner's user and control directory; do not retry intent submissions automatically after a timeout",
                 code="runtime.control.unavailable",
             ) from error

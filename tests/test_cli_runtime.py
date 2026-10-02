@@ -459,6 +459,8 @@ class RuntimeCLITests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 1)
         self.assertIn("runtime.control.unavailable", result.output)
+        self.assertIn("could not contact run", result.output)
+        self.assertNotIn("could not submit intent", result.output)
         create.assert_not_called()
         compile.assert_not_called()
 
@@ -529,6 +531,8 @@ class RuntimeCLITests(unittest.TestCase):
             ])
         self.assertEqual(result.exit_code, 1)
         self.assertIn("runtime.control.unavailable", result.output)
+        self.assertIn("could not contact run", result.output)
+        self.assertNotIn("could not submit intent", result.output)
 
 
 if __name__ == "__main__":
