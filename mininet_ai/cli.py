@@ -32,6 +32,7 @@ from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
 from mininet_ai.errors import MininetAIError
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
+from mininet_ai.run_setup import reserve_run
 from mininet_ai.runtime import (
     ContinuousInvocationRecord,
     LedgerAuditSink,
@@ -459,7 +460,10 @@ def run(
             _print_text_plan(deployment_plan)
         return
 
-    substrate = _runtime_or_exit(deployment_plan.substrate)
+    try:
+        reserved_id, substrate = reserve_run(deployment_plan.substrate)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
     loaded = (
@@ -482,7 +486,7 @@ def run(
 
     progress = _operation_or_exit(lambda: _RunProgress(log_file, verbose=verbose))
     progress.info(
-        f"Prepared experiment {deployment_plan.metadata.name} "
+        f"Reserved run {reserved_id}; prepared experiment {deployment_plan.metadata.name} "
         f"({len(deployment_plan.resources)} resources, "
         f"{len(deployment_plan.agents)} agents)"
     )
@@ -537,6 +541,8 @@ def run(
         )
         with stop_latch:
             run_info = _operation_or_exit(owner.start)
+            if run_info.id != reserved_id:
+                raise MininetAIError("deployed run ID differs from reserved identity")
             intent_server = IntentServer(
                 owner,
                 control_dir,
@@ -573,6 +579,9 @@ def run(
                     f"Log: {log_file}"
                 )
             stop_latch.wait()
+    except BaseException as error:
+        progress.error(f"Run {reserved_id} failed: {error}")
+        raise
     finally:
         try:
             if intent_server is not None:
