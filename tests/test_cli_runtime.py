@@ -131,7 +131,7 @@ class RuntimeCLITests(unittest.TestCase):
         )
 
     def test_run_verbose_streams_progress_and_writes_text_log(self) -> None:
-        plan = configured_plan({"message": "handled"})
+        plan = configured_plan({"message": "handled [bold]literally[/bold]\nnext line"})
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-verbose-run")
         with TemporaryDirectory() as temporary:
             log_path = Path(temporary) / "run.log"
@@ -165,8 +165,108 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertIn("Run cli-verbose-run stopped", result.output)
         self.assertIn("Prepared experiment", log)
         self.assertIn("agent.invocation.completed", log)
+        self.assertIn('message="handled [bold]literally[/bold]\\nnext line"', log)
+        self.assertIn("[bold]literally[/bold]", result.stderr)
+        self.assertIn('intent="inspect forwarding"', log)
+        self.assertIn('model="deterministic"', log)
+        self.assertIn("proposals=0", log)
+        self.assertIn("totalTokens=0", log)
         self.assertIn("Run cli-verbose-run stopped", log)
         self.assertEqual(log_mode, 0o600)
+
+    def test_run_logs_capability_execution_details_without_polluting_json(self) -> None:
+        plan = configured_plan(
+            {
+                "proposals": [
+                    {
+                        "id": "install-flow",
+                        "capability": "openflow.flow.install",
+                        "target": "s1",
+                        "arguments": {"match": "ip", "actions": "normal"},
+                        "reason": "restore forwarding",
+                    }
+                ],
+            }
+        )
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-action-run")
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-action-run", runtime),
+                ),
+                patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--stop-after-intents",
+                        "--verbose",
+                        "--format",
+                        "json",
+                        "--intent",
+                        "switch-router@s1=restore forwarding",
+                        *self.run_databases(temporary),
+                    ],
+                )
+            log = (Path(temporary) / "run.log").read_text(encoding="utf-8")
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(json.loads(result.stdout)["continuous"]["completed"], 1)
+        self.assertIn('capability="openflow.flow.install"', log)
+        self.assertIn('target="s1"', log)
+        self.assertIn('id="install-flow"', log)
+        self.assertIn('reason="restore forwarding"', log)
+        self.assertIn('request_id="install-flow"', log)
+        self.assertIn('status="succeeded"', log)
+        self.assertIn("changed=true", log)
+        self.assertIn('status="succeeded"', result.stderr)
+        self.assertNotIn("message=null", log)
+
+    def test_run_logs_rejected_capability_as_error_with_issue_details(self) -> None:
+        plan = configured_plan(
+            {
+                "proposals": [
+                    {
+                        "id": "out-of-scope",
+                        "capability": "openflow.flow.install",
+                        "target": "s2",
+                        "arguments": {"match": "ip", "actions": "normal"},
+                    }
+                ]
+            }
+        )
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-rejected-run")
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-rejected-run", runtime),
+                ),
+                patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--stop-after-intents",
+                        "--intent",
+                        "switch-router@s1=install flow",
+                        *self.run_databases(temporary),
+                    ],
+                )
+            log = (Path(temporary) / "run.log").read_text(encoding="utf-8")
+
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn('status="rejected"', log)
+        self.assertIn('code="capability.target.out-of-scope"', log)
+        self.assertIn(" ERROR capability.execution.completed:", log)
+        self.assertIn('request_id="out-of-scope"', log)
 
     def test_run_reports_invocation_failure_live_and_stops_automatically(self) -> None:
         plan = configured_plan({"metadata": {}})

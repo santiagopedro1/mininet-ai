@@ -15,6 +15,7 @@ from types import FrameType
 from typing import Annotated, Self, cast
 
 import typer
+from pydantic import JsonValue
 from rich.console import Console
 from rich.table import Table
 
@@ -126,26 +127,63 @@ class _RunProgress:
     def info(self, message: str) -> None:
         self._logger.info(message)
         if self._verbose:
-            error_console.print(f"[dim]•[/dim] {message}")
+            error_console.print(f"• {message}", markup=False, highlight=False)
 
     def error(self, message: str) -> None:
         self._logger.error(message)
         if self._verbose:
-            error_console.print(f"[bold red]×[/bold red] {message}")
+            error_console.print(f"× {message}", markup=False, highlight=False)
 
     def audit(self, event: AuditEvent) -> None:
         message = (
-            f"{event.type.value}: agent={event.agent_id} "
+            f"{event.type.value}: run={event.run_id} agent={event.agent_id} "
             f"invocation={event.invocation_id}"
         )
-        if event.type in _FAILED_AUDIT_EVENTS:
-            code = event.data.get("code")
-            detail = event.data.get("message")
-            if isinstance(code, str) and code:
-                message += f" code={code}"
-            if isinstance(detail, str) and detail:
-                message += f" message={detail}"
-        if event.type in _FAILED_AUDIT_EVENTS:
+        details: dict[str, JsonValue] = {}
+
+        def include(value: JsonValue, *keys: str) -> None:
+            if isinstance(value, dict):
+                for key in keys:
+                    if key in value and value[key] is not None:
+                        details[key] = value[key]
+
+        if event.type == AuditEventType.AGENT_STARTED:
+            include(event.data.get("context"), "intent")
+        elif event.type == AuditEventType.AGENT_COMPLETED:
+            response = event.data.get("response")
+            include(response, "message")
+            if isinstance(response, dict):
+                for key in ("proposals", "delegations", "sharedStateUpdates"):
+                    values = response.get(key)
+                    if isinstance(values, list):
+                        details[key] = len(values)
+            runtime = event.data.get("runtime")
+            include(runtime, "model", "modelProvider", "agnoRunId", "sessionId")
+            if isinstance(runtime, dict):
+                include(
+                    runtime.get("metrics"),
+                    "durationSeconds",
+                    "inputTokens",
+                    "outputTokens",
+                    "totalTokens",
+                )
+        elif event.type == AuditEventType.CAPABILITY_STARTED:
+            include(event.data.get("proposal"), "id", "capability", "target", "reason")
+        elif event.type == AuditEventType.CAPABILITY_COMPLETED:
+            result = event.data.get("result")
+            include(result, "request_id", "status", "changed", "effectLatencySeconds")
+            if isinstance(result, dict):
+                include(result.get("issue"), "code", "message")
+        for key in ("code", "message", "errorType"):
+            include(event.data, key)
+        message += "".join(
+            f" {key}={json.dumps(value, ensure_ascii=True, separators=(',', ':'))}"
+            for key, value in details.items()
+        )
+        if event.type in _FAILED_AUDIT_EVENTS or (
+            event.type == AuditEventType.CAPABILITY_COMPLETED
+            and details.get("status") not in (None, "succeeded")
+        ):
             self.error(message)
         else:
             self.info(message)
