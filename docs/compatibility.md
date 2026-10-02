@@ -200,22 +200,72 @@ migration guide and stop old runs with the old software first.
 
 ### Cross-terminal CLI intent submission
 
-`invoke EXPERIMENT RUN_ID AGENT_ID --intent TEXT` now submits a manual event to
+`invoke RUN_ID AGENT_ID --intent TEXT` submits a manual event to
 the existing foreground `run` owner through a private local socket. It no longer
 constructs a separate one-shot agent runtime. Its JSON output is the accepted
 `RuntimeEvent`, not an `AgentInvocationResult`; exit status zero means accepted,
 not successfully executed. Execution results remain in the owner's ledger and
 log. The SDK's `OneShotAgentRuntime` is unchanged.
 
+The experiment-path positional argument has been removed. Update existing
+scripts from `invoke EXPERIMENT RUN_ID AGENT_ID --intent TEXT` to
+`invoke RUN_ID AGENT_ID --intent TEXT`. The client no longer reads or compiles
+YAML: the live owner uses its original compiled plan to authorize agent IDs and
+require a manual trigger. Editing the input files cannot change that plan.
+
+Use `agents RUN_ID` to discover the owner's compiled instance IDs and manual
+intent eligibility, or `agents RUN_ID --format json` for `runId`, `planDigest`,
+`agents`, and `manualAgents`. Discovery is read-only and requires a live owner;
+it does not read archived ledger or substrate ownership records. Both commands
+support `--control-dir` and `--timeout`.
+
+The internal socket accepts submit and describe requests. A submit request may
+omit `planDigest`; when supplied it is still checked against the owner. Legacy
+requests without a request kind are interpreted as submissions. Run identity,
+private-directory ownership, socket ownership, and peer-user checks remain in
+force. This change does not alter any versioned public document contract.
+
 The old `invoke --audit-log`, `--agno-db`, `--shared-state-db`, and
 `--discover-plugins` options remain accepted but are deprecated and ignored with
 a warning on stderr: session, state, audit, and plugin configuration belongs to
 the owner. Set database and plugin options on `run`.
-Use the same OS user and working directory, or an identical absolute
-`--control-dir` on both commands. The private socket protocol is internal and
+Use the same OS user on the same machine. Defaults are working-directory
+independent: root uses `/run/mininet-ai/control`, non-root uses a validated
+`$XDG_RUNTIME_DIR/mininet-ai/control` or `/tmp/mininet-ai-<uid>/control` if unset.
+Explicit `--control-dir` is a base override; relative paths follow the command's
+working directory, so absolute paths are recommended. The endpoint is now
+`<base>/<run-id-hash>/control.sock`. Restart old owners after upgrading: there is
+no implicit project-local fallback, and a new client cannot address an old flat
+endpoint even using `--control-dir`. Old owners require old compatible clients
+and their explicit legacy directory. Existing run directories/endpoints are
+never taken over, even if apparently stale; stop the owner or use a new run ID.
+The private socket protocol is internal and
 does not change the versioned runtime-event or agent-runtime contracts.
 
 ### Contract-preserving changes
+
+Run identity reservation is a composition-layer change for the fake and
+Mininet/OVS adapters using their existing `run_id_factory` constructors. The
+runtime/provider protocols and all serialized contract versions are unchanged.
+The reserved identity is used unchanged for deployment, ledger, and sessions.
+Registered third-party adapters retain their zero-argument factory/runtime
+contracts and can still execute with explicit `--log-file`, `--ledger-db`,
+`--shared-state-db`, and `--agno-db`. Automatic per-run defaults are currently
+limited to the two built-ins: assigning identities to other adapters would
+require a separately reviewed reservation contract, not an implicit protocol
+change. Missing file options fail before deployment for such adapters.
+Saved output defaults now use `.mininet-ai/<run-id>/logs` and `dbs`; explicit
+file options still take precedence, and existing artifacts remain untouched.
+`--artifact-root` is independent of live endpoint discovery. A failed start
+retains diagnostic output rather than renaming or deleting active SQLite files.
+Agno currently routes sessions and learned memory through one `Agent.db`; when
+agent-scoped memory is requested, that entire store defaults to the stable
+`<artifact-root>/memory/agno.sqlite3`. Run-qualified session IDs isolate sessions;
+agent-qualified user IDs retain learned memory. An explicit shared `--agno-db`
+also preserves memory; separate per-run shared-state databases remain isolated.
+If a legacy `<artifact-root>/agno.sqlite3` exists and agent-scoped memory is
+requested, choose `--agno-db` explicitly. Point it at the legacy store to retain
+learning; no automatic migration or silent switch to empty memory is performed.
 
 Ollama endpoint configuration uses the existing `model.parameters.host` key,
 without adding serialized fields or changing omitted-host plans, snapshots,

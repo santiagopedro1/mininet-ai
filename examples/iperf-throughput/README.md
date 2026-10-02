@@ -9,6 +9,9 @@ Topology: `client` (10.0.0.11) and `server` (10.0.0.12) through `s1`,
 `main-controller`, 100 Mbps links. `max-concurrent-invocations: 1`
 serializes the two intents so the server is up before the client connects.
 
+*Primary goal: realistic scenario — a plausible TCP throughput-measurement
+workflow using real traffic on `mininet-ovs`.*
+
 ## iperf vs iperf3
 
 Not a problem. `host.process.start` execs argv directly with no shell, so
@@ -78,12 +81,15 @@ sudo ovs-vsctl --timeout=5 get Interface s1-eth2 statistics
 You can also submit another client intent while the owner remains active:
 
 ```bash
+sudo scripts/vm-run.sh mininet-ai agents <run-id>
 sudo scripts/vm-run.sh mininet-ai invoke \
-  examples/iperf-throughput/experiment.yaml <run-id> iperf-client@client \
+  <run-id> iperf-client@client \
   --intent 'Run a TCP throughput test against 10.0.0.12.'
 ```
 
 Use the run ID printed by terminal 1 or written to `.mininet-ai/run.log`.
+`agents` lists live instance IDs and whether they accept manual intents.
+Neither `agents` nor `invoke` needs the experiment YAML.
 The command returns when the intent is queued, not when iperf finishes. Results
 are logged and persisted by terminal 1; it already has the Ollama configuration.
 Both terminals must use the same user and working directory (or the same
@@ -119,3 +125,12 @@ Edit the client blueprint arguments to
   the report — the report proves `SUCCEEDED` starts; counters prove traffic.
 - Cross-terminal `invoke` requires a live foreground owner. Startup and later
   intents share its scheduler, authorization, model sessions, and ledger.
+
+## Next steps
+
+- [Getting Started](../getting-started/README.md) — the simplest possible
+  experiment
+- [Autonomous Network Operation](../autonomous-operation/README.md) — event
+  triggers, detectors, rollback, and shared state
+- [Hierarchical Routing Coordination](../hierarchical-routing/README.md) —
+  multi-layer placement and hierarchical coordination

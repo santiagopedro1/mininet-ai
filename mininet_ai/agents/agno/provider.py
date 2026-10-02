@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 import re
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -48,7 +49,8 @@ _SAFE_OUTPUT_INSTRUCTIONS = (
     "Delegation proposals must use only coordination.allowedDestinations; when "
     "coordination is absent or has no allowed destinations, do not delegate. "
     "Shared-state updates must use only sharedState.allowedScopes. "
-    "Do not execute network changes directly."
+    "Do not execute network changes directly. Describe proposed changes, not "
+    "completed changes: an action proposal is not evidence of successful execution."
 )
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 _AGNO_VERSION = version("agno")
@@ -344,6 +346,20 @@ class AgnoAgentFactory:
                     blueprint.reasoning.instructions
                     or "Inspect the supplied context and propose a safe response.",
                     _SAFE_OUTPUT_INSTRUCTIONS,
+                    "Available capability input contracts (proposal.arguments must satisfy "
+                    "the inputSchema for its capability, including required fields and "
+                    "value types; do not invent arguments or omit required fields):\n"
+                    + json.dumps(
+                        [
+                            {
+                                "name": capability.metadata.name,
+                                "description": capability.metadata.description,
+                                "inputSchema": capability.input_schema,
+                            }
+                            for capability in definition.capabilities
+                        ],
+                        sort_keys=True,
+                    ),
                 ],
                 input_schema=AgentContext,
                 output_schema=AgentResponse,

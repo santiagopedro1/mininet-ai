@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from typing import Any
 
+from mininet_ai.substrates.builtin_runtimes import register_builtin_runtimes
 from mininet_ai.substrates.fake import FakeSubstrateDriver
 from mininet_ai.substrates.fake_runtime import FakeSubstrateRuntime
 from mininet_ai.substrates.mininet_ovs import MininetOVSDriver, MininetOVSRuntime
@@ -40,8 +41,7 @@ substrate_registry = SubstrateRegistry()
 substrate_registry.register("fake", FakeSubstrateDriver)
 substrate_registry.register("mininet-ovs", MininetOVSDriver)
 runtime_registry = RuntimeRegistry()
-runtime_registry.register("fake", FakeSubstrateRuntime)
-runtime_registry.register("mininet-ovs", MininetOVSRuntime)
+register_builtin_runtimes(runtime_registry)
 
 
 def register_substrate_driver(name: str, factory: SubstrateFactory) -> None:

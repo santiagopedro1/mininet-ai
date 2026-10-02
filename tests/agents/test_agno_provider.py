@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -94,6 +95,32 @@ class AgnoAgentProviderTests(unittest.TestCase):
         self.assertEqual(response.message, "inspect first")
         self.assertEqual(response.proposals[0].target, "s1")
         self.assertEqual(model.calls, 1)
+
+    def test_model_receives_scoped_capability_argument_schemas(self) -> None:
+        model = StaticModel()
+        provider = AgnoAgentProvider(
+            self.definition,
+            factory=AgnoAgentFactory(model_resolver=lambda configuration: model),
+        )
+
+        provider.invoke(self.context)
+
+        prompt = "\n".join(str(message.content) for message in model.messages)
+        self.assertIn("proposal.arguments must satisfy", prompt)
+        for capability in self.definition.capabilities:
+            self.assertIn(
+                json.dumps(
+                    {
+                        "name": capability.metadata.name,
+                        "description": capability.metadata.description,
+                        "inputSchema": capability.input_schema,
+                    },
+                    sort_keys=True,
+                ),
+                prompt,
+            )
+        self.assertIn('"required": ["match", "actions"]', prompt)
+        self.assertNotIn('"name": "link.disable"', prompt)
 
     def test_context_is_checked_before_agno_runs(self) -> None:
         model = StaticModel()

@@ -3,6 +3,10 @@
 A self-healing network that monitors queue occupancy, detects congestion, and
 reroutes traffic with rollback. No external services, no root access, no VM.
 
+*Primary goal: feature demonstration — showcases event/interval triggers,
+detectors, rollback, postconditions, and shared state on the `fake`
+substrate.*
+
 ## What it demonstrates
 
 - Event triggers (queue threshold exceeded)
@@ -69,3 +73,5 @@ clients; `h3` is the server.
   multi-layer placement and hierarchical coordination
 - [Getting Started](../getting-started/README.md) — the simplest possible
   experiment
+- [iperf Throughput](../iperf-throughput/README.md) — Ollama-driven TCP
+  throughput test with real traffic

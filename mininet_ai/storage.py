@@ -1,4 +1,4 @@
-"""Private on-host storage preparation shared by SQLite-backed modules."""
+"""Private on-host directory and file preparation shared by runtime and storage."""
 
 from __future__ import annotations
 
@@ -8,12 +8,64 @@ from pathlib import Path
 
 
 class PrivateStoragePathError(OSError):
-    """A persistent database path is unsafe or cannot be prepared."""
+    """A storage path is unsafe or cannot be prepared."""
 
     def __init__(self, path: Path, reason: str, *, unsafe: bool) -> None:
         super().__init__(reason)
         self.path = path
         self.unsafe = unsafe
+
+
+def check_private_directory(metadata: os.stat_result, directory: Path) -> None:
+    """Validate an opened directory without inspecting a potentially replaced path."""
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) & 0o077
+    ):
+        raise PrivateStoragePathError(
+            directory,
+            f"directory {directory} must be an owner-only directory owned by the current user",
+            unsafe=True,
+        )
+
+
+def open_private_directory(
+    directory: Path,
+    *,
+    create: bool,
+    private_levels: int = 1,
+) -> int:
+    """Return a caller-owned descriptor, walking without following symlinks.
+
+    Validate the last ``private_levels`` directories and every directory created
+    during this call. Existing higher ancestors need not be private (e.g. /tmp).
+    Set ``private_levels=0`` to open an existing shared parent; newly created
+    directories are still checked for private permissions.
+    """
+    path = directory.absolute()
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for index, part in enumerate(path.parts[1:]):
+            owned = index >= len(path.parts) - 1 - max(private_levels, 0)
+            created = False
+            if create:
+                try:
+                    os.mkdir(part, 0o700, dir_fd=descriptor)
+                    created = True
+                except FileExistsError:
+                    pass
+            child = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+            )
+            os.close(descriptor)
+            descriptor = child
+            if owned or created:
+                check_private_directory(os.fstat(descriptor), path)
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
 def prepare_private_sqlite_file(path: str | Path) -> Path:
@@ -36,6 +88,7 @@ def prepare_private_sqlite_file(path: str | Path) -> Path:
             metadata = database_path.lstat()
             if (
                 not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
                 or stat.S_IMODE(metadata.st_mode) & 0o077
             ):
                 raise PrivateStoragePathError(
@@ -44,7 +97,19 @@ def prepare_private_sqlite_file(path: str | Path) -> Path:
                     unsafe=True,
                 )
         else:
-            os.close(descriptor)
+            try:
+                metadata = os.fstat(descriptor)
+                if (
+                    metadata.st_uid != os.geteuid()
+                    or stat.S_IMODE(metadata.st_mode) & 0o077
+                ):
+                    raise PrivateStoragePathError(
+                        database_path,
+                        "filesystem did not create a private user-owned file; use a local --artifact-root",
+                        unsafe=True,
+                    )
+            finally:
+                os.close(descriptor)
     except PrivateStoragePathError:
         raise
     except OSError as error:

@@ -17,34 +17,37 @@ Start with the simplest example and work your way up:
 3. **[Hierarchical Routing Coordination](hierarchical-routing/README.md)** —
    a three-tier routing system with multi-layer placement and hierarchical
    coordination.
+4. **[iperf Throughput](iperf-throughput/README.md)** — an Ollama-driven TCP
+   throughput test with real traffic on `mininet-ovs`.
 
 ## Index
 
-| Example | Description | Substrate | Provider | Key Features |
-| --- | --- | --- | --- | --- |
-| [Getting Started](getting-started/README.md) | Minimal offline experiment | `fake` | `mock` | Basic workflow, one agent, one capability |
-| [Autonomous Network Operation](autonomous-operation/README.md) | Self-healing network | `fake` | `mock` | Event/interval triggers, threshold detector, rollback, postconditions, shared state, multi-layer placement |
-| [Hierarchical Routing Coordination](hierarchical-routing/README.md) | Three-tier routing system | `mininet-ovs` | `ollama` | Multi-layer placement, hierarchical coordination, declarative + Python factory blueprints, postconditions, shared state |
+| Example | Description | Substrate | Provider | Primary Goal | Key Features |
+| --- | --- | --- | --- | --- | --- |
+| [Getting Started](getting-started/README.md) | Minimal offline experiment | `fake` | `mock` | Feature demonstration | Basic workflow, one agent, one capability |
+| [Autonomous Network Operation](autonomous-operation/README.md) | Self-healing network | `fake` | `mock` | Feature demonstration | Event/interval triggers, threshold detector, rollback, postconditions, shared state, multi-layer placement |
+| [Hierarchical Routing Coordination](hierarchical-routing/README.md) | Three-tier routing system | `mininet-ovs` | `ollama` | Both | Multi-layer placement, hierarchical coordination, declarative + Python factory blueprints, postconditions, shared state |
+| [iperf Throughput](iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` | Realistic scenario | Host placement, Python factory blueprints, cross-terminal `invoke`, serialized startup intents |
 
 ## Feature Matrix
 
-| Feature | Getting Started | Autonomous Operation | Hierarchical Routing |
-| --- | --- | --- | --- |
-| `fake` substrate | ✓ | ✓ | |
-| `mininet-ovs` substrate | | | ✓ |
-| `mock` provider | ✓ | ✓ | |
-| `ollama` provider | | | ✓ |
-| Manual trigger | ✓ | ✓ | ✓ |
-| Interval trigger | | ✓ | ✓ |
-| Event trigger | | ✓ | |
-| Observation detector | | ✓ | |
-| Rollback | | ✓ | ✓ |
-| Postconditions | | ✓ | ✓ |
-| Shared state | | ✓ | ✓ |
-| Multi-layer placement | | ✓ | ✓ |
-| Hierarchical coordination | | | ✓ |
-| Declarative blueprint | ✓ | ✓ | ✓ |
-| Python factory blueprint | | | ✓ |
+| Feature | Getting Started | Autonomous Operation | Hierarchical Routing | iperf Throughput |
+| --- | --- | --- | --- | --- |
+| `fake` substrate | ✓ | ✓ | | |
+| `mininet-ovs` substrate | | | ✓ | ✓ |
+| `mock` provider | ✓ | ✓ | | |
+| `ollama` provider | | | ✓ | ✓ |
+| Manual trigger | ✓ | ✓ | ✓ | ✓ |
+| Interval trigger | | ✓ | ✓ | |
+| Event trigger | | ✓ | | |
+| Observation detector | | ✓ | | |
+| Rollback | | ✓ | ✓ | |
+| Postconditions | | ✓ | ✓ | |
+| Shared state | | ✓ | ✓ | |
+| Multi-layer placement | | ✓ | ✓ | |
+| Hierarchical coordination | | | ✓ | |
+| Declarative blueprint | ✓ | ✓ | ✓ | |
+| Python factory blueprint | | | ✓ | ✓ |
 
 ## Running the examples
 

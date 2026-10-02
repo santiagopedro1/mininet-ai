@@ -15,6 +15,7 @@ from types import FrameType
 from typing import Annotated, Self, cast
 
 import typer
+from pydantic import JsonValue
 from rich.console import Console
 from rich.table import Table
 
@@ -22,6 +23,7 @@ from mininet_ai.agents import (
     AgnoAgentFactory,
     register_builtin_providers,
 )
+from mininet_ai.artifacts import reserve_artifacts
 from mininet_ai.audit import (
     AuditEvent,
     AuditEventType,
@@ -32,6 +34,7 @@ from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
 from mininet_ai.errors import MininetAIError
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
+from mininet_ai.run_setup import reserve_run
 from mininet_ai.runtime import (
     ContinuousInvocationRecord,
     LedgerAuditSink,
@@ -94,6 +97,7 @@ class _RunProgress:
             metadata = os.fstat(descriptor)
             if (
                 not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
                 or stat.S_IMODE(metadata.st_mode) & 0o077
             ):
                 raise _RunLogError(f"run log {path} must be an owner-only regular file")
@@ -123,26 +127,63 @@ class _RunProgress:
     def info(self, message: str) -> None:
         self._logger.info(message)
         if self._verbose:
-            error_console.print(f"[dim]•[/dim] {message}")
+            error_console.print(f"• {message}", markup=False, highlight=False)
 
     def error(self, message: str) -> None:
         self._logger.error(message)
         if self._verbose:
-            error_console.print(f"[bold red]×[/bold red] {message}")
+            error_console.print(f"× {message}", markup=False, highlight=False)
 
     def audit(self, event: AuditEvent) -> None:
         message = (
-            f"{event.type.value}: agent={event.agent_id} "
+            f"{event.type.value}: run={event.run_id} agent={event.agent_id} "
             f"invocation={event.invocation_id}"
         )
-        if event.type in _FAILED_AUDIT_EVENTS:
-            code = event.data.get("code")
-            detail = event.data.get("message")
-            if isinstance(code, str) and code:
-                message += f" code={code}"
-            if isinstance(detail, str) and detail:
-                message += f" message={detail}"
-        if event.type in _FAILED_AUDIT_EVENTS:
+        details: dict[str, JsonValue] = {}
+
+        def include(value: JsonValue, *keys: str) -> None:
+            if isinstance(value, dict):
+                for key in keys:
+                    if key in value and value[key] is not None:
+                        details[key] = value[key]
+
+        if event.type == AuditEventType.AGENT_STARTED:
+            include(event.data.get("context"), "intent")
+        elif event.type == AuditEventType.AGENT_COMPLETED:
+            response = event.data.get("response")
+            include(response, "message")
+            if isinstance(response, dict):
+                for key in ("proposals", "delegations", "sharedStateUpdates"):
+                    values = response.get(key)
+                    if isinstance(values, list):
+                        details[key] = len(values)
+            runtime = event.data.get("runtime")
+            include(runtime, "model", "modelProvider", "agnoRunId", "sessionId")
+            if isinstance(runtime, dict):
+                include(
+                    runtime.get("metrics"),
+                    "durationSeconds",
+                    "inputTokens",
+                    "outputTokens",
+                    "totalTokens",
+                )
+        elif event.type == AuditEventType.CAPABILITY_STARTED:
+            include(event.data.get("proposal"), "id", "capability", "target", "reason")
+        elif event.type == AuditEventType.CAPABILITY_COMPLETED:
+            result = event.data.get("result")
+            include(result, "request_id", "status", "changed", "effectLatencySeconds")
+            if isinstance(result, dict):
+                include(result.get("issue"), "code", "message")
+        for key in ("code", "message", "errorType"):
+            include(event.data, key)
+        message += "".join(
+            f" {key}={json.dumps(value, ensure_ascii=True, separators=(',', ':'))}"
+            for key, value in details.items()
+        )
+        if event.type in _FAILED_AUDIT_EVENTS or (
+            event.type == AuditEventType.CAPABILITY_COMPLETED
+            and details.get("status") not in (None, "succeeded")
+        ):
             self.error(message)
         else:
             self.info(message)
@@ -402,26 +443,26 @@ def run(
         ),
     ] = False,
     ledger_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--ledger-db",
             help="Persistent experiment ledger database.",
         ),
-    ] = Path(".mininet-ai/runs.sqlite3"),
+    ] = None,
     agno_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--agno-db",
             help="Private SQLite database for Agno sessions and memory.",
         ),
-    ] = Path(".mininet-ai/agno.sqlite3"),
+    ] = None,
     shared_state_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--shared-state-db",
             help="Private SQLite database for shared operational state.",
         ),
-    ] = Path(".mininet-ai/shared-state.sqlite3"),
+    ] = None,
     discover: Annotated[
         bool,
         typer.Option(
@@ -438,15 +479,24 @@ def run(
         ),
     ] = False,
     log_file: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--log-file",
             help="Append human-readable run progress to this file.",
         ),
-    ] = Path(".mininet-ai/run.log"),
-    control_dir: Annotated[
+    ] = None,
+    artifact_root: Annotated[
         Path,
-        typer.Option("--control-dir", help="Private directory for local intent submission."),
+        typer.Option(
+            "--artifact-root",
+            help="Saved run output root; prefer a private local filesystem.",
+        ),
+    ] = Path(".mininet-ai"),
+    control_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--control-dir", help="Private directory for local intent submission."
+        ),
     ] = DEFAULT_CONTROL_DIRECTORY,
 ) -> None:
     """Own a complete continuous experiment until interrupted or stopped."""
@@ -459,7 +509,10 @@ def run(
             _print_text_plan(deployment_plan)
         return
 
-    substrate = _runtime_or_exit(deployment_plan.substrate)
+    try:
+        reserved_id, substrate = reserve_run(deployment_plan.substrate)
+    except (LookupError, TypeError, ValueError) as error:
+        raise typer.BadParameter(str(error)) from error
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
     loaded = (
@@ -480,9 +533,63 @@ def run(
             param_hint="--stop-after-intents",
         )
 
+    persistent_memory = any(
+        agent.memory.learned is not None and agent.memory.learned.scope == "agent"
+        for agent in deployment_plan.agents
+    )
+    legacy_memory = artifact_root.absolute() / "agno.sqlite3"
+    if persistent_memory and agno_db is None and legacy_memory.exists():
+        raise typer.BadParameter(
+            f"Existing learned-memory store found at {legacy_memory}. "
+            f"Use --agno-db {legacy_memory} to retain its agent memory, or explicitly "
+            "select a new --agno-db to start fresh. No automatic migration is performed.",
+            param_hint="--agno-db",
+        )
+    if reserved_id is None:
+        if any(
+            path is None for path in (log_file, ledger_db, shared_state_db, agno_db)
+        ):
+            raise typer.BadParameter(
+                "This registered adapter does not support built-in identity reservation. "
+                "Provide --log-file, --ledger-db, --shared-state-db, and --agno-db explicitly; "
+                "its zero-argument factory and runtime protocol remain unchanged."
+            )
+        artifact_description = (
+            "explicit file paths (adapter assigns identity during deployment)"
+        )
+    else:
+        artifacts = _operation_or_exit(
+            lambda: reserve_artifacts(
+                artifact_root,
+                reserved_id,
+                persistent_memory=persistent_memory and agno_db is None,
+            )
+        )
+        artifact_description = str(artifacts.directory)
+        log_file = log_file or artifacts.log
+        ledger_db = ledger_db or artifacts.ledger
+        shared_state_db = shared_state_db or artifacts.shared_state
+        agno_db = agno_db or artifacts.agno
+    assert (
+        log_file is not None
+        and ledger_db is not None
+        and shared_state_db is not None
+        and agno_db is not None
+    )
+    log_file = log_file.absolute()
+    ledger_db = ledger_db.absolute()
+    shared_state_db = shared_state_db.absolute()
+    agno_db = agno_db.absolute()
+    error_console.print(
+        f"Artifacts: {artifact_description}\nLog: {log_file}\nLedger: {ledger_db}\n"
+        f"Shared state: {shared_state_db}\nAgno sessions/memory: {agno_db}"
+    )
     progress = _operation_or_exit(lambda: _RunProgress(log_file, verbose=verbose))
     progress.info(
-        f"Prepared experiment {deployment_plan.metadata.name} "
+        f"Artifacts: {artifact_description}; log={log_file}; ledger={ledger_db}; shared-state={shared_state_db}; Agno={agno_db}"
+    )
+    progress.info(
+        f"Reserved run {reserved_id}; Prepared experiment {deployment_plan.metadata.name} "
         f"({len(deployment_plan.resources)} resources, "
         f"{len(deployment_plan.agents)} agents)"
     )
@@ -537,6 +644,8 @@ def run(
         )
         with stop_latch:
             run_info = _operation_or_exit(owner.start)
+            if reserved_id is not None and run_info.id != reserved_id:
+                raise MininetAIError("deployed run ID differs from reserved identity")
             intent_server = IntentServer(
                 owner,
                 control_dir,
@@ -545,6 +654,8 @@ def run(
                 ),
             )
             _operation_or_exit(intent_server.__enter__)
+            progress.info(f"Control endpoint: {intent_server.path}")
+            error_console.print(f"Control endpoint: {intent_server.path}")
             progress.info(f"Run {run_info.id} is active on {run_info.substrate}")
             for agent_id, intent in parsed_intents:
                 event = _operation_or_exit(
@@ -571,6 +682,12 @@ def run(
                     f"Log: {log_file}"
                 )
             stop_latch.wait()
+    except BaseException as error:
+        progress.error(f"Run {reserved_id} startup/operation failed: {error}")
+        error_console.print(
+            "Run failed; diagnostic output retained. For storage errors use --artifact-root on a private local filesystem supporting SQLite locking."
+        )
+        raise
     finally:
         try:
             if intent_server is not None:
@@ -705,28 +822,27 @@ def stop(
 
 @app.command()
 def invoke(
-    experiment: Annotated[
-        Path,
-        typer.Argument(
-            exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
-        ),
-    ],
     run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
     agent_id: Annotated[
         str, typer.Argument(help="Compiled agent instance identifier.")
     ],
     intent: Annotated[
         str,
-        typer.Option("--intent", "-i", help="Manual intent to queue in the foreground owner."),
+        typer.Option(
+            "--intent", "-i", help="Manual intent to queue in the foreground owner."
+        ),
     ],
     control_dir: Annotated[
-        Path,
-        typer.Option("--control-dir", help="The foreground owner's private control directory."),
+        Path | None,
+        typer.Option(
+            "--control-dir", help="The foreground owner's private control directory."
+        ),
     ] = DEFAULT_CONTROL_DIRECTORY,
     timeout_seconds: Annotated[
         float,
         typer.Option(
-            "--timeout", min=0.001,
+            "--timeout",
+            min=0.001,
             help="Seconds to wait for intent acceptance, not completion.",
         ),
     ] = 5,
@@ -740,7 +856,9 @@ def invoke(
     ] = None,
     shared_state_db: Annotated[
         Path | None,
-        typer.Option("--shared-state-db", help="Deprecated: configure shared state on run."),
+        typer.Option(
+            "--shared-state-db", help="Deprecated: configure shared state on run."
+        ),
     ] = None,
     discover: Annotated[
         bool,
@@ -752,15 +870,19 @@ def invoke(
 ) -> None:
     """Queue an intent in an already-running owner, including from another terminal."""
 
-    if any(value is not None for value in (audit_log, agno_db, shared_state_db)) or discover:
+    if (
+        any(value is not None for value in (audit_log, agno_db, shared_state_db))
+        or discover
+    ):
         error_console.print(
             "[yellow]Deprecated invoke configuration options are ignored; "
             "the foreground owner uses the databases, audit, and plugins configured on run.[/yellow]"
         )
-    deployment_plan = _compile_or_exit(experiment)
     event = _operation_or_exit(
         lambda: IntentClient(control_dir).submit(
-            run_id, deployment_plan.digest, agent_id, intent,
+            run_id,
+            agent_id,
+            intent,
             timeout_seconds=timeout_seconds,
         )
     )
@@ -771,6 +893,44 @@ def invoke(
             f"[green]Queued[/green] {event.event_id} for {agent_id}; "
             "follow the owner's run log for results"
         )
+
+
+@app.command()
+def agents(
+    run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
+    control_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--control-dir", help="The foreground owner's private control directory."
+        ),
+    ] = DEFAULT_CONTROL_DIRECTORY,
+    timeout_seconds: Annotated[
+        float,
+        typer.Option(
+            "--timeout", min=0.001, help="Seconds to wait for agent discovery."
+        ),
+    ] = 5,
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Agent discovery format.")
+    ] = OutputFormat.TEXT,
+) -> None:
+    """List live owner agent IDs and whether they accept manual intents."""
+    description = _operation_or_exit(
+        lambda: IntentClient(control_dir).describe(
+            run_id, timeout_seconds=timeout_seconds
+        )
+    )
+    if output_format == OutputFormat.JSON:
+        _print_json(description)
+        return
+    console.print(f"[bold]{description.run_id}[/bold]")
+    console.print(f"Plan digest: {description.plan_digest}")
+    table = Table("Agent", "Manual intents")
+    for agent_id in description.agents:
+        table.add_row(
+            agent_id, "yes" if agent_id in description.manual_agents else "no"
+        )
+    console.print(table)
 
 
 @app.command("schema")

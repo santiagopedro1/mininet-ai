@@ -4,6 +4,9 @@ A three-tier routing system: a global orchestrator sets policy, switch-level
 routers install flows, and host-level agents generate traffic. Requires a
 Vagrant VM and Ollama server.
 
+*Primary goal: both — a plausible three-tier routing scenario that showcases
+multi-layer placement and hierarchical coordination.*
+
 ## What it demonstrates
 
 - Multi-layer placement (global + data + host)
@@ -54,13 +57,19 @@ Terminal 2 — generate traffic from the hosts:
 ```bash
 vagrant ssh
 cd /vagrant
+sudo scripts/vm-run.sh mininet-ai agents <run-id>
 sudo scripts/vm-run.sh mininet-ai invoke \
-  examples/hierarchical-routing/experiment.yaml <run-id> host-traffic@h1 \
+  <run-id> host-traffic@h1 \
   --intent 'Run a TCP throughput test against 10.0.0.13.'
 sudo scripts/vm-run.sh mininet-ai invoke \
-  examples/hierarchical-routing/experiment.yaml <run-id> host-traffic@h2 \
+  <run-id> host-traffic@h2 \
   --intent 'Run a TCP throughput test against 10.0.0.13.'
 ```
+
+Use the run ID from terminal 1. `agents` lists available IDs and manual-intent
+eligibility. Neither command needs the original experiment file; both require
+the live owner, the same user, and the same working directory (or an identical
+absolute `--control-dir`). `invoke` acknowledges acceptance, not completion.
 
 ## How it works
 
@@ -74,6 +83,23 @@ sudo scripts/vm-run.sh mininet-ai invoke \
    routers. The compiler generates coordination edges from the orchestrator
    to each switch router.
 
+### Flow proposal arguments
+
+`openflow.flow.install` requires an `arguments.match` object and a non-empty
+`arguments.actions` string (comma-separated OpenFlow actions, not an array).
+For example, a policy-backed proposal might contain:
+
+```json
+{"id":"policy-flow","capability":"openflow.flow.install","target":"s1","arguments":{"match":{"in_port":1},"actions":"output:2"}}
+```
+
+This illustrates the shape only: choose the target and ports from the actual
+policy and observations. Routers should return no proposals when that
+information is missing. Declarative agents receive their scoped capability
+input schemas in the model instructions; runtime validation still rejects
+malformed proposals. An agent's response message is not proof of installation:
+check `capability.execution.completed` for the action's actual status.
+
 ## Topology
 
 Three hosts (`h1`, `h2`, `h3`) connected through two switches (`s1`, `s2`).
@@ -84,5 +110,7 @@ clients; `h3` is the server.
 
 - [Getting Started](../getting-started/README.md) — the simplest possible
   experiment
+- [iperf Throughput](../iperf-throughput/README.md) — Ollama-driven TCP
+  throughput test with real traffic
 - [Autonomous Network Operation](../autonomous-operation/README.md) — event
   triggers, detectors, rollback, and shared state

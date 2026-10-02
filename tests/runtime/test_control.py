@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 import subprocess
@@ -10,18 +11,226 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
+from unittest.mock import patch
 
 import yaml
 
 from mininet_ai.agents import register_builtin_providers
 from mininet_ai.experiment import ExperimentRuntime
 from mininet_ai.plugins import ProviderRegistries
-from mininet_ai.runtime.control import IntentClient, IntentControlError, IntentServer
+from mininet_ai.runtime.control import (
+    IntentClient,
+    IntentControlError,
+    IntentServer,
+    resolve_control_directory,
+)
 from mininet_ai.substrates import FakeSubstrateRuntime
 from tests.agents.test_runtime import configured_plan
 
 
 class IntentControlTests(unittest.TestCase):
+    def test_default_control_endpoint_under_shared_parent(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            parent = Path(temporary) / "mininet-ai"
+            parent.mkdir(mode=0o755)
+            parent.chmod(0o755)
+            directory = parent / "control"
+            with (
+                patch(
+                    "mininet_ai.runtime.control.resolve_control_directory",
+                    return_value=directory,
+                ),
+                IntentServer(owner) as server,
+            ):
+                self.assertEqual(
+                    IntentClient().describe(owner.run.id).run_id, owner.run.id
+                )
+                assert server.path is not None
+                self.assertEqual(server.path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(server.path.parent.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(parent.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(list(directory.iterdir()), [])
+
+    def test_socket_identity_guard_preserves_replacement(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(owner, directory) as server:
+                assert server.path is not None
+                path = server.path
+                path.rename(path.with_name("original.sock"))
+                path.write_text("replacement")
+            self.assertEqual(path.read_text(), "replacement")
+            self.assertTrue(path.parent.is_dir())
+
+    def test_peer_uid_is_checked(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with (
+                IntentServer(owner, directory) as server,
+                patch(
+                    "mininet_ai.runtime.control.struct.unpack",
+                    return_value=(1, os.geteuid() + 1, 1),
+                ),
+                socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
+            ):
+                connection.connect(str(server.path))
+                connection.sendall(
+                    (
+                        json.dumps({"kind": "describe", "runId": owner.run.id}) + "\n"
+                    ).encode()
+                )
+                with connection.makefile("rb") as stream:
+                    response = json.loads(stream.readline())
+                self.assertIn("owner user", response["error"]["message"])
+
+    def test_thread_start_failure_removes_endpoint(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with (
+                patch(
+                    "mininet_ai.runtime.control.Thread.start",
+                    side_effect=RuntimeError("thread failed"),
+                ),
+                self.assertRaises(IntentControlError),
+            ):
+                IntentServer(owner, directory).__enter__()
+            self.assertEqual(list(directory.iterdir()), [])
+
+    def test_two_owners_cleanup_independently(self) -> None:
+        first, second = self.make_owner(), self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with (
+                IntentServer(second, directory),
+                IntentServer(first, directory) as server,
+            ):
+                server.close()
+                self.assertEqual(
+                    IntentClient(directory).describe(second.run.id).run_id,
+                    second.run.id,
+                )
+                self.assertEqual(len(list(directory.iterdir())), 1)
+            self.assertEqual(list(directory.iterdir()), [])
+
+    def test_partial_bind_failure_removes_only_owned_run_directory(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with (
+                patch("socket.socket.bind", side_effect=OSError("failure")),
+                self.assertRaises(IntentControlError),
+            ):
+                IntentServer(owner, directory).__enter__()
+            self.assertEqual(list(directory.iterdir()), [])
+
+    def test_symlink_and_long_override_rejected(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "link").symlink_to(directory, target_is_directory=True)
+            for override in (directory / "link/control", directory / ("x" * 100)):
+                with self.assertRaises(IntentControlError):
+                    IntentServer(owner, override).__enter__()
+
+    def test_describe_and_submit_without_digest(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(owner, directory):
+                client = IntentClient(directory)
+                description = client.describe(owner.run.id)
+                self.assertEqual(description.run_id, owner.run.id)
+                self.assertEqual(description.plan_digest, owner.run.plan_digest)
+                self.assertEqual(description.agents, owner.agent_ids)
+                self.assertEqual(description.manual_agents, owner.manual_agent_ids)
+                self.assertIn("switch-router@s1", description.manual_agents)
+                event = client.submit(owner.run.id, "switch-router@s1", "inspect")
+                self.assertEqual(event.run_id, owner.run.id)
+        self.assertEqual(owner.stop().continuous.completed, 1)
+
+    def test_describe_is_read_only_and_checks_run_identity(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(owner, directory):
+                path = next(directory.glob("*/control.sock"))
+                for run_id in (owner.run.id, "wrong-run"):
+                    with socket.socket(
+                        socket.AF_UNIX, socket.SOCK_STREAM
+                    ) as connection:
+                        connection.connect(str(path))
+                        connection.sendall(
+                            (
+                                json.dumps({"kind": "describe", "runId": run_id}) + "\n"
+                            ).encode()
+                        )
+                        with connection.makefile("rb") as stream:
+                            response = json.loads(stream.readline())
+                        if run_id == owner.run.id:
+                            self.assertIn("describe", response)
+                        else:
+                            self.assertEqual(
+                                response["error"]["code"],
+                                "runtime.control.run-mismatch",
+                            )
+        self.assertEqual(owner.stop().continuous.completed, 0)
+
+    def test_legacy_submit_request_without_kind_is_supported(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with (
+                IntentServer(owner, directory),
+                socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
+            ):
+                connection.connect(str(next(directory.glob("*/control.sock"))))
+                connection.sendall(
+                    (
+                        json.dumps(
+                            {
+                                "runId": owner.run.id,
+                                "planDigest": owner.run.plan_digest,
+                                "agentId": "switch-router@s1",
+                                "intent": "inspect",
+                            }
+                        )
+                        + "\n"
+                    ).encode()
+                )
+                with connection.makefile("rb") as stream:
+                    response = json.loads(stream.readline())
+                self.assertIn("event", response)
+        self.assertEqual(owner.stop().continuous.completed, 1)
+
+    def test_invalid_request_kinds_and_describe_fields_are_rejected(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(owner, directory):
+                path = next(directory.glob("*/control.sock"))
+                for payload in (
+                    {"kind": "unknown", "runId": owner.run.id},
+                    {"kind": "describe", "runId": owner.run.id, "intent": "inspect"},
+                ):
+                    with socket.socket(
+                        socket.AF_UNIX, socket.SOCK_STREAM
+                    ) as connection:
+                        connection.connect(str(path))
+                        connection.sendall((json.dumps(payload) + "\n").encode())
+                        with connection.makefile("rb") as stream:
+                            response = json.loads(stream.readline())
+                        self.assertEqual(
+                            response["error"]["code"], "runtime.control.invalid-request"
+                        )
+                description = IntentClient(directory).describe(owner.run.id)
+                self.assertEqual(description.run_id, owner.run.id)
+        self.assertEqual(owner.stop().continuous.completed, 0)
+
     def make_owner(self) -> ExperimentRuntime:
         plan = configured_plan({"message": "handled"})
         substrate = FakeSubstrateRuntime()
@@ -44,9 +253,9 @@ class IntentControlTests(unittest.TestCase):
                 with IntentServer(owner, Path(temporary) / "control"):
                     event = IntentClient(Path(temporary) / "control").submit(
                         run.id,
-                        plan.digest,
                         "switch-router@s1",
                         "inspect forwarding",
+                        plan_digest=plan.digest,
                     )
                     self.assertEqual(event.run_id, run.id)
                     self.assertEqual(event.payload["intent"], "inspect forwarding")
@@ -65,20 +274,18 @@ class IntentControlTests(unittest.TestCase):
                 with self.assertRaisesRegex(IntentControlError, "does not match"):
                     client.submit(
                         owner.run.id,
-                        "sha256:" + "0" * 64,
                         "switch-router@s1",
                         "inspect",
+                        plan_digest="sha256:" + "0" * 64,
                     )
                 with self.assertRaisesRegex(
-                    IntentControlError, "unknown or has no manual trigger"
+                    IntentControlError, "unknown agent.*valid agents:.*switch-router@s1"
                 ):
-                    client.submit(
-                        owner.run.id, owner.run.plan_digest, "missing", "inspect"
-                    )
+                    client.submit(owner.run.id, "missing", "inspect")
             self.assertEqual(list(directory.iterdir()), [])
             with self.assertRaises(IntentControlError):
                 IntentClient(directory).submit(
-                    owner.run.id, owner.run.plan_digest, "switch-router@s1", "inspect"
+                    owner.run.id, "switch-router@s1", "inspect"
                 )
         self.assertEqual(owner.stop().continuous.completed, 0)
 
@@ -99,16 +306,13 @@ class IntentControlTests(unittest.TestCase):
         self.addCleanup(owner.stop)
         with TemporaryDirectory() as temporary:
             directory = Path(temporary) / "control"
-            with (
-                IntentServer(owner, directory),
-                self.assertRaisesRegex(IntentControlError, "no manual trigger"),
-            ):
-                IntentClient(directory).submit(
-                    owner.run.id,
-                    owner.run.plan_digest,
-                    "switch-router@s1",
-                    "inspect",
-                )
+            with IntentServer(owner, directory):
+                client = IntentClient(directory)
+                description = client.describe(owner.run.id)
+                self.assertEqual(description.manual_agents, ())
+                self.assertEqual(description.agents, owner.agent_ids)
+                with self.assertRaisesRegex(IntentControlError, "no manual trigger"):
+                    client.submit(owner.run.id, "switch-router@s1", "inspect")
         self.assertEqual(owner.stop().continuous.completed, 0)
 
     def test_malformed_and_oversized_requests_do_not_break_intake(self) -> None:
@@ -116,7 +320,7 @@ class IntentControlTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             directory = Path(temporary) / "control"
             with IntentServer(owner, directory):
-                path = next(directory.iterdir())
+                path = next(directory.glob("*/control.sock"))
                 for message in (b"not-json\n", b"x" * 65_537):
                     with (
                         self.subTest(message_size=len(message)),
@@ -130,12 +334,11 @@ class IntentControlTests(unittest.TestCase):
                 with self.assertRaises(IntentControlError):
                     IntentClient(directory).submit(
                         owner.run.id,
-                        owner.run.plan_digest,
                         "switch-router@s1",
                         "x" * 8193,
                     )
                 IntentClient(directory).submit(
-                    owner.run.id, owner.run.plan_digest, "switch-router@s1", "inspect"
+                    owner.run.id, "switch-router@s1", "inspect"
                 )
         self.assertEqual(owner.stop().continuous.completed, 1)
 
@@ -157,7 +360,7 @@ class IntentControlTests(unittest.TestCase):
                 ):
                     pass
                 event = IntentClient(directory).submit(
-                    owner.run.id, owner.run.plan_digest, "switch-router@s1", "inspect"
+                    owner.run.id, "switch-router@s1", "inspect"
                 )
                 self.assertEqual(event.run_id, owner.run.id)
 
@@ -169,7 +372,7 @@ class IntentControlTests(unittest.TestCase):
                 IntentServer(owner, directory) as server,
                 socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
             ):
-                connection.connect(str(next(directory.iterdir())))
+                connection.connect(str(next(directory.glob("*/control.sock"))))
                 connection.sendall(b'{"intent":')
                 # Allow the server to accept the connection before stopping it.
                 time.sleep(0.05)
@@ -190,7 +393,7 @@ class IntentControlTests(unittest.TestCase):
                 socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
             ):
                 connection.settimeout(3)
-                connection.connect(str(next(directory.iterdir())))
+                connection.connect(str(next(directory.glob("*/control.sock"))))
                 stopped = Event()
 
                 def trickle() -> None:
@@ -211,7 +414,7 @@ class IntentControlTests(unittest.TestCase):
                     stopped.set()
                     sender.join(timeout=1)
                 IntentClient(directory).submit(
-                    owner.run.id, owner.run.plan_digest, "switch-router@s1", "inspect"
+                    owner.run.id, "switch-router@s1", "inspect"
                 )
         self.assertEqual(owner.stop().continuous.completed, 1)
 
@@ -224,7 +427,15 @@ class IntentControlTests(unittest.TestCase):
                 yaml.safe_dump(configured_plan({"message": "handled"}).snapshot)
             )
             log = directory / "run.log"
-            control = directory / "control"
+            xdg = directory / "xdg"
+            xdg.mkdir(mode=0o700)
+            environment = {**os.environ, "XDG_RUNTIME_DIR": str(xdg)}
+            with patch.dict(os.environ, environment):
+                control = resolve_control_directory()
+            owner_cwd = directory / "owner"
+            client_cwd = directory / "client"
+            owner_cwd.mkdir()
+            client_cwd.mkdir()
             process = subprocess.Popen(
                 [
                     *command,
@@ -232,8 +443,8 @@ class IntentControlTests(unittest.TestCase):
                     str(experiment),
                     "--format",
                     "json",
-                    "--control-dir",
-                    str(control),
+                    "--artifact-root",
+                    str(directory / "output"),
                     "--log-file",
                     str(log),
                     "--ledger-db",
@@ -246,6 +457,8 @@ class IntentControlTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                cwd=owner_cwd,
+                env=environment,
             )
             try:
                 deadline = time.monotonic() + 10
@@ -260,17 +473,12 @@ class IntentControlTests(unittest.TestCase):
                     match, log.read_text() if log.exists() else "owner did not start"
                 )
                 assert match is not None
-                result = subprocess.run(
+                experiment.unlink()
+                discovery = subprocess.run(
                     [
                         *command,
-                        "invoke",
-                        str(experiment),
+                        "agents",
                         match[1],
-                        "switch-router@s1",
-                        "--intent",
-                        "inspect from another terminal",
-                        "--control-dir",
-                        str(control),
                         "--format",
                         "json",
                     ],
@@ -278,6 +486,30 @@ class IntentControlTests(unittest.TestCase):
                     text=True,
                     timeout=10,
                     check=False,
+                    cwd=client_cwd,
+                    env=environment,
+                )
+                self.assertEqual(discovery.returncode, 0, discovery.stderr)
+                self.assertIn(
+                    "switch-router@s1", json.loads(discovery.stdout)["manualAgents"]
+                )
+                result = subprocess.run(
+                    [
+                        *command,
+                        "invoke",
+                        match[1],
+                        "switch-router@s1",
+                        "--intent",
+                        "inspect from another terminal",
+                        "--format",
+                        "json",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                    cwd=client_cwd,
+                    env=environment,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 event = json.loads(result.stdout)
