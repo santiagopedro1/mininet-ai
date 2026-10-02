@@ -24,7 +24,7 @@ from mininet_ai.specification.models import StrictModel
 if TYPE_CHECKING:
     from mininet_ai.experiment import ExperimentRuntime
 
-DEFAULT_CONTROL_DIRECTORY = Path(".mininet-ai/control")
+DEFAULT_CONTROL_DIRECTORY = None
 _MAX_MESSAGE_BYTES = 65_536
 
 
@@ -68,10 +68,57 @@ def _socket_path(directory: Path, run_id: str) -> Path:
     return directory.absolute() / name
 
 
+def resolve_control_directory(directory: Path | None = None) -> Path:
+    """Resolve at execution time; never fall back from invalid XDG configuration."""
+    if directory is not None:
+        return directory.absolute()
+    uid = os.geteuid()
+    if uid == 0:
+        return Path("/run/mininet-ai/control")
+    xdg = os.environ.get("XDG_RUNTIME_DIR")
+    if xdg is not None:
+        parent = Path(xdg)
+        if not parent.is_absolute():
+            raise IntentControlError("XDG_RUNTIME_DIR must be an absolute private directory")
+        try:
+            _private_directory(parent, create=False)
+        except (OSError, IntentControlError) as error:
+            raise IntentControlError(
+                f"invalid XDG_RUNTIME_DIR {parent}: {error}; fix or unset XDG_RUNTIME_DIR"
+            ) from error
+        return parent / "mininet-ai/control"
+    return Path(f"/tmp/mininet-ai-{uid}/control")
+
+
 def _private_directory(directory: Path, *, create: bool) -> None:
-    if create:
-        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    metadata = directory.lstat()
+    descriptor = _open_directory(directory, create=create)
+    os.close(descriptor)
+
+
+def _open_directory(directory: Path, *, create: bool) -> int:
+    """Walk without following symlinks, validating every newly owned boundary."""
+    path = directory.absolute()
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for index, part in enumerate(path.parts[1:]):
+            owned = index == len(path.parts) - 2 or part.startswith("mininet-ai")
+            if create:
+                try:
+                    os.mkdir(part, 0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+            if owned:
+                _check_directory(os.fstat(descriptor), path)
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _check_directory(metadata: os.stat_result, directory: Path) -> None:
     if (
         not stat.S_ISDIR(metadata.st_mode)
         or metadata.st_uid != os.geteuid()
@@ -80,6 +127,13 @@ def _private_directory(directory: Path, *, create: bool) -> None:
         raise IntentControlError(
             f"control directory {directory} must be an owner-only directory owned by the current user",
             code="runtime.control.permissions",
+        )
+
+
+def _check_socket_length(path: Path) -> None:
+    if len(os.fsencode(path)) >= 108:
+        raise IntentControlError(
+            f"control socket path is too long: {path}; use a shorter absolute --control-dir"
         )
 
 
@@ -118,12 +172,12 @@ class IntentServer:
     def __init__(
         self,
         owner: ExperimentRuntime,
-        directory: Path = DEFAULT_CONTROL_DIRECTORY,
+        directory: Path | None = None,
         *,
         on_submit: Callable[[RuntimeEvent], None] | None = None,
     ) -> None:
         self._owner = owner
-        self._directory = directory
+        self._directory = resolve_control_directory(directory)
         self._on_submit = on_submit
         self._stop = Event()
         self._socket: socket.socket | None = None
@@ -137,6 +191,7 @@ class IntentServer:
         try:
             _private_directory(self._directory, create=True)
             path = _socket_path(self._directory, self._owner.run.id)
+            _check_socket_length(path)
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self._socket = listener
             listener.bind(str(path))
@@ -156,11 +211,15 @@ class IntentServer:
             if isinstance(error, IntentControlError):
                 raise
             raise IntentControlError(
-                f"could not open intent endpoint: {error}"
+                f"could not open intent endpoint in {self._directory}: {error}"
             ) from error
 
     def __exit__(self, *error: object) -> None:
         self.close()
+
+    @property
+    def path(self) -> Path | None:
+        return self._path
 
     def close(self) -> None:
         self._stop.set()
@@ -264,8 +323,8 @@ class IntentServer:
 
 
 class IntentClient:
-    def __init__(self, directory: Path = DEFAULT_CONTROL_DIRECTORY) -> None:
-        self._directory = directory
+    def __init__(self, directory: Path | None = None) -> None:
+        self._directory = resolve_control_directory(directory)
 
     def submit(
         self,
@@ -319,6 +378,7 @@ class IntentClient:
         try:
             _private_directory(self._directory, create=False)
             path = _socket_path(self._directory, run_id)
+            _check_socket_length(path)
             metadata = path.lstat()
             if not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != os.geteuid():
                 raise IntentControlError(
@@ -341,6 +401,6 @@ class IntentClient:
             raise
         except (OSError, ValueError, KeyError, TypeError, ValidationError) as error:
             raise IntentControlError(
-                f"could not contact run {run_id!r}: {error}; use the owner's user and control directory; do not retry intent submissions automatically after a timeout",
+                f"could not contact run {run_id!r} at {_socket_path(self._directory, run_id)}: {error}; use the owner's user and control directory; do not retry intent submissions automatically after a timeout",
                 code="runtime.control.unavailable",
             ) from error

@@ -445,7 +445,7 @@ def run(
         ),
     ] = Path(".mininet-ai/run.log"),
     control_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--control-dir", help="Private directory for local intent submission."),
     ] = DEFAULT_CONTROL_DIRECTORY,
 ) -> None:
@@ -545,6 +545,8 @@ def run(
                 ),
             )
             _operation_or_exit(intent_server.__enter__)
+            progress.info(f"Control endpoint: {intent_server.path}")
+            error_console.print(f"Control endpoint: {intent_server.path}")
             progress.info(f"Run {run_info.id} is active on {run_info.substrate}")
             for agent_id, intent in parsed_intents:
                 event = _operation_or_exit(
@@ -714,7 +716,7 @@ def invoke(
         typer.Option("--intent", "-i", help="Manual intent to queue in the foreground owner."),
     ],
     control_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--control-dir", help="The foreground owner's private control directory."),
     ] = DEFAULT_CONTROL_DIRECTORY,
     timeout_seconds: Annotated[
@@ -770,7 +772,7 @@ def invoke(
 def agents(
     run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
     control_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option("--control-dir", help="The foreground owner's private control directory."),
     ] = DEFAULT_CONTROL_DIRECTORY,
     timeout_seconds: Annotated[
