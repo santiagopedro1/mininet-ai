@@ -22,6 +22,7 @@ from mininet_ai.agents import (
     AgnoAgentFactory,
     register_builtin_providers,
 )
+from mininet_ai.artifacts import reserve_artifacts
 from mininet_ai.audit import (
     AuditEvent,
     AuditEventType,
@@ -95,6 +96,7 @@ class _RunProgress:
             metadata = os.fstat(descriptor)
             if (
                 not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
                 or stat.S_IMODE(metadata.st_mode) & 0o077
             ):
                 raise _RunLogError(f"run log {path} must be an owner-only regular file")
@@ -403,26 +405,26 @@ def run(
         ),
     ] = False,
     ledger_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--ledger-db",
             help="Persistent experiment ledger database.",
         ),
-    ] = Path(".mininet-ai/runs.sqlite3"),
+    ] = None,
     agno_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--agno-db",
             help="Private SQLite database for Agno sessions and memory.",
         ),
-    ] = Path(".mininet-ai/agno.sqlite3"),
+    ] = None,
     shared_state_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--shared-state-db",
             help="Private SQLite database for shared operational state.",
         ),
-    ] = Path(".mininet-ai/shared-state.sqlite3"),
+    ] = None,
     discover: Annotated[
         bool,
         typer.Option(
@@ -439,15 +441,24 @@ def run(
         ),
     ] = False,
     log_file: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--log-file",
             help="Append human-readable run progress to this file.",
         ),
-    ] = Path(".mininet-ai/run.log"),
+    ] = None,
+    artifact_root: Annotated[
+        Path,
+        typer.Option(
+            "--artifact-root",
+            help="Saved run output root; prefer a private local filesystem.",
+        ),
+    ] = Path(".mininet-ai"),
     control_dir: Annotated[
         Path | None,
-        typer.Option("--control-dir", help="Private directory for local intent submission."),
+        typer.Option(
+            "--control-dir", help="Private directory for local intent submission."
+        ),
     ] = DEFAULT_CONTROL_DIRECTORY,
 ) -> None:
     """Own a complete continuous experiment until interrupted or stopped."""
@@ -484,9 +495,31 @@ def run(
             param_hint="--stop-after-intents",
         )
 
+    persistent_memory = any(
+        agent.memory.learned is not None and agent.memory.learned.scope == "agent"
+        for agent in deployment_plan.agents
+    )
+    artifacts = _operation_or_exit(
+        lambda: reserve_artifacts(
+            artifact_root,
+            reserved_id,
+            persistent_memory=persistent_memory and agno_db is None,
+        )
+    )
+    log_file = (log_file or artifacts.log).absolute()
+    ledger_db = (ledger_db or artifacts.ledger).absolute()
+    shared_state_db = (shared_state_db or artifacts.shared_state).absolute()
+    agno_db = (agno_db or artifacts.agno).absolute()
+    error_console.print(
+        f"Artifacts: {artifacts.directory}\nLog: {log_file}\nLedger: {ledger_db}\n"
+        f"Shared state: {shared_state_db}\nAgno sessions/memory: {agno_db}"
+    )
     progress = _operation_or_exit(lambda: _RunProgress(log_file, verbose=verbose))
     progress.info(
-        f"Reserved run {reserved_id}; prepared experiment {deployment_plan.metadata.name} "
+        f"Artifacts: {artifacts.directory}; log={log_file}; ledger={ledger_db}; shared-state={shared_state_db}; Agno={agno_db}"
+    )
+    progress.info(
+        f"Reserved run {reserved_id}; Prepared experiment {deployment_plan.metadata.name} "
         f"({len(deployment_plan.resources)} resources, "
         f"{len(deployment_plan.agents)} agents)"
     )
@@ -580,7 +613,10 @@ def run(
                 )
             stop_latch.wait()
     except BaseException as error:
-        progress.error(f"Run {reserved_id} failed: {error}")
+        progress.error(f"Run {reserved_id} startup/operation failed: {error}")
+        error_console.print(
+            "Run failed; diagnostic output retained. For storage errors use --artifact-root on a private local filesystem supporting SQLite locking."
+        )
         raise
     finally:
         try:
@@ -722,16 +758,21 @@ def invoke(
     ],
     intent: Annotated[
         str,
-        typer.Option("--intent", "-i", help="Manual intent to queue in the foreground owner."),
+        typer.Option(
+            "--intent", "-i", help="Manual intent to queue in the foreground owner."
+        ),
     ],
     control_dir: Annotated[
         Path | None,
-        typer.Option("--control-dir", help="The foreground owner's private control directory."),
+        typer.Option(
+            "--control-dir", help="The foreground owner's private control directory."
+        ),
     ] = DEFAULT_CONTROL_DIRECTORY,
     timeout_seconds: Annotated[
         float,
         typer.Option(
-            "--timeout", min=0.001,
+            "--timeout",
+            min=0.001,
             help="Seconds to wait for intent acceptance, not completion.",
         ),
     ] = 5,
@@ -745,7 +786,9 @@ def invoke(
     ] = None,
     shared_state_db: Annotated[
         Path | None,
-        typer.Option("--shared-state-db", help="Deprecated: configure shared state on run."),
+        typer.Option(
+            "--shared-state-db", help="Deprecated: configure shared state on run."
+        ),
     ] = None,
     discover: Annotated[
         bool,
@@ -757,14 +800,19 @@ def invoke(
 ) -> None:
     """Queue an intent in an already-running owner, including from another terminal."""
 
-    if any(value is not None for value in (audit_log, agno_db, shared_state_db)) or discover:
+    if (
+        any(value is not None for value in (audit_log, agno_db, shared_state_db))
+        or discover
+    ):
         error_console.print(
             "[yellow]Deprecated invoke configuration options are ignored; "
             "the foreground owner uses the databases, audit, and plugins configured on run.[/yellow]"
         )
     event = _operation_or_exit(
         lambda: IntentClient(control_dir).submit(
-            run_id, agent_id, intent,
+            run_id,
+            agent_id,
+            intent,
             timeout_seconds=timeout_seconds,
         )
     )
@@ -782,11 +830,15 @@ def agents(
     run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
     control_dir: Annotated[
         Path | None,
-        typer.Option("--control-dir", help="The foreground owner's private control directory."),
+        typer.Option(
+            "--control-dir", help="The foreground owner's private control directory."
+        ),
     ] = DEFAULT_CONTROL_DIRECTORY,
     timeout_seconds: Annotated[
         float,
-        typer.Option("--timeout", min=0.001, help="Seconds to wait for agent discovery."),
+        typer.Option(
+            "--timeout", min=0.001, help="Seconds to wait for agent discovery."
+        ),
     ] = 5,
     output_format: Annotated[
         OutputFormat, typer.Option("--format", "-f", help="Agent discovery format.")
@@ -794,7 +846,9 @@ def agents(
 ) -> None:
     """List live owner agent IDs and whether they accept manual intents."""
     description = _operation_or_exit(
-        lambda: IntentClient(control_dir).describe(run_id, timeout_seconds=timeout_seconds)
+        lambda: IntentClient(control_dir).describe(
+            run_id, timeout_seconds=timeout_seconds
+        )
     )
     if output_format == OutputFormat.JSON:
         _print_json(description)
@@ -803,7 +857,9 @@ def agents(
     console.print(f"Plan digest: {description.plan_digest}")
     table = Table("Agent", "Manual intents")
     for agent_id in description.agents:
-        table.add_row(agent_id, "yes" if agent_id in description.manual_agents else "no")
+        table.add_row(
+            agent_id, "yes" if agent_id in description.manual_agents else "no"
+        )
     console.print(table)
 
 

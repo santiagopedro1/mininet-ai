@@ -36,6 +36,7 @@ def prepare_private_sqlite_file(path: str | Path) -> Path:
             metadata = database_path.lstat()
             if (
                 not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
                 or stat.S_IMODE(metadata.st_mode) & 0o077
             ):
                 raise PrivateStoragePathError(
@@ -44,7 +45,19 @@ def prepare_private_sqlite_file(path: str | Path) -> Path:
                     unsafe=True,
                 )
         else:
-            os.close(descriptor)
+            try:
+                metadata = os.fstat(descriptor)
+                if (
+                    metadata.st_uid != os.geteuid()
+                    or stat.S_IMODE(metadata.st_mode) & 0o077
+                ):
+                    raise PrivateStoragePathError(
+                        database_path,
+                        "filesystem did not create a private user-owned file; use a local --artifact-root",
+                        unsafe=True,
+                    )
+            finally:
+                os.close(descriptor)
     except PrivateStoragePathError:
         raise
     except OSError as error:

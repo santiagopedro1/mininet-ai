@@ -244,6 +244,20 @@ does not change the versioned runtime-event or agent-runtime contracts.
 
 ### Contract-preserving changes
 
+Run identity reservation is a composition-layer change for the fake and
+Mininet/OVS adapters using their existing `run_id_factory` constructors. The
+runtime/provider protocols and all serialized contract versions are unchanged.
+The reserved identity is used unchanged for deployment, ledger, and sessions.
+Saved output defaults now use `.mininet-ai/<run-id>/logs` and `dbs`; explicit
+file options still take precedence, and existing artifacts remain untouched.
+`--artifact-root` is independent of live endpoint discovery. A failed start
+retains diagnostic output rather than renaming or deleting active SQLite files.
+Agno currently routes sessions and learned memory through one `Agent.db`; when
+agent-scoped memory is requested, that entire store defaults to the stable
+`<artifact-root>/memory/agno.sqlite3`. Run-qualified session IDs isolate sessions;
+agent-qualified user IDs retain learned memory. An explicit shared `--agno-db`
+also preserves memory; separate per-run shared-state databases remain isolated.
+
 Ollama endpoint configuration uses the existing `model.parameters.host` key,
 without adding serialized fields or changing omitted-host plans, snapshots,
 digests, or schemas. The public contract stays at `mininet-ai/v1alpha3`.

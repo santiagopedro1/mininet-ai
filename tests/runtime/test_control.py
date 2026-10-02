@@ -1,23 +1,29 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import socket
 import subprocess
 import sys
 import time
 import unittest
-from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
+from unittest.mock import patch
 
 import yaml
 
 from mininet_ai.agents import register_builtin_providers
 from mininet_ai.experiment import ExperimentRuntime
 from mininet_ai.plugins import ProviderRegistries
-from mininet_ai.runtime.control import IntentClient, IntentControlError, IntentServer
+from mininet_ai.runtime.control import (
+    IntentClient,
+    IntentControlError,
+    IntentServer,
+    resolve_control_directory,
+)
 from mininet_ai.substrates import FakeSubstrateRuntime
 from tests.agents.test_runtime import configured_plan
 
@@ -27,9 +33,15 @@ class IntentControlTests(unittest.TestCase):
         first, second = self.make_owner(), self.make_owner()
         with TemporaryDirectory() as temporary:
             directory = Path(temporary) / "control"
-            with IntentServer(second, directory), IntentServer(first, directory) as server:
+            with (
+                IntentServer(second, directory),
+                IntentServer(first, directory) as server,
+            ):
                 server.close()
-                self.assertEqual(IntentClient(directory).describe(second.run.id).run_id, second.run.id)
+                self.assertEqual(
+                    IntentClient(directory).describe(second.run.id).run_id,
+                    second.run.id,
+                )
                 self.assertEqual(len(list(directory.iterdir())), 1)
             self.assertEqual(list(directory.iterdir()), [])
 
@@ -37,9 +49,11 @@ class IntentControlTests(unittest.TestCase):
         owner = self.make_owner()
         with TemporaryDirectory() as temporary:
             directory = Path(temporary) / "control"
-            with patch("socket.socket.bind", side_effect=OSError("failure")):
-                with self.assertRaises(IntentControlError):
-                    IntentServer(owner, directory).__enter__()
+            with (
+                patch("socket.socket.bind", side_effect=OSError("failure")),
+                self.assertRaises(IntentControlError),
+            ):
+                IntentServer(owner, directory).__enter__()
             self.assertEqual(list(directory.iterdir()), [])
 
     def test_symlink_and_long_override_rejected(self) -> None:
@@ -341,7 +355,15 @@ class IntentControlTests(unittest.TestCase):
                 yaml.safe_dump(configured_plan({"message": "handled"}).snapshot)
             )
             log = directory / "run.log"
-            control = directory / "control"
+            xdg = directory / "xdg"
+            xdg.mkdir(mode=0o700)
+            environment = {**os.environ, "XDG_RUNTIME_DIR": str(xdg)}
+            with patch.dict(os.environ, environment):
+                control = resolve_control_directory()
+            owner_cwd = directory / "owner"
+            client_cwd = directory / "client"
+            owner_cwd.mkdir()
+            client_cwd.mkdir()
             process = subprocess.Popen(
                 [
                     *command,
@@ -349,8 +371,8 @@ class IntentControlTests(unittest.TestCase):
                     str(experiment),
                     "--format",
                     "json",
-                    "--control-dir",
-                    str(control),
+                    "--artifact-root",
+                    str(directory / "output"),
                     "--log-file",
                     str(log),
                     "--ledger-db",
@@ -363,6 +385,8 @@ class IntentControlTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                cwd=owner_cwd,
+                env=environment,
             )
             try:
                 deadline = time.monotonic() + 10
@@ -383,8 +407,6 @@ class IntentControlTests(unittest.TestCase):
                         *command,
                         "agents",
                         match[1],
-                        "--control-dir",
-                        str(control),
                         "--format",
                         "json",
                     ],
@@ -392,6 +414,8 @@ class IntentControlTests(unittest.TestCase):
                     text=True,
                     timeout=10,
                     check=False,
+                    cwd=client_cwd,
+                    env=environment,
                 )
                 self.assertEqual(discovery.returncode, 0, discovery.stderr)
                 self.assertIn(
@@ -405,8 +429,6 @@ class IntentControlTests(unittest.TestCase):
                         "switch-router@s1",
                         "--intent",
                         "inspect from another terminal",
-                        "--control-dir",
-                        str(control),
                         "--format",
                         "json",
                     ],
@@ -414,6 +436,8 @@ class IntentControlTests(unittest.TestCase):
                     text=True,
                     timeout=10,
                     check=False,
+                    cwd=client_cwd,
+                    env=environment,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 event = json.loads(result.stdout)

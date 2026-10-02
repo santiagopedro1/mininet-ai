@@ -130,11 +130,29 @@ automatic retry after a timeout because the owner may have accepted the intent.
 Intents are limited to 8192 characters. Configure databases, models, and plugins
 on `run`, not `invoke`.
 
-`status` and `topology` support `--format json`. Progress is written to
-`.mininet-ai/run.log`; `--verbose` also streams it to stderr. Run history, Agno
-sessions, and shared state are stored in private SQLite files under
-`.mininet-ai/`. Treat these artifacts as sensitive: they may contain prompts and
-observations. Keep model credentials outside experiment YAML.
+`status` and `topology` support `--format json`. Saved output defaults to
+`.mininet-ai/<run-id>/`: `logs/run.log`, `dbs/ledger.sqlite3`,
+`dbs/shared-state.sqlite3`, `dbs/agno.sqlite3`, and an `artifacts/` directory.
+`--artifact-root` changes the saved-output root, not socket discovery. Startup
+prints and logs absolute effective paths; `--verbose` streams progress to stderr.
+Explicit `--log-file`, `--ledger-db`, `--shared-state-db`, and `--agno-db` paths
+remain honored. Existing output is never migrated or deleted, and run directory
+collisions fail. Failed starts retain logs and databases for diagnosis.
+
+When any agent requests `learned.scope: agent`, the default Agno store is instead
+`<artifact-root>/memory/agno.sqlite3`, shared across runs under that root. Agno
+uses one database for both sessions and memory; sessions remain keyed by run,
+while learned memory uses the stable agent identity. Use the same absolute
+artifact root across working directories, or an explicit shared `--agno-db`, to
+reuse agent memory. Run ledgers and shared operational state remain per-run.
+No multiple-database Agno routing or schema/protocol changes are introduced.
+
+Treat saved artifacts as sensitive: they may contain prompts and observations.
+Keep credentials outside YAML. Private permissions and SQLite locking are still
+required; on VirtualBox shared mounts, use a private local artifact root, e.g.
+`sudo mininet-ai run experiment.yaml --artifact-root /var/lib/mininet-ai/runs`.
+Sockets use the local runtime filesystem even when running from `/vagrant`.
+`--dry-run` creates no runtime or saved-output directories.
 
 ## Examples
 

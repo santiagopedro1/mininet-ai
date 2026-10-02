@@ -79,7 +79,9 @@ def resolve_control_directory(directory: Path | None = None) -> Path:
     if xdg is not None:
         parent = Path(xdg)
         if not parent.is_absolute():
-            raise IntentControlError("XDG_RUNTIME_DIR must be an absolute private directory")
+            raise IntentControlError(
+                "XDG_RUNTIME_DIR must be an absolute private directory"
+            )
         try:
             _private_directory(parent, create=False)
         except (OSError, IntentControlError) as error:
@@ -95,22 +97,34 @@ def _private_directory(directory: Path, *, create: bool) -> None:
     os.close(descriptor)
 
 
-def _open_directory(directory: Path, *, create: bool, private_parent: bool = False) -> int:
+def _open_directory(
+    directory: Path,
+    *,
+    create: bool,
+    private_parent: bool = False,
+    private_levels: int = 1,
+) -> int:
     """Walk without following symlinks, validating every newly owned boundary."""
     path = directory.absolute()
     descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
         for index, part in enumerate(path.parts[1:]):
-            owned = index >= len(path.parts) - (3 if private_parent else 2) or part.startswith("mininet-ai")
+            owned = index >= len(path.parts) - 1 - max(
+                private_levels, 2 if private_parent else 1
+            )
+            created = False
             if create:
                 try:
                     os.mkdir(part, 0o700, dir_fd=descriptor)
+                    created = True
                 except FileExistsError:
                     pass
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            child = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor
+            )
             os.close(descriptor)
             descriptor = child
-            if owned:
+            if owned or created:
                 _check_directory(os.fstat(descriptor), path)
         return descriptor
     except BaseException:
@@ -178,6 +192,7 @@ class IntentServer:
     ) -> None:
         self._owner = owner
         self._directory = resolve_control_directory(directory)
+        self._default_directory = directory is None
         self._on_submit = on_submit
         self._stop = Event()
         self._socket: socket.socket | None = None
@@ -195,29 +210,43 @@ class IntentServer:
         try:
             path = _socket_path(self._directory, self._owner.run.id)
             _check_socket_length(path)
-            self._base_fd = _open_directory(self._directory, create=True)
+            self._base_fd = _open_directory(
+                self._directory,
+                create=True,
+                private_levels=2 if self._default_directory else 1,
+            )
             # Exclusive claim: even stale or colliding endpoints are never adopted.
             os.mkdir(path.parent.name, 0o700, dir_fd=self._base_fd)
             self._run_name = path.parent.name
-            self._run_fd = os.open(self._run_name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=self._base_fd)
-            metadata = os.fstat(self._run_fd)
+            metadata = os.stat(
+                self._run_name, dir_fd=self._base_fd, follow_symlinks=False
+            )
             self._run_identity = (metadata.st_dev, metadata.st_ino)
+            self._run_fd = os.open(
+                self._run_name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=self._base_fd,
+            )
+            metadata = os.fstat(self._run_fd)
+            if (metadata.st_dev, metadata.st_ino) != self._run_identity:
+                raise IntentControlError("control run directory changed during setup")
             _check_directory(metadata, path.parent)
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self._socket = listener
             listener.bind(f"/proc/self/fd/{self._run_fd}/control.sock")
             self._path = path
-            metadata = os.stat("control.sock", dir_fd=self._run_fd, follow_symlinks=False)
+            metadata = os.stat(
+                "control.sock", dir_fd=self._run_fd, follow_symlinks=False
+            )
             self._identity = (metadata.st_dev, metadata.st_ino)
             os.chmod("control.sock", 0o600, dir_fd=self._run_fd, follow_symlinks=False)
             listener.listen(8)
             listener.settimeout(0.1)
-            self._thread = Thread(
-                target=self._serve, name="mininet-ai-intents", daemon=True
-            )
-            self._thread.start()
+            thread = Thread(target=self._serve, name="mininet-ai-intents", daemon=True)
+            thread.start()
+            self._thread = thread
             return self
-        except (OSError, ValueError, IntentControlError) as error:
+        except Exception as error:
             self.close()
             if isinstance(error, IntentControlError):
                 raise
@@ -248,7 +277,9 @@ class IntentServer:
             self._socket = None
         if self._path is not None:
             try:
-                metadata = os.stat("control.sock", dir_fd=self._run_fd, follow_symlinks=False)
+                metadata = os.stat(
+                    "control.sock", dir_fd=self._run_fd, follow_symlinks=False
+                )
                 if (metadata.st_dev, metadata.st_ino) == self._identity:
                     os.unlink("control.sock", dir_fd=self._run_fd)
             except FileNotFoundError:
@@ -260,7 +291,9 @@ class IntentServer:
         if self._base_fd is not None:
             try:
                 if self._run_name is not None:
-                    metadata = os.stat(self._run_name, dir_fd=self._base_fd, follow_symlinks=False)
+                    metadata = os.stat(
+                        self._run_name, dir_fd=self._base_fd, follow_symlinks=False
+                    )
                     if (metadata.st_dev, metadata.st_ino) == self._run_identity:
                         os.rmdir(self._run_name, dir_fd=self._base_fd)
             except OSError:
@@ -351,6 +384,7 @@ class IntentServer:
 class IntentClient:
     def __init__(self, directory: Path | None = None) -> None:
         self._directory = resolve_control_directory(directory)
+        self._default_directory = directory is None
 
     def submit(
         self,
@@ -404,20 +438,40 @@ class IntentClient:
         try:
             path = _socket_path(self._directory, run_id)
             _check_socket_length(path)
-            descriptor = _open_directory(path.parent, create=False, private_parent=True)
+            descriptor = _open_directory(
+                path.parent,
+                create=False,
+                private_levels=3 if self._default_directory else 2,
+            )
             try:
-                metadata = os.stat("control.sock", dir_fd=descriptor, follow_symlinks=False)
-                if (not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != os.geteuid()
-                    or stat.S_IMODE(metadata.st_mode) & 0o077):
-                    raise IntentControlError("intent endpoint must be a private socket owned by the current user")
+                metadata = os.stat(
+                    "control.sock", dir_fd=descriptor, follow_symlinks=False
+                )
+                if (
+                    not stat.S_ISSOCK(metadata.st_mode)
+                    or metadata.st_uid != os.geteuid()
+                    or stat.S_IMODE(metadata.st_mode) & 0o077
+                ):
+                    raise IntentControlError(
+                        "intent endpoint must be a private socket owned by the current user"
+                    )
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                     deadline = time.monotonic() + timeout_seconds
                     connection.settimeout(timeout_seconds)
                     connection.connect(f"/proc/self/fd/{descriptor}/control.sock")
-                    _, uid, _ = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+                    _, uid, _ = struct.unpack(
+                        "3i",
+                        connection.getsockopt(
+                            socket.SOL_SOCKET, socket.SO_PEERCRED, 12
+                        ),
+                    )
                     if uid != os.geteuid():
-                        raise IntentControlError("intent owner must run as the client user")
-                    _send(connection, request.model_dump(by_alias=True, exclude_none=True))
+                        raise IntentControlError(
+                            "intent owner must run as the client user"
+                        )
+                    _send(
+                        connection, request.model_dump(by_alias=True, exclude_none=True)
+                    )
                     response = json.loads(_receive(connection, deadline=deadline))
             finally:
                 os.close(descriptor)

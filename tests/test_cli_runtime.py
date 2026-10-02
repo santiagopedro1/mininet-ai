@@ -80,8 +80,8 @@ class RuntimeCLITests(unittest.TestCase):
             TemporaryDirectory() as temporary,
             patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
             patch(
-                "mininet_ai.cli.create_substrate_runtime",
-                return_value=runtime,
+                "mininet_ai.cli.reserve_run",
+                return_value=("cli-run", runtime),
             ),
             patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
         ):
@@ -102,8 +102,8 @@ class RuntimeCLITests(unittest.TestCase):
             TemporaryDirectory() as temporary,
             patch("mininet_ai.cli._compile_or_exit", return_value=plan),
             patch(
-                "mininet_ai.cli.create_substrate_runtime",
-                return_value=runtime,
+                "mininet_ai.cli.reserve_run",
+                return_value=("cli-json-run", runtime),
             ),
             patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
         ):
@@ -121,7 +121,7 @@ class RuntimeCLITests(unittest.TestCase):
             )
 
         self.assertEqual(result.exit_code, 0, result.output)
-        report = json.loads(result.output)
+        report = json.loads(result.stdout)
         self.assertEqual(report["state"], "stopped")
         self.assertEqual(report["continuous"]["completed"], 1)
         self.assertEqual(report["continuous"]["failed"], 0)
@@ -138,8 +138,8 @@ class RuntimeCLITests(unittest.TestCase):
             with (
                 patch("mininet_ai.cli._compile_or_exit", return_value=plan),
                 patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-verbose-run", runtime),
                 ),
                 patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
             ):
@@ -176,8 +176,8 @@ class RuntimeCLITests(unittest.TestCase):
             with (
                 patch("mininet_ai.cli._compile_or_exit", return_value=plan),
                 patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-failed-run", runtime),
                 ),
                 patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
             ):
@@ -214,8 +214,8 @@ class RuntimeCLITests(unittest.TestCase):
             with (
                 patch("mininet_ai.cli._compile_or_exit", return_value=plan),
                 patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-intents-run", runtime),
                 ),
                 patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
             ):
@@ -253,8 +253,8 @@ class RuntimeCLITests(unittest.TestCase):
             TemporaryDirectory() as temporary,
             patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
             patch(
-                "mininet_ai.cli.create_substrate_runtime",
-                return_value=runtime,
+                "mininet_ai.cli.reserve_run",
+                return_value=("cli-broken-output", runtime),
             ),
             patch("mininet_ai.cli.console.print", side_effect=BrokenPipeError),
         ):
@@ -273,6 +273,8 @@ class RuntimeCLITests(unittest.TestCase):
     def run_databases(directory: str) -> list[str]:
         root = Path(directory)
         return [
+            "--artifact-root",
+            str(root / "output"),
             "--ledger-db",
             str(root / "ledger.sqlite3"),
             "--agno-db",
@@ -389,7 +391,10 @@ class RuntimeCLITests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             control_dir = Path(temporary) / "control"
             with (
-                patch("mininet_ai.cli._compile_or_exit", side_effect=AssertionError("must not compile YAML")) as compile,
+                patch(
+                    "mininet_ai.cli._compile_or_exit",
+                    side_effect=AssertionError("must not compile YAML"),
+                ) as compile,
                 IntentServer(owner, control_dir),
                 patch("mininet_ai.cli.create_substrate_runtime") as create,
                 patch("mininet_ai.cli.discover_plugins") as discover,
@@ -430,16 +435,26 @@ class RuntimeCLITests(unittest.TestCase):
             report = owner.stop()
             self.assertEqual(report.continuous.completed, 1)
             invocation = report.continuous.invocations[0]
-            self.assertEqual(invocation.result.action_results[0].status.value, "succeeded")
-            self.assertIn("capability.execution.completed", [event.type.value for event in sink.events])
+            self.assertEqual(
+                invocation.result.action_results[0].status.value, "succeeded"
+            )
+            self.assertIn(
+                "capability.execution.completed",
+                [event.type.value for event in sink.events],
+            )
 
-    def test_invoke_without_owner_returns_nonzero_without_creating_runtime(self) -> None:
+    def test_invoke_without_owner_returns_nonzero_without_creating_runtime(
+        self,
+    ) -> None:
         plan = configured_plan({"metadata": {}})
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-failed-agent")
         run = runtime.deploy(plan)
         with (
             TemporaryDirectory() as temporary,
-            patch("mininet_ai.cli._compile_or_exit", side_effect=AssertionError("must not compile YAML")) as compile,
+            patch(
+                "mininet_ai.cli._compile_or_exit",
+                side_effect=AssertionError("must not compile YAML"),
+            ) as compile,
             patch("mininet_ai.cli.create_substrate_runtime") as create,
         ):
             result = self.runner.invoke(
@@ -506,7 +521,10 @@ class RuntimeCLITests(unittest.TestCase):
             control = Path(temporary) / "control"
             with (
                 IntentServer(owner, control),
-                patch("mininet_ai.cli._compile_or_exit", side_effect=AssertionError("must not compile YAML")),
+                patch(
+                    "mininet_ai.cli._compile_or_exit",
+                    side_effect=AssertionError("must not compile YAML"),
+                ),
                 patch("mininet_ai.cli.create_substrate_runtime") as create,
             ):
                 args = ["agents", run.id, "--control-dir", str(control)]
@@ -526,9 +544,15 @@ class RuntimeCLITests(unittest.TestCase):
 
     def test_agents_without_owner_returns_nonzero(self) -> None:
         with TemporaryDirectory() as temporary:
-            result = self.runner.invoke(app, [
-                "agents", "missing-run", "--control-dir", str(Path(temporary) / "control"),
-            ])
+            result = self.runner.invoke(
+                app,
+                [
+                    "agents",
+                    "missing-run",
+                    "--control-dir",
+                    str(Path(temporary) / "control"),
+                ],
+            )
         self.assertEqual(result.exit_code, 1)
         self.assertIn("runtime.control.unavailable", result.output)
         self.assertIn("could not contact run", result.output)

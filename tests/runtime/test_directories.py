@@ -8,23 +8,35 @@ from mininet_ai.runtime.control import IntentControlError, resolve_control_direc
 
 
 def test_root_ignores_xdg():
-    with patch("os.geteuid", return_value=0), patch.dict(os.environ, {"XDG_RUNTIME_DIR": "bad"}):
+    with (
+        patch("os.geteuid", return_value=0),
+        patch.dict(os.environ, {"XDG_RUNTIME_DIR": "bad"}),
+    ):
         assert resolve_control_directory() == Path("/run/mininet-ai/control")
 
 
 def test_fallback_ignores_tmpdir():
-    with patch("os.geteuid", return_value=123), patch.dict(os.environ, {"TMPDIR": "/vagrant"}, clear=True):
+    with (
+        patch("os.geteuid", return_value=123),
+        patch.dict(os.environ, {"TMPDIR": "/vagrant"}, clear=True),
+    ):
         assert resolve_control_directory() == Path("/tmp/mininet-ai-123/control")
 
 
 def test_invalid_xdg():
-    with patch("os.geteuid", return_value=123), patch.dict(os.environ, {"XDG_RUNTIME_DIR": "relative"}):
-        with pytest.raises(IntentControlError, match="absolute"):
-            resolve_control_directory()
+    with (
+        patch("os.geteuid", return_value=123),
+        patch.dict(os.environ, {"XDG_RUNTIME_DIR": "relative"}),
+        pytest.raises(IntentControlError, match="absolute"),
+    ):
+        resolve_control_directory()
 
 
 def test_valid_xdg(tmp_path):
-    with patch.dict(os.environ, {"XDG_RUNTIME_DIR": str(tmp_path)}), patch("os.geteuid", return_value=tmp_path.stat().st_uid):
+    with (
+        patch.dict(os.environ, {"XDG_RUNTIME_DIR": str(tmp_path)}),
+        patch("os.geteuid", return_value=tmp_path.stat().st_uid),
+    ):
         if os.geteuid() != 0:
             assert resolve_control_directory() == tmp_path / "mininet-ai/control"
 
