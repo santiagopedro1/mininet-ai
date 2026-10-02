@@ -31,7 +31,9 @@ def reserve_artifacts(
     )
     directory = root / name
     try:
-        descriptor = open_private_directory(root, create=True)
+        # The root is a container, not a private storage boundary. In particular,
+        # /run/mininet-ai can also contain the independent control directory.
+        descriptor = open_private_directory(root, create=True, private_levels=0)
         try:
             os.mkdir(name, 0o700, dir_fd=descriptor)
         finally:
@@ -42,9 +44,7 @@ def reserve_artifacts(
             )
             os.close(descriptor)
         if persistent_memory:
-            descriptor = open_private_directory(
-                root / "memory", create=True, private_levels=2
-            )
+            descriptor = open_private_directory(root / "memory", create=True)
             os.close(descriptor)
     except (OSError, MininetAIError) as error:
         raise MininetAIError(

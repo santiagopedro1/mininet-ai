@@ -40,12 +40,14 @@ def open_private_directory(
 
     Validate the last ``private_levels`` directories and every directory created
     during this call. Existing higher ancestors need not be private (e.g. /tmp).
+    Set ``private_levels=0`` to open an existing shared parent; newly created
+    directories are still checked for private permissions.
     """
     path = directory.absolute()
     descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
         for index, part in enumerate(path.parts[1:]):
-            owned = index >= len(path.parts) - 1 - max(private_levels, 1)
+            owned = index >= len(path.parts) - 1 - max(private_levels, 0)
             created = False
             if create:
                 try:

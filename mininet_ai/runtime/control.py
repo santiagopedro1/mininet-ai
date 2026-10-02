@@ -175,7 +175,6 @@ class IntentServer:
     ) -> None:
         self._owner = owner
         self._directory = resolve_control_directory(directory)
-        self._default_directory = directory is None
         self._on_submit = on_submit
         self._stop = Event()
         self._socket: socket.socket | None = None
@@ -196,7 +195,6 @@ class IntentServer:
             self._base_fd = _open_control_directory(
                 self._directory,
                 create=True,
-                private_levels=2 if self._default_directory else 1,
             )
             # Exclusive claim: even stale or colliding endpoints are never adopted.
             os.mkdir(path.parent.name, 0o700, dir_fd=self._base_fd)
@@ -369,7 +367,6 @@ class IntentServer:
 class IntentClient:
     def __init__(self, directory: Path | None = None) -> None:
         self._directory = resolve_control_directory(directory)
-        self._default_directory = directory is None
 
     def submit(
         self,
@@ -426,7 +423,7 @@ class IntentClient:
             descriptor = _open_control_directory(
                 path.parent,
                 create=False,
-                private_levels=3 if self._default_directory else 2,
+                private_levels=2,
             )
             try:
                 metadata = os.stat(

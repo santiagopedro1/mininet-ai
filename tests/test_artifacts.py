@@ -19,11 +19,91 @@ def test_distinct_runs_and_collision(tmp_path):
         reserve_artifacts(tmp_path / "output", "run-first")
 
 
+@pytest.mark.parametrize("persistent_memory", [False, True])
+def test_shared_artifact_root_keeps_run_output_private(tmp_path, persistent_memory):
+    root = tmp_path / "mininet-ai"
+    root.mkdir(mode=0o755)
+    root.chmod(0o755)
+    control = root / "control"
+    control.mkdir(mode=0o700)
+
+    artifacts = reserve_artifacts(root, "mn-test", persistent_memory=persistent_memory)
+
+    assert root.stat().st_mode & 0o777 == 0o755
+    assert control.is_dir()
+    assert artifacts.directory == root / "mn-test"
+    for directory in (
+        artifacts.directory,
+        artifacts.log.parent,
+        artifacts.ledger.parent,
+    ):
+        assert directory.stat().st_mode & 0o777 == 0o700
+    if persistent_memory:
+        assert artifacts.agno == root / "memory/agno.sqlite3"
+        assert artifacts.agno.parent.stat().st_mode & 0o777 == 0o700
+
+
 def test_arbitrary_ids_cannot_escape_or_collide(tmp_path):
     first = reserve_artifacts(tmp_path / "output", "../escape")
     second = reserve_artifacts(tmp_path / "output", first.directory.name)
     assert first.directory.parent == tmp_path / "output"
     assert first.directory != second.directory
+
+
+def test_cli_uses_shared_root_for_artifacts_and_default_control(tmp_path_factory):
+    from mininet_ai.substrates import FakeSubstrateRuntime, RunState
+
+    # Keep the socket path below Linux's 108-byte Unix-domain limit.
+    root = tmp_path_factory.mktemp("shared") / "mininet-ai"
+    root.mkdir(mode=0o755)
+    root.chmod(0o755)
+    runtime = FakeSubstrateRuntime(run_id_factory=lambda: "mn-shared")
+    with (
+        patch("mininet_ai.cli.reserve_run", return_value=("mn-shared", runtime)),
+        patch(
+            "mininet_ai.cli._compile_or_exit",
+            return_value=configured_plan({"message": "handled"}),
+        ),
+        patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+        patch(
+            "mininet_ai.runtime.control.resolve_control_directory",
+            return_value=root / "control",
+        ),
+    ):
+        result = CliRunner().invoke(
+            app,
+            [
+                "run",
+                "experiment.yaml",
+                "--artifact-root",
+                str(root),
+                "--intent",
+                "switch-router@s1=install flows",
+                "--verbose",
+                "-f",
+                "json",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert runtime.inspect("mn-shared").run.state == RunState.STOPPED
+    assert root.stat().st_mode & 0o777 == 0o755
+    assert (root / "mn-shared/logs/run.log").is_file()
+    assert (root / "mn-shared/dbs/ledger.sqlite3").is_file()
+    assert (root / "mn-shared/dbs/shared-state.sqlite3").is_file()
+    assert (root / "mn-shared/dbs/agno.sqlite3").is_file()
+    assert list((root / "control").iterdir()) == []
+
+
+def test_shared_root_does_not_accept_public_memory_directory(tmp_path):
+    root = tmp_path / "mininet-ai"
+    root.mkdir(mode=0o755)
+    memory = root / "memory"
+    memory.mkdir(mode=0o755)
+    memory.chmod(0o755)
+    with pytest.raises(MininetAIError, match="owner-only"):
+        reserve_artifacts(root, "mn-test", persistent_memory=True)
+    assert memory.stat().st_mode & 0o777 == 0o755
 
 
 def test_stable_memory_is_exception_and_legacy_untouched(tmp_path):

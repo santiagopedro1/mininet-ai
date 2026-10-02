@@ -29,6 +29,30 @@ from tests.agents.test_runtime import configured_plan
 
 
 class IntentControlTests(unittest.TestCase):
+    def test_default_control_endpoint_under_shared_parent(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            parent = Path(temporary) / "mininet-ai"
+            parent.mkdir(mode=0o755)
+            parent.chmod(0o755)
+            directory = parent / "control"
+            with (
+                patch(
+                    "mininet_ai.runtime.control.resolve_control_directory",
+                    return_value=directory,
+                ),
+                IntentServer(owner) as server,
+            ):
+                self.assertEqual(
+                    IntentClient().describe(owner.run.id).run_id, owner.run.id
+                )
+                assert server.path is not None
+                self.assertEqual(server.path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(server.path.parent.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(parent.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(list(directory.iterdir()), [])
+
     def test_socket_identity_guard_preserves_replacement(self) -> None:
         owner = self.make_owner()
         with TemporaryDirectory() as temporary:
