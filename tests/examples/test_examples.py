@@ -7,7 +7,10 @@ readable, not frozen.
 
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 from mininet_ai.compiler import compile_experiment
+from mininet_ai.sdk import ExecutionCatalog
 from mininet_ai.specification import load_experiment
 
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
@@ -52,6 +55,23 @@ def test_hierarchical_routing_has_five_agents() -> None:
     experiment = load_experiment(experiment_path)
     plan = compile_experiment(experiment)
     assert len(plan.agents) == 5
+
+
+def test_hierarchical_flow_contract_matches_native_openflow_arguments() -> None:
+    plan = compile_experiment(EXAMPLES_DIR / "hierarchical-routing/experiment.yaml")
+    definition = ExecutionCatalog(plan).resolve("switch-router@s1")
+    capability = next(
+        item
+        for item in definition.capabilities
+        if item.metadata.name == "openflow.flow.install"
+    )
+    validator = Draft202012Validator(capability.input_schema)
+
+    # ovs-ofctl consumes actions as one comma-separated string, not a JSON array.
+    validator.validate({"match": {"in_port": 1}, "actions": "output:2"})
+    assert not validator.is_valid({"actions": "output:2"})
+    assert not validator.is_valid({"match": {}, "actions": ["output:2"]})
+    assert not validator.is_valid({"match": {}, "actions": ""})
 
 
 def test_iperf_throughput_has_two_agents() -> None:

@@ -17,9 +17,22 @@ reasoning:
 
     Read the routing policy from shared state, then propose
     openflow.flow.install capabilities to implement it on your switch.
+    If no routing policy is available, return a message saying you are waiting
+    for the orchestrator, with no proposals. Do not invent a default policy.
+
+    Each proposal must have id, capability, target, and arguments. For
+    openflow.flow.install, arguments must contain match (a JSON object) and
+    actions (a non-empty comma-separated OpenFlow action string), with no extra
+    properties. Do not use an array for actions.
+    Example shape only (not a default policy):
+    {"id":"policy-flow","capability":"openflow.flow.install","target":"s1",
+     "arguments":{"match":{"in_port":1},"actions":"output:2"}}
+    Use your actual scoped switch target and ports justified by the policy and
+    observations. If the policy or port information is insufficient, explain
+    what is missing and return no proposals instead of guessing.
 
     Return a structured AgentResponse with:
-    - A message describing the flows you installed
+    - A message describing the flows you propose (execution has not happened yet)
     - Proposals for openflow.flow.install
     - No shared state updates (the orchestrator owns the policy)
   timeout: 120s

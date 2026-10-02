@@ -83,6 +83,23 @@ absolute `--control-dir`). `invoke` acknowledges acceptance, not completion.
    routers. The compiler generates coordination edges from the orchestrator
    to each switch router.
 
+### Flow proposal arguments
+
+`openflow.flow.install` requires an `arguments.match` object and a non-empty
+`arguments.actions` string (comma-separated OpenFlow actions, not an array).
+For example, a policy-backed proposal might contain:
+
+```json
+{"id":"policy-flow","capability":"openflow.flow.install","target":"s1","arguments":{"match":{"in_port":1},"actions":"output:2"}}
+```
+
+This illustrates the shape only: choose the target and ports from the actual
+policy and observations. Routers should return no proposals when that
+information is missing. Declarative agents receive their scoped capability
+input schemas in the model instructions; runtime validation still rejects
+malformed proposals. An agent's response message is not proof of installation:
+check `capability.execution.completed` for the action's actual status.
+
 ## Topology
 
 Three hosts (`h1`, `h2`, `h3`) connected through two switches (`s1`, `s2`).

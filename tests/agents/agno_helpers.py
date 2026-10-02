@@ -20,9 +20,10 @@ class StaticModel(Model):
         super().__init__(id="static")
         self.response_content = response
         self.calls = 0
+        self.messages: list[Any] = []
 
     def invoke(self, *args: Any, **kwargs: Any) -> ModelResponse:
-        del args, kwargs
+        self.messages = list(kwargs.get("messages", ()))
         self.calls += 1
         return ModelResponse(content=self.response_content)
 
