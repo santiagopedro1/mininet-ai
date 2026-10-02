@@ -389,7 +389,7 @@ class RuntimeCLITests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             control_dir = Path(temporary) / "control"
             with (
-                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch("mininet_ai.cli._compile_or_exit", side_effect=AssertionError("must not compile YAML")) as compile,
                 IntentServer(owner, control_dir),
                 patch("mininet_ai.cli.create_substrate_runtime") as create,
                 patch("mininet_ai.cli.discover_plugins") as discover,
@@ -398,7 +398,6 @@ class RuntimeCLITests(unittest.TestCase):
                     app,
                     [
                         "invoke",
-                        "experiment.yaml",
                         run.id,
                         "switch-router@s1",
                         "--intent",
@@ -422,6 +421,7 @@ class RuntimeCLITests(unittest.TestCase):
             self.assertEqual(payload["type"], "intent.manual")
             self.assertEqual(payload["payload"]["intent"], "repair forwarding")
             create.assert_not_called()
+            compile.assert_not_called()
             discover.assert_not_called()
             self.assertIn("Deprecated invoke configuration options", result.stderr)
             self.assertFalse((Path(temporary) / "unused-audit.jsonl").exists())
@@ -439,14 +439,13 @@ class RuntimeCLITests(unittest.TestCase):
         run = runtime.deploy(plan)
         with (
             TemporaryDirectory() as temporary,
-            patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+            patch("mininet_ai.cli._compile_or_exit", side_effect=AssertionError("must not compile YAML")) as compile,
             patch("mininet_ai.cli.create_substrate_runtime") as create,
         ):
             result = self.runner.invoke(
                 app,
                 [
                     "invoke",
-                    "experiment.yaml",
                     run.id,
                     "switch-router@s1",
                     "--intent",
@@ -461,6 +460,7 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
         self.assertIn("runtime.control.unavailable", result.output)
         create.assert_not_called()
+        compile.assert_not_called()
 
     def test_invoke_rejects_unknown_agent_in_owner(self) -> None:
         plan = configured_plan({"message": "done"})
@@ -472,14 +472,12 @@ class RuntimeCLITests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             control_dir = Path(temporary) / "control"
             with (
-                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
                 IntentServer(owner, control_dir),
             ):
                 result = self.runner.invoke(
                     app,
                     [
                         "invoke",
-                        "experiment.yaml",
                         run.id,
                         "missing-agent",
                         "--intent",
@@ -493,6 +491,44 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertEqual(result.exit_code, 1, result.output)
         self.assertIn("experiment.intent.invalid-agent", result.output)
         self.assertEqual(report.continuous.completed, 0)
+
+    def test_agents_discovers_live_instances_in_text_and_json(self) -> None:
+        plan = configured_plan({"message": "done"})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-agents")
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, runtime)
+        owner = ExperimentRuntime(plan, runtime, registries)
+        run = owner.start()
+        self.addCleanup(owner.stop)
+        with TemporaryDirectory() as temporary:
+            control = Path(temporary) / "control"
+            with (
+                IntentServer(owner, control),
+                patch("mininet_ai.cli._compile_or_exit", side_effect=AssertionError("must not compile YAML")),
+                patch("mininet_ai.cli.create_substrate_runtime") as create,
+            ):
+                args = ["agents", run.id, "--control-dir", str(control)]
+                text_result = self.runner.invoke(app, args)
+                json_result = self.runner.invoke(app, [*args, "--format", "json"])
+                self.assertEqual(text_result.exit_code, 0, text_result.output)
+                self.assertIn("switch-router@s1", text_result.stdout)
+                self.assertIn("Manual intents", text_result.stdout)
+                self.assertEqual(json_result.exit_code, 0, json_result.output)
+                payload = json.loads(json_result.stdout)
+                self.assertEqual(payload["runId"], run.id)
+                self.assertEqual(payload["planDigest"], plan.digest)
+                self.assertEqual(payload["agents"], list(owner.agent_ids))
+                self.assertEqual(payload["manualAgents"], list(owner.manual_agent_ids))
+                create.assert_not_called()
+        self.assertEqual(owner.stop().continuous.completed, 0)
+
+    def test_agents_without_owner_returns_nonzero(self) -> None:
+        with TemporaryDirectory() as temporary:
+            result = self.runner.invoke(app, [
+                "agents", "missing-run", "--control-dir", str(Path(temporary) / "control"),
+            ])
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("runtime.control.unavailable", result.output)
 
 
 if __name__ == "__main__":

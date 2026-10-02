@@ -705,12 +705,6 @@ def stop(
 
 @app.command()
 def invoke(
-    experiment: Annotated[
-        Path,
-        typer.Argument(
-            exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
-        ),
-    ],
     run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
     agent_id: Annotated[
         str, typer.Argument(help="Compiled agent instance identifier.")
@@ -757,10 +751,9 @@ def invoke(
             "[yellow]Deprecated invoke configuration options are ignored; "
             "the foreground owner uses the databases, audit, and plugins configured on run.[/yellow]"
         )
-    deployment_plan = _compile_or_exit(experiment)
     event = _operation_or_exit(
         lambda: IntentClient(control_dir).submit(
-            run_id, agent_id, intent, plan_digest=deployment_plan.digest,
+            run_id, agent_id, intent,
             timeout_seconds=timeout_seconds,
         )
     )
@@ -771,6 +764,36 @@ def invoke(
             f"[green]Queued[/green] {event.event_id} for {agent_id}; "
             "follow the owner's run log for results"
         )
+
+
+@app.command()
+def agents(
+    run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
+    control_dir: Annotated[
+        Path,
+        typer.Option("--control-dir", help="The foreground owner's private control directory."),
+    ] = DEFAULT_CONTROL_DIRECTORY,
+    timeout_seconds: Annotated[
+        float,
+        typer.Option("--timeout", min=0.001, help="Seconds to wait for agent discovery."),
+    ] = 5,
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Agent discovery format.")
+    ] = OutputFormat.TEXT,
+) -> None:
+    """List live owner agent IDs and whether they accept manual intents."""
+    description = _operation_or_exit(
+        lambda: IntentClient(control_dir).describe(run_id, timeout_seconds=timeout_seconds)
+    )
+    if output_format == OutputFormat.JSON:
+        _print_json(description)
+        return
+    console.print(f"[bold]{description.run_id}[/bold]")
+    console.print(f"Plan digest: {description.plan_digest}")
+    table = Table("Agent", "Manual intents")
+    for agent_id in description.agents:
+        table.add_row(agent_id, "yes" if agent_id in description.manual_agents else "no")
+    console.print(table)
 
 
 @app.command("schema")

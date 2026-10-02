@@ -324,11 +324,17 @@ class IntentControlTests(unittest.TestCase):
                     match, log.read_text() if log.exists() else "owner did not start"
                 )
                 assert match is not None
+                experiment.unlink()
+                discovery = subprocess.run(
+                    [*command, "agents", match[1], "--control-dir", str(control), "--format", "json"],
+                    capture_output=True, text=True, timeout=10, check=False,
+                )
+                self.assertEqual(discovery.returncode, 0, discovery.stderr)
+                self.assertIn("switch-router@s1", json.loads(discovery.stdout)["manualAgents"])
                 result = subprocess.run(
                     [
                         *command,
                         "invoke",
-                        str(experiment),
                         match[1],
                         "switch-router@s1",
                         "--intent",
