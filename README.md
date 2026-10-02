@@ -185,8 +185,6 @@ remove every Mininet/OVS topology on the machine, not just the current run.
 
 ## Plans
 
-From [TODO.md](TODO.md):
-
 ### v1alpha3
 
 - [x] Support submitting `--intent` from another terminal.
