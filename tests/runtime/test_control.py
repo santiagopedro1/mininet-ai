@@ -22,6 +22,76 @@ from tests.agents.test_runtime import configured_plan
 
 
 class IntentControlTests(unittest.TestCase):
+    def test_describe_and_submit_without_digest(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(owner, directory):
+                client = IntentClient(directory)
+                description = client.describe(owner.run.id)
+                self.assertEqual(description.run_id, owner.run.id)
+                self.assertEqual(description.plan_digest, owner.run.plan_digest)
+                self.assertEqual(description.agents, owner.agent_ids)
+                self.assertEqual(description.manual_agents, owner.manual_agent_ids)
+                self.assertIn("switch-router@s1", description.manual_agents)
+                event = client.submit(owner.run.id, "switch-router@s1", "inspect")
+                self.assertEqual(event.run_id, owner.run.id)
+        self.assertEqual(owner.stop().continuous.completed, 1)
+
+    def test_describe_is_read_only_and_checks_run_identity(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(owner, directory):
+                path = next(directory.iterdir())
+                for run_id in (owner.run.id, "wrong-run"):
+                    with socket.socket(
+                        socket.AF_UNIX, socket.SOCK_STREAM
+                    ) as connection:
+                        connection.connect(str(path))
+                        connection.sendall(
+                            (
+                                json.dumps({"kind": "describe", "runId": run_id}) + "\n"
+                            ).encode()
+                        )
+                        with connection.makefile("rb") as stream:
+                            response = json.loads(stream.readline())
+                        if run_id == owner.run.id:
+                            self.assertIn("describe", response)
+                        else:
+                            self.assertEqual(
+                                response["error"]["code"],
+                                "runtime.control.run-mismatch",
+                            )
+        self.assertEqual(owner.stop().continuous.completed, 0)
+
+    def test_legacy_submit_request_without_kind_is_supported(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with (
+                IntentServer(owner, directory),
+                socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
+            ):
+                connection.connect(str(next(directory.iterdir())))
+                connection.sendall(
+                    (
+                        json.dumps(
+                            {
+                                "runId": owner.run.id,
+                                "planDigest": owner.run.plan_digest,
+                                "agentId": "switch-router@s1",
+                                "intent": "inspect",
+                            }
+                        )
+                        + "\n"
+                    ).encode()
+                )
+                with connection.makefile("rb") as stream:
+                    response = json.loads(stream.readline())
+                self.assertIn("event", response)
+        self.assertEqual(owner.stop().continuous.completed, 1)
+
     def make_owner(self) -> ExperimentRuntime:
         plan = configured_plan({"message": "handled"})
         substrate = FakeSubstrateRuntime()
@@ -44,9 +114,9 @@ class IntentControlTests(unittest.TestCase):
                 with IntentServer(owner, Path(temporary) / "control"):
                     event = IntentClient(Path(temporary) / "control").submit(
                         run.id,
-                        plan.digest,
                         "switch-router@s1",
                         "inspect forwarding",
+                        plan_digest=plan.digest,
                     )
                     self.assertEqual(event.run_id, run.id)
                     self.assertEqual(event.payload["intent"], "inspect forwarding")
@@ -65,20 +135,18 @@ class IntentControlTests(unittest.TestCase):
                 with self.assertRaisesRegex(IntentControlError, "does not match"):
                     client.submit(
                         owner.run.id,
-                        "sha256:" + "0" * 64,
                         "switch-router@s1",
                         "inspect",
+                        plan_digest="sha256:" + "0" * 64,
                     )
                 with self.assertRaisesRegex(
-                    IntentControlError, "unknown or has no manual trigger"
+                    IntentControlError, "unknown agent.*valid agents:.*switch-router@s1"
                 ):
-                    client.submit(
-                        owner.run.id, owner.run.plan_digest, "missing", "inspect"
-                    )
+                    client.submit(owner.run.id, "missing", "inspect")
             self.assertEqual(list(directory.iterdir()), [])
             with self.assertRaises(IntentControlError):
                 IntentClient(directory).submit(
-                    owner.run.id, owner.run.plan_digest, "switch-router@s1", "inspect"
+                    owner.run.id, "switch-router@s1", "inspect"
                 )
         self.assertEqual(owner.stop().continuous.completed, 0)
 
@@ -99,16 +167,13 @@ class IntentControlTests(unittest.TestCase):
         self.addCleanup(owner.stop)
         with TemporaryDirectory() as temporary:
             directory = Path(temporary) / "control"
-            with (
-                IntentServer(owner, directory),
-                self.assertRaisesRegex(IntentControlError, "no manual trigger"),
-            ):
-                IntentClient(directory).submit(
-                    owner.run.id,
-                    owner.run.plan_digest,
-                    "switch-router@s1",
-                    "inspect",
-                )
+            with IntentServer(owner, directory):
+                client = IntentClient(directory)
+                description = client.describe(owner.run.id)
+                self.assertEqual(description.manual_agents, ())
+                self.assertEqual(description.agents, owner.agent_ids)
+                with self.assertRaisesRegex(IntentControlError, "no manual trigger"):
+                    client.submit(owner.run.id, "switch-router@s1", "inspect")
         self.assertEqual(owner.stop().continuous.completed, 0)
 
     def test_malformed_and_oversized_requests_do_not_break_intake(self) -> None:
@@ -130,12 +195,11 @@ class IntentControlTests(unittest.TestCase):
                 with self.assertRaises(IntentControlError):
                     IntentClient(directory).submit(
                         owner.run.id,
-                        owner.run.plan_digest,
                         "switch-router@s1",
                         "x" * 8193,
                     )
                 IntentClient(directory).submit(
-                    owner.run.id, owner.run.plan_digest, "switch-router@s1", "inspect"
+                    owner.run.id, "switch-router@s1", "inspect"
                 )
         self.assertEqual(owner.stop().continuous.completed, 1)
 
@@ -157,7 +221,7 @@ class IntentControlTests(unittest.TestCase):
                 ):
                     pass
                 event = IntentClient(directory).submit(
-                    owner.run.id, owner.run.plan_digest, "switch-router@s1", "inspect"
+                    owner.run.id, "switch-router@s1", "inspect"
                 )
                 self.assertEqual(event.run_id, owner.run.id)
 
@@ -211,7 +275,7 @@ class IntentControlTests(unittest.TestCase):
                     stopped.set()
                     sender.join(timeout=1)
                 IntentClient(directory).submit(
-                    owner.run.id, owner.run.plan_digest, "switch-router@s1", "inspect"
+                    owner.run.id, "switch-router@s1", "inspect"
                 )
         self.assertEqual(owner.stop().continuous.completed, 1)
 

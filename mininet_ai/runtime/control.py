@@ -13,9 +13,9 @@ import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from threading import Event, Lock, Thread
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Self
 
-from pydantic import Field, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError
 
 from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import RuntimeEvent
@@ -35,10 +35,32 @@ class IntentControlError(MininetAIError):
 
 
 class _IntentRequest(StrictModel):
+    kind: Literal["submit"] = "submit"
     run_id: str = Field(alias="runId", min_length=1, max_length=256)
-    plan_digest: str = Field(alias="planDigest", pattern=r"^sha256:[0-9a-f]{64}$")
+    plan_digest: str | None = Field(
+        default=None, alias="planDigest", pattern=r"^sha256:[0-9a-f]{64}$"
+    )
     agent_id: str = Field(alias="agentId", min_length=1, max_length=512)
     intent: str = Field(min_length=1, max_length=8192)
+
+
+class _DescribeRequest(StrictModel):
+    kind: Literal["describe"] = "describe"
+    run_id: str = Field(alias="runId", min_length=1, max_length=256)
+
+
+class RunDescription(StrictModel):
+    """Live owner's identity and compiled manual-intent destinations."""
+
+    run_id: str = Field(alias="runId", min_length=1, max_length=256)
+    plan_digest: str = Field(alias="planDigest", pattern=r"^sha256:[0-9a-f]{64}$")
+    agents: tuple[str, ...]
+    manual_agents: tuple[str, ...] = Field(alias="manualAgents")
+
+
+_REQUEST = TypeAdapter(
+    Annotated[_IntentRequest | _DescribeRequest, Field(discriminator="kind")]
+)
 
 
 def _socket_path(directory: Path, run_id: str) -> Path:
@@ -195,11 +217,28 @@ class IntentServer:
             )
             if uid != os.geteuid():
                 raise IntentControlError("intent client must run as the owner user")
-            request = _IntentRequest.model_validate_json(
-                _receive(connection, deadline=time.monotonic() + 2)
-            )
+            payload = json.loads(_receive(connection, deadline=time.monotonic() + 2))
+            if isinstance(payload, dict):
+                payload.setdefault("kind", "submit")
+            request = _REQUEST.validate_python(payload)
             run = self._owner.run
-            if request.run_id != run.id or request.plan_digest != run.plan_digest:
+            if request.run_id != run.id:
+                raise IntentControlError(
+                    "intent does not match the owner's run and deployment plan",
+                    code="runtime.control.run-mismatch",
+                )
+            if isinstance(request, _DescribeRequest):
+                description = RunDescription(
+                    runId=run.id,
+                    planDigest=run.plan_digest,
+                    agents=self._owner.agent_ids,
+                    manualAgents=self._owner.manual_agent_ids,
+                )
+                return {"describe": description.model_dump(mode="json", by_alias=True)}
+            if (
+                request.plan_digest is not None
+                and request.plan_digest != run.plan_digest
+            ):
                 raise IntentControlError(
                     "intent does not match the owner's run and deployment plan",
                     code="runtime.control.run-mismatch",
@@ -231,10 +270,10 @@ class IntentClient:
     def submit(
         self,
         run_id: str,
-        plan_digest: str,
         agent_id: str,
         intent: str,
         *,
+        plan_digest: str | None = None,
         timeout_seconds: float = 5,
     ) -> RuntimeEvent:
         """Return the accepted event, not an agent execution result; never retry."""
@@ -242,6 +281,42 @@ class IntentClient:
             request = _IntentRequest(
                 runId=run_id, planDigest=plan_digest, agentId=agent_id, intent=intent
             )
+            response = self._request(run_id, request, timeout_seconds=timeout_seconds)
+            return RuntimeEvent.model_validate(response["event"])
+        except IntentControlError:
+            raise
+        except (ValueError, KeyError, TypeError, ValidationError) as error:
+            raise IntentControlError(
+                f"invalid intent response or request: {error}"
+            ) from error
+
+    def describe(self, run_id: str, *, timeout_seconds: float = 5) -> RunDescription:
+        """Discover agents from the live owner without reading the experiment YAML."""
+        try:
+            request = _DescribeRequest(runId=run_id)
+            response = self._request(run_id, request, timeout_seconds=timeout_seconds)
+            description = RunDescription.model_validate(response["describe"])
+            if description.run_id != run_id:
+                raise IntentControlError(
+                    "description does not match requested run",
+                    code="runtime.control.run-mismatch",
+                )
+            return description
+        except IntentControlError:
+            raise
+        except (ValueError, KeyError, TypeError, ValidationError) as error:
+            raise IntentControlError(
+                f"invalid description response or request: {error}"
+            ) from error
+
+    def _request(
+        self,
+        run_id: str,
+        request: _IntentRequest | _DescribeRequest,
+        *,
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        try:
             _private_directory(self._directory, create=False)
             path = _socket_path(self._directory, run_id)
             metadata = path.lstat()
@@ -253,13 +328,15 @@ class IntentClient:
                 deadline = time.monotonic() + timeout_seconds
                 connection.settimeout(timeout_seconds)
                 connection.connect(str(path))
-                _send(connection, request.model_dump(by_alias=True))
+                _send(connection, request.model_dump(by_alias=True, exclude_none=True))
                 response = json.loads(_receive(connection, deadline=deadline))
+            if not isinstance(response, dict):
+                raise IntentControlError("control response must be an object")
             if "error" in response:
                 raise IntentControlError(
                     response["error"]["message"], code=response["error"]["code"]
                 )
-            return RuntimeEvent.model_validate(response["event"])
+            return response
         except IntentControlError:
             raise
         except (OSError, ValueError, KeyError, TypeError, ValidationError) as error:

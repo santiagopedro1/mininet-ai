@@ -760,7 +760,7 @@ def invoke(
     deployment_plan = _compile_or_exit(experiment)
     event = _operation_or_exit(
         lambda: IntentClient(control_dir).submit(
-            run_id, deployment_plan.digest, agent_id, intent,
+            run_id, agent_id, intent, plan_digest=deployment_plan.digest,
             timeout_seconds=timeout_seconds,
         )
     )

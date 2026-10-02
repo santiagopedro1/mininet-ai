@@ -136,6 +136,19 @@ class ExperimentRuntime:
                 )
             return self._run
 
+    @property
+    def agent_ids(self) -> tuple[str, ...]:
+        """Compiled instance IDs in deployment-plan order."""
+        return tuple(agent.id for agent in self._plan.agents)
+
+    @property
+    def manual_agent_ids(self) -> tuple[str, ...]:
+        """Instances eligible for manual intents, before coordination routing."""
+        return tuple(
+            agent.id for agent in self._plan.agents
+            if any(trigger.type == "manual" for trigger in agent.triggers)
+        )
+
     def start(self) -> RunInfo:
         """Deploy and start all continuous experiment producers and consumers."""
 
@@ -219,9 +232,14 @@ class ExperimentRuntime:
             raise ValueError("manual intent requires agent, intent, and source")
         continuous = self._require_running()
         agent = next((agent for agent in self._plan.agents if agent.id == agent_id), None)
-        if agent is None or not any(trigger.type == "manual" for trigger in agent.triggers):
+        if agent is None:
             raise ExperimentRuntimeError(
-                f"agent {agent_id!r} is unknown or has no manual trigger",
+                f"unknown agent {agent_id!r}; valid agents: {', '.join(self.agent_ids)}",
+                code="experiment.intent.invalid-agent",
+            )
+        if not any(trigger.type == "manual" for trigger in agent.triggers):
+            raise ExperimentRuntimeError(
+                f"agent {agent_id!r} has no manual trigger",
                 code="experiment.intent.invalid-agent",
             )
         with self._lock:
