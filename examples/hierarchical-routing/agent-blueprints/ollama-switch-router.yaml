@@ -7,9 +7,9 @@ implementation:
   type: declarative
 model:
   provider: ollama
-  name: qwen3.5:latest
+  name: qwen3.5:0.8b
   parameters:
-    host: http://localhost:11434
+    host: http://10.10.10.79:11434
 reasoning:
   instructions: |-
     You are a switch router in a hierarchical routing system.

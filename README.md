@@ -233,9 +233,26 @@ or specification change, run the tests to verify the examples still compile.
 
 ## Plans
 
-### v1alpha3
-
-- [x] Support submitting `--intent` from another terminal.
-- [x] Allow the Ollama host to be specified in the configuration file.
-- [x] Support noncanonical names in Mininet networks, if possible.
-- [x] Add better, more practical examples.
+- **Placement isolation**: Run agents in separate processes, host namespaces,
+  or controller/device sidecars, with resource limits and restricted capability
+  proxies. Give logical placement actual execution and isolation semantics.
+- **Research harness**: Add scheduled workloads and fault injection, repeated
+  trials, measurement windows, artifact collection, and result exports. Support
+  replay and comparisons of coordination strategies on the same scenario.
+- **Stronger action safety**: Reject stale actions using resource revisions and
+  add human approval or explicit last-writer-wins policies alongside existing
+  conflict arbitration.
+- **CLI and authoring UX**: Add experiment scaffolding, detailed run inspection,
+  live monitoring, and deployment-plan diffs. Improve validation diagnostics and
+  document editor autocompletion using the exported schemas. Run-only invocation
+  and live agent discovery are already available.
+- **Coordination comparison example**: Run the same network-failure scenario
+  with centralized, hierarchical, and distributed agents, then compare recovery
+  time, model usage, message volume, and action outcomes.
+- **Run logs and artifacts**: Include agent response messages and clearer
+  execution details in logs. Organize logs, databases, and other artifacts under
+  `.mininet-ai/<run-id>/` by default, with dedicated `logs/` and `dbs/` directories
+  to keep runs separate and easier to inspect.
+- **Lighter, better-equipped VM**: Evaluate a smaller base image while retaining
+  Mininet/OVS compatibility. Bundle common network testing and diagnostic tools,
+  such as iperf3, tcpdump, traceroute, and ethtool, for ready-to-run experiments.
