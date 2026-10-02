@@ -229,8 +229,17 @@ The old `invoke --audit-log`, `--agno-db`, `--shared-state-db`, and
 `--discover-plugins` options remain accepted but are deprecated and ignored with
 a warning on stderr: session, state, audit, and plugin configuration belongs to
 the owner. Set database and plugin options on `run`.
-Use the same OS user and working directory, or an identical absolute
-`--control-dir` on both commands. The private socket protocol is internal and
+Use the same OS user on the same machine. Defaults are working-directory
+independent: root uses `/run/mininet-ai/control`, non-root uses a validated
+`$XDG_RUNTIME_DIR/mininet-ai/control` or `/tmp/mininet-ai-<uid>/control` if unset.
+Explicit `--control-dir` is a base override; relative paths follow the command's
+working directory, so absolute paths are recommended. The endpoint is now
+`<base>/<run-id-hash>/control.sock`. Restart old owners after upgrading: there is
+no implicit project-local fallback, and a new client cannot address an old flat
+endpoint even using `--control-dir`. Old owners require old compatible clients
+and their explicit legacy directory. Existing run directories/endpoints are
+never taken over, even if apparently stale; stop the owner or use a new run ID.
+The private socket protocol is internal and
 does not change the versioned runtime-event or agent-runtime contracts.
 
 ### Contract-preserving changes

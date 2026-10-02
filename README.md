@@ -116,10 +116,16 @@ whether they accept manual intents; `--format json` includes the run ID, plan
 digest, `agents`, and `manualAgents`. Both commands contact the live owner;
 neither reads or recompiles experiment YAML. Editing the original files does
 not change the running experiment.
-Run both commands as the same OS user, on the same machine, from the same
-working directory. If using different directories, pass the same absolute
-`--control-dir` to both commands (default: `.mininet-ai/control`). The directory
-is private (0700), and the owner removes its socket on shutdown. There is no
+Run both commands as the same OS user on the same machine; default discovery
+works from any working directory. Root uses `/run/mininet-ai/control`; other
+users use `$XDG_RUNTIME_DIR/mininet-ai/control` when configured and valid, or
+`/tmp/mininet-ai-<uid>/control` when unset (regardless of `TMPDIR`). Invalid XDG
+configuration fails rather than falling back. `--control-dir` overrides the base;
+use the same absolute path on all commands. Each endpoint is
+`<base>/<run-id-hash>/control.sock`. Directories are private (0700), sockets are
+0600, and shutdown removes only the owner's socket and empty run directory.
+Restart existing runs after upgrading: the new per-run layout cannot address an
+old flat socket, even with an explicit legacy `--control-dir`. There is no
 automatic retry after a timeout because the owner may have accepted the intent.
 Intents are limited to 8192 characters. Configure databases, models, and plugins
 on `run`, not `invoke`.
