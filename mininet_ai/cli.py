@@ -473,7 +473,7 @@ def run(
 
     try:
         reserved_id, substrate = reserve_run(deployment_plan.substrate)
-    except ValueError as error:
+    except (LookupError, TypeError, ValueError) as error:
         raise typer.BadParameter(str(error)) from error
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
@@ -499,24 +499,56 @@ def run(
         agent.memory.learned is not None and agent.memory.learned.scope == "agent"
         for agent in deployment_plan.agents
     )
-    artifacts = _operation_or_exit(
-        lambda: reserve_artifacts(
-            artifact_root,
-            reserved_id,
-            persistent_memory=persistent_memory and agno_db is None,
+    legacy_memory = artifact_root.absolute() / "agno.sqlite3"
+    if persistent_memory and agno_db is None and legacy_memory.exists():
+        raise typer.BadParameter(
+            f"Existing learned-memory store found at {legacy_memory}. "
+            f"Use --agno-db {legacy_memory} to retain its agent memory, or explicitly "
+            "select a new --agno-db to start fresh. No automatic migration is performed.",
+            param_hint="--agno-db",
         )
+    if reserved_id is None:
+        if any(
+            path is None for path in (log_file, ledger_db, shared_state_db, agno_db)
+        ):
+            raise typer.BadParameter(
+                "This registered adapter does not support built-in identity reservation. "
+                "Provide --log-file, --ledger-db, --shared-state-db, and --agno-db explicitly; "
+                "its zero-argument factory and runtime protocol remain unchanged."
+            )
+        artifact_description = (
+            "explicit file paths (adapter assigns identity during deployment)"
+        )
+    else:
+        artifacts = _operation_or_exit(
+            lambda: reserve_artifacts(
+                artifact_root,
+                reserved_id,
+                persistent_memory=persistent_memory and agno_db is None,
+            )
+        )
+        artifact_description = str(artifacts.directory)
+        log_file = log_file or artifacts.log
+        ledger_db = ledger_db or artifacts.ledger
+        shared_state_db = shared_state_db or artifacts.shared_state
+        agno_db = agno_db or artifacts.agno
+    assert (
+        log_file is not None
+        and ledger_db is not None
+        and shared_state_db is not None
+        and agno_db is not None
     )
-    log_file = (log_file or artifacts.log).absolute()
-    ledger_db = (ledger_db or artifacts.ledger).absolute()
-    shared_state_db = (shared_state_db or artifacts.shared_state).absolute()
-    agno_db = (agno_db or artifacts.agno).absolute()
+    log_file = log_file.absolute()
+    ledger_db = ledger_db.absolute()
+    shared_state_db = shared_state_db.absolute()
+    agno_db = agno_db.absolute()
     error_console.print(
-        f"Artifacts: {artifacts.directory}\nLog: {log_file}\nLedger: {ledger_db}\n"
+        f"Artifacts: {artifact_description}\nLog: {log_file}\nLedger: {ledger_db}\n"
         f"Shared state: {shared_state_db}\nAgno sessions/memory: {agno_db}"
     )
     progress = _operation_or_exit(lambda: _RunProgress(log_file, verbose=verbose))
     progress.info(
-        f"Artifacts: {artifacts.directory}; log={log_file}; ledger={ledger_db}; shared-state={shared_state_db}; Agno={agno_db}"
+        f"Artifacts: {artifact_description}; log={log_file}; ledger={ledger_db}; shared-state={shared_state_db}; Agno={agno_db}"
     )
     progress.info(
         f"Reserved run {reserved_id}; Prepared experiment {deployment_plan.metadata.name} "
@@ -574,7 +606,7 @@ def run(
         )
         with stop_latch:
             run_info = _operation_or_exit(owner.start)
-            if run_info.id != reserved_id:
+            if reserved_id is not None and run_info.id != reserved_id:
                 raise MininetAIError("deployed run ID differs from reserved identity")
             intent_server = IntentServer(
                 owner,

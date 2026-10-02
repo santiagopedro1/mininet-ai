@@ -17,7 +17,7 @@ from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.coordination import CoordinationRuntime
 from mininet_ai.errors import MininetAIError
 from mininet_ai.plugins import ProviderRegistries
-from mininet_ai.runtime.continuous import ContinuousAgentRuntime
+from mininet_ai.runtime.continuous import ContinuousAgentRuntime, ContinuousRuntimeState
 from mininet_ai.runtime.contracts import (
     ContinuousInvocationRecord,
     ContinuousRuntimeReport,
@@ -36,7 +36,7 @@ from mininet_ai.runtime.ledger import (
     RunManifest,
 )
 from mininet_ai.runtime.state import SharedStateStore
-from mininet_ai.runtime.telemetry import TelemetryPipeline
+from mininet_ai.runtime.telemetry import TelemetryPipeline, TelemetryPipelineState
 from mininet_ai.specification.models import StrictModel
 from mininet_ai.substrates import RunInfo, SubstrateRuntime, TeardownResult
 
@@ -168,9 +168,7 @@ class ExperimentRuntime:
             event_bus = InMemoryRuntimeEventBus(
                 capacity=self._plan.resource_limits.max_queued_events,
                 sink=(
-                    LedgerEventSink(self._ledger)
-                    if self._ledger is not None
-                    else None
+                    LedgerEventSink(self._ledger) if self._ledger is not None else None
                 ),
             )
             invoker = OneShotAgentRuntime(
@@ -209,11 +207,11 @@ class ExperimentRuntime:
                 self._state = ExperimentRuntimeState.RUNNING
             self._record_lifecycle("run.running", {"state": "running"})
             return run
-        except Exception as error:
+        except BaseException as error:
             self._cleanup_start_failure()
             with self._lock:
                 self._state = ExperimentRuntimeState.FAILED
-            if isinstance(error, MininetAIError):
+            if not isinstance(error, Exception) or isinstance(error, MininetAIError):
                 raise
             raise ExperimentRuntimeError(
                 f"could not start experiment runtime: {error}",
@@ -232,7 +230,9 @@ class ExperimentRuntime:
         if not agent_id or not intent or not source:
             raise ValueError("manual intent requires agent, intent, and source")
         continuous = self._require_running()
-        agent = next((agent for agent in self._plan.agents if agent.id == agent_id), None)
+        agent = next(
+            (agent for agent in self._plan.agents if agent.id == agent_id), None
+        )
         if agent is None:
             raise ExperimentRuntimeError(
                 f"unknown agent {agent_id!r}; valid agents: {', '.join(self.agent_ids)}",
@@ -279,18 +279,12 @@ class ExperimentRuntime:
         if timeout_seconds <= 0:
             raise ValueError("experiment stop timeout must be positive")
         with self._lock:
-            if (
-                self._report is not None
-                and self._report.teardown is not None
-            ):
+            if self._report is not None and self._report.teardown is not None:
                 return self._report
             retrying = (
                 self._state == ExperimentRuntimeState.FAILED
                 and self._run is not None
-                and (
-                    self._report is None
-                    or self._report.teardown is None
-                )
+                and (self._report is None or self._report.teardown is None)
             )
             if self._state != ExperimentRuntimeState.RUNNING and not retrying:
                 raise ExperimentRuntimeError(
@@ -316,9 +310,7 @@ class ExperimentRuntime:
         safe_to_teardown = telemetry_stopped and continuous_stopped
         teardown = self._teardown(issues) if safe_to_teardown else None
         final_state = (
-            ExperimentRuntimeState.FAILED
-            if issues
-            else ExperimentRuntimeState.STOPPED
+            ExperimentRuntimeState.FAILED if issues else ExperimentRuntimeState.STOPPED
         )
         self._record_lifecycle(
             "run.failed" if issues else "run.stopped",
@@ -439,13 +431,21 @@ class ExperimentRuntime:
     def _cleanup_start_failure(self) -> None:
         issues: list[ExperimentRuntimeIssue] = []
         safe_to_teardown = True
-        if self._telemetry is not None and self._telemetry_started:
+        if (
+            self._telemetry is not None
+            and self._telemetry_started
+            and self._telemetry.state != TelemetryPipelineState.CREATED
+        ):
             try:
                 self._telemetry.stop()
                 self._telemetry_started = False
             except Exception:
                 safe_to_teardown = False
-        if self._continuous is not None and self._continuous_started:
+        if (
+            self._continuous is not None
+            and self._continuous_started
+            and self._continuous.state != ContinuousRuntimeState.CREATED
+        ):
             try:
                 self._continuous.stop(drain=False)
                 self._continuous_started = False

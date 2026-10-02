@@ -147,9 +147,7 @@ def _interface_exists(name: str) -> bool:
     return True
 
 
-def _observation_provider(
-    plan: DeploymentPlan, network: Any
-) -> MininetOVSObservations:
+def _observation_provider(plan: DeploymentPlan, network: Any) -> MininetOVSObservations:
     return MininetOVSObservations(plan, network)
 
 
@@ -238,7 +236,8 @@ class MininetOVSRuntime:
         try:
             bindings = self._bindings_factory()
             self._preflight_interfaces(plan)
-            network = self._build_network(plan, bindings)
+            network = self._create_network(bindings)
+            self._build_network(plan, bindings, network)
             process_groups = self._network_process_groups(network)
             self._write_state(info, plan, process_groups)
             self._start_network(plan, network)
@@ -256,12 +255,11 @@ class MininetOVSRuntime:
             )
             if unavailable:
                 raise RuntimeError(
-                    "deployed resources are not operational: "
-                    + ", ".join(unavailable)
+                    "deployed resources are not operational: " + ", ".join(unavailable)
                 )
             info = info.model_copy(update={"state": RunState.RUNNING})
             self._write_state(info, plan, process_groups)
-        except Exception as error:
+        except BaseException as error:
             rollback_error = self._rollback(network, plan) if network else None
             state_error = self._settle_failed_deploy(
                 info,
@@ -269,6 +267,12 @@ class MininetOVSRuntime:
                 process_groups,
                 rollback_error,
             )
+            if (
+                not isinstance(error, Exception)
+                and rollback_error is None
+                and state_error is None
+            ):
+                raise
             if (
                 isinstance(error, RuntimeOperationError)
                 and rollback_error is None
@@ -320,9 +324,7 @@ class MininetOVSRuntime:
             resources=run.resources,
         )
 
-    def observe(
-        self, run_id: str, query: ObservationQuery
-    ) -> ObservationResult:
+    def observe(self, run_id: str, query: ObservationQuery) -> ObservationResult:
         run = self._require_running(run_id)
         resources = {resource.name for resource in run.resources}
         self._require_targets(run_id, query.targets, resources)
@@ -371,8 +373,7 @@ class MininetOVSRuntime:
                         run.actions.release_pids(newly_owned)
                     except Exception as cleanup_error:
                         raise RuntimeError(
-                            f"{error}; process rollback also failed: "
-                            f"{cleanup_error}"
+                            f"{error}; process rollback also failed: {cleanup_error}"
                         ) from error
                     raise
             run.resources = run.observations.snapshot()
@@ -434,9 +435,7 @@ class MininetOVSRuntime:
                 except Exception as error:
                     cleanup_errors.append(error)
             if cleanup_errors:
-                raise RuntimeError(
-                    "; ".join(str(error) for error in cleanup_errors)
-                )
+                raise RuntimeError("; ".join(str(error) for error in cleanup_errors))
             stopped_info = run.info.model_copy(
                 update={"state": RunState.STOPPED, "stopped_at": self._clock()}
             )
@@ -460,9 +459,7 @@ class MininetOVSRuntime:
             )
             run.info = failed_info
             run.resources = tuple(
-                resource.model_copy(
-                    update={"state": ResourceOperationalState.UNKNOWN}
-                )
+                resource.model_copy(update={"state": ResourceOperationalState.UNKNOWN})
                 for resource in run.resources
             )
             try:
@@ -678,9 +675,7 @@ class MininetOVSRuntime:
 
         try:
             plan = self._plan_from_record(record)
-            owner_active = (
-                record.owner.is_alive() and self._state_store.is_locked()
-            )
+            owner_active = record.owner.is_alive() and self._state_store.is_locked()
         except (StateStoreError, ValueError) as error:
             raise RuntimeOperationError(
                 f"could not inspect Mininet/OVS runtime state: {error}",
@@ -856,29 +851,25 @@ class MininetOVSRuntime:
             {
                 pid
                 for node in nodes
-                if isinstance((pid := getattr(node, "pid", None)), int)
-                and pid > 0
+                if isinstance((pid := getattr(node, "pid", None)), int) and pid > 0
             }
         )
         identities = []
         for pid in pids:
             try:
                 identities.append(ProcessOwner.for_pid(pid))
-            except (OSError, IndexError, ValueError):
+            except OSError, IndexError, ValueError:
                 continue
         return tuple(identities)
 
-    def _owned_process_groups(
-        self, run: _MininetRun
-    ) -> tuple[ProcessOwner, ...]:
+    def _owned_process_groups(self, run: _MininetRun) -> tuple[ProcessOwner, ...]:
         identities = {
-            owner.pid: owner
-            for owner in self._network_process_groups(run.network)
+            owner.pid: owner for owner in self._network_process_groups(run.network)
         }
         for pid in run.actions.owned_pids():
             try:
                 identities[pid] = ProcessOwner.for_pid(pid)
-            except (OSError, IndexError, ValueError):
+            except OSError, IndexError, ValueError:
                 continue
         return tuple(identities[pid] for pid in sorted(identities))
 
@@ -897,10 +888,8 @@ class MininetOVSRuntime:
                 code="runtime.resource.conflict",
             )
 
-    def _build_network(
-        self, plan: DeploymentPlan, bindings: _MininetBindings
-    ) -> Any:
-        network = bindings.network_class(
+    def _create_network(self, bindings: _MininetBindings) -> Any:
+        return bindings.network_class(
             topo=None,
             controller=None,
             switch=bindings.ovs_switch_class,
@@ -911,6 +900,10 @@ class MininetOVSRuntime:
             autoStaticArp=False,
             waitConnected=False,
         )
+
+    def _build_network(
+        self, plan: DeploymentPlan, bindings: _MininetBindings, network: Any
+    ) -> Any:
         resources = {resource.name: resource for resource in plan.resources}
 
         for resource in plan.resources:
@@ -940,8 +933,7 @@ class MininetOVSRuntime:
                         if switch.datapath == SwitchDatapath.USERSPACE
                         else "kernel"
                     ),
-                    protocols=",".join(item.value for item in switch.protocols)
-                    or None,
+                    protocols=",".join(item.value for item in switch.protocols) or None,
                 )
             elif resource.kind == ResourceKind.HOST:
                 host = cast("PlannedHost", resource)
@@ -999,9 +991,7 @@ class MininetOVSRuntime:
             switch = cast("PlannedSwitch", resource)
             controllers = [network.get(name) for name in switch.controllers]
             network.get(switch.name).start(controllers)
-        if not network.waitConnected(
-            timeout=self._connect_timeout_seconds, delay=0.1
-        ):
+        if not network.waitConnected(timeout=self._connect_timeout_seconds, delay=0.1):
             raise RuntimeError("one or more switches did not become ready")
 
     @staticmethod
@@ -1047,9 +1037,7 @@ class MininetOVSRuntime:
                     f"could not set default route on {host.name!r}: {detail}"
                 )
 
-    def _rollback(
-        self, network: Any, plan: DeploymentPlan
-    ) -> Exception | None:
+    def _rollback(self, network: Any, plan: DeploymentPlan) -> Exception | None:
         failure: Exception | None = None
         try:
             network.stop()
@@ -1101,12 +1089,8 @@ class MininetOVSRuntime:
                     resource.name,
                 )
         for resource in reversed(plan.resources):
-            if resource.kind == ResourceKind.PORT and _interface_exists(
-                resource.name
-            ):
-                self._run_cleanup_command(
-                    "ip", "link", "delete", resource.name
-                )
+            if resource.kind == ResourceKind.PORT and _interface_exists(resource.name):
+                self._run_cleanup_command("ip", "link", "delete", resource.name)
         self._remove_owned_artifacts(plan)
 
     @staticmethod
@@ -1123,7 +1107,7 @@ class MininetOVSRuntime:
                 if not arguments.intersection(markers):
                     continue
                 process_groups.add(os.getpgid(int(entry.name)))
-            except (FileNotFoundError, PermissionError, ProcessLookupError):
+            except FileNotFoundError, PermissionError, ProcessLookupError:
                 continue
         return process_groups
 
@@ -1169,9 +1153,7 @@ class MininetOVSRuntime:
             self._raise_unknown_run(run_id, cause=error)
 
     @staticmethod
-    def _raise_unknown_run(
-        run_id: str, *, cause: Exception | None = None
-    ) -> NoReturn:
+    def _raise_unknown_run(run_id: str, *, cause: Exception | None = None) -> NoReturn:
         error = RuntimeOperationError(
             f"unknown substrate run {run_id!r}",
             code="runtime.run.unknown",

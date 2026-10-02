@@ -29,6 +29,54 @@ from tests.agents.test_runtime import configured_plan
 
 
 class IntentControlTests(unittest.TestCase):
+    def test_socket_identity_guard_preserves_replacement(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with IntentServer(owner, directory) as server:
+                assert server.path is not None
+                path = server.path
+                path.rename(path.with_name("original.sock"))
+                path.write_text("replacement")
+            self.assertEqual(path.read_text(), "replacement")
+            self.assertTrue(path.parent.is_dir())
+
+    def test_peer_uid_is_checked(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with (
+                IntentServer(owner, directory) as server,
+                patch(
+                    "mininet_ai.runtime.control.struct.unpack",
+                    return_value=(1, os.geteuid() + 1, 1),
+                ),
+                socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection,
+            ):
+                connection.connect(str(server.path))
+                connection.sendall(
+                    (
+                        json.dumps({"kind": "describe", "runId": owner.run.id}) + "\n"
+                    ).encode()
+                )
+                with connection.makefile("rb") as stream:
+                    response = json.loads(stream.readline())
+                self.assertIn("owner user", response["error"]["message"])
+
+    def test_thread_start_failure_removes_endpoint(self) -> None:
+        owner = self.make_owner()
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "control"
+            with (
+                patch(
+                    "mininet_ai.runtime.control.Thread.start",
+                    side_effect=RuntimeError("thread failed"),
+                ),
+                self.assertRaises(IntentControlError),
+            ):
+                IntentServer(owner, directory).__enter__()
+            self.assertEqual(list(directory.iterdir()), [])
+
     def test_two_owners_cleanup_independently(self) -> None:
         first, second = self.make_owner(), self.make_owner()
         with TemporaryDirectory() as temporary:

@@ -325,6 +325,17 @@ class MininetOVSRuntimeTests(unittest.TestCase):
 
         self.assertIsInstance(runtime, MininetOVSRuntime)
 
+    def test_interrupted_start_rolls_back_network(self) -> None:
+        runtime = recording_runtime(self)
+        with (
+            patch.object(runtime, "_start_network", side_effect=KeyboardInterrupt),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            runtime.deploy(self.plan)
+        self.assertTrue(RecordingNetwork.instances[-1].stopped)
+        with self.assertRaises(RuntimeOperationError):
+            runtime.inspect("mininet-test-run")
+
     def test_deploy_translates_the_complete_plan_deterministically(self) -> None:
         runtime = recording_runtime(self)
 

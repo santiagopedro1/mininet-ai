@@ -145,6 +145,9 @@ uses one database for both sessions and memory; sessions remain keyed by run,
 while learned memory uses the stable agent identity. Use the same absolute
 artifact root across working directories, or an explicit shared `--agno-db`, to
 reuse agent memory. Run ledgers and shared operational state remain per-run.
+If the legacy `<artifact-root>/agno.sqlite3` exists, agent-scoped memory requires
+an explicit `--agno-db` selection; choose that file to retain previous learning.
+The CLI never silently replaces existing learned memory with a fresh store.
 No multiple-database Agno routing or schema/protocol changes are introduced.
 
 Treat saved artifacts as sensitive: they may contain prompts and observations.

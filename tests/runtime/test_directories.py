@@ -4,7 +4,11 @@ from unittest.mock import patch
 
 import pytest
 
-from mininet_ai.runtime.control import IntentControlError, resolve_control_directory
+from mininet_ai.runtime.control import (
+    IntentControlError,
+    _private_directory,
+    resolve_control_directory,
+)
 
 
 def test_root_ignores_xdg():
@@ -44,3 +48,26 @@ def test_valid_xdg(tmp_path):
 def test_relative_override(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert resolve_control_directory(Path("control")) == tmp_path / "control"
+
+
+def test_wrong_owner_is_rejected_without_chown(tmp_path):
+    with (
+        patch("os.geteuid", return_value=tmp_path.stat().st_uid + 1),
+        pytest.raises(IntentControlError, match="current user"),
+    ):
+        _private_directory(tmp_path, create=False)
+
+
+def test_public_and_symlink_xdg_fail_without_fallback(tmp_path):
+    public = tmp_path / "public"
+    public.mkdir(mode=0o755)
+    link = tmp_path / "link"
+    link.symlink_to(tmp_path, target_is_directory=True)
+    for path in (public, link, tmp_path / "missing"):
+        with (
+            patch("os.geteuid", return_value=tmp_path.stat().st_uid),
+            patch.dict(os.environ, {"XDG_RUNTIME_DIR": str(path)}),
+        ):
+            if os.geteuid() != 0:
+                with pytest.raises(IntentControlError, match="fix or unset"):
+                    resolve_control_directory()

@@ -246,9 +246,9 @@ class IntentServer:
             thread.start()
             self._thread = thread
             return self
-        except Exception as error:
+        except BaseException as error:
             self.close()
-            if isinstance(error, IntentControlError):
+            if not isinstance(error, Exception) or isinstance(error, IntentControlError):
                 raise
             raise IntentControlError(
                 f"could not open intent endpoint in {self._directory}: {error}"

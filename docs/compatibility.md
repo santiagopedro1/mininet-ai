@@ -248,6 +248,12 @@ Run identity reservation is a composition-layer change for the fake and
 Mininet/OVS adapters using their existing `run_id_factory` constructors. The
 runtime/provider protocols and all serialized contract versions are unchanged.
 The reserved identity is used unchanged for deployment, ledger, and sessions.
+Registered third-party adapters retain their zero-argument factory/runtime
+contracts and can still execute with explicit `--log-file`, `--ledger-db`,
+`--shared-state-db`, and `--agno-db`. Automatic per-run defaults are currently
+limited to the two built-ins: assigning identities to other adapters would
+require a separately reviewed reservation contract, not an implicit protocol
+change. Missing file options fail before deployment for such adapters.
 Saved output defaults now use `.mininet-ai/<run-id>/logs` and `dbs`; explicit
 file options still take precedence, and existing artifacts remain untouched.
 `--artifact-root` is independent of live endpoint discovery. A failed start
@@ -257,6 +263,9 @@ agent-scoped memory is requested, that entire store defaults to the stable
 `<artifact-root>/memory/agno.sqlite3`. Run-qualified session IDs isolate sessions;
 agent-qualified user IDs retain learned memory. An explicit shared `--agno-db`
 also preserves memory; separate per-run shared-state databases remain isolated.
+If a legacy `<artifact-root>/agno.sqlite3` exists and agent-scoped memory is
+requested, choose `--agno-db` explicitly. Point it at the legacy store to retain
+learning; no automatic migration or silent switch to empty memory is performed.
 
 Ollama endpoint configuration uses the existing `model.parameters.host` key,
 without adding serialized fields or changing omitted-host plans, snapshots,

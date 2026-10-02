@@ -71,6 +71,84 @@ def test_dry_run_creates_nothing(tmp_path, monkeypatch):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_legacy_agent_memory_requires_explicit_selection(tmp_path):
+    from mininet_ai.specification.models import (
+        LearnedMemoryConfiguration,
+        MemoryConfiguration,
+    )
+
+    root = tmp_path / "output"
+    root.mkdir(mode=0o700)
+    legacy = root / "agno.sqlite3"
+    legacy.write_bytes(b"old learned memory")
+    plan = configured_plan({"message": "handled"})
+    plan = plan.model_copy(
+        update={
+            "agents": tuple(
+                agent.model_copy(
+                    update={
+                        "memory": MemoryConfiguration(
+                            learned=LearnedMemoryConfiguration(scope="agent")
+                        )
+                    }
+                )
+                for agent in plan.agents
+            )
+        }
+    )
+    with patch("mininet_ai.cli._compile_or_exit", return_value=plan):
+        result = CliRunner().invoke(
+            app, ["run", "experiment.yaml", "--artifact-root", str(root)]
+        )
+    assert result.exit_code != 0
+    assert "--agno-db" in result.output
+    assert legacy.read_bytes() == b"old learned memory"
+    assert list(root.iterdir()) == [legacy]
+
+
+def test_keyboard_interrupt_during_service_start_cleans_network(tmp_path):
+    from mininet_ai.substrates import FakeSubstrateRuntime, RunState
+
+    runtime = FakeSubstrateRuntime(run_id_factory=lambda: "run-interrupted")
+    with (
+        patch("mininet_ai.cli.reserve_run", return_value=("run-interrupted", runtime)),
+        patch(
+            "mininet_ai.cli._compile_or_exit",
+            return_value=configured_plan({"message": "handled"}),
+        ),
+        patch(
+            "mininet_ai.experiment.TelemetryPipeline.start",
+            side_effect=KeyboardInterrupt,
+        ),
+    ):
+        result = CliRunner().invoke(
+            app, ["run", "experiment.yaml", "--artifact-root", str(tmp_path / "output")]
+        )
+    assert result.exit_code != 0
+    assert runtime.inspect("run-interrupted").run.state == RunState.STOPPED
+    assert "failed" in (tmp_path / "output/run-interrupted/logs/run.log").read_text()
+
+
+def test_unreserved_registered_adapter_can_use_explicit_paths(tmp_path):
+    from mininet_ai.substrates import FakeSubstrateRuntime, RunState
+
+    runtime = FakeSubstrateRuntime(run_id_factory=lambda: "custom-run")
+    arguments = ["run", "experiment.yaml", "--control-dir", str(tmp_path / "control")]
+    for option in ("log-file", "ledger-db", "shared-state-db", "agno-db"):
+        arguments.extend([f"--{option}", str(tmp_path / option)])
+    with (
+        patch("mininet_ai.cli.reserve_run", return_value=(None, runtime)),
+        patch(
+            "mininet_ai.cli._compile_or_exit",
+            return_value=configured_plan({"message": "handled"}),
+        ),
+        patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+    ):
+        result = CliRunner().invoke(app, arguments)
+    assert result.exit_code == 0, result.output
+    assert runtime.inspect("custom-run").run.state == RunState.STOPPED
+
+
 def test_two_cli_runs_have_separate_saved_output(tmp_path):
     root = tmp_path / "output"
     with (

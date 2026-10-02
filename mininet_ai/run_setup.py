@@ -6,16 +6,16 @@ from mininet_ai.substrates import (
     FakeSubstrateRuntime,
     MininetOVSRuntime,
     SubstrateRuntime,
+    create_substrate_runtime,
 )
 
 
-def reserve_run(substrate: str) -> tuple[str, SubstrateRuntime]:
+def reserve_run(substrate: str) -> tuple[str | None, SubstrateRuntime]:
     if substrate == "fake":
         run_id = f"run-{uuid4()}"
         return run_id, FakeSubstrateRuntime(run_id_factory=lambda: run_id)
     if substrate == "mininet-ovs":
         run_id = f"mn-{uuid4()}"
         return run_id, MininetOVSRuntime(run_id_factory=lambda: run_id)
-    raise ValueError(
-        f"artifact identity reservation is not supported for {substrate!r}"
-    )
+    # Third-party zero-argument factories retain their existing contract.
+    return None, create_substrate_runtime(substrate)
