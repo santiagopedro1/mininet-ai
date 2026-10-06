@@ -6,7 +6,7 @@ import asyncio
 import importlib
 import json
 import re
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Coroutine, Iterator, Mapping
 from contextlib import contextmanager
 from importlib.metadata import version
 from pathlib import Path
@@ -233,6 +233,7 @@ class AgnoAgentFactory:
         self._agents: dict[str, Agent] = {}
         self._definitions: dict[str, AgentExecutionDefinition] = {}
         self._invocation_locks: dict[str, RLock] = {}
+        self._runners: dict[str, asyncio.Runner] = {}
 
     def create(self, definition: AgentExecutionDefinition) -> Agent:
         identity = definition.instance.id
@@ -277,6 +278,33 @@ class AgnoAgentFactory:
         with self.invocation(agent_id):
             state = self._agents[agent_id].get_session_state(session_id)
         return _json_object(state, field="session state")
+
+    def run_async(
+        self,
+        agent_id: str,
+        operation: Callable[[], Coroutine[object, object, object]],
+    ) -> object:
+        """Run on the same loop for the lifetime of the cached Agno agent."""
+
+        with self.invocation(agent_id):
+            runner = self._runners.get(agent_id)
+            if runner is None:
+                runner = asyncio.Runner()
+                self._runners[agent_id] = runner
+            return runner.run(operation())
+
+    def close(self) -> None:
+        """Release cached async loops after all invocation workers have stopped.
+
+        A closed factory must not be reused. Standalone callers must close
+        their factories; ExperimentRuntime closes its factory during teardown.
+        """
+
+        with self._lock:
+            agent_ids = tuple(self._runners)
+        for agent_id in agent_ids:
+            with self.invocation(agent_id):
+                self._runners[agent_id].close()
 
     def _configure(
         self,
@@ -458,13 +486,14 @@ class AgnoAgentProvider:
                         output_schema=AgentResponse,
                     )
                 else:
-                    output = asyncio.run(
-                        self._run_with_timeout(
+                    output = self._factory.run_async(
+                        context.agent_id,
+                        lambda: self._run_with_timeout(
                             context,
                             session_id,
                             user_id,
                             timeout_seconds,
-                        )
+                        ),
                     )
         except TimeoutError as error:
             raise AgentProviderError(

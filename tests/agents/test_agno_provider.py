@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Thread
 from typing import Any, cast
+from unittest.mock import patch
 
 from agno.agent import Agent
 
@@ -29,6 +34,7 @@ from mininet_ai.specification.models import (
     LearnedMemoryConfiguration,
     LocalMemoryConfiguration,
     MemoryConfiguration,
+    ModelConfiguration,
     ReasoningConfiguration,
 )
 from mininet_ai.substrates import ActionResult, ActionStatus
@@ -145,18 +151,131 @@ class AgnoAgentProviderTests(unittest.TestCase):
                 update={"reasoning": ReasoningConfiguration(timeout="1ms")}
             ),
         )
-        provider = AgnoAgentProvider(
-            definition,
-            factory=AgnoAgentFactory(
-                model_resolver=lambda configuration: SlowAsyncModel()
-            ),
+        factory = AgnoAgentFactory(
+            model_resolver=lambda configuration: SlowAsyncModel()
         )
+        self.addCleanup(factory.close)
+        provider = AgnoAgentProvider(definition, factory=factory)
 
         with self.assertRaises(AgentProviderError) as caught:
             provider.run(self.context)
 
         self.assertEqual(caught.exception.code, "agent.reasoning.timeout")
         self.assertIn("0.001 seconds", str(caught.exception))
+
+    def test_repeated_timed_invocations_reuse_ollama_connections(self) -> None:
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def do_POST(self) -> None:
+                self.rfile.read(int(self.headers["Content-Length"]))
+                payload = json.dumps(
+                    {
+                        "model": "llama3.1:8b",
+                        "created_at": "2026-01-01T00:00:00Z",
+                        "message": {
+                            "role": "assistant",
+                            "content": '{"message":"from Ollama"}',
+                        },
+                        "done": True,
+                    }
+                ).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        factory = AgnoAgentFactory()
+        try:
+            with patch.dict("os.environ", {"OLLAMA_API_KEY": ""}):
+                definition = replace(
+                    self.definition,
+                    blueprint=self.definition.blueprint.model_copy(
+                        update={
+                            "model": ModelConfiguration(
+                                provider="ollama",
+                                name="llama3.1:8b",
+                                parameters={
+                                    "host": f"http://127.0.0.1:{server.server_port}"
+                                },
+                            ),
+                            "reasoning": ReasoningConfiguration(timeout="2s"),
+                        }
+                    ),
+                )
+                # Provider wrappers and worker threads may change between runs;
+                # the factory's underlying Agno agent and HTTP client persist.
+                for invocation in range(2):
+                    for agent_id in ("switch-router@s1", "switch-router@s2"):
+                        agent_definition = replace(
+                            definition,
+                            instance=definition.instance.model_copy(
+                                update={"id": agent_id}
+                            ),
+                        )
+                        provider = AgnoAgentProvider(agent_definition, factory=factory)
+                        context = self.context.model_copy(
+                            update={
+                                "agent_id": agent_id,
+                                "invocation_id": f"{agent_id}-invoke-{invocation}",
+                            }
+                        )
+                        with ThreadPoolExecutor(max_workers=1) as worker:
+                            response = worker.submit(provider.invoke, context).result()
+                        self.assertEqual(response.message, "from Ollama")
+        finally:
+            factory.close()
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
+    def test_timeout_does_not_close_loop_for_next_invocation(self) -> None:
+        class CancelOnceModel(StaticModel):
+            loop: asyncio.AbstractEventLoop | None = None
+            cancelled = False
+
+            async def ainvoke(self, *args: Any, **kwargs: Any):
+                if self.loop is None:
+                    self.loop = asyncio.get_running_loop()
+                    try:
+                        await asyncio.sleep(1)
+                    except asyncio.CancelledError:
+                        self.cancelled = True
+                        raise
+                if self.loop is not asyncio.get_running_loop():
+                    raise RuntimeError("async model moved to another event loop")
+                return self.invoke(*args, **kwargs)
+
+        model = CancelOnceModel()
+        definition = replace(
+            self.definition,
+            blueprint=self.definition.blueprint.model_copy(
+                update={"reasoning": ReasoningConfiguration(timeout="10ms")}
+            ),
+        )
+        factory = AgnoAgentFactory(model_resolver=lambda configuration: model)
+        self.addCleanup(factory.close)
+        provider = AgnoAgentProvider(definition, factory=factory)
+        with self.assertRaises(AgentProviderError) as caught:
+            provider.invoke(self.context)
+        self.assertEqual(caught.exception.code, "agent.reasoning.timeout")
+        self.assertTrue(model.cancelled)
+        response = AgnoAgentProvider(definition, factory=factory).invoke(
+            self.context.model_copy(update={"invocation_id": "invoke-2"})
+        )
+        self.assertEqual(response.message, "from Agno")
+        assert model.loop is not None
+        self.assertFalse(model.loop.is_closed())
+        factory.close()
+        self.assertTrue(model.loop.is_closed())
+        factory.close()  # Teardown is idempotent.
 
     def test_run_normalizes_agno_identity_and_detailed_metrics(self) -> None:
         model = DeterministicAgnoModel(

@@ -104,7 +104,7 @@ class ExperimentRuntime:
         self._substrate = substrate
         self._registries = registries
         self._audit = audit
-        self._agent_factory = agent_factory
+        self._agent_factory = agent_factory or AgnoAgentFactory()
         self._shared_state = shared_state
         self._ledger = ledger
         self._plugins = plugins
@@ -422,6 +422,10 @@ class ExperimentRuntime:
     ) -> TeardownResult | None:
         if self._run is None:
             return None
+        try:
+            self._agent_factory.close()
+        except Exception as error:
+            issues.append(self._issue("agents", error))
         try:
             return self._substrate.teardown(self._run.id)
         except Exception as error:
