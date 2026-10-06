@@ -1,3 +1,5 @@
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import pytest
@@ -7,6 +9,13 @@ from mininet_ai.artifacts import reserve_artifacts
 from mininet_ai.cli import app
 from mininet_ai.errors import MininetAIError
 from tests.agents.test_runtime import configured_plan
+
+
+@pytest.fixture
+def control_directory():
+    # Keep Unix socket paths short regardless of pytest's username-based root.
+    with TemporaryDirectory(prefix="mn-") as directory:
+        yield Path(directory)
 
 
 def test_distinct_runs_and_collision(tmp_path):
@@ -209,11 +218,11 @@ def test_keyboard_interrupt_during_service_start_cleans_network(tmp_path):
     assert "failed" in (tmp_path / "output/run-interrupted/logs/run.log").read_text()
 
 
-def test_unreserved_registered_adapter_can_use_explicit_paths(tmp_path):
+def test_unreserved_registered_adapter_can_use_explicit_paths(tmp_path, control_directory):
     from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 
     runtime = FakeSubstrateRuntime(run_id_factory=lambda: "custom-run")
-    arguments = ["run", "experiment.yaml", "--control-dir", str(tmp_path / "control")]
+    arguments = ["run", "experiment.yaml", "--control-dir", str(control_directory)]
     for option in ("log-file", "ledger-db", "shared-state-db", "agno-db"):
         arguments.extend([f"--{option}", str(tmp_path / option)])
     with (
@@ -229,7 +238,7 @@ def test_unreserved_registered_adapter_can_use_explicit_paths(tmp_path):
     assert runtime.inspect("custom-run").run.state == RunState.STOPPED
 
 
-def test_two_cli_runs_have_separate_saved_output(tmp_path):
+def test_two_cli_runs_have_separate_saved_output(tmp_path, control_directory):
     root = tmp_path / "output"
     with (
         patch(
@@ -247,7 +256,7 @@ def test_two_cli_runs_have_separate_saved_output(tmp_path):
                     "--artifact-root",
                     str(root),
                     "--control-dir",
-                    str(tmp_path / "control"),
+                    str(control_directory),
                 ],
             )
             assert result.exit_code == 0, result.output
@@ -260,7 +269,7 @@ def test_two_cli_runs_have_separate_saved_output(tmp_path):
         assert (directory / "dbs/agno.sqlite3").is_file()
 
 
-def test_start_failure_retains_diagnostics_and_cleans_network(tmp_path):
+def test_start_failure_retains_diagnostics_and_cleans_network(tmp_path, control_directory):
     from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 
     runtime = FakeSubstrateRuntime(run_id_factory=lambda: "run-failed")
@@ -283,10 +292,10 @@ def test_start_failure_retains_diagnostics_and_cleans_network(tmp_path):
                 "--artifact-root",
                 str(tmp_path / "output"),
                 "--control-dir",
-                str(tmp_path / "control"),
+                str(control_directory),
             ],
         )
     assert result.exit_code != 0
     assert "failed" in (tmp_path / "output/run-failed/logs/run.log").read_text()
     assert runtime.inspect("run-failed").run.state == RunState.STOPPED
-    assert list((tmp_path / "control").iterdir()) == []
+    assert list(control_directory.iterdir()) == []

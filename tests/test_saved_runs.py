@@ -90,7 +90,7 @@ def run_fake(tmp_path, extra_args=(), expected_returncode=0):
         "  topology:\n    resources: [{name: s1, kind: switch}]\n"
     )
     root = tmp_path / "runs"
-    control_context = TemporaryDirectory(prefix="mn-", dir="/tmp/opencode")
+    control_context = TemporaryDirectory(prefix="mn-")
     control = Path(control_context.name)
     process = subprocess.Popen(
         [

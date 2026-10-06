@@ -59,10 +59,15 @@ Live Mininet/OVS execution needs Linux networking privileges. Use the disposable
 Vagrant VM:
 
 ```bash
-vagrant up --provision
+vagrant up
 vagrant ssh
 cd /vagrant
 ```
+
+The first `vagrant up` provisions the VM automatically. Subsequent starts reuse
+the provisioned environment; run `vagrant provision` explicitly after changing
+VM provisioning. See [VM environment and image evaluation](docs/vm-environment.md)
+for the base image, bundled tools, and measured startup results.
 
 Set `model.parameters.host` in both example agent blueprints to an endpoint
 reachable from the VM, with the example's `qwen3.5:latest` model available:
@@ -297,6 +302,3 @@ or specification change, run the tests to verify the examples still compile.
   execution details in logs. Organize logs, databases, and other artifacts under
   `.mininet-ai/<run-id>/` by default, with dedicated `logs/` and `dbs/` directories
   to keep runs separate and easier to inspect.
-- **Lighter, better-equipped VM**: Evaluate a smaller base image while retaining
-  Mininet/OVS compatibility. Bundle common network testing and diagnostic tools,
-  such as iperf3, tcpdump, traceroute, and ethtool, for ready-to-run experiments.

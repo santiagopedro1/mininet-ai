@@ -146,7 +146,8 @@ emit_runtime_file_state() {
             printf 'runtime-file\t%s\n' "${path}"
         done < <(
             find /run/mininet-ai -mindepth 1 \
-                ! -name 'mininet-ovs.stopped.json' -print
+                ! -name 'mininet-ovs.stopped.json' \
+                ! \( -path '/run/mininet-ai/control' -type d \) -print
         )
     fi
 
@@ -234,6 +235,12 @@ clear_runtime_state() {
     fi
     if [[ -e "${stopped_file}" ]]; then
         unlink "${stopped_file}" || fail "could not remove ${stopped_file}"
+    fi
+    # The live owner retains the shared base, but never per-run directories.
+    # rmdir refuses unexpected contents; do not remove sockets or evidence.
+    if [[ -d /run/mininet-ai/control ]]; then
+        rmdir /run/mininet-ai/control ||
+            fail "control directory contains unexpected files"
     fi
     if [[ -d /run/mininet-ai ]]; then
         rmdir /run/mininet-ai ||

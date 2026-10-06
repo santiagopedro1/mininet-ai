@@ -97,10 +97,20 @@ done
 
 network_ready=1
 run_step 'Passwordless sudo' sudo -n true || network_ready=0
-run_step 'Network tools' bash -c \
-    'for tool in mn ovs-vsctl ovs-ofctl ip tc grep; do command -v "$tool" || exit 1; done' \
+run_step 'Network tools' sudo -n bash -c \
+    'for tool in mn mnexec ovs-vsctl ovs-ofctl ovs-testcontroller ip tc grep; do command -v "$tool" || exit 1; done' \
     || network_ready=0
-run_step 'Open vSwitch service' systemctl is-active --quiet openvswitch-switch \
+run_step 'Network diagnostic tools' sudo -n bash -c '
+    missing=0
+    for tool in iperf iperf3 tcpdump traceroute ethtool dig ss ping mtr nc; do
+        if ! command -v "$tool"; then
+            printf "Missing network diagnostic tool: %s\n" "$tool" >&2
+            missing=1
+        fi
+    done
+    exit "$missing"
+'
+run_step 'Open vSwitch service' systemctl is-active --quiet openvswitch \
     || network_ready=0
 run_step 'Open vSwitch access' sudo -n ovs-vsctl --timeout=5 show \
     || network_ready=0
