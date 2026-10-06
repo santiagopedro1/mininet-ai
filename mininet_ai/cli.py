@@ -23,7 +23,7 @@ from mininet_ai.agents import (
     AgnoAgentFactory,
     register_builtin_providers,
 )
-from mininet_ai.artifacts import reserve_artifacts
+from mininet_ai.artifacts import default_artifact_root, reserve_artifacts
 from mininet_ai.audit import (
     AuditEvent,
     AuditEventType,
@@ -33,6 +33,7 @@ from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
 from mininet_ai.errors import MininetAIError
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
+from mininet_ai.exports import export_managed, export_offline
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
 from mininet_ai.run_setup import reserve_run
 from mininet_ai.runtime import (
@@ -48,6 +49,7 @@ from mininet_ai.runtime.control import (
     IntentClient,
     IntentServer,
 )
+from mininet_ai.saved_runs import RunEvidence
 from mininet_ai.specification import (
     AgentBlueprint,
     CapabilityDefinition,
@@ -85,9 +87,10 @@ class _RunLogError(MininetAIError):
 class _RunProgress:
     """Mirror run progress to an owner-only log and optionally stderr."""
 
-    def __init__(self, path: Path, *, verbose: bool) -> None:
+    def __init__(self, path: Path, *, verbose: bool, run_id: str | None = None) -> None:
         self.path = path
         self._verbose = verbose
+        self._run_identity = json.dumps(run_id)
         descriptor: int | None = None
         try:
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -121,16 +124,24 @@ class _RunProgress:
         self._logger.setLevel(logging.INFO)
         self._logger.propagate = False
         handler = logging.StreamHandler(self._stream)
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)s run_id=%(run_identity)s %(message)s"
+            )
+        )
         self._logger.addHandler(handler)
 
     def info(self, message: str) -> None:
-        self._logger.info(message)
+        self._logger.info(
+            message.replace("\n", "\\n"), extra={"run_identity": self._run_identity}
+        )
         if self._verbose:
             error_console.print(f"• {message}", markup=False, highlight=False)
 
     def error(self, message: str) -> None:
-        self._logger.error(message)
+        self._logger.error(
+            message.replace("\n", "\\n"), extra={"run_identity": self._run_identity}
+        )
         if self._verbose:
             error_console.print(f"× {message}", markup=False, highlight=False)
 
@@ -486,12 +497,12 @@ def run(
         ),
     ] = None,
     artifact_root: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--artifact-root",
-            help="Saved run output root; prefer a private local filesystem.",
+            help="Persistent live storage root (default: effective-user local state, not the project directory).",
         ),
-    ] = Path(".mininet-ai"),
+    ] = None,
     control_dir: Annotated[
         Path | None,
         typer.Option(
@@ -508,6 +519,10 @@ def run(
         else:
             _print_text_plan(deployment_plan)
         return
+
+    root_selection = "--artifact-root" if artifact_root is not None else "default"
+    artifact_root = (artifact_root or default_artifact_root()).absolute()
+    error_console.print(f"Storage root ({root_selection}): {artifact_root}")
 
     try:
         reserved_id, substrate = reserve_run(deployment_plan.substrate)
@@ -545,6 +560,7 @@ def run(
             "select a new --agno-db to start fresh. No automatic migration is performed.",
             param_hint="--agno-db",
         )
+    artifacts = None
     if reserved_id is None:
         if any(
             path is None for path in (log_file, ledger_db, shared_state_db, agno_db)
@@ -584,7 +600,47 @@ def run(
         f"Artifacts: {artifact_description}\nLog: {log_file}\nLedger: {ledger_db}\n"
         f"Shared state: {shared_state_db}\nAgno sessions/memory: {agno_db}"
     )
-    progress = _operation_or_exit(lambda: _RunProgress(log_file, verbose=verbose))
+    if persistent_memory:
+        error_console.print(
+            "Learned memory uses the selected Agno path; stores in other roots are not automatically reused or imported."
+        )
+    evidence = None
+    if artifacts is not None and reserved_id is not None:
+        verified_writers = (
+            not loaded
+            and all(
+                item["implementation"]["type"] == "declarative"
+                for item in deployment_plan.snapshot.get("blueprints", [])
+            )
+            and all(
+                item.get("provider")
+                in {None, "substrate.action", "substrate.observation", "fake.openflow"}
+                and item["metadata"]["name"] != "host.process.start"
+                for item in deployment_plan.snapshot.get("capabilityDefinitions", [])
+            )
+        )
+        evidence = _operation_or_exit(
+            lambda: RunEvidence(
+                artifacts.directory,
+                reserved_id,
+                {
+                    "log": log_file,
+                    "ledger": ledger_db,
+                    "shared_state": shared_state_db,
+                    "agno": agno_db,
+                    "artifacts": artifacts.directory / "artifacts",
+                },
+                verified_writers=verified_writers,
+            )
+        )
+    try:
+        progress = _operation_or_exit(
+            lambda: _RunProgress(log_file, verbose=verbose, run_id=reserved_id)
+        )
+    except BaseException:
+        if evidence is not None:
+            evidence.close()
+        raise
     progress.info(
         f"Artifacts: {artifact_description}; log={log_file}; ledger={ledger_db}; shared-state={shared_state_db}; Agno={agno_db}"
     )
@@ -598,6 +654,7 @@ def run(
     owner = None
     intent_server = None
     report = None
+    operation_failed = False
     try:
         progress.info(f"Opening run ledger {ledger_db}")
         ledger = _operation_or_exit(lambda: SQLiteRunLedger(ledger_db))
@@ -644,6 +701,8 @@ def run(
         )
         with stop_latch:
             run_info = _operation_or_exit(owner.start)
+            if evidence is not None:
+                evidence.active()
             if reserved_id is not None and run_info.id != reserved_id:
                 raise MininetAIError("deployed run ID differs from reserved identity")
             intent_server = IntentServer(
@@ -683,6 +742,7 @@ def run(
                 )
             stop_latch.wait()
     except BaseException as error:
+        operation_failed = True
         progress.error(f"Run {reserved_id} startup/operation failed: {error}")
         error_console.print(
             "Run failed; diagnostic output retained. For storage errors use --artifact-root on a private local filesystem supporting SQLite locking."
@@ -703,11 +763,27 @@ def run(
                         f"{report.continuous.failed} failed invocations"
                     )
             finally:
-                if state_store is not None:
-                    state_store.close()
-                if ledger is not None:
-                    ledger.close()
-                progress.close()
+                try:
+                    if state_store is not None:
+                        state_store.close()
+                    if ledger is not None:
+                        ledger.close()
+                    progress.close()
+                    if evidence is not None:
+                        evidence.finish(
+                            finalized=owner is not None and owner.writers_stopped,
+                            outcome=(
+                                "failed"
+                                if operation_failed
+                                or report is None
+                                or report.state == ExperimentRuntimeState.FAILED
+                                or report.continuous.failed
+                                else "succeeded"
+                            ),
+                        )
+                finally:
+                    if evidence is not None:
+                        evidence.close()
     if report is None:
         return
     if output_format == OutputFormat.JSON:
@@ -727,9 +803,102 @@ def run(
         raise typer.Exit(code=1)
 
 
+@app.command("export")
+def export_results(
+    run_id: Annotated[str, typer.Argument(help="Finalized run identity.")],
+    destination: Annotated[
+        Path, typer.Option(help="Exact new bundle directory; parent must exist.")
+    ],
+    artifact_root: Annotated[
+        Path | None,
+        typer.Option(
+            help="Source storage root; defaults to effective-user local state."
+        ),
+    ] = None,
+    acknowledge_sensitive_data: Annotated[
+        bool,
+        typer.Option(
+            help="Acknowledge that shared results are not sanitized and may expose sensitive data."
+        ),
+    ] = False,
+) -> None:
+    """Export finalized managed evidence as host-readable JSON, logs and artifacts."""
+    if not acknowledge_sensitive_data:
+        raise typer.BadParameter(
+            "export requires --acknowledge-sensitive-data; evidence is not sanitized"
+        )
+    complete = _operation_or_exit(
+        lambda: export_managed(
+            artifact_root or default_artifact_root(), run_id, destination
+        )
+    )
+    console.print(f"Exported: {destination.absolute()}")
+    if not complete:
+        error_console.print(
+            "Warning: export complete, but experiment evidence is incomplete; see manifest.json"
+        )
+
+
 def _snapshot_or_exit(substrate: str, run_id: str) -> RuntimeSnapshot:
     runtime = _runtime_or_exit(substrate)
     return _operation_or_exit(lambda: runtime.inspect(run_id))
+
+
+@app.command("export-offline")
+def export_offline_results(
+    run_id: Annotated[
+        str, typer.Argument(help="Run identity to filter from prepared snapshots.")
+    ],
+    destination: Annotated[
+        Path, typer.Option(help="Exact new bundle directory; parent must exist.")
+    ],
+    ledger_db: Annotated[
+        Path | None, typer.Option(help="Private, consistent offline ledger snapshot.")
+    ] = None,
+    shared_state_db: Annotated[
+        Path | None,
+        typer.Option(help="Private, consistent offline shared-state snapshot."),
+    ] = None,
+    log_file: Annotated[
+        Path | None, typer.Option(help="Private offline run log.")
+    ] = None,
+    artifacts_dir: Annotated[
+        Path | None, typer.Option(help="Private offline artifact directory.")
+    ] = None,
+    acknowledge_sensitive_data: Annotated[
+        bool,
+        typer.Option(
+            help="Acknowledge that exported evidence is sensitive and not sanitized."
+        ),
+    ] = False,
+    acknowledge_offline_consistency: Annotated[
+        bool,
+        typer.Option(
+            help="Take responsibility for stopping writers and preparing consistent private snapshots."
+        ),
+    ] = False,
+) -> None:
+    """Export operator-prepared offline snapshots, not a force-live export."""
+    if not acknowledge_sensitive_data or not acknowledge_offline_consistency:
+        raise typer.BadParameter(
+            "offline export requires --acknowledge-sensitive-data and --acknowledge-offline-consistency"
+        )
+    sources = {
+        role: path
+        for role, path in {
+            "ledger": ledger_db,
+            "shared_state": shared_state_db,
+            "log": log_file,
+            "artifacts": artifacts_dir,
+        }.items()
+        if path is not None
+    }
+    complete = _operation_or_exit(lambda: export_offline(run_id, sources, destination))
+    console.print(f"Exported offline snapshots: {destination.absolute()}")
+    if not complete:
+        error_console.print(
+            "Warning: export complete, but experiment evidence is incomplete; see manifest.json"
+        )
 
 
 @app.command()

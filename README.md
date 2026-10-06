@@ -130,8 +130,11 @@ automatic retry after a timeout because the owner may have accepted the intent.
 Intents are limited to 8192 characters. Configure databases, models, and plugins
 on `run`, not `invoke`.
 
-`status` and `topology` support `--format json`. Saved output defaults to
-`.mininet-ai/<run-id>/`: `logs/run.log`, `dbs/ledger.sqlite3`,
+`status` and `topology` support `--format json`. Live storage defaults to
+`/var/lib/mininet-ai` for root, or `$XDG_STATE_HOME/mininet-ai` for other users
+(fallback: `~/.local/state/mininet-ai`; relative XDG paths are ignored).
+It is independent of the project directory and the invoking `sudo` user.
+Saved output lives in `<root>/<run-id>/`: `logs/run.log`, `dbs/ledger.sqlite3`,
 `dbs/shared-state.sqlite3`, `dbs/agno.sqlite3`, and an `artifacts/` directory.
 `--artifact-root` changes the saved-output root, not socket discovery. Startup
 prints and logs absolute effective paths; `--verbose` streams progress to stderr.
@@ -144,7 +147,9 @@ When any agent requests `learned.scope: agent`, the default Agno store is instea
 uses one database for both sessions and memory; sessions remain keyed by run,
 while learned memory uses the stable agent identity. Use the same absolute
 artifact root across working directories, or an explicit shared `--agno-db`, to
-reuse agent memory. Run ledgers and shared operational state remain per-run.
+reuse agent memory. The new default root is already working-directory independent.
+Old stores in other roots are not discovered or imported; startup announces the
+selected memory path. Run ledgers and shared operational state remain per-run.
 If the legacy `<artifact-root>/agno.sqlite3` exists, agent-scoped memory requires
 an explicit `--agno-db` selection; choose that file to retain previous learning.
 The CLI never silently replaces existing learned memory with a fresh store.
@@ -152,10 +157,49 @@ No multiple-database Agno routing or schema/protocol changes are introduced.
 
 Treat saved artifacts as sensitive: they may contain prompts and observations.
 Keep credentials outside YAML. Private permissions and SQLite locking are still
-required; on VirtualBox shared mounts, use a private local artifact root, e.g.
-`sudo mininet-ai run experiment.yaml --artifact-root /var/lib/mininet-ai/runs`.
+required for **live storage**. From `/vagrant`, root automatically uses VM-local
+`/var/lib/mininet-ai`; no storage flags are needed. Explicit unsuitable paths
+fail before deployment and are never silently relocated or repaired.
 Sockets use the local runtime filesystem even when running from `/vagrant`.
 `--dry-run` creates no runtime or saved-output directories.
+
+### Export results to the host
+
+Live SQLite files stay local. To export a finalized run, create the destination
+parent and select a fresh bundle directory:
+
+```bash
+mkdir -p /vagrant/results
+sudo scripts/vm-run.sh mininet-ai export RUN_ID \
+  --destination /vagrant/results/RUN_ID --acknowledge-sensitive-data
+```
+
+The host-readable bundle contains a versioned manifest, run-specific ledger and
+shared-state JSON, log and regular artifacts—not raw databases or Agno sessions/
+memory. Evidence is **not sanitized**; acknowledgment permits weaker destination
+permissions. `EXPORT_COMPLETE` means export finished, not that the experiment
+succeeded. Missing evidence is listed in the manifest and produces a warning.
+Existing destinations are never overwritten; failed exports retain unmarked
+partial output and return nonzero. Shared-mount crash durability is not promised.
+
+Managed export refuses live/unfinalized runs and untracked writers (including
+Python agents, custom plugins/providers and arbitrary `host.process.start`
+capabilities). For those runs and old data, stop all writers, preserve the source,
+prepare consistent private **offline snapshots on local storage**, then use:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai export-offline RUN_ID \
+  --ledger-db /local/snapshot/ledger.sqlite3 \
+  --shared-state-db /local/snapshot/shared-state.sqlite3 \
+  --log-file /local/snapshot/run.log --artifacts-dir /local/snapshot/artifacts \
+  --destination /vagrant/results/RUN_ID \
+  --acknowledge-sensitive-data --acknowledge-offline-consistency
+```
+
+At least one explicit source is required; omitted sources are marked missing.
+This is not a force-live switch or migration command. Never blindly copy an
+active SQLite database, merge memory stores, or chown existing data automatically.
+See [run storage and export](docs/run-logs.md) for coordination and format details.
 
 ## Examples
 

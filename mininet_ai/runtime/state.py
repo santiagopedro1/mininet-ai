@@ -126,8 +126,7 @@ class InMemorySharedStateStore:
     def snapshot(self, access: SharedStateAccess) -> SharedStateSnapshot:
         with self._lock:
             values = {
-                scope: self._scope_snapshot(access, scope)
-                for scope in access.limits
+                scope: self._scope_snapshot(access, scope) for scope in access.limits
             }
         return SharedStateSnapshot(
             allowedScopes=tuple(access.limits),
@@ -232,10 +231,13 @@ class SQLiteSharedStateStore:
     """Persistent, transactional SQLite shared-state adapter."""
 
     def __init__(self, path: str | Path, *, clock: Clock = _utc_now) -> None:
+        from mininet_ai.saved_runs import SourceLocks
+
         self.path = Path(path)
         self._clock = clock
         self._lock = RLock()
         self._connection: sqlite3.Connection | None = None
+        self._source_lock = SourceLocks([self.path], writer=True, create=True)
         self._prepare_file()
         connection: sqlite3.Connection | None = None
         try:
@@ -270,10 +272,12 @@ class SQLiteSharedStateStore:
         except SharedStateError:
             if connection is not None:
                 connection.close()
+            self._source_lock.close()
             raise
         except sqlite3.Error as error:
             if connection is not None:
                 connection.close()
+            self._source_lock.close()
             raise SharedStateError(
                 f"could not open shared-state store {self.path}: {error}",
                 code="state.open.failed",
@@ -416,19 +420,27 @@ class SQLiteSharedStateStore:
             self._connection = None
             if connection is not None:
                 connection.close()
+            self._source_lock.close()
 
     def _prepare_file(self) -> None:
         try:
+            self._source_lock.__enter__()
             prepare_private_sqlite_file(self.path)
         except PrivateStoragePathError as error:
+            self._source_lock.close()
             raise SharedStateError(
                 (
-                    f"shared-state store {self.path} is not an owner-only "
-                    "regular file"
+                    f"shared-state store {self.path} is not an owner-only regular file"
                     if error.unsafe
                     else f"could not prepare shared-state store {self.path}: {error}"
                 ),
                 code=("state.path.unsafe" if error.unsafe else "state.open.failed"),
+            ) from error
+        except OSError as error:
+            self._source_lock.close()
+            raise SharedStateError(
+                f"could not lock shared-state store {self.path}: {error}",
+                code="state.open.failed",
             ) from error
 
     def _require_open(self) -> sqlite3.Connection:

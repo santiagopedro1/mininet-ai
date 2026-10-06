@@ -230,9 +230,12 @@ class SQLiteRunLedger:
     """Thread-safe SQLite implementation of the run-ledger interface."""
 
     def __init__(self, path: str | Path) -> None:
+        from mininet_ai.saved_runs import SourceLocks
+
         self.path = Path(path)
         self._lock = RLock()
         self._connection: sqlite3.Connection | None = None
+        self._source_lock = SourceLocks([self.path], writer=True, create=True)
         self._prepare_file()
         connection: sqlite3.Connection | None = None
         try:
@@ -279,10 +282,12 @@ class SQLiteRunLedger:
         except LedgerError:
             if connection is not None:
                 connection.close()
+            self._source_lock.close()
             raise
         except sqlite3.Error as error:
             if connection is not None:
                 connection.close()
+            self._source_lock.close()
             raise LedgerError(
                 f"could not open run ledger {self.path}: {error}",
                 code="ledger.open.failed",
@@ -446,11 +451,14 @@ class SQLiteRunLedger:
             self._connection = None
             if connection is not None:
                 connection.close()
+            self._source_lock.close()
 
     def _prepare_file(self) -> None:
         try:
+            self._source_lock.__enter__()
             prepare_private_sqlite_file(self.path)
         except PrivateStoragePathError as error:
+            self._source_lock.close()
             raise LedgerError(
                 (
                     f"run ledger {self.path} is not an owner-only regular file"
@@ -458,6 +466,12 @@ class SQLiteRunLedger:
                     else f"could not prepare run ledger {self.path}: {error}"
                 ),
                 code=("ledger.path.unsafe" if error.unsafe else "ledger.open.failed"),
+            ) from error
+        except OSError as error:
+            self._source_lock.close()
+            raise LedgerError(
+                f"could not lock run ledger {self.path}: {error}",
+                code="ledger.open.failed",
             ) from error
 
     def _require_open(self) -> sqlite3.Connection:

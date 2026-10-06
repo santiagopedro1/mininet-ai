@@ -3,6 +3,8 @@
 set -euo pipefail
 
 readonly PROJECT_ROOT="/vagrant"
+# Live storage defaults are selected by the application, not by this wrapper.
+# Root stores SQLite locally in /var/lib/mininet-ai even when cwd is /vagrant.
 readonly VM_ENVIRONMENT="/home/vagrant/.venvs/mininet-ai"
 readonly UV_EXECUTABLE="/usr/local/bin/uv"
 

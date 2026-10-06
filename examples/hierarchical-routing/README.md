@@ -68,8 +68,15 @@ sudo scripts/vm-run.sh mininet-ai invoke \
 
 Use the run ID from terminal 1. `agents` lists available IDs and manual-intent
 eligibility. Neither command needs the original experiment file; both require
-the live owner, the same user, and the same working directory (or an identical
-absolute `--control-dir`). `invoke` acknowledges acceptance, not completion.
+the live owner on the same machine and the same user; default discovery is
+working-directory independent (or use an identical absolute `--control-dir`).
+`invoke` acknowledges acceptance, not completion.
+
+Root's live logs/databases default to `/var/lib/mininet-ai/<run-id>/`, not
+`/vagrant`. Existing learned memory in other roots is not imported automatically.
+For host access, use [offline snapshot export](../../README.md#export-results-to-the-host)
+after stopping writers; this example's arbitrary host-process capabilities are
+not automatically managed-export safe.
 
 ## How it works
 

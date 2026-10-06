@@ -265,7 +265,9 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertEqual(result.exit_code, 1, result.output)
         self.assertIn('status="rejected"', log)
         self.assertIn('code="capability.target.out-of-scope"', log)
-        self.assertIn(" ERROR capability.execution.completed:", log)
+        self.assertIn(
+            ' ERROR run_id="cli-rejected-run" capability.execution.completed:', log
+        )
         self.assertIn('request_id="out-of-scope"', log)
 
     def test_run_reports_invocation_failure_live_and_stops_automatically(self) -> None:
@@ -299,7 +301,7 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertNotIsInstance(result.exception, TimeoutError)
         self.assertIn("agent.agno.deterministic-response-invalid", result.output)
         self.assertIn("agent.agno.deterministic-response-invalid", log)
-        self.assertIn(" ERROR agent.invocation.failed:", log)
+        self.assertIn(' ERROR run_id="cli-failed-run" agent.invocation.failed:', log)
         self.assertLess(
             log.index("agent.agno.deterministic-response-invalid"),
             log.index("Stop requested; draining work and tearing down"),

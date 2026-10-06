@@ -1,5 +1,11 @@
 # Autonomous Network Operation
 
+Live output uses effective-user local state, not the working directory:
+`/var/lib/mininet-ai` for root, `$XDG_STATE_HOME/mininet-ai` or
+`~/.local/state/mininet-ai` otherwise. Startup prints the paths. See
+[result export](../../README.md#export-results-to-the-host) for host-readable
+bundles and offline-snapshot requirements for untracked writers.
+
 A self-healing network that monitors queue occupancy, detects congestion, and
 reroutes traffic with rollback. No external services, no root access, no VM.
 

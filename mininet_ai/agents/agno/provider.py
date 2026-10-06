@@ -225,9 +225,7 @@ class AgnoAgentFactory:
     ) -> None:
         self._model_resolver = model_resolver or _default_model_resolver
         self._db = (
-            create_agno_database(database_path)
-            if database_path is not None
-            else None
+            create_agno_database(database_path) if database_path is not None else None
         )
         self._lock = RLock()
         self._agents: dict[str, Agent] = {}
@@ -305,6 +303,8 @@ class AgnoAgentFactory:
         for agent_id in agent_ids:
             with self.invocation(agent_id):
                 self._runners[agent_id].close()
+        if self._db is not None:
+            self._db.close()
 
     def _configure(
         self,
@@ -397,8 +397,7 @@ class AgnoAgentFactory:
             raise
         except Exception as error:
             raise AgentProviderError(
-                f"could not construct Agno agent {definition.instance.id!r}: "
-                f"{error}",
+                f"could not construct Agno agent {definition.instance.id!r}: {error}",
                 code="agent.agno.construction-failed",
             ) from error
 
@@ -469,9 +468,7 @@ class AgnoAgentProvider:
         learned = self._definition.blueprint.memory.learned
         user_id = None
         if learned is not None:
-            user_id = (
-                context.agent_id if learned.scope == "agent" else session_id
-            )
+            user_id = context.agent_id if learned.scope == "agent" else session_id
         timeout_seconds = _reasoning_timeout_seconds(self._definition)
         try:
             queued_at = monotonic()

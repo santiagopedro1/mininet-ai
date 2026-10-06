@@ -87,16 +87,24 @@ sudo scripts/vm-run.sh mininet-ai invoke \
   --intent 'Run a TCP throughput test against 10.0.0.12.'
 ```
 
-Use the run ID printed by terminal 1 or written to `.mininet-ai/run.log`.
+Use the run ID printed by terminal 1 or written to the printed run log path
+(root defaults to `/var/lib/mininet-ai/<run-id>/logs/run.log`). SQLite stays
+VM-local even when launching from `/vagrant`; no storage flags are needed.
 `agents` lists live instance IDs and whether they accept manual intents.
 Neither `agents` nor `invoke` needs the experiment YAML.
 The command returns when the intent is queued, not when iperf finishes. Results
 are logged and persisted by terminal 1; it already has the Ollama configuration.
-Both terminals must use the same user and working directory (or the same
-absolute `--control-dir`). Keep terminal 1 running without
+Both terminals must use the same user and machine; default discovery is
+working-directory independent. If overriding `--control-dir`, use the same
+absolute path. Keep terminal 1 running without
 `--stop-after-intents` to accept later requests.
 
 Back in terminal 1: `Ctrl+C`, or `sudo scripts/vm-run.sh mininet-ai stop <run-id>`.
+
+For host access, see the [offline snapshot export instructions](../../README.md#export-results-to-the-host).
+This example launches arbitrary host processes, so managed export conservatively
+refuses it. Stop all writers and prepare consistent private local snapshots;
+do not copy live SQLite databases into `/vagrant`.
 
 ## UDP instead of TCP
 

@@ -34,6 +34,12 @@ uv run mininet-ai run examples/getting-started/experiment.yaml \
 The mock provider returns a deterministic response, so the agent will always
 report the same summary. This example is about the workflow, not the reasoning.
 
+Live output uses your local state directory (`$XDG_STATE_HOME/mininet-ai`, or
+`~/.local/state/mininet-ai`), independent of the project directory. Root uses
+`/var/lib/mininet-ai`. Startup prints the selected run directory and file paths.
+After stopping, use [result export](../../README.md#export-results-to-the-host)
+to produce a host-readable JSON/log bundle without copying live databases.
+
 ## Topology
 
 Two hosts (`h1`, `h2`) connected through one switch (`s1`) and a builtin

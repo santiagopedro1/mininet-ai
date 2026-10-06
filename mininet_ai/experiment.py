@@ -38,7 +38,7 @@ from mininet_ai.runtime.ledger import (
 from mininet_ai.runtime.state import SharedStateStore
 from mininet_ai.runtime.telemetry import TelemetryPipeline, TelemetryPipelineState
 from mininet_ai.specification.models import StrictModel
-from mininet_ai.substrates import RunInfo, SubstrateRuntime, TeardownResult
+from mininet_ai.substrates import RunInfo, RunState, SubstrateRuntime, TeardownResult
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
@@ -118,8 +118,15 @@ class ExperimentRuntime:
         self._telemetry: TelemetryPipeline | None = None
         self._continuous_started = False
         self._telemetry_started = False
+        self._writers_stopped = False
         self._report: ExperimentRuntimeReport | None = None
         self._source_sequences: dict[str, int] = {}
+
+    @property
+    def writers_stopped(self) -> bool:
+        """Verified managed cleanup, separate from experiment success/failure."""
+        with self._lock:
+            return self._writers_stopped
 
     @property
     def state(self) -> ExperimentRuntimeState:
@@ -321,6 +328,12 @@ class ExperimentRuntime:
             final_state = ExperimentRuntimeState.FAILED
         with self._lock:
             self._state = final_state
+            self._writers_stopped = (
+                safe_to_teardown
+                and not issues
+                and teardown is not None
+                and teardown.run.state == RunState.STOPPED
+            )
         report = ExperimentRuntimeReport(
             run=(teardown.run if teardown is not None else self.run),
             state=final_state,
@@ -420,12 +433,12 @@ class ExperimentRuntime:
         self,
         issues: list[ExperimentRuntimeIssue],
     ) -> TeardownResult | None:
-        if self._run is None:
-            return None
         try:
             self._agent_factory.close()
         except Exception as error:
             issues.append(self._issue("agents", error))
+        if self._run is None:
+            return None
         try:
             return self._substrate.teardown(self._run.id)
         except Exception as error:
@@ -443,8 +456,9 @@ class ExperimentRuntime:
             try:
                 self._telemetry.stop()
                 self._telemetry_started = False
-            except Exception:
+            except Exception as error:
                 safe_to_teardown = False
+                issues.append(self._issue("telemetry", error))
         if (
             self._continuous is not None
             and self._continuous_started
@@ -453,10 +467,22 @@ class ExperimentRuntime:
             try:
                 self._continuous.stop(drain=False)
                 self._continuous_started = False
-            except Exception:
+            except Exception as error:
                 safe_to_teardown = False
+                issues.append(self._issue("continuous", error))
         if safe_to_teardown:
-            self._teardown(issues)
+            teardown = self._teardown(issues)
+            with self._lock:
+                self._writers_stopped = not issues and (
+                    (
+                        self._run is None
+                        and getattr(
+                            self._substrate, "deployment_cleanup_verified", False
+                        )
+                        is True
+                    )
+                    or (teardown is not None and teardown.run.state == RunState.STOPPED)
+                )
 
     @staticmethod
     def _issue(phase: str, error: Exception) -> ExperimentRuntimeIssue:

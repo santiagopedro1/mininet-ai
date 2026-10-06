@@ -215,8 +215,17 @@ class MininetOVSRuntime:
         self._persisted_observation_factory = persisted_observation_factory
         self._action_factory = action_factory
         self._runs: dict[str, _MininetRun] = {}
+        self._deployment_cleanup_verified = False
+
+    @property
+    def deployment_cleanup_verified(self) -> bool:
+        """Optional failed-deployment receipt; absence is never cleanup proof."""
+        return self._deployment_cleanup_verified
 
     def deploy(self, plan: DeploymentPlan) -> RunInfo:
+        # No new network workers exist until construction begins. Thereafter,
+        # only successful rollback and checked process cessation restore proof.
+        self._deployment_cleanup_verified = True
         self._validate_plan(plan)
         self._ensure_no_active_run()
         run_id = self._new_run_id()
@@ -236,6 +245,7 @@ class MininetOVSRuntime:
         try:
             bindings = self._bindings_factory()
             self._preflight_interfaces(plan)
+            self._deployment_cleanup_verified = False
             network = self._create_network(bindings)
             self._build_network(plan, bindings, network)
             process_groups = self._network_process_groups(network)
@@ -260,12 +270,22 @@ class MininetOVSRuntime:
             info = info.model_copy(update={"state": RunState.RUNNING})
             self._write_state(info, plan, process_groups)
         except BaseException as error:
+            before_network = self._deployment_cleanup_verified
+            cleanup_groups = (
+                self._network_process_groups(network) if network is not None else ()
+            )
             rollback_error = self._rollback(network, plan) if network else None
             state_error = self._settle_failed_deploy(
                 info,
                 plan,
                 process_groups,
                 rollback_error,
+            )
+            self._deployment_cleanup_verified = (
+                rollback_error is None
+                and state_error is None
+                and (before_network or network is not None)
+                and all(not process.is_alive() for process in cleanup_groups)
             )
             if (
                 not isinstance(error, Exception)

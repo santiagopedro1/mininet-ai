@@ -254,7 +254,9 @@ contracts and can still execute with explicit `--log-file`, `--ledger-db`,
 limited to the two built-ins: assigning identities to other adapters would
 require a separately reviewed reservation contract, not an implicit protocol
 change. Missing file options fail before deployment for such adapters.
-Saved output defaults now use `.mininet-ai/<run-id>/logs` and `dbs`; explicit
+Saved output defaults now use effective-user persistent local state:
+`/var/lib/mininet-ai` for root, absolute `$XDG_STATE_HOME/mininet-ai` or
+`~/.local/state/mininet-ai` otherwise, with `<root>/<run-id>/logs` and `dbs`; explicit
 file options still take precedence, and existing artifacts remain untouched.
 `--artifact-root` is independent of live endpoint discovery. A failed start
 retains diagnostic output rather than renaming or deleting active SQLite files.
@@ -266,6 +268,21 @@ also preserves memory; separate per-run shared-state databases remain isolated.
 If a legacy `<artifact-root>/agno.sqlite3` exists and agent-scoped memory is
 requested, choose `--agno-db` explicitly. Point it at the legacy store to retain
 learning; no automatic migration or silent switch to empty memory is performed.
+Other roots are not scanned for learning; the selected path and non-import policy
+are announced. Existing project-local data remains untouched. Stop all writers
+before preparing consistent private offline backups or transferring complete
+run data; preserve the source and verify destination ownership/permissions.
+
+Built-in runs add private version-1 source/lifecycle metadata and cooperative
+lifetime source locks without changing substrate/agent protocols. Managed export
+requires finalized evidence with verified writers; untracked Python/plugin/process
+writers and legacy runs use explicit operator-prepared offline snapshots. Export
+formats and local bookkeeping are separate from the versioned experiment/runtime
+contracts. Export never migrates data, exports Agno/raw SQLite, follows artifact
+symlinks, overwrites destinations, or silently repairs unsafe storage. See
+`docs/run-logs.md` for the version-1 bundle and completion/provenance contract.
+An optional failed-deployment cleanup receipt is consumed when available; adapters
+without one fail closed for that case, with no new required protocol methods.
 
 Ollama endpoint configuration uses the existing `model.parameters.host` key,
 without adding serialized fields or changing omitted-host plans, snapshots,

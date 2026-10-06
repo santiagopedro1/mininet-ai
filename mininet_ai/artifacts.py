@@ -19,17 +19,36 @@ class RunArtifacts:
     agno: Path
 
 
-def reserve_artifacts(
-    root: Path, run_id: str, *, persistent_memory: bool = False
-) -> RunArtifacts:
-    root = root.absolute()
-    # Disjoint namespaces prevent safe IDs colliding with mapped arbitrary IDs.
+def default_artifact_root() -> Path:
+    """Persistent effective-user state, never derived from the project directory."""
+    if os.geteuid() == 0:
+        return Path("/var/lib/mininet-ai")
+    state = os.environ.get("XDG_STATE_HOME", "")
+    base = (
+        Path(state)
+        if state and Path(state).is_absolute()
+        else Path.home() / ".local/state"
+    )
+    return base / "mininet-ai"
+
+
+def run_directory(root: Path, run_id: str) -> Path:
+    """Map an identity into the same disjoint namespaces used for reservation."""
     name = (
         run_id
         if re.fullmatch(r"(?:run|mn)-[a-zA-Z0-9-]{1,100}", run_id)
         else "id-" + hashlib.sha256(run_id.encode()).hexdigest()
     )
-    directory = root / name
+    return root.absolute() / name
+
+
+def reserve_artifacts(
+    root: Path, run_id: str, *, persistent_memory: bool = False
+) -> RunArtifacts:
+    root = root.absolute()
+    # Disjoint namespaces prevent safe IDs colliding with mapped arbitrary IDs.
+    directory = run_directory(root, run_id)
+    name = directory.name
     try:
         # The root is a container, not a private storage boundary. In particular,
         # /run/mininet-ai can also contain the independent control directory.
@@ -46,10 +65,14 @@ def reserve_artifacts(
         if persistent_memory:
             descriptor = open_private_directory(root / "memory", create=True)
             os.close(descriptor)
+    except FileExistsError as error:
+        raise MininetAIError(
+            f"could not reserve run artifacts: directory already exists at {directory}; use a new run ID; existing data is retained"
+        ) from error
     except (OSError, MininetAIError) as error:
         raise MininetAIError(
             f"could not reserve private run artifacts at {directory}: {error}; "
-            "use a new run ID and an absolute --artifact-root on a local filesystem "
+            "use an absolute --artifact-root on a local filesystem "
             "supporting private permissions and SQLite locking (not /vagrant)"
         ) from error
     return RunArtifacts(
