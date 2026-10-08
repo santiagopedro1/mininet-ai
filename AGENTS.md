@@ -33,6 +33,8 @@ Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/d
 
 ### Branch names
 
+When implementing a ticket or feature, create a branch with the following naming convention:
+
 ```
 <type>/<scope-or-ticket>-<short-description>
 ```
