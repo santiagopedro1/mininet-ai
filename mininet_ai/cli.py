@@ -31,9 +31,11 @@ from mininet_ai.audit import (
 )
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
+from mininet_ai.dependency_logging import RunDiagnostics
 from mininet_ai.errors import MininetAIError
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.exports import export_managed, export_offline
+from mininet_ai.log_output import RunLogFormatter, print_event
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
 from mininet_ai.run_setup import reserve_run
 from mininet_ai.runtime import (
@@ -87,10 +89,22 @@ class _RunLogError(MininetAIError):
 class _RunProgress:
     """Mirror run progress to an owner-only log and optionally stderr."""
 
-    def __init__(self, path: Path, *, verbose: bool, run_id: str | None = None) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        verbose: bool,
+        run_id: str | None = None,
+        substrate: str = "",
+        network_capabilities: frozenset[str] = frozenset(),
+    ) -> None:
         self.path = path
         self._verbose = verbose
         self._run_identity = json.dumps(run_id)
+        self._substrate = substrate
+        self._network_capabilities = network_capabilities
+        self._lock = threading.RLock()
+        self._capabilities: dict[tuple[str, str], str] = {}
         descriptor: int | None = None
         try:
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -124,28 +138,43 @@ class _RunProgress:
         self._logger.setLevel(logging.INFO)
         self._logger.propagate = False
         handler = logging.StreamHandler(self._stream)
-        handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s %(levelname)s run_id=%(run_identity)s %(message)s"
-            )
-        )
+        handler.setFormatter(RunLogFormatter())
         self._logger.addHandler(handler)
 
-    def info(self, message: str) -> None:
-        self._logger.info(
-            message.replace("\n", "\\n"), extra={"run_identity": self._run_identity}
-        )
-        if self._verbose:
-            error_console.print(f"• {message}", markup=False, highlight=False)
+    def emit(
+        self,
+        message: str,
+        *,
+        level: int = logging.INFO,
+        source: str = "Run",
+        visible: bool = False,
+        summary: str | None = None,
+    ) -> None:
+        with self._lock:
+            self._logger.log(
+                level,
+                message,
+                extra={"run_identity": self._run_identity, "source": source},
+            )
+            if self._verbose or visible or level >= logging.WARNING:
+                print_event(
+                    error_console,
+                    logging.getLevelName(level),
+                    source,
+                    message if self._verbose or summary is None else summary,
+                )
+
+    def info(self, message: str, *, visible: bool = False) -> None:
+        self.emit(message, visible=visible)
 
     def error(self, message: str) -> None:
-        self._logger.error(
-            message.replace("\n", "\\n"), extra={"run_identity": self._run_identity}
-        )
-        if self._verbose:
-            error_console.print(f"× {message}", markup=False, highlight=False)
+        self.emit(message, level=logging.ERROR)
 
     def audit(self, event: AuditEvent) -> None:
+        with self._lock:
+            self._audit(event)
+
+    def _audit(self, event: AuditEvent) -> None:
         message = (
             f"{event.type.value}: run={event.run_id} agent={event.agent_id} "
             f"invocation={event.invocation_id}"
@@ -191,13 +220,53 @@ class _RunProgress:
             f" {key}={json.dumps(value, ensure_ascii=True, separators=(',', ':'))}"
             for key, value in details.items()
         )
-        if event.type in _FAILED_AUDIT_EVENTS or (
+        failed = event.type in _FAILED_AUDIT_EVENTS or (
             event.type == AuditEventType.CAPABILITY_COMPLETED
             and details.get("status") not in (None, "succeeded")
-        ):
-            self.error(message)
-        else:
-            self.info(message)
+        )
+        source = f"Agent:{event.agent_id}"
+        visible = event.type == AuditEventType.AGENT_COMPLETED
+        summary = str(
+            details.get("message")
+            or "Reasoning completed; see subsequent action results"
+        )
+        if event.type in {
+            AuditEventType.CAPABILITY_STARTED,
+            AuditEventType.CAPABILITY_COMPLETED,
+            AuditEventType.CAPABILITY_FAILED,
+        }:
+            key = (event.agent_id, event.invocation_id)
+            if event.type == AuditEventType.CAPABILITY_STARTED:
+                self._capabilities[key] = str(details.get("capability", ""))
+            capability = self._capabilities.get(key, "")
+            network = capability in self._network_capabilities
+            source = (
+                "Mininet" if network and self._substrate == "mininet-ovs" else "Run"
+            )
+            if details.get("status") == "rejected" and str(
+                details.get("code", "")
+            ).startswith("capability."):
+                source = "Run"
+            if event.type != AuditEventType.CAPABILITY_STARTED:
+                self._capabilities.pop(key, None)
+            visible = (
+                event.type == AuditEventType.CAPABILITY_COMPLETED
+                and network
+                and details.get("changed") is True
+                and not failed
+            )
+            summary = f"{capability or 'Capability'}: {details.get('status', 'failed' if failed else 'started')} agent={event.agent_id}"
+            if details.get("message"):
+                summary += f" message={details['message']}"
+        elif failed:
+            summary = f"{event.type.value}: {details.get('message', 'failed')}"
+        self.emit(
+            message,
+            level=logging.ERROR if failed else logging.INFO,
+            source=source,
+            visible=visible,
+            summary=summary,
+        )
 
     def close(self) -> None:
         for handler in tuple(self._logger.handlers):
@@ -522,7 +591,12 @@ def run(
 
     root_selection = "--artifact-root" if artifact_root is not None else "default"
     artifact_root = (artifact_root or default_artifact_root()).absolute()
-    error_console.print(f"Storage root ({root_selection}): {artifact_root}")
+    print_event(
+        error_console,
+        "INFO",
+        "Run",
+        f"Storage root ({root_selection}): {artifact_root}",
+    )
 
     try:
         reserved_id, substrate = reserve_run(deployment_plan.substrate)
@@ -596,13 +670,19 @@ def run(
     ledger_db = ledger_db.absolute()
     shared_state_db = shared_state_db.absolute()
     agno_db = agno_db.absolute()
-    error_console.print(
+    print_event(
+        error_console,
+        "INFO",
+        "Run",
         f"Artifacts: {artifact_description}\nLog: {log_file}\nLedger: {ledger_db}\n"
-        f"Shared state: {shared_state_db}\nAgno sessions/memory: {agno_db}"
+        f"Shared state: {shared_state_db}\nAgno sessions/memory: {agno_db}",
     )
     if persistent_memory:
-        error_console.print(
-            "Learned memory uses the selected Agno path; stores in other roots are not automatically reused or imported."
+        print_event(
+            error_console,
+            "INFO",
+            "Run",
+            "Learned memory uses the selected Agno path; stores in other roots are not automatically reused or imported.",
         )
     evidence = None
     if artifacts is not None and reserved_id is not None:
@@ -635,7 +715,20 @@ def run(
         )
     try:
         progress = _operation_or_exit(
-            lambda: _RunProgress(log_file, verbose=verbose, run_id=reserved_id)
+            lambda: _RunProgress(
+                log_file,
+                verbose=verbose,
+                run_id=reserved_id,
+                substrate=deployment_plan.substrate,
+                network_capabilities=frozenset(
+                    item["metadata"]["name"]
+                    for item in deployment_plan.snapshot.get(
+                        "capabilityDefinitions", []
+                    )
+                    if item.get("provider") in {"substrate.action", "fake.openflow"}
+                    and not item["metadata"]["name"].startswith("host.process.")
+                ),
+            )
         )
     except BaseException:
         if evidence is not None:
@@ -655,7 +748,14 @@ def run(
     intent_server = None
     report = None
     operation_failed = False
+    diagnostics = None
     try:
+        if reserved_id is not None:
+            diagnostics = RunDiagnostics(
+                reserved_id,
+                progress.emit,
+                mininet=deployment_plan.substrate == "mininet-ovs",
+            ).__enter__()
         progress.info(f"Opening run ledger {ledger_db}")
         ledger = _operation_or_exit(lambda: SQLiteRunLedger(ledger_db))
         progress.info(f"Opening shared state database {shared_state_db}")
@@ -663,7 +763,8 @@ def run(
             lambda: SQLiteSharedStateStore(shared_state_db)
         )
         progress.info(
-            f"Starting {deployment_plan.substrate} substrate and runtime services"
+            f"Starting {deployment_plan.substrate} substrate and runtime services",
+            visible=True,
         )
         stop_latch = _SignalLatch()
         intent_tracker = (
@@ -713,9 +814,10 @@ def run(
                 ),
             )
             _operation_or_exit(intent_server.__enter__)
-            progress.info(f"Control endpoint: {intent_server.path}")
-            error_console.print(f"Control endpoint: {intent_server.path}")
-            progress.info(f"Run {run_info.id} is active on {run_info.substrate}")
+            progress.info(f"Control endpoint: {intent_server.path}", visible=True)
+            progress.info(
+                f"Run {run_info.id} is active on {run_info.substrate}", visible=True
+            )
             for agent_id, intent in parsed_intents:
                 event = _operation_or_exit(
                     lambda agent_id=agent_id, intent=intent: owner.submit_intent(
@@ -755,20 +857,41 @@ def run(
         finally:
             try:
                 if owner is not None and owner.state == ExperimentRuntimeState.RUNNING:
-                    progress.info("Stop requested; draining work and tearing down")
-                    report = _operation_or_exit(owner.stop)
                     progress.info(
-                        f"Run {report.run.id} stopped with "
-                        f"{report.continuous.completed} completed and "
-                        f"{report.continuous.failed} failed invocations"
+                        "Stop requested; draining work and tearing down", visible=True
                     )
+                    try:
+                        report = _operation_or_exit(owner.stop)
+                    except BaseException as error:
+                        progress.error(f"Cleanup failed for run {reserved_id}: {error}")
+                        raise
+                    if report.issues:
+                        for issue in report.issues:
+                            progress.error(
+                                f"Cleanup failed for run {report.run.id}: {issue.code}: {issue.message}"
+                            )
+                    else:
+                        progress.info(
+                            f"Run {report.run.id} stopped with "
+                            f"{report.continuous.completed} completed and "
+                            f"{report.continuous.failed} failed invocations",
+                            visible=True,
+                        )
             finally:
                 try:
-                    if state_store is not None:
-                        state_store.close()
-                    if ledger is not None:
-                        ledger.close()
-                    progress.close()
+                    try:
+                        try:
+                            if state_store is not None:
+                                state_store.close()
+                        finally:
+                            if ledger is not None:
+                                ledger.close()
+                    finally:
+                        try:
+                            if diagnostics is not None:
+                                diagnostics.__exit__()
+                        finally:
+                            progress.close()
                     if evidence is not None:
                         evidence.finish(
                             finalized=owner is not None and owner.writers_stopped,

@@ -3,8 +3,34 @@
 Every live CLI run writes progress to `logs/run.log` in its run artifact
 directory (`/var/lib/mininet-ai/<run-id>/` for root; the effective user's local
 state directory otherwise). `--log-file` overrides that
-path. Logging does not require `--verbose`; that flag also mirrors progress
-to stderr, leaving `--format json` stdout machine-readable.
+path. Logging does not require `--verbose`. Default stderr progress shows run
+milestones, every completed agent's summary, successful network changes, and
+warnings/errors. `--verbose` adds invocation/model starts and completions,
+capability starts and all results (including no-ops), and shared-state updates.
+Neither mode changes command results or `--format json` stdout. Saved diagnostic
+detail does not depend on terminal verbosity; repeated summaries and failures
+are not suppressed.
+
+Terminal progress uses local time, a four-character severity column, and a
+source label:
+
+```text
+14:32:02 INFO [Run] Network ready
+14:32:06 INFO [Agent:monitor-1] Congestion detected; proposed a link update
+14:32:08 ERR  [Mininet] Link update failed agent=monitor-1
+14:32:09 WARN [Run] Agno dependency warning diagnostic dependency=agno agent=unknown
+```
+
+`[Run]` identifies lifecycle/runtime coordination; `[Agent:<id>]` uses the
+compiled agent-instance ID. `[Mininet]` identifies native diagnostics and
+Mininet-backed network action results, not every capability or an action
+implemented by the fake substrate. Host process start/stop is runtime activity,
+not a default-visible network change. Authorization rejections are runtime errors.
+Agent summaries describe reasoning, not successful execution of their proposals.
+In interactive terminals sources are cyan, magenta, and blue respectively;
+warning/error severity is yellow/red. `NO_COLOR` or non-TTY output disables
+styling. Message markup is literal, terminal controls are escaped, and each
+multiline continuation receives its own prefix.
 
 The artifact root is a shared container: an existing directory such as
 `/run/mininet-ai` may have permissions like 0755. It is not chmodded or required
@@ -31,8 +57,11 @@ such as `/var/lib/mininet-ai/runs` when output must survive a reboot. VirtualBox
 shared mounts such as `/vagrant` may still lack private permissions or SQLite
 locking; accepting a shared parent does not make those filesystems suitable.
 
-Every progress line carries a JSON-encoded `run_id` immediately after its level;
-managed export filters shared explicit logs by that identity. Newlines are escaped.
+Saved lines use a full UTC ISO timestamp with timezone and full severity names
+(`INFO`, `WARNING`, `ERROR`), followed by JSON-encoded `run_id` and the source
+label. Managed export filters shared explicit logs by exact run identity and
+supports both this format and the legacy timestamp/level format. Newlines and
+terminal controls are escaped; saved logs contain no ANSI styling.
 Audit lines also include the run, agent, and invocation IDs so concurrent work can
 be correlated. Agent-start lines include the intent. Agent-completion lines
 include the response message, proposal/delegation/shared-state update counts,
@@ -54,6 +83,48 @@ are not dumped into the text log; the run ledger retains the full audit records.
 
 Treat logs as sensitive: intents and agent responses can contain private data.
 Log files retain owner-only permissions (0600).
+
+## Dependency diagnostic boundaries
+
+Built-in CLI runs own dependency logging through startup, rollback, draining,
+and teardown, then flush/detach and restore foreign logger configuration before
+closing the log and finalizing evidence. Library callers do not enable this
+capture automatically. Concurrent embedded capture owners are rejected.
+
+Native Mininet capture attaches to `mininet.log.lg` itself. Collection is fixed
+at INFO, **not DEBUG**, regardless of `--verbose`. Reviewed lifecycle INFO call
+sites in `net.py` (`build`, `buildFromTopo`, `configHosts`, `start`, `stop`,
+`waitConnected`) and `node.py` (`batchShutdown`, `waitListening`,
+`checkListening`, `defaultIntf`) are eligible; their fragments are assembled
+without mixing threads or invocation identities. Routine accepted diagnostics
+go to saved logs and verbose stderr. Native warnings/errors use safe summaries
+with the originating function, not raw command-result excerpts, and appear by
+default too. Command-echo INFO and native OUTPUT/test/interactive records are
+not collected. Missing-newline fragments are bounded and flushed on close.
+
+Agno's supported custom logging route emits normalized warning/error summaries,
+not raw provider bodies, message arguments, or tracebacks. Known emission-time
+invocations carry agent/invocation context; otherwise `[Run]` explicitly reports
+`dependency=agno agent=unknown`. Async invocations receive their own context,
+not the previous invocation's context. Agno INFO/DEBUG, unrelated SDK/Python
+warning routes, arbitrary plugin writes, direct stdout/stderr writes, subprocess
+streams, and daemon files are outside this capture guarantee. There is no global
+stream/FD redirection; command return values and interactive consumers stay
+untouched. Raw native DEBUG collection remains deferred.
+
+On Python 3.14 Mininet's detached logger can retain stale level-enable caches.
+Capture is configured before first native calls; a previously used logger that
+cannot enable INFO is rejected with a fresh-process diagnostic rather than
+silently losing lifecycle events. A localized CPython compatibility snapshot
+restores the detached logger's private enablement cache as well as its level;
+this prevents capture-created INFO/DEBUG flags from leaking into foreign
+logging after exit. It does not repair or promise support for pre-existing stale
+caches. Concurrent/pre-used embedded Mininet use is
+not a supported substitute for the owned CLI integration.
+
+Nonprivileged logger and deterministic-model tests do not prove live OVS or
+remote provider behavior. Native integration claims require the VM tests and
+provider-warning acceptance against the actual deployment environment.
 
 ## Source coordination and finalization
 

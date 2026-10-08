@@ -8,6 +8,7 @@ import json
 import re
 from collections.abc import Callable, Coroutine, Iterator, Mapping
 from contextlib import contextmanager
+from contextvars import copy_context
 from importlib.metadata import version
 from pathlib import Path
 from threading import RLock
@@ -29,6 +30,7 @@ from mininet_ai.agents.agno.contracts import (
 from mininet_ai.agents.agno.models import DeterministicAgnoModel
 from mininet_ai.agents.agno.ollama_model import create_ollama_model
 from mininet_ai.agents.agno.storage import create_agno_database
+from mininet_ai.dependency_logging import invocation_diagnostics
 from mininet_ai.durations import duration_seconds
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
 from mininet_ai.sdk.contracts import (
@@ -289,7 +291,7 @@ class AgnoAgentFactory:
             if runner is None:
                 runner = asyncio.Runner()
                 self._runners[agent_id] = runner
-            return runner.run(operation())
+            return runner.run(operation(), context=copy_context())
 
     def close(self) -> None:
         """Release cached async loops after all invocation workers have stopped.
@@ -462,6 +464,13 @@ class AgnoAgentProvider:
 
     def run(self, context: AgentContext) -> AgnoExecutionResult:
         """Execute Agno and return only normalized, serializable values."""
+
+        with invocation_diagnostics(
+            context.run_id, context.agent_id, context.invocation_id
+        ):
+            return self._run(context)
+
+    def _run(self, context: AgentContext) -> AgnoExecutionResult:
 
         _validate_context(self._definition, context)
         session_id = f"{context.run_id}:{context.agent_id}"

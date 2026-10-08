@@ -149,6 +149,14 @@ class AuditedCapabilityExecutor:
         context: AgentContext,
         proposal: ActionProposal,
     ) -> ActionResult:
+        from mininet_ai.dependency_logging import invocation_diagnostics
+
+        with invocation_diagnostics(
+            context.run_id, context.agent_id, context.invocation_id
+        ):
+            return self._execute(context, proposal)
+
+    def _execute(self, context: AgentContext, proposal: ActionProposal) -> ActionResult:
         self._recorder.record(
             AuditEventType.CAPABILITY_STARTED,
             context,
