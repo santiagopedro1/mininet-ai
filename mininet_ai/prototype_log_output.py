@@ -298,8 +298,9 @@ def main():
             f"[{source}]",
             "36" if source == "Run" else "34" if source == "Mininet" else "35",
         )
+        terminal_level = {"WARNING": "WARN", "ERROR": "ERR"}.get(level, level)
         severity = style(
-            f"{level:<7}",
+            f"{terminal_level:<4}",
             "31" if level == "ERROR" else "33" if level == "WARNING" else "0",
         )
         # Terminal identifiers only where needed to connect an action or warning.
