@@ -343,7 +343,9 @@ def _bundle(
                         )
                     if provenance == "managed":
                         prefix = re.compile(
-                            rb"^\S+ \S+ (?:INFO|ERROR) run_id="
+                            rb"^(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}|"
+                            rb"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})) "
+                            rb"(?:DEBUG|INFO|WARNING|ERROR|CRITICAL) run_id="
                             + re.escape(json.dumps(run_id).encode())
                             + rb" "
                         )

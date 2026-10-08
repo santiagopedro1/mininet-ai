@@ -174,6 +174,143 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertIn("Run cli-verbose-run stopped", log)
         self.assertEqual(log_mode, 0o600)
 
+    def test_default_progress_attributes_agent_summaries_without_json_noise(
+        self,
+    ) -> None:
+        plan = configured_plan({"message": "handled [bold]literally[/bold]\nnext line"})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "readable-run")
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.reserve_run", return_value=("readable-run", runtime)
+                ),
+                patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--format",
+                        "json",
+                        "--intent",
+                        "switch-router@s1=inspect forwarding",
+                        *self.run_databases(temporary),
+                    ],
+                )
+            log = (Path(temporary) / "run.log").read_text()
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(json.loads(result.stdout)["state"], "stopped")
+        self.assertRegex(result.stderr, r"\d{2}:\d{2}:\d{2} INFO \[Run\]")
+        self.assertIn(
+            "INFO [Agent:switch-router@s1] handled [bold]literally[/bold]",
+            result.stderr,
+        )
+        self.assertIn("INFO [Agent:switch-router@s1] next line", result.stderr)
+        self.assertNotIn("agent.invocation.started", result.stderr)
+        self.assertNotIn("model.request.started", result.stderr)
+        self.assertIn('INFO run_id="readable-run" [Agent:switch-router@s1]', log)
+        self.assertRegex(log, r"\d{4}-\d{2}-\d{2}T\S+\+00:00 INFO")
+        self.assertNotIn("\x1b", log)
+
+    def test_agno_warning_during_cli_invocation_is_safe_and_attributed(self) -> None:
+        from agno.utils.log import log_warning
+
+        from mininet_ai.agents.agno.models import DeterministicAgnoModel
+
+        original = DeterministicAgnoModel.invoke
+
+        def warn_and_invoke(model, *args, **kwargs):
+            log_warning("SECRET provider body")
+            return original(model, *args, **kwargs)
+
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "warning-run")
+        with TemporaryDirectory() as temporary:
+            with (
+                patch(
+                    "mininet_ai.cli._compile_or_exit",
+                    return_value=configured_plan({"message": "handled"}),
+                ),
+                patch(
+                    "mininet_ai.cli.reserve_run", return_value=("warning-run", runtime)
+                ),
+                patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+                patch.object(DeterministicAgnoModel, "invoke", warn_and_invoke),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--format",
+                        "json",
+                        "--intent",
+                        "switch-router@s1=inspect",
+                        *self.run_databases(temporary),
+                    ],
+                )
+            log = (Path(temporary) / "run.log").read_text()
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(json.loads(result.stdout)["state"], "stopped")
+        self.assertIn(
+            "WARN [Agent:switch-router@s1] Agno dependency warning", result.stderr
+        )
+        self.assertIn('WARNING run_id="warning-run" [Agent:switch-router@s1]', log)
+        self.assertNotIn("SECRET", result.stdout + result.stderr + log)
+        self.assertEqual(log.count("Agno dependency warning"), 1)
+
+    def test_terminal_colors_respect_no_color_and_escape_message_controls(self) -> None:
+        from rich.console import Console
+
+        for no_color in (False, True):
+            with self.subTest(no_color=no_color), TemporaryDirectory() as temporary:
+                runtime = FakeSubstrateRuntime(run_id_factory=lambda: "color-run")
+                with (
+                    patch(
+                        "mininet_ai.cli._compile_or_exit",
+                        return_value=configured_plan(
+                            {"message": "literal\x1b[31m\rtext"}
+                        ),
+                    ),
+                    patch(
+                        "mininet_ai.cli.reserve_run",
+                        return_value=("color-run", runtime),
+                    ),
+                    patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+                    patch(
+                        "mininet_ai.cli.error_console",
+                        Console(
+                            stderr=True, force_terminal=True, color_system="standard"
+                        ),
+                    ),
+                    patch.dict(
+                        "os.environ", {"NO_COLOR": "1"} if no_color else {}, clear=True
+                    ),
+                ):
+                    result = self.runner.invoke(
+                        app,
+                        [
+                            "run",
+                            "experiment.yaml",
+                            "--format",
+                            "json",
+                            "--intent",
+                            "switch-router@s1=inspect",
+                            *self.run_databases(temporary),
+                        ],
+                        color=True,
+                    )
+                log = (Path(temporary) / "run.log").read_text()
+                self.assertEqual(result.exit_code, 0, result.output)
+                self.assertIn(r"literal\x1b[31m\x0dtext", result.stderr)
+                self.assertNotIn("\x1b", log)
+                self.assertEqual("\x1b[36m[Run]" in result.stderr, not no_color)
+                self.assertEqual(
+                    "\x1b[35m[Agent:switch-router@s1]" in result.stderr, not no_color
+                )
+                self.assertEqual(json.loads(result.stdout)["state"], "stopped")
+
     def test_run_logs_capability_execution_details_without_polluting_json(self) -> None:
         plan = configured_plan(
             {
@@ -266,7 +403,8 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertIn('status="rejected"', log)
         self.assertIn('code="capability.target.out-of-scope"', log)
         self.assertIn(
-            ' ERROR run_id="cli-rejected-run" capability.execution.completed:', log
+            ' ERROR run_id="cli-rejected-run" [Run] capability.execution.completed:',
+            log,
         )
         self.assertIn('request_id="out-of-scope"', log)
 
@@ -301,7 +439,10 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertNotIsInstance(result.exception, TimeoutError)
         self.assertIn("agent.agno.deterministic-response-invalid", result.output)
         self.assertIn("agent.agno.deterministic-response-invalid", log)
-        self.assertIn(' ERROR run_id="cli-failed-run" agent.invocation.failed:', log)
+        self.assertIn(
+            ' ERROR run_id="cli-failed-run" [Agent:switch-router@s1] agent.invocation.failed:',
+            log,
+        )
         self.assertLess(
             log.index("agent.agno.deterministic-response-invalid"),
             log.index("Stop requested; draining work and tearing down"),
@@ -370,6 +511,94 @@ class RuntimeCLITests(unittest.TestCase):
             runtime.inspect("cli-broken-output").run.state,
             RunState.STOPPED,
         )
+
+    def test_cleanup_failure_is_a_default_error_and_restores_agno_logging(self) -> None:
+        from agno.utils import log as agno_log
+
+        class BrokenStop(FakeSubstrateRuntime):
+            def teardown(self, run_id):
+                raise RuntimeError("cleanup broken")
+
+        previous = agno_log.logger
+        runtime = BrokenStop(run_id_factory=lambda: "cleanup-run")
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
+                patch(
+                    "mininet_ai.cli.reserve_run", return_value=("cleanup-run", runtime)
+                ),
+                patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
+            ):
+                result = self.runner.invoke(
+                    app, ["run", "experiment.yaml", *self.run_databases(temporary)]
+                )
+            log = (Path(temporary) / "run.log").read_text()
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn("ERR  [Run] Cleanup failed", result.stderr)
+        self.assertIn("cleanup broken", log)
+        self.assertIs(agno_log.logger, previous)
+
+    def test_network_results_are_attributed_but_authorization_rejections_are_run_errors(
+        self,
+    ) -> None:
+        class NetworkFixture(FakeSubstrateRuntime):
+            name = "mininet-ovs"
+
+        for target in ("s1", "s2"):
+            with self.subTest(target=target), TemporaryDirectory() as temporary:
+                plan = configured_plan(
+                    {
+                        "proposals": [
+                            {
+                                "id": "flow",
+                                "capability": "openflow.flow.install",
+                                "target": target,
+                                "arguments": {"match": "ip", "actions": "normal"},
+                            }
+                        ]
+                    }
+                )
+                plan = plan.model_copy(update={"substrate": "mininet-ovs"})
+                for capability in plan.snapshot["capabilityDefinitions"]:
+                    if capability.get("provider") == "fake.openflow":
+                        capability["provider"] = "substrate.action"
+                runtime = NetworkFixture(run_id_factory=lambda: "network-run")
+                with (
+                    patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                    patch(
+                        "mininet_ai.cli.reserve_run",
+                        return_value=("network-run", runtime),
+                    ),
+                    patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+                ):
+                    result = self.runner.invoke(
+                        app,
+                        [
+                            "run",
+                            "experiment.yaml",
+                            "--format",
+                            "json",
+                            "--stop-after-intents",
+                            "--intent",
+                            "switch-router@s1=restore",
+                            *self.run_databases(temporary),
+                        ],
+                    )
+                self.assertEqual(
+                    result.exit_code, 0 if target == "s1" else 1, result.output
+                )
+                if target == "s1":
+                    self.assertIn(
+                        "INFO [Mininet] openflow.flow.install: succeeded agent=switch-router@s1",
+                        result.stderr,
+                    )
+                else:
+                    self.assertIn(
+                        "ERR  [Run] openflow.flow.install: rejected", result.stderr
+                    )
+                self.assertEqual(
+                    json.loads(result.stdout)["continuous"]["completed"], 1
+                )
 
     @staticmethod
     def run_databases(directory: str) -> list[str]:

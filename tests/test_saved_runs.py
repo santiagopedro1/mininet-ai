@@ -282,6 +282,19 @@ def test_managed_export_filters_an_explicit_log_shared_across_runs(tmp_path):
     log = tmp_path / "shared.log"
     _, first = run_fake(tmp_path / "first", ["--log-file", str(log)])
     root, second = run_fake(tmp_path / "second", ["--log-file", str(log)])
+    with log.open("a") as stream:
+        stream.write(
+            f"2026-10-08 14:32:00,000 ERROR run_id={json.dumps(second.name)} legacy-error\n"
+        )
+        stream.write(
+            f"2026-10-08T14:32:00+00:00 WARNING run_id={json.dumps(second.name)} [Run] new-warning\n"
+        )
+        stream.write(
+            f"2026-10-08T14:32:00+00:00 ERROR run_id={json.dumps(second.name + '-other')} spoof-prefix\n"
+        )
+        stream.write(
+            f'2026-10-08T14:32:00+00:00 INFO run_id="foreign" message=run_id={json.dumps(second.name)} spoof-body\n'
+        )
     destination = tmp_path / "results"
     result = CliRunner().invoke(
         app,
@@ -299,6 +312,10 @@ def test_managed_export_filters_an_explicit_log_shared_across_runs(tmp_path):
     exported = (destination / "run.log").read_text()
     assert first.name not in exported
     assert second.name in exported
+    assert "legacy-error" in exported
+    assert "new-warning" in exported
+    assert "spoof-prefix" not in exported
+    assert "spoof-body" not in exported
 
 
 def test_shared_export_handles_unsupported_directory_fsync(tmp_path, monkeypatch):

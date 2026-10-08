@@ -9,6 +9,7 @@ import time
 import unittest
 from multiprocessing.connection import Connection
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import (
@@ -53,10 +54,15 @@ def deploy_and_exit_without_teardown(connection: Connection) -> None:
     os._exit(0)
 
 
-@unittest.skipUnless(LIVE_TESTS, "set MININET_AI_LIVE_TESTS=1 inside the development VM")
+@unittest.skipUnless(
+    LIVE_TESTS, "set MININET_AI_LIVE_TESTS=1 inside the development VM"
+)
 class LiveMininetOVSRuntimeTests(unittest.TestCase):
     def test_cli_runs_inspects_and_cooperatively_stops_owner(self) -> None:
         state_path = Path("/run/mininet-ai/mininet-ovs.json")
+        log_path = (
+            Path(self.enterContext(TemporaryDirectory(prefix="mn-log-"))) / "run.log"
+        )
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -64,6 +70,9 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 "mininet_ai.cli",
                 "run",
                 str(MININET_OVS_SMOKE_SPECIFICATION),
+                "--verbose",
+                "--log-file",
+                str(log_path),
             ],
             cwd=ROOT,
             stdout=subprocess.PIPE,
@@ -138,6 +147,13 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
             output, error = process.communicate(timeout=15)
             self.assertEqual(process.returncode, 0, f"{output}\n{error}")
             self.assertIn(f"Stopped {run_id}", output)
+            saved_log = log_path.read_text()
+            self.assertIn("[Mininet] *** Done", error)
+            self.assertIn("[Mininet] *** Done", saved_log)
+            self.assertEqual(error.count("*** Done"), 1)
+            self.assertEqual(saved_log.count("*** Done"), 1)
+            self.assertNotIn("\x1b", saved_log)
+            self.assertEqual(log_path.stat().st_mode & 0o777, 0o600)
             self.assertFalse(state_path.exists())
             repeated_stop = command(
                 sys.executable,
@@ -161,9 +177,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 "stopped",
             )
             self.assertNotEqual(
-                command(
-                    "ovs-vsctl", "br-exists", "s1", check=False
-                ).returncode,
+                command("ovs-vsctl", "br-exists", "s1", check=False).returncode,
                 0,
             )
         finally:
@@ -208,9 +222,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
         )
         self.assertFalse(Path("/run/mininet-ai/mininet-ovs.json").exists())
         deadline = time.monotonic() + 5
-        while time.monotonic() < deadline and Path(
-            f"/proc/{managed_pid}"
-        ).exists():
+        while time.monotonic() < deadline and Path(f"/proc/{managed_pid}").exists():
             time.sleep(0.05)
         self.assertFalse(Path(f"/proc/{managed_pid}").exists())
 
@@ -274,17 +286,11 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 )
             }
             self.assertEqual(observations["topology.resources"]["state"], "up")
-            self.assertEqual(
-                len(observations["topology.neighbors"]["links"]), 2
-            )
+            self.assertEqual(len(observations["topology.neighbors"]["links"]), 2)
             self.assertIn("events", observations["controller.events"])
             self.assertIn("switches", observations["openflow.flows"])
-            self.assertEqual(
-                len(observations["ovs.port-counters"]["ports"]), 2
-            )
-            self.assertEqual(
-                len(observations["tc.queue-occupancy"]["ports"]), 2
-            )
+            self.assertEqual(len(observations["ovs.port-counters"]["ports"]), 2)
+            self.assertEqual(len(observations["tc.queue-occupancy"]["ports"]), 2)
             self.assertEqual(
                 observations["host.interfaces"]["interfaces"][0]["state"],
                 "UP",
@@ -294,9 +300,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 observations["host.reachability"]["probes"][0]["destination"],
                 "h2",
             )
-            self.assertTrue(
-                observations["host.reachability"]["probes"][0]["reachable"]
-            )
+            self.assertTrue(observations["host.reachability"]["probes"][0]["reachable"])
 
             disabled = runtime.execute(
                 run.id,
@@ -335,9 +339,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 ),
             )
             self.assertEqual(configured.status, ActionStatus.SUCCEEDED)
-            changed_qdiscs = command(
-                "tc", "qdisc", "show", "dev", "s1-eth1"
-            ).stdout
+            changed_qdiscs = command("tc", "qdisc", "show", "dev", "s1-eth1").stdout
             self.assertIn("delay 2ms", changed_qdiscs)
 
             installed = runtime.execute(
