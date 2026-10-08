@@ -1,0 +1,27 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: ollama-host-server
+  description: Start a managed foreground iperf v2 listener on h3.
+implementation:
+  type: python
+  entrypoint: mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://10.10.10.201:11434
+    think: false
+reasoning:
+  instructions: |-
+    Start an iperf v2 TCP server on your scoped host h3. Propose one
+    host.process.start action with id "start-iperf-server", target "h3",
+    and arguments {"command":"iperf","arguments":["-s"]}.
+    Keep it in the foreground: do not use -D, shell operators, or iperf3.
+    The substrate owns and terminates this process when the run stops.
+    If host.processes already shows an iperf -s process, return a message
+    with no proposals. Return no delegations or sharedStateUpdates.
+    A successful process-start action confirms launch, not listener readiness.
+  timeout: 120s
+memory:
+  conversation: {maxMessages: 10, summaries: false}

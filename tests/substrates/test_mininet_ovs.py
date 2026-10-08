@@ -63,6 +63,28 @@ class MininetOVSDriverTests(unittest.TestCase):
         assert isinstance(switch, PlannedSwitch)
         self.assertEqual(switch.datapath.value, "userspace")
 
+    def test_driver_rejects_invalid_and_duplicate_planned_dpids(self) -> None:
+        plan = compile_experiment(mininet_experiment())
+        switches = [item for item in plan.resources if isinstance(item, PlannedSwitch)]
+        for value in (
+            "xyz",
+            "1",
+            "0000000000000000",
+            "000000000000000A",
+            switches[1].dpid,
+        ):
+            with self.subTest(value=value):
+                resources = tuple(
+                    item.model_copy(update={"dpid": value})
+                    if item == switches[0]
+                    else item
+                    for item in plan.resources
+                )
+                issues = MininetOVSDriver().validate_resources(resources)
+                self.assertTrue(
+                    any(issue.code == "mininet-ovs.resource.dpid" for issue in issues)
+                )
+
     def test_unsupported_controller_and_tc_combinations_are_rejected(self) -> None:
         snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
@@ -118,9 +140,7 @@ class MininetOVSDriverTests(unittest.TestCase):
         snapshot = compiler_multilayer_snapshot()
         snapshot["substrate"]["driver"] = "mininet-ovs"
         resources = snapshot["substrate"]["topology"]["resources"]
-        named(resources, "s1")["ports"].append(
-            {"name": "s1-eth3", "number": 3}
-        )
+        named(resources, "s1")["ports"].append({"name": "s1-eth3", "number": 3})
 
         with self.assertRaisesRegex(
             CompilationError, "port 's1-eth3' is not attached to a link"

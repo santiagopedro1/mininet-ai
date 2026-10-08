@@ -39,6 +39,10 @@ dev = [
 # crashed run.
 ignore = ["BLE001"]
 
+[tool.ruff.lint.per-file-ignores]
+# Maintained examples use URL-friendly directory names, not importable packages.
+"examples/iperf-throughput/__init__.py" = ["N999"]
+
 [tool.pyright]
 include = ["mininet_ai", "tests"]
 pythonVersion = "3.14"

@@ -1,0 +1,172 @@
+apiVersion: mininet-ai/v1alpha3
+kind: Experiment
+metadata:
+  name: hierarchical-routing
+  description: Three-tier routing system — global orchestrator sets policy, switch routers install flows, host agents generate traffic.
+
+substrate:
+  driver: mininet-ovs
+  topology:
+    addressing:
+      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
+      mac: {prefix: "02:00:00", strategy: sequential}
+    resources:
+      - {name: network, kind: network}
+      - name: s1
+        kind: switch
+        parent: network
+        failMode: secure
+        datapath: kernel
+        controllers: []
+        protocols: [OpenFlow13]
+        labels: {role: edge, region: west}
+        ports:
+          - {name: s1-eth1, number: 1}
+          - {name: s1-eth2, number: 2}
+          - {name: s1-eth3, number: 3}
+      - name: s2
+        kind: switch
+        parent: network
+        failMode: secure
+        datapath: kernel
+        controllers: []
+        protocols: [OpenFlow13]
+        labels: {role: edge, region: east}
+        ports:
+          - {name: s2-eth1, number: 1}
+          - {name: s2-eth2, number: 2}
+      - name: h1
+        kind: host
+        parent: network
+        labels: {role: client}
+        interfaces:
+          - {name: h1-eth0, ipv4: 10.0.0.11/24, mac: auto}
+      - name: h2
+        kind: host
+        parent: network
+        labels: {role: client}
+        interfaces:
+          - {name: h2-eth0, ipv4: 10.0.0.12/24, mac: auto}
+      - name: h3
+        kind: host
+        parent: network
+        labels: {role: server}
+        interfaces:
+          - {name: h3-eth0, ipv4: 10.0.0.13/24, mac: auto}
+    links:
+      - name: h1-s1
+        endpoints:
+          - {node: h1, adapter: h1-eth0}
+          - {node: s1, adapter: s1-eth1}
+        bandwidth: 100
+        delay: 1ms
+      - name: h2-s1
+        endpoints:
+          - {node: h2, adapter: h2-eth0}
+          - {node: s1, adapter: s1-eth2}
+        bandwidth: 100
+        delay: 1ms
+      - name: s1-s2
+        endpoints:
+          - {node: s1, adapter: s1-eth3}
+          - {node: s2, adapter: s2-eth1}
+        bandwidth: 1000
+        delay: 2ms
+      - name: s2-h3
+        endpoints:
+          - {node: s2, adapter: s2-eth2}
+          - {node: h3, adapter: h3-eth0}
+        bandwidth: 100
+        delay: 1ms
+
+blueprints:
+  - ./agent-blueprints/ollama-global-orchestrator.yaml
+  - ./agent-blueprints/ollama-switch-router.yaml
+  - ./agent-blueprints/ollama-host-traffic.yaml
+  - ./agent-blueprints/ollama-host-server.yaml
+
+capabilityDefinitions:
+  - ./capabilities/openflow-flow-install.yaml
+  - ./capabilities/start-process.yaml
+
+agents:
+  - name: global-orchestrator
+    blueprint: ollama-global-orchestrator
+    placement:
+      layer: global
+      targets: {kind: network, names: [network]}
+      cardinality: per-target
+      runtime: orchestrator
+    observe: [topology.resources, topology.neighbors]
+    triggers:
+      - {type: manual, name: operator}
+    execution:
+      queueCapacity: 8
+      maxConcurrency: 1
+      overflow: reject
+
+  - name: switch-router
+    blueprint: ollama-switch-router
+    placement:
+      layer: data
+      targets:
+        kind: switch
+        matchLabels: {role: edge}
+      cardinality: per-target
+      runtime: device-sidecar
+    observe: [openflow.flows]
+    capabilities: [openflow.flow.install]
+    triggers:
+      - {type: manual, name: operator}
+    execution:
+      queueCapacity: 16
+      maxConcurrency: 1
+      overflow: reject
+
+  - name: host-traffic
+    blueprint: ollama-host-traffic
+    placement:
+      layer: host
+      targets:
+        kind: host
+        matchLabels: {role: client}
+      cardinality: per-target
+      runtime: host-namespace
+    observe: [host.reachability]
+    capabilities: [host.process.start]
+    triggers:
+      - {type: manual, name: operator}
+    execution:
+      queueCapacity: 8
+      maxConcurrency: 1
+      overflow: reject
+
+  - name: host-server
+    blueprint: ollama-host-server
+    placement:
+      layer: host
+      targets: {kind: host, names: [h3]}
+      cardinality: per-target
+      runtime: host-namespace
+    observe: [host.processes]
+    capabilities: [host.process.start]
+    triggers:
+      - {type: manual, name: operator}
+    execution:
+      queueCapacity: 8
+      maxConcurrency: 1
+      overflow: reject
+
+coordination:
+  mode: hierarchical
+  relationships:
+    - {source: global-orchestrator, targets: [switch-router]}
+
+policies:
+  conflicting-actions: reject
+  require-postcondition-check: true
+
+resourceLimits:
+  max-instances: 10
+  max-concurrent-invocations: 4
+  max-queued-events: 64

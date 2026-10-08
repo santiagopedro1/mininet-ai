@@ -5,10 +5,12 @@ Two host agents generate real traffic: `iperf-server@server` starts
 `10.0.0.12`. Both agents reason with `qwen3.5` on your Ollama server; Mininet
 AI authorizes and executes their `host.process.start` proposals.
 
-Topology: `client` (10.0.0.11) and `server` (10.0.0.12) through `s1`
-(the switch name must stay canonical — Mininet derives its datapath ID from
-it), `main-controller`, 100 Mbps links. `max-concurrent-invocations: 1`
+Topology: `client` (10.0.0.11) and `server` (10.0.0.12) through `s1`,
+`main-controller`, 100 Mbps links. `max-concurrent-invocations: 1`
 serializes the two intents so the server is up before the client connects.
+
+*Primary goal: realistic scenario — a plausible TCP throughput-measurement
+workflow using real traffic on `mininet-ovs`.*
 
 ## iperf vs iperf3
 
@@ -29,8 +31,26 @@ Expect 2 instances: `iperf-server@server`, `iperf-client@client`.
 
 ## Run (Vagrant VM only)
 
-Pass `OLLAMA_HOST` through `sudo` so the privileged runtime inherits the model
-endpoint.
+Set `model.parameters.host` in both
+`agent-blueprints/ollama-iperf-server.yaml` and
+`agent-blueprints/ollama-iperf-client.yaml` to your Ollama endpoint:
+
+```yaml
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://10.10.10.152:11434
+```
+
+Replace that example address with one reachable from the VM. The checked-in
+blueprints use `http://localhost:11434`, which only works if Ollama is running
+inside the VM. An explicit host overrides `OLLAMA_HOST`, so no endpoint
+environment variable needs to be passed through `sudo`. To use the environment
+instead, remove `parameters.host` from both blueprints and pass
+`OLLAMA_HOST` through `sudo env`. Endpoint URLs must use HTTP/HTTPS and contain
+no credentials; credentials remain in environment variables.
+
 Terminal 1 — intents run at startup, then it idles for inspection (no
 `--stop-after-intents`):
 
@@ -38,8 +58,7 @@ Terminal 1 — intents run at startup, then it idles for inspection (no
 vagrant up
 vagrant ssh
 cd /vagrant
-sudo env OLLAMA_HOST=http://10.10.10.152:11434 \
-  scripts/vm-run.sh mininet-ai run \
+sudo scripts/vm-run.sh mininet-ai run \
   examples/iperf-throughput/experiment.yaml \
   --intent 'iperf-server@server=Start the iperf server on server.' \
   --intent 'iperf-client@client=Run a TCP throughput test against 10.0.0.12.' \
@@ -59,7 +78,33 @@ sudo ovs-ofctl -O OpenFlow13 dump-flows s1
 sudo ovs-vsctl --timeout=5 get Interface s1-eth2 statistics
 ```
 
+You can also submit another client intent while the owner remains active:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai agents <run-id>
+sudo scripts/vm-run.sh mininet-ai invoke \
+  <run-id> iperf-client@client \
+  --intent 'Run a TCP throughput test against 10.0.0.12.'
+```
+
+Use the run ID printed by terminal 1 or written to the printed run log path
+(root defaults to `/var/lib/mininet-ai/<run-id>/logs/run.log`). SQLite stays
+VM-local even when launching from `/vagrant`; no storage flags are needed.
+`agents` lists live instance IDs and whether they accept manual intents.
+Neither `agents` nor `invoke` needs the experiment YAML.
+The command returns when the intent is queued, not when iperf finishes. Results
+are logged and persisted by terminal 1; it already has the Ollama configuration.
+Both terminals must use the same user and machine; default discovery is
+working-directory independent. If overriding `--control-dir`, use the same
+absolute path. Keep terminal 1 running without
+`--stop-after-intents` to accept later requests.
+
 Back in terminal 1: `Ctrl+C`, or `sudo scripts/vm-run.sh mininet-ai stop <run-id>`.
+
+For host access, see the [offline snapshot export instructions](../../README.md#export-results-to-the-host).
+This example launches arbitrary host processes, so managed export conservatively
+refuses it. Stop all writers and prepare consistent private local snapshots;
+do not copy live SQLite databases into `/vagrant`.
 
 ## UDP instead of TCP
 
@@ -69,6 +114,31 @@ Edit the client blueprint arguments to
 
 ## Caveats
 
+- Switch names need not be canonical. To use `edge-sw`, replace `s1` and
+  `s1-ethN` in the experiment and inspection commands with `edge-sw` and
+  `edge-sw-ethN`. The compiler generates a deterministic non-zero 64-bit DPID;
+  canonical `sN` names retain their numeric DPID. An optional switch `dpid`
+  field (for example, `dpid: "abc"`) overrides it and is normalized to 16
+  lowercase hexadecimal digits. Fixed IDs must be unique; generated IDs skip
+  collisions. Pin an explicit DPID if identity must survive renaming or topology
+  changes involving collisions. Switch and interface names remain limited to
+  15 bytes, including generated interface suffixes.
+- The public contract is `mininet-ai/v1alpha3`. Update `apiVersion` on existing
+  experiments, agent blueprints, and capabilities from `v1alpha2` to `v1alpha3`,
+  then recompile saved deployment plans. Switch entries now require a resolved
+  `dpid`; earlier versioned inputs and plans are rejected. See the
+  [migration guide](../../docs/compatibility.md#public-specification-v1alpha2-to-v1alpha3).
+
 - Managed-process output goes to `DEVNULL`, so the Mbit/s number is not in
   the report — the report proves `SUCCEEDED` starts; counters prove traffic.
-- Cross-process `invoke` is unsupported; all intents must be passed at startup.
+- Cross-terminal `invoke` requires a live foreground owner. Startup and later
+  intents share its scheduler, authorization, model sessions, and ledger.
+
+## Next steps
+
+- [Getting Started](../getting-started/README.md) — the simplest possible
+  experiment
+- [Autonomous Network Operation](../autonomous-operation/README.md) — event
+  triggers, detectors, rollback, and shared state
+- [Hierarchical Routing Coordination](../hierarchical-routing/README.md) —
+  multi-layer placement and hierarchical coordination

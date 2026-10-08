@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -85,7 +86,25 @@ fi
 exit 0
 """,
         )
-        for command in ("ovs-vsctl", "ovs-ofctl", "ip", "tc", "systemctl"):
+        for command in (
+            "ovs-vsctl",
+            "ovs-ofctl",
+            "ovs-testcontroller",
+            "mnexec",
+            "ip",
+            "tc",
+            "systemctl",
+            "iperf",
+            "iperf3",
+            "tcpdump",
+            "traceroute",
+            "ethtool",
+            "dig",
+            "ss",
+            "ping",
+            "mtr",
+            "nc",
+        ):
             self.write_command(command, "#!/bin/bash\nexit 0\n")
 
     def write_command(self, name: str, content: str) -> None:
@@ -111,6 +130,8 @@ exit 0
             "Lint",
             "Type checking",
             "Example validation",
+            "Network tools",
+            "Network diagnostic tools",
             "Live integration tests",
             "Mininet connectivity (pingall)",
             "Final cleanup and baseline verification",
@@ -125,6 +146,18 @@ exit 0
         self.assertIn("PASS: Lint", result.stdout)
         self.assertIn("PASS: Live integration tests", result.stdout)
         self.assertIn("1 failed, 0 skipped", result.stdout)
+
+    def test_missing_diagnostic_tool_fails_without_skipping_live_checks(self) -> None:
+        for command in ("bash", "env", "grep", "dirname", "true"):
+            executable = shutil.which(command)
+            assert executable is not None
+            (self.bin / command).symlink_to(executable)
+        (self.bin / "iperf3").unlink()
+        result = self.run_checks(PATH=str(self.bin))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("FAIL: Network diagnostic tools", result.stderr)
+        self.assertIn("iperf3", result.stderr)
+        self.assertIn("PASS: Live integration tests", result.stdout)
 
     def test_network_prerequisite_failure_skips_destructive_tests(self) -> None:
         result = self.run_checks(FAIL_SUDO="1")

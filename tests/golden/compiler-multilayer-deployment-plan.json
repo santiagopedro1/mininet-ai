@@ -242,12 +242,12 @@
       ]
     }
   ],
-  "apiVersion": "mininet-ai/v1alpha2",
+  "apiVersion": "mininet-ai/v1alpha3",
   "coordination": {
     "edges": [],
     "mode": "independent"
   },
-  "digest": "sha256:207a832babc4d2a37869921cbe96d7e0f3995285b617cf9e920f3434e8d6ec45",
+  "digest": "sha256:2d4cc0a6117c25b5f7dd31521d7bf4f05bdf0e654fb08b33fd98ef2674386f2b",
   "kind": "DeploymentPlan",
   "metadata": {
     "description": "Compiler fixture using one blueprint at four attachment layers.",
@@ -419,6 +419,7 @@
         "c0"
       ],
       "datapath": "kernel",
+      "dpid": "0000000000000001",
       "failMode": "secure",
       "kind": "switch",
       "labels": {
@@ -437,6 +438,7 @@
         "c0"
       ],
       "datapath": "kernel",
+      "dpid": "0000000000000002",
       "failMode": "secure",
       "kind": "switch",
       "labels": {
@@ -620,10 +622,10 @@
         ]
       }
     ],
-    "apiVersion": "mininet-ai/v1alpha2",
+    "apiVersion": "mininet-ai/v1alpha3",
     "blueprints": [
       {
-        "apiVersion": "mininet-ai/v1alpha2",
+        "apiVersion": "mininet-ai/v1alpha3",
         "implementation": {
           "entrypoint": null,
           "type": "declarative"
@@ -663,7 +665,7 @@
     ],
     "capabilityDefinitions": [
       {
-        "apiVersion": "mininet-ai/v1alpha2",
+        "apiVersion": "mininet-ai/v1alpha3",
         "effects": [
           "dataplane.write"
         ],
@@ -828,6 +830,7 @@
               "c0"
             ],
             "datapath": "kernel",
+            "dpid": null,
             "failMode": "secure",
             "kind": "switch",
             "labels": {
@@ -858,6 +861,7 @@
               "c0"
             ],
             "datapath": "kernel",
+            "dpid": null,
             "failMode": "secure",
             "kind": "switch",
             "labels": {

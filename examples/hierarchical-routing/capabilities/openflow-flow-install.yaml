@@ -1,0 +1,29 @@
+apiVersion: mininet-ai/v1alpha3
+kind: Capability
+metadata:
+  name: openflow.flow.install
+  description: Install an OpenFlow entry based on global routing policy.
+targets: [switch]
+layers: [control, data]
+effects: [dataplane.write]
+input-schema:
+  type: object
+  required: [match, actions]
+  properties:
+    match: {type: object}
+    actions:
+      type: string
+      minLength: 1
+  additionalProperties: false
+output-schema:
+  type: object
+reversible: true
+rollback: {timeout: 30s}
+postconditions:
+  - observation: openflow.flows
+    path: switches.0.flows.0.actions
+    operator: eq
+    expected: NORMAL
+    timeout: 5s
+    interval: 250ms
+provider: substrate.action

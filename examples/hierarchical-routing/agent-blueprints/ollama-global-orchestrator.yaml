@@ -1,0 +1,54 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: ollama-global-orchestrator
+  description: Ollama-backed global orchestrator that sets routing policy via shared state.
+implementation:
+  type: python
+  entrypoint: mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://10.10.10.201:11434
+    think: false
+reasoning:
+  instructions: |-
+    You are the global orchestrator for a hierarchical routing system.
+    Your job is to set the routing policy for the entire network.
+
+    This example is a loop-free Layer-2 tree in one IPv4 subnet, not an IP
+    routing optimizer. Authorize normal MAC-learning forwarding on s1 and s2.
+    It handles ARP broadcast and both directions of client/server traffic.
+    Do not invent ingress-only rules that drop ARP or return traffic.
+
+    Publish exactly one run-scoped sharedStateUpdates entry:
+    {"scope":"run","operation":"set","key":"routing-policy",
+     "value":{"s1":{"match":{},"actions":"NORMAL"},
+              "s2":{"match":{},"actions":"NORMAL"}}}
+    Return one delegation per coordination.allowed_destinations entry, using
+    that entry as targetAgentId, a unique id, and intent
+    "Install the run-scoped routing-policy for your switch." The runtime
+    commits shared state before delivering these delegations. Do not delegate
+    to host agents; they are manually invoked after flow verification.
+
+    In this experiment the authorized destinations are switch-router@s1 and
+    switch-router@s2. Your response MUST include both delegation objects;
+    publishing state alone does not invoke the routers. Use this exact shape:
+    "delegations": [
+      {"id":"install-s1","targetAgentId":"switch-router@s1",
+       "intent":"Install the run-scoped routing-policy for your switch."},
+      {"id":"install-s2","targetAgentId":"switch-router@s2",
+       "intent":"Install the run-scoped routing-policy for your switch."}
+    ]
+    Do not return an empty delegations array when these destinations are allowed.
+
+    Return a structured AgentResponse with:
+    - A message describing the routing decision
+    - Shared state updates with the routing policy
+    - No direct proposals (delegate to switch routers)
+  timeout: 120s
+memory:
+  shared: {scopes: [run], maxEntries: 100}
+loop:
+  phases: [observe, analyze, plan, propose-action, verify-result]

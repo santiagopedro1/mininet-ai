@@ -1,0 +1,39 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: switch-monitor
+  description: Monitors queue occupancy and proposes flow installations to reroute traffic during congestion.
+implementation:
+  type: declarative
+model:
+  provider: mock
+  name: deterministic
+  parameters:
+    response:
+      message: "Congestion detected. Proposing flow installation to reroute traffic."
+      proposals:
+        - id: reroute-flow
+          capability: openflow.flow.install
+          target: s1
+          arguments:
+            match: {ip: true, nw_dst: 10.0.0.13}
+            actions: ["output:3"]
+          reason: "Reroute traffic to alternate path via s1-eth3."
+          timeoutSeconds: 30
+      delegations: []
+      sharedStateUpdates: []
+      metadata: {}
+    usage: {}
+reasoning:
+  instructions: |-
+    Monitor queue occupancy on the switch. When congestion is detected
+    (queue depth >= 80%), propose an openflow.flow.install to reroute
+    traffic through the alternate path. Update shared state with the
+    preferred path. Return a structured AgentResponse.
+  timeout: 30s
+memory:
+  local: {maxEntries: 500}
+  conversation: {maxMessages: 10, summaries: false}
+  shared: {scopes: [run], maxEntries: 100}
+loop:
+  phases: [observe, reason, propose, verify-result]

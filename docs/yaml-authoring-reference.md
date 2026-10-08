@@ -1,7 +1,7 @@
 # YAML authoring reference
 
 Use this reference when generating Mininet AI experiment YAML. The public
-contract is `mininet-ai/v1alpha2`; unknown fields are rejected.
+contract is `mininet-ai/v1alpha3`; unknown fields are rejected.
 
 The authoritative definitions are the Pydantic models in
 `mininet_ai/specification/models.py`. Before returning generated files, always
@@ -51,7 +51,7 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 
 ## Common rules
 
-- Use `apiVersion: mininet-ai/v1alpha2` exactly.
+- Use `apiVersion: mininet-ai/v1alpha3` exactly.
 - Names start with a letter, contain only letters, digits, `_`, `.`, or `-`, and
   are at most 128 characters.
 - Metadata supports `name`, optional `description`, and optional string
@@ -65,14 +65,18 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 - References use metadata names. An agent's `blueprint` names a loaded
   blueprint; entries in `capabilities` name loaded capability definitions.
 - Keep credentials outside YAML. Agno providers read their standard environment
-  variables; Python factories may supply provider-specific configuration.
+   variables; Ollama endpoints can also be set through `model.parameters.host`.
+   Declarative Ollama agents and the bundled prompt-parsed factory also support
+   boolean `model.parameters.think`; `false` disables model thinking for bounded
+   action workflows. Omit it to preserve Ollama's default. Python factories may
+   supply other provider-specific configuration.
 
 ## Experiment
 
 Minimal shape:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: Experiment
 metadata:
   name: example
@@ -169,7 +173,7 @@ Declarable resource kinds and their additional fields:
 | `network`, `region`, `flow` | Common resource fields only |
 | `controller` | required `type: builtin\|remote`; optional `address`, `protocol: tcp\|ssl`, `port` |
 | `controller-domain` | non-empty `controllers` |
-| `switch` | `failMode: secure\|standalone`, `datapath: kernel\|userspace`, `controllers`, `protocols`, `ports` |
+| `switch` | optional `dpid`; `failMode: secure\|standalone`, `datapath: kernel\|userspace`, `controllers`, `protocols`, `ports` |
 | `host` | `interfaces`, optional `defaultRoute` |
 
 Every resource also accepts optional `parent`, string `labels`, and free-form
@@ -177,6 +181,14 @@ Every resource also accepts optional `parent`, string `labels`, and free-form
 an address with prefix, `auto`, or `none`; `mac` is `auto` or a unicast MAC.
 Port numbers may be positive integers or `auto`. A link has exactly two
 different node endpoints; omit `adapter` to request deterministic allocation.
+
+Switch `dpid` is an optional non-zero string of 1–16 hexadecimal digits, for
+example `dpid: "abc"`. It is normalized to 16 lowercase digits. Without an
+override, canonical `sN` switches retain their numeric DPID; other names receive
+a deterministic generated DPID. Fixed IDs must be unique, and generated IDs
+skip collisions. Deployment plans always include the resolved switch `dpid`.
+Noncanonical names such as `edge-sw` are supported, subject to the Mininet/OVS
+15-byte limit for switch and interface names (including generated suffixes).
 
 ### Agent deployments
 
@@ -319,7 +331,7 @@ Coordination names refer to agent deployment names, not expanded instance IDs.
 Declarative Agno agent:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: AgentBlueprint
 metadata:
   name: operator
@@ -352,7 +364,7 @@ loop:
 Python-authored Agno agent or factory:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: AgentBlueprint
 metadata: {name: operator}
 implementation:
@@ -367,13 +379,38 @@ reasoning:
 
 On the active Agno runtime, an entrypoint uses `module:attribute` syntax and
 must resolve to an Agno `Agent` or a factory returning one. Use a Python factory
-for custom endpoints or provider-specific options. Declarative agents require
+for provider-specific options not supported declaratively. Declarative agents require
 `model`. `reasoning.output-schema` is an optional legacy string identifier; the
 active Agno path always requests the structured `AgentResponse` contract.
 
-For ordinary declarative providers, the active Agno path rejects non-empty
-`model.parameters`. The deterministic `mock` provider is the exception and is
-useful for offline generated experiments:
+Ollama declarative agents and the bundled
+`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` factory support
+an optional endpoint:
+
+```yaml
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://ollama.example:11434
+```
+
+`host` must be a non-empty HTTP/HTTPS URL with a hostname and no embedded
+credentials. Invalid hosts fail during `validate` and `plan`, without deploying
+a network or contacting Ollama. Explicit configuration overrides `OLLAMA_HOST`;
+omitting the host preserves Agno/Ollama's environment and default behavior,
+including its cloud endpoint behavior when an API key is configured. Each
+blueprint can use a different endpoint; the runtime does not modify process
+environment variables. Only `host` is supported for these Ollama construction
+paths; other parameters are rejected at agent construction. Custom Python
+factories remain responsible for consuming their own configuration. Keep
+credentials in environment variables, not YAML or URL user-info.
+
+Other ordinary declarative providers still reject non-empty `model.parameters`.
+The deterministic `mock` provider accepts its existing response and usage
+parameters and is useful for offline generated experiments (see
+[Getting Started](../examples/getting-started/README.md) for a complete
+mock-provider experiment):
 
 ```yaml
 model:
@@ -400,7 +437,7 @@ Memory rules:
 ## Capability
 
 ```yaml
-apiVersion: mininet-ai/v1alpha2
+apiVersion: mininet-ai/v1alpha3
 kind: Capability
 metadata:
   name: openflow.flow.install
@@ -446,6 +483,9 @@ postconditions:
 - Postconditions execute only when the experiment policy
   `require-postcondition-check` is enabled.
 
+See [Autonomous Network Operation](../examples/autonomous-operation/README.md)
+for a complete example with rollback and postconditions.
+
 ## Built-in observations
 
 Observation availability depends on substrate and placement layer. The
@@ -484,3 +524,14 @@ Before considering generated YAML complete:
 The maintained complete example is
 `examples/iperf-throughput/experiment.yaml` with adjacent blueprint and
 capability files.
+
+## See also
+
+- [Getting Started](../examples/getting-started/README.md) — the simplest
+  possible experiment; one agent, one capability, no external services.
+- [Autonomous Network Operation](../examples/autonomous-operation/README.md) —
+  event triggers, detectors, rollback, and shared state.
+- [Hierarchical Routing Coordination](../examples/hierarchical-routing/README.md) —
+  multi-layer placement and hierarchical coordination.
+- [Examples index](../examples/README.md) — feature matrix and progression
+  guide.

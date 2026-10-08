@@ -9,10 +9,10 @@ driver contract.
 
 The project currently defines ten contract families:
 
-- `mininet-ai/v1alpha2` covers `Experiment`, `AgentBlueprint`, and `Capability`
+- `mininet-ai/v1alpha3` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
   plan JSON Schema uses the matching identifier
-  `urn:mininet-ai:schema:v1alpha2:deployment-plan`.
+  `urn:mininet-ai:schema:v1alpha3:deployment-plan`.
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
@@ -74,7 +74,7 @@ action result, runtime event, and ledger records remain Mininet-owned
 contracts. Agno run and session data will be translated into those records at
 the agent-runtime seam.
 
-### Public specification v1alpha1 to v1alpha2
+### Public specification v1alpha1 to v1alpha2 (historical)
 
 `v1alpha2` adds triggers, observation policies, memory, execution controls,
 resource limits, postconditions, and rollback declarations. Those fields also
@@ -86,6 +86,49 @@ The compiler no longer accepts `mininet-ai/v1alpha1` documents. Change the
 `mininet-ai/v1alpha2`, then regenerate and review its deployment plan. Defaults
 preserve manual one-shot behavior, but the serialized plan and digest
 intentionally change.
+
+### Public specification v1alpha2 to v1alpha3
+
+`v1alpha3` adds an optional switch `dpid` input and a required, resolved `dpid`
+on every planned switch. The compiler preserves numeric DPIDs for canonical
+`sN` names, generates deterministic non-zero 64-bit IDs for other switch names,
+and normalizes explicit IDs to 16 lowercase hexadecimal digits. Fixed IDs must
+be unique; generated IDs skip collisions in stable switch-name order. This
+enables noncanonical Mininet switch names without relying on Mininet's
+name-derived DPID.
+
+Even experiments omitting the new field produce different serialized plans,
+normalized snapshots, and digests. The shared public contract and deployment-plan
+schema therefore advance together to `mininet-ai/v1alpha3` and
+`urn:mininet-ai:schema:v1alpha3:deployment-plan`. This is not a compatible
+extension of `v1alpha2`.
+
+To migrate:
+
+1. Stop active runs using the old software before upgrading. Their persisted
+   ownership records embed old deployment plans; the new software rejects those
+   plans even though the runtime-state envelope version is unchanged. Stopped-run
+   records also retain old plans, so the new `status` and `topology` commands
+   cannot inspect those snapshots. Capture any needed reports with the old
+   software before upgrading; stopping a run does not migrate its saved plan.
+2. Change `apiVersion` to `mininet-ai/v1alpha3` on the experiment and every
+   agent blueprint and capability, including inline definitions and external
+   YAML files. Unversioned topology files need no header change. Python-authored
+   documents must use the new version too.
+3. Optionally set `dpid: "abc"` on switches whose identity must be pinned.
+   Otherwise leave the input field omitted for automatic allocation.
+4. Run `validate` and `plan` again; regenerate saved plans and golden fixtures.
+   Do not just change a saved plan's version header: recompilation supplies the
+   required DPIDs and recomputes its snapshot and digest.
+5. Update downstream plan validators to the new schema identifier. Old run
+   ledger history remains stored, but interpreting archived plans requires their
+   original schema; no automatic migration of stored records is provided.
+
+`Experiment`, `AgentBlueprint`, `Capability`, and `DeploymentPlan` accept only
+`mininet-ai/v1alpha3`; `v1alpha1` and `v1alpha2` documents are rejected, not
+silently upgraded. The package version and independently versioned substrate,
+runtime-state, agent-runtime, audit, event, coordination, and ledger contracts
+are unchanged.
 
 ### Agent runtime v1alpha1 to v1alpha2
 
@@ -149,7 +192,111 @@ the normal targeted `stop RUN_ID` recovery before upgrading when practical;
 if an old active record remains, the new runtime can inspect and recover it
 using its recorded owner, plan, and process groups.
 
+This compatibility applies to the ownership envelope, not to the embedded
+deployment plan. When upgrading the public specification version, follow its
+migration guide and stop old runs with the old software first.
+
 ## Changes allowed within a contract version
+
+### Cross-terminal CLI intent submission
+
+`invoke RUN_ID AGENT_ID --intent TEXT` submits a manual event to
+the existing foreground `run` owner through a private local socket. It no longer
+constructs a separate one-shot agent runtime. Its JSON output is the accepted
+`RuntimeEvent`, not an `AgentInvocationResult`; exit status zero means accepted,
+not successfully executed. Execution results remain in the owner's ledger and
+log. The SDK's `OneShotAgentRuntime` is unchanged.
+
+The experiment-path positional argument has been removed. Update existing
+scripts from `invoke EXPERIMENT RUN_ID AGENT_ID --intent TEXT` to
+`invoke RUN_ID AGENT_ID --intent TEXT`. The client no longer reads or compiles
+YAML: the live owner uses its original compiled plan to authorize agent IDs and
+require a manual trigger. Editing the input files cannot change that plan.
+
+Use `agents RUN_ID` to discover the owner's compiled instance IDs and manual
+intent eligibility, or `agents RUN_ID --format json` for `runId`, `planDigest`,
+`agents`, and `manualAgents`. Discovery is read-only and requires a live owner;
+it does not read archived ledger or substrate ownership records. Both commands
+support `--control-dir` and `--timeout`.
+
+The internal socket accepts submit and describe requests. A submit request may
+omit `planDigest`; when supplied it is still checked against the owner. Legacy
+requests without a request kind are interpreted as submissions. Run identity,
+private-directory ownership, socket ownership, and peer-user checks remain in
+force. This change does not alter any versioned public document contract.
+
+The old `invoke --audit-log`, `--agno-db`, `--shared-state-db`, and
+`--discover-plugins` options remain accepted but are deprecated and ignored with
+a warning on stderr: session, state, audit, and plugin configuration belongs to
+the owner. Set database and plugin options on `run`.
+Use the same OS user on the same machine. Defaults are working-directory
+independent: root uses `/run/mininet-ai/control`, non-root uses a validated
+`$XDG_RUNTIME_DIR/mininet-ai/control` or `/tmp/mininet-ai-<uid>/control` if unset.
+Explicit `--control-dir` is a base override; relative paths follow the command's
+working directory, so absolute paths are recommended. The endpoint is now
+`<base>/<run-id-hash>/control.sock`. Restart old owners after upgrading: there is
+no implicit project-local fallback, and a new client cannot address an old flat
+endpoint even using `--control-dir`. Old owners require old compatible clients
+and their explicit legacy directory. Existing run directories/endpoints are
+never taken over, even if apparently stale; stop the owner or use a new run ID.
+The private socket protocol is internal and
+does not change the versioned runtime-event or agent-runtime contracts.
+
+### Contract-preserving changes
+
+Run identity reservation is a composition-layer change for the fake and
+Mininet/OVS adapters using their existing `run_id_factory` constructors. The
+runtime/provider protocols and all serialized contract versions are unchanged.
+The reserved identity is used unchanged for deployment, ledger, and sessions.
+Registered third-party adapters retain their zero-argument factory/runtime
+contracts and can still execute with explicit `--log-file`, `--ledger-db`,
+`--shared-state-db`, and `--agno-db`. Automatic per-run defaults are currently
+limited to the two built-ins: assigning identities to other adapters would
+require a separately reviewed reservation contract, not an implicit protocol
+change. Missing file options fail before deployment for such adapters.
+Saved output defaults now use effective-user persistent local state:
+`/var/lib/mininet-ai` for root, absolute `$XDG_STATE_HOME/mininet-ai` or
+`~/.local/state/mininet-ai` otherwise, with `<root>/<run-id>/logs` and `dbs`; explicit
+file options still take precedence, and existing artifacts remain untouched.
+`--artifact-root` is independent of live endpoint discovery. A failed start
+retains diagnostic output rather than renaming or deleting active SQLite files.
+Agno currently routes sessions and learned memory through one `Agent.db`; when
+agent-scoped memory is requested, that entire store defaults to the stable
+`<artifact-root>/memory/agno.sqlite3`. Run-qualified session IDs isolate sessions;
+agent-qualified user IDs retain learned memory. An explicit shared `--agno-db`
+also preserves memory; separate per-run shared-state databases remain isolated.
+If a legacy `<artifact-root>/agno.sqlite3` exists and agent-scoped memory is
+requested, choose `--agno-db` explicitly. Point it at the legacy store to retain
+learning; no automatic migration or silent switch to empty memory is performed.
+Other roots are not scanned for learning; the selected path and non-import policy
+are announced. Existing project-local data remains untouched. Stop all writers
+before preparing consistent private offline backups or transferring complete
+run data; preserve the source and verify destination ownership/permissions.
+
+Built-in runs add private version-1 source/lifecycle metadata and cooperative
+lifetime source locks without changing substrate/agent protocols. Managed export
+requires finalized evidence with verified writers; untracked Python/plugin/process
+writers and legacy runs use explicit operator-prepared offline snapshots. Export
+formats and local bookkeeping are separate from the versioned experiment/runtime
+contracts. Export never migrates data, exports Agno/raw SQLite, follows artifact
+symlinks, overwrites destinations, or silently repairs unsafe storage. See
+`docs/run-logs.md` for the version-1 bundle and completion/provenance contract.
+An optional failed-deployment cleanup receipt is consumed when available; adapters
+without one fail closed for that case, with no new required protocol methods.
+
+Ollama endpoint configuration uses the existing `model.parameters.host` key,
+without adding serialized fields or changing omitted-host plans, snapshots,
+digests, or schemas. The public contract stays at `mininet-ai/v1alpha3`.
+Explicit host values are validated as HTTP/HTTPS URLs without credentials and
+are now honored by declarative agents and the bundled prompt-parsed factory.
+The runtime does not mutate environment variables; other Python factories
+continue to interpret their own provider-specific options.
+
+Optional boolean `model.parameters.think` is passed through to Ollama by both
+declarative agents and the bundled prompt-parsed factory. Omission preserves
+the provider default and existing plans; explicit non-boolean values fail at
+agent construction rather than being silently coerced. This uses the existing
+provider-parameters map and does not change the public contract version.
 
 A change may keep the current contract version when it does not alter the
 accepted meaning or serialized result of an existing valid document. Examples

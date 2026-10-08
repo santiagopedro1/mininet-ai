@@ -1,0 +1,16 @@
+apiVersion: mininet-ai/v1alpha3
+kind: Capability
+metadata:
+  name: topology.inspect
+  description: Inspect the network topology and report resource status.
+targets: [network]
+layers: [global]
+effects: [topology.read]
+input-schema:
+  type: object
+  properties: {}
+  additionalProperties: false
+output-schema:
+  type: object
+reversible: true
+provider: substrate.observation

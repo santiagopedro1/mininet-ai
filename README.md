@@ -11,7 +11,10 @@ capabilities execute them.
 
 ## Current capabilities
 
-The current specification contract is `mininet-ai/v1alpha2`.
+The current specification contract is `mininet-ai/v1alpha3`. When upgrading
+from `v1alpha2`, update `apiVersion` on the experiment and every agent blueprint
+and capability, then recompile saved deployment plans. See the
+[migration guide](docs/compatibility.md#public-specification-v1alpha2-to-v1alpha3).
 
 - YAML and Python specifications, with inline definitions or external YAML files.
 - Deterministic deployment plans, scoped placement, target selectors, and
@@ -37,9 +40,9 @@ Requires **Python 3.14+** and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync
-uv run mininet-ai validate examples/iperf-throughput/experiment.yaml
-uv run mininet-ai plan examples/iperf-throughput/experiment.yaml
-uv run mininet-ai run examples/iperf-throughput/experiment.yaml --dry-run
+uv run mininet-ai validate examples/getting-started/experiment.yaml
+uv run mininet-ai plan examples/getting-started/experiment.yaml
+uv run mininet-ai run examples/getting-started/experiment.yaml --dry-run
 ```
 
 Validation, planning, and dry runs need neither root access nor a running Mininet
@@ -48,6 +51,7 @@ network or model service. Use `plan --format json` for machine-readable output.
 The maintained [iperf throughput example](examples/iperf-throughput/README.md)
 uses two Ollama-backed host agents to start an iperf server and client across an
 OVS switch. See its guide for model setup, traffic inspection, and limitations.
+For a simpler starting point, see the [getting started example](examples/getting-started/README.md).
 
 ## Running a live experiment
 
@@ -55,25 +59,42 @@ Live Mininet/OVS execution needs Linux networking privileges. Use the disposable
 Vagrant VM:
 
 ```bash
-vagrant up --provision
+vagrant up
 vagrant ssh
 cd /vagrant
 ```
 
-Replace the Ollama endpoint below with one reachable from the VM, with the
-example's `qwen3.5:latest` model available:
+The first `vagrant up` provisions the VM automatically. Subsequent starts reuse
+the provisioned environment; run `vagrant provision` explicitly after changing
+VM provisioning. See [VM environment and image evaluation](docs/vm-environment.md)
+for the base image, bundled tools, and measured startup results.
+
+Set `model.parameters.host` in both example agent blueprints to an endpoint
+reachable from the VM, with the example's `qwen3.5:latest` model available:
+
+```yaml
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://YOUR_OLLAMA_HOST:11434
+```
+
+The explicit host overrides `OLLAMA_HOST`. Omit `parameters.host` to preserve
+Agno/Ollama's environment and default behavior. Keep credentials in environment
+variables, not in the endpoint URL. The checked-in example uses
+`http://localhost:11434`, which requires Ollama inside the VM unless you change it.
 
 ```bash
-sudo env OLLAMA_HOST=http://YOUR_OLLAMA_HOST:11434 \
-  scripts/vm-run.sh mininet-ai run \
+sudo scripts/vm-run.sh mininet-ai run \
   examples/iperf-throughput/experiment.yaml \
   --intent 'iperf-server@server=Start the iperf server on server.' \
   --intent 'iperf-client@client=Run a TCP throughput test against 10.0.0.12.' \
   --verbose
 ```
 
-Pass startup intents as `AGENT=TEXT`, server first. Cross-terminal intent
-submission is not yet supported. Runs remain in the foreground until `Ctrl+C`
+Pass startup intents as `AGENT=TEXT`, server first. Runs remain in the foreground
+until `Ctrl+C`
 or a stop request, then drain accepted work and tear down the network.
 `--stop-after-intents` instead stops after all submitted intents finish;
 for iperf, keep the run alive while observing traffic because process-start
@@ -85,14 +106,116 @@ From another VM terminal:
 cd /vagrant
 sudo scripts/vm-run.sh mininet-ai status <run-id>
 sudo scripts/vm-run.sh mininet-ai topology <run-id>
+sudo scripts/vm-run.sh mininet-ai agents <run-id>
+sudo scripts/vm-run.sh mininet-ai invoke \
+  <run-id> iperf-client@client \
+  --intent 'Run a TCP throughput test against 10.0.0.12.'
 sudo scripts/vm-run.sh mininet-ai stop <run-id>
 ```
 
-`status` and `topology` support `--format json`. Progress is written to
-`.mininet-ai/run.log`; `--verbose` also streams it to stderr. Run history, Agno
-sessions, and shared state are stored in private SQLite files under
-`.mininet-ai/`. Treat these artifacts as sensitive: they may contain prompts and
-observations. Keep model credentials outside experiment YAML.
+`invoke` queues the intent in the foreground owner's scheduler and returns an
+accepted event (`--format json`) or its ID. Acceptance is not execution success;
+follow the owner's log and ledger for completion or failure. Submit only to
+agents with a manual trigger. `agents <run-id>` lists compiled instance IDs and
+whether they accept manual intents; `--format json` includes the run ID, plan
+digest, `agents`, and `manualAgents`. Both commands contact the live owner;
+neither reads or recompiles experiment YAML. Editing the original files does
+not change the running experiment.
+Run both commands as the same OS user on the same machine; default discovery
+works from any working directory. Root uses `/run/mininet-ai/control`; other
+users use `$XDG_RUNTIME_DIR/mininet-ai/control` when configured and valid, or
+`/tmp/mininet-ai-<uid>/control` when unset (regardless of `TMPDIR`). Invalid XDG
+configuration fails rather than falling back. `--control-dir` overrides the base;
+use the same absolute path on all commands. Each endpoint is
+`<base>/<run-id-hash>/control.sock`. Directories are private (0700), sockets are
+0600, and shutdown removes only the owner's socket and empty run directory.
+Restart existing runs after upgrading: the new per-run layout cannot address an
+old flat socket, even with an explicit legacy `--control-dir`. There is no
+automatic retry after a timeout because the owner may have accepted the intent.
+Intents are limited to 8192 characters. Configure databases, models, and plugins
+on `run`, not `invoke`.
+
+`status` and `topology` support `--format json`. Live storage defaults to
+`/var/lib/mininet-ai` for root, or `$XDG_STATE_HOME/mininet-ai` for other users
+(fallback: `~/.local/state/mininet-ai`; relative XDG paths are ignored).
+It is independent of the project directory and the invoking `sudo` user.
+Saved output lives in `<root>/<run-id>/`: `logs/run.log`, `dbs/ledger.sqlite3`,
+`dbs/shared-state.sqlite3`, `dbs/agno.sqlite3`, and an `artifacts/` directory.
+`--artifact-root` changes the saved-output root, not socket discovery. Startup
+prints and logs absolute effective paths; `--verbose` streams progress to stderr.
+Explicit `--log-file`, `--ledger-db`, `--shared-state-db`, and `--agno-db` paths
+remain honored. Existing output is never migrated or deleted, and run directory
+collisions fail. Failed starts retain logs and databases for diagnosis.
+
+When any agent requests `learned.scope: agent`, the default Agno store is instead
+`<artifact-root>/memory/agno.sqlite3`, shared across runs under that root. Agno
+uses one database for both sessions and memory; sessions remain keyed by run,
+while learned memory uses the stable agent identity. Use the same absolute
+artifact root across working directories, or an explicit shared `--agno-db`, to
+reuse agent memory. The new default root is already working-directory independent.
+Old stores in other roots are not discovered or imported; startup announces the
+selected memory path. Run ledgers and shared operational state remain per-run.
+If the legacy `<artifact-root>/agno.sqlite3` exists, agent-scoped memory requires
+an explicit `--agno-db` selection; choose that file to retain previous learning.
+The CLI never silently replaces existing learned memory with a fresh store.
+No multiple-database Agno routing or schema/protocol changes are introduced.
+
+Treat saved artifacts as sensitive: they may contain prompts and observations.
+Keep credentials outside YAML. Private permissions and SQLite locking are still
+required for **live storage**. From `/vagrant`, root automatically uses VM-local
+`/var/lib/mininet-ai`; no storage flags are needed. Explicit unsuitable paths
+fail before deployment and are never silently relocated or repaired.
+Sockets use the local runtime filesystem even when running from `/vagrant`.
+`--dry-run` creates no runtime or saved-output directories.
+
+### Export results to the host
+
+Live SQLite files stay local. To export a finalized run, create the destination
+parent and select a fresh bundle directory:
+
+```bash
+mkdir -p /vagrant/results
+sudo scripts/vm-run.sh mininet-ai export RUN_ID \
+  --destination /vagrant/results/RUN_ID --acknowledge-sensitive-data
+```
+
+The host-readable bundle contains a versioned manifest, run-specific ledger and
+shared-state JSON, log and regular artifacts—not raw databases or Agno sessions/
+memory. Evidence is **not sanitized**; acknowledgment permits weaker destination
+permissions. `EXPORT_COMPLETE` means export finished, not that the experiment
+succeeded. Missing evidence is listed in the manifest and produces a warning.
+Existing destinations are never overwritten; failed exports retain unmarked
+partial output and return nonzero. Shared-mount crash durability is not promised.
+
+Managed export refuses live/unfinalized runs and untracked writers (including
+Python agents, custom plugins/providers and arbitrary `host.process.start`
+capabilities). For those runs and old data, stop all writers, preserve the source,
+prepare consistent private **offline snapshots on local storage**, then use:
+
+```bash
+sudo scripts/vm-run.sh mininet-ai export-offline RUN_ID \
+  --ledger-db /local/snapshot/ledger.sqlite3 \
+  --shared-state-db /local/snapshot/shared-state.sqlite3 \
+  --log-file /local/snapshot/run.log --artifacts-dir /local/snapshot/artifacts \
+  --destination /vagrant/results/RUN_ID \
+  --acknowledge-sensitive-data --acknowledge-offline-consistency
+```
+
+At least one explicit source is required; omitted sources are marked missing.
+This is not a force-live switch or migration command. Never blindly copy an
+active SQLite database, merge memory stores, or chown existing data automatically.
+See [run storage and export](docs/run-logs.md) for coordination and format details.
+
+## Examples
+
+| Example | Description | Substrate | Provider |
+| --- | --- | --- | --- |
+| [Getting Started](examples/getting-started/README.md) | Minimal offline experiment | `fake` | `mock` |
+| [Autonomous Network Operation](examples/autonomous-operation/README.md) | Self-healing network with event triggers, detectors, rollback | `fake` | `mock` |
+| [Hierarchical Routing Coordination](examples/hierarchical-routing/README.md) | Three-tier routing with hierarchical coordination | `mininet-ovs` | `ollama` |
+| [iperf Throughput](examples/iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` |
+
+See the [examples index](examples/README.md) for a feature matrix and progression guide.
 
 ## Writing experiments
 
@@ -153,13 +276,29 @@ sudo scripts/check-mininet-cleanup.sh check
 `scripts/check-mininet-cleanup.sh recover` is an emergency fallback that may
 remove every Mininet/OVS topology on the machine, not just the current run.
 
+Maintained examples in `examples/` are validated and planned as part of the
+test suite (`tests/examples/test_examples.py`). After an intentional compiler
+or specification change, run the tests to verify the examples still compile.
+
 ## Plans
 
-From [TODO.md](TODO.md):
-
-### v1alpha3
-
-- [ ] Support submitting `--intent` from another terminal.
-- [ ] Allow the Ollama host to be specified in the configuration file.
-- [ ] Support noncanonical names in Mininet networks, if possible.
-- [ ] Add better, more practical examples.
+- **Placement isolation**: Run agents in separate processes, host namespaces,
+  or controller/device sidecars, with resource limits and restricted capability
+  proxies. Give logical placement actual execution and isolation semantics.
+- **Research harness**: Add scheduled workloads and fault injection, repeated
+  trials, measurement windows, artifact collection, and result exports. Support
+  replay and comparisons of coordination strategies on the same scenario.
+- **Stronger action safety**: Reject stale actions using resource revisions and
+  add human approval or explicit last-writer-wins policies alongside existing
+  conflict arbitration.
+- **CLI and authoring UX**: Add experiment scaffolding, detailed run inspection,
+  live monitoring, and deployment-plan diffs. Improve validation diagnostics and
+  document editor autocompletion using the exported schemas. Run-only invocation
+  and live agent discovery are already available.
+- **Coordination comparison example**: Run the same network-failure scenario
+  with centralized, hierarchical, and distributed agents, then compare recovery
+  time, model usage, message volume, and action outcomes.
+- **Run logs and artifacts**: Include agent response messages and clearer
+  execution details in logs. Organize logs, databases, and other artifacts under
+  `.mininet-ai/<run-id>/` by default, with dedicated `logs/` and `dbs/` directories
+  to keep runs separate and easier to inspect.

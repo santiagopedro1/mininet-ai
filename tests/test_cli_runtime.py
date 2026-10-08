@@ -9,8 +9,13 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
+from mininet_ai.agents import register_builtin_providers
+from mininet_ai.audit import AuditRecorder, MemoryAuditSink
 from mininet_ai.cli import app
 from mininet_ai.compiler import compile_experiment
+from mininet_ai.experiment import ExperimentRuntime
+from mininet_ai.plugins import ProviderRegistries
+from mininet_ai.runtime.control import IntentServer
 from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 from tests.agents.test_runtime import configured_plan
 from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
@@ -75,8 +80,8 @@ class RuntimeCLITests(unittest.TestCase):
             TemporaryDirectory() as temporary,
             patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
             patch(
-                "mininet_ai.cli.create_substrate_runtime",
-                return_value=runtime,
+                "mininet_ai.cli.reserve_run",
+                return_value=("cli-run", runtime),
             ),
             patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
         ):
@@ -97,8 +102,8 @@ class RuntimeCLITests(unittest.TestCase):
             TemporaryDirectory() as temporary,
             patch("mininet_ai.cli._compile_or_exit", return_value=plan),
             patch(
-                "mininet_ai.cli.create_substrate_runtime",
-                return_value=runtime,
+                "mininet_ai.cli.reserve_run",
+                return_value=("cli-json-run", runtime),
             ),
             patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
         ):
@@ -116,7 +121,7 @@ class RuntimeCLITests(unittest.TestCase):
             )
 
         self.assertEqual(result.exit_code, 0, result.output)
-        report = json.loads(result.output)
+        report = json.loads(result.stdout)
         self.assertEqual(report["state"], "stopped")
         self.assertEqual(report["continuous"]["completed"], 1)
         self.assertEqual(report["continuous"]["failed"], 0)
@@ -126,15 +131,15 @@ class RuntimeCLITests(unittest.TestCase):
         )
 
     def test_run_verbose_streams_progress_and_writes_text_log(self) -> None:
-        plan = configured_plan({"message": "handled"})
+        plan = configured_plan({"message": "handled [bold]literally[/bold]\nnext line"})
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-verbose-run")
         with TemporaryDirectory() as temporary:
             log_path = Path(temporary) / "run.log"
             with (
                 patch("mininet_ai.cli._compile_or_exit", return_value=plan),
                 patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-verbose-run", runtime),
                 ),
                 patch("mininet_ai.cli._SignalLatch.wait", return_value=None),
             ):
@@ -160,8 +165,110 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertIn("Run cli-verbose-run stopped", result.output)
         self.assertIn("Prepared experiment", log)
         self.assertIn("agent.invocation.completed", log)
+        self.assertIn('message="handled [bold]literally[/bold]\\nnext line"', log)
+        self.assertIn("[bold]literally[/bold]", result.stderr)
+        self.assertIn('intent="inspect forwarding"', log)
+        self.assertIn('model="deterministic"', log)
+        self.assertIn("proposals=0", log)
+        self.assertIn("totalTokens=0", log)
         self.assertIn("Run cli-verbose-run stopped", log)
         self.assertEqual(log_mode, 0o600)
+
+    def test_run_logs_capability_execution_details_without_polluting_json(self) -> None:
+        plan = configured_plan(
+            {
+                "proposals": [
+                    {
+                        "id": "install-flow",
+                        "capability": "openflow.flow.install",
+                        "target": "s1",
+                        "arguments": {"match": "ip", "actions": "normal"},
+                        "reason": "restore forwarding",
+                    }
+                ],
+            }
+        )
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-action-run")
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-action-run", runtime),
+                ),
+                patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--stop-after-intents",
+                        "--verbose",
+                        "--format",
+                        "json",
+                        "--intent",
+                        "switch-router@s1=restore forwarding",
+                        *self.run_databases(temporary),
+                    ],
+                )
+            log = (Path(temporary) / "run.log").read_text(encoding="utf-8")
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(json.loads(result.stdout)["continuous"]["completed"], 1)
+        self.assertIn('capability="openflow.flow.install"', log)
+        self.assertIn('target="s1"', log)
+        self.assertIn('id="install-flow"', log)
+        self.assertIn('reason="restore forwarding"', log)
+        self.assertIn('request_id="install-flow"', log)
+        self.assertIn('status="succeeded"', log)
+        self.assertIn("changed=true", log)
+        self.assertIn('status="succeeded"', result.stderr)
+        self.assertNotIn("message=null", log)
+
+    def test_run_logs_rejected_capability_as_error_with_issue_details(self) -> None:
+        plan = configured_plan(
+            {
+                "proposals": [
+                    {
+                        "id": "out-of-scope",
+                        "capability": "openflow.flow.install",
+                        "target": "s2",
+                        "arguments": {"match": "ip", "actions": "normal"},
+                    }
+                ]
+            }
+        )
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-rejected-run")
+        with TemporaryDirectory() as temporary:
+            with (
+                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                patch(
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-rejected-run", runtime),
+                ),
+                patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+            ):
+                result = self.runner.invoke(
+                    app,
+                    [
+                        "run",
+                        "experiment.yaml",
+                        "--stop-after-intents",
+                        "--intent",
+                        "switch-router@s1=install flow",
+                        *self.run_databases(temporary),
+                    ],
+                )
+            log = (Path(temporary) / "run.log").read_text(encoding="utf-8")
+
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn('status="rejected"', log)
+        self.assertIn('code="capability.target.out-of-scope"', log)
+        self.assertIn(
+            ' ERROR run_id="cli-rejected-run" capability.execution.completed:', log
+        )
+        self.assertIn('request_id="out-of-scope"', log)
 
     def test_run_reports_invocation_failure_live_and_stops_automatically(self) -> None:
         plan = configured_plan({"metadata": {}})
@@ -171,8 +278,8 @@ class RuntimeCLITests(unittest.TestCase):
             with (
                 patch("mininet_ai.cli._compile_or_exit", return_value=plan),
                 patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-failed-run", runtime),
                 ),
                 patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
             ):
@@ -194,7 +301,7 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertNotIsInstance(result.exception, TimeoutError)
         self.assertIn("agent.agno.deterministic-response-invalid", result.output)
         self.assertIn("agent.agno.deterministic-response-invalid", log)
-        self.assertIn(" ERROR agent.invocation.failed:", log)
+        self.assertIn(' ERROR run_id="cli-failed-run" agent.invocation.failed:', log)
         self.assertLess(
             log.index("agent.agno.deterministic-response-invalid"),
             log.index("Stop requested; draining work and tearing down"),
@@ -209,8 +316,8 @@ class RuntimeCLITests(unittest.TestCase):
             with (
                 patch("mininet_ai.cli._compile_or_exit", return_value=plan),
                 patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
+                    "mininet_ai.cli.reserve_run",
+                    return_value=("cli-intents-run", runtime),
                 ),
                 patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
             ):
@@ -248,8 +355,8 @@ class RuntimeCLITests(unittest.TestCase):
             TemporaryDirectory() as temporary,
             patch("mininet_ai.cli._compile_or_exit", return_value=self.plan),
             patch(
-                "mininet_ai.cli.create_substrate_runtime",
-                return_value=runtime,
+                "mininet_ai.cli.reserve_run",
+                return_value=("cli-broken-output", runtime),
             ),
             patch("mininet_ai.cli.console.print", side_effect=BrokenPipeError),
         ):
@@ -268,6 +375,8 @@ class RuntimeCLITests(unittest.TestCase):
     def run_databases(directory: str) -> list[str]:
         root = Path(directory)
         return [
+            "--artifact-root",
+            str(root / "output"),
             "--ledger-db",
             str(root / "ledger.sqlite3"),
             "--agno-db",
@@ -276,6 +385,8 @@ class RuntimeCLITests(unittest.TestCase):
             str(root / "state.sqlite3"),
             "--log-file",
             str(root / "run.log"),
+            "--control-dir",
+            str(root / "control"),
         ]
 
     def test_status_supports_text_and_machine_readable_output(self) -> None:
@@ -359,7 +470,7 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)
         self.assertIn("runtime.run.unknown", result.output)
 
-    def test_invoke_runs_one_agent_and_writes_audit_json_lines(self) -> None:
+    def test_invoke_queues_in_owner_and_owner_executes_authorized_action(self) -> None:
         plan = configured_plan(
             {
                 "message": "install a safe rule",
@@ -374,126 +485,180 @@ class RuntimeCLITests(unittest.TestCase):
             }
         )
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-agent-run")
-        run = runtime.deploy(plan)
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, runtime)
+        sink = MemoryAuditSink()
+        owner = ExperimentRuntime(plan, runtime, registries, audit=AuditRecorder(sink))
+        run = owner.start()
         with TemporaryDirectory() as temporary:
-            audit_path = Path(temporary) / "audit" / "events.jsonl"
+            control_dir = Path(temporary) / "control"
             with (
-                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
                 patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
-                ),
+                    "mininet_ai.cli._compile_or_exit",
+                    side_effect=AssertionError("must not compile YAML"),
+                ) as compile,
+                IntentServer(owner, control_dir),
+                patch("mininet_ai.cli.create_substrate_runtime") as create,
+                patch("mininet_ai.cli.discover_plugins") as discover,
             ):
                 result = self.runner.invoke(
                     app,
                     [
                         "invoke",
-                        "experiment.yaml",
                         run.id,
                         "switch-router@s1",
                         "--intent",
                         "repair forwarding",
+                        "--control-dir",
+                        str(control_dir),
                         "--audit-log",
-                        str(audit_path),
+                        str(Path(temporary) / "unused-audit.jsonl"),
                         "--agno-db",
-                        str(Path(temporary) / "agno.sqlite3"),
+                        str(Path(temporary) / "unused-agno.sqlite3"),
                         "--shared-state-db",
-                        str(Path(temporary) / "state.sqlite3"),
+                        str(Path(temporary) / "unused-state.sqlite3"),
+                        "--discover-plugins",
                         "--format",
                         "json",
                     ],
                 )
 
             self.assertEqual(result.exit_code, 0, result.output)
-            payload = json.loads(result.output)
-            self.assertEqual(payload["status"], "succeeded")
-            self.assertEqual(payload["actionResults"][0]["status"], "succeeded")
-            records = [
-                json.loads(line)
-                for line in audit_path.read_text(encoding="utf-8").splitlines()
-            ]
-            self.assertEqual(records[0]["type"], "agent.invocation.started")
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["type"], "intent.manual")
+            self.assertEqual(payload["payload"]["intent"], "repair forwarding")
+            create.assert_not_called()
+            compile.assert_not_called()
+            discover.assert_not_called()
+            self.assertIn("Deprecated invoke configuration options", result.stderr)
+            self.assertFalse((Path(temporary) / "unused-audit.jsonl").exists())
+            self.assertFalse((Path(temporary) / "unused-agno.sqlite3").exists())
+            self.assertFalse((Path(temporary) / "unused-state.sqlite3").exists())
+            report = owner.stop()
+            self.assertEqual(report.continuous.completed, 1)
+            invocation = report.continuous.invocations[0]
             self.assertEqual(
-                records[-1]["type"],
+                invocation.result.action_results[0].status.value, "succeeded"
+            )
+            self.assertIn(
                 "capability.execution.completed",
+                [event.type.value for event in sink.events],
             )
 
-    def test_invoke_prints_failed_result_and_returns_nonzero(self) -> None:
+    def test_invoke_without_owner_returns_nonzero_without_creating_runtime(
+        self,
+    ) -> None:
         plan = configured_plan({"metadata": {}})
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-failed-agent")
         run = runtime.deploy(plan)
-        with TemporaryDirectory() as temporary:
-            audit_path = Path(temporary) / "audit.jsonl"
-            with (
-                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
-                patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
-                ),
-            ):
-                result = self.runner.invoke(
-                    app,
-                    [
-                        "invoke",
-                        "experiment.yaml",
-                        run.id,
-                        "switch-router@s1",
-                        "--intent",
-                        "inspect",
-                        "--audit-log",
-                        str(audit_path),
-                        "--agno-db",
-                        str(Path(temporary) / "agno.sqlite3"),
-                        "--shared-state-db",
-                        str(Path(temporary) / "state.sqlite3"),
-                        "--format",
-                        "json",
-                    ],
-                )
+        with (
+            TemporaryDirectory() as temporary,
+            patch(
+                "mininet_ai.cli._compile_or_exit",
+                side_effect=AssertionError("must not compile YAML"),
+            ) as compile,
+            patch("mininet_ai.cli.create_substrate_runtime") as create,
+        ):
+            result = self.runner.invoke(
+                app,
+                [
+                    "invoke",
+                    run.id,
+                    "switch-router@s1",
+                    "--intent",
+                    "inspect",
+                    "--control-dir",
+                    str(Path(temporary) / "control"),
+                    "--format",
+                    "json",
+                ],
+            )
 
         self.assertEqual(result.exit_code, 1)
-        payload = json.loads(result.output)
-        self.assertEqual(payload["status"], "failed")
-        self.assertEqual(
-            payload["issue"]["code"],
-            "agent.agno.deterministic-response-invalid",
-        )
+        self.assertIn("runtime.control.unavailable", result.output)
+        self.assertIn("could not contact run", result.output)
+        self.assertNotIn("could not submit intent", result.output)
+        create.assert_not_called()
+        compile.assert_not_called()
 
-    def test_invoke_discovers_plugins_only_when_requested(self) -> None:
+    def test_invoke_rejects_unknown_agent_in_owner(self) -> None:
         plan = configured_plan({"message": "done"})
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-plugins")
-        run = runtime.deploy(plan)
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, runtime)
+        owner = ExperimentRuntime(plan, runtime, registries)
+        run = owner.start()
         with TemporaryDirectory() as temporary:
-            audit_path = Path(temporary) / "audit.jsonl"
+            control_dir = Path(temporary) / "control"
             with (
-                patch("mininet_ai.cli._compile_or_exit", return_value=plan),
-                patch(
-                    "mininet_ai.cli.create_substrate_runtime",
-                    return_value=runtime,
-                ),
-                patch("mininet_ai.cli.discover_plugins", return_value=()) as discover,
+                IntentServer(owner, control_dir),
             ):
                 result = self.runner.invoke(
                     app,
                     [
                         "invoke",
-                        "experiment.yaml",
                         run.id,
-                        "switch-router@s1",
+                        "missing-agent",
                         "--intent",
                         "inspect",
-                        "--audit-log",
-                        str(audit_path),
-                        "--agno-db",
-                        str(Path(temporary) / "agno.sqlite3"),
-                        "--shared-state-db",
-                        str(Path(temporary) / "state.sqlite3"),
-                        "--discover-plugins",
+                        "--control-dir",
+                        str(control_dir),
                     ],
                 )
 
-        self.assertEqual(result.exit_code, 0, result.output)
-        discover.assert_called_once()
+        report = owner.stop()
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertIn("experiment.intent.invalid-agent", result.output)
+        self.assertEqual(report.continuous.completed, 0)
+
+    def test_agents_discovers_live_instances_in_text_and_json(self) -> None:
+        plan = configured_plan({"message": "done"})
+        runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-agents")
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, runtime)
+        owner = ExperimentRuntime(plan, runtime, registries)
+        run = owner.start()
+        self.addCleanup(owner.stop)
+        with TemporaryDirectory() as temporary:
+            control = Path(temporary) / "control"
+            with (
+                IntentServer(owner, control),
+                patch(
+                    "mininet_ai.cli._compile_or_exit",
+                    side_effect=AssertionError("must not compile YAML"),
+                ),
+                patch("mininet_ai.cli.create_substrate_runtime") as create,
+            ):
+                args = ["agents", run.id, "--control-dir", str(control)]
+                text_result = self.runner.invoke(app, args)
+                json_result = self.runner.invoke(app, [*args, "--format", "json"])
+                self.assertEqual(text_result.exit_code, 0, text_result.output)
+                self.assertIn("switch-router@s1", text_result.stdout)
+                self.assertIn("Manual intents", text_result.stdout)
+                self.assertEqual(json_result.exit_code, 0, json_result.output)
+                payload = json.loads(json_result.stdout)
+                self.assertEqual(payload["runId"], run.id)
+                self.assertEqual(payload["planDigest"], plan.digest)
+                self.assertEqual(payload["agents"], list(owner.agent_ids))
+                self.assertEqual(payload["manualAgents"], list(owner.manual_agent_ids))
+                create.assert_not_called()
+        self.assertEqual(owner.stop().continuous.completed, 0)
+
+    def test_agents_without_owner_returns_nonzero(self) -> None:
+        with TemporaryDirectory() as temporary:
+            result = self.runner.invoke(
+                app,
+                [
+                    "agents",
+                    "missing-run",
+                    "--control-dir",
+                    str(Path(temporary) / "control"),
+                ],
+            )
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("runtime.control.unavailable", result.output)
+        self.assertIn("could not contact run", result.output)
+        self.assertNotIn("could not submit intent", result.output)
 
 
 if __name__ == "__main__":

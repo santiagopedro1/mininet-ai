@@ -26,7 +26,7 @@ from mininet_ai.specification.models import (
     Trigger,
 )
 
-DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha2:deployment-plan"
+DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha3:deployment-plan"
 
 
 class PlannedResourceBase(StrictModel):
@@ -63,6 +63,7 @@ class PlannedControllerDomain(PlannedResourceBase):
 
 class PlannedSwitch(PlannedResourceBase):
     kind: Literal[ResourceKind.SWITCH]
+    dpid: str
     fail_mode: SwitchFailMode = Field(alias="failMode")
     datapath: SwitchDatapath
     controllers: tuple[str, ...]
@@ -158,7 +159,7 @@ class DeploymentPlan(StrictModel):
         },
     )
 
-    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
     kind: Literal["DeploymentPlan"] = "DeploymentPlan"
     metadata: Metadata
     source: str = Field(min_length=1)

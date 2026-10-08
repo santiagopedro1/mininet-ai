@@ -1,4 +1,4 @@
-"""The ``mininet-ai/v1alpha2`` public schema.
+"""The ``mininet-ai/v1alpha3`` public schema.
 
 The models intentionally describe logical placement. Process isolation and real
 network attachment are substrate/runtime concerns introduced in later phases.
@@ -10,19 +10,22 @@ import re
 from enum import StrEnum
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    HttpUrl,
     JsonValue,
+    TypeAdapter,
     field_validator,
     model_validator,
 )
 
 from mininet_ai.durations import duration_seconds
 
-API_VERSION: Literal["mininet-ai/v1alpha2"] = "mininet-ai/v1alpha2"
+API_VERSION: Literal["mininet-ai/v1alpha3"] = "mininet-ai/v1alpha3"
 NAME_PATTERN = r"^[a-zA-Z][a-zA-Z0-9_.-]*$"
 
 
@@ -160,11 +163,23 @@ class SwitchDatapath(StrEnum):
 
 class SwitchResource(ResourceBase):
     kind: Literal[ResourceKind.SWITCH]
+    dpid: str | None = None
     fail_mode: SwitchFailMode = Field(default=SwitchFailMode.SECURE, alias="failMode")
     datapath: SwitchDatapath = SwitchDatapath.KERNEL
     controllers: list[Name] = Field(default_factory=list)
     protocols: list[OpenFlowProtocol] = Field(default_factory=list)
     ports: list[SwitchPort] = Field(default_factory=list)
+
+    @field_validator("dpid")
+    @classmethod
+    def valid_dpid(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not re.fullmatch(r"[0-9a-fA-F]{1,16}", value):
+            raise ValueError("DPID must contain 1 to 16 hexadecimal digits")
+        if int(value, 16) == 0:
+            raise ValueError("DPID must be non-zero")
+        return value.lower().zfill(16)
 
 
 class HostResource(ResourceBase):
@@ -262,10 +277,38 @@ class Implementation(StrictModel):
         return self
 
 
+_HTTP_ENDPOINT = TypeAdapter(HttpUrl)
+
+
+def validate_ollama_host(value: object) -> str:
+    """Validate an explicit endpoint without normalizing serialized input."""
+    if not isinstance(value, str) or not value or any(
+        char.isspace() or ord(char) < 32 or ord(char) == 127 or char == "\\"
+        for char in value
+    ):
+        raise ValueError("Ollama host must be a non-empty HTTP/HTTPS URL")
+    try:
+        parsed = urlsplit(value)
+        _HTTP_ENDPOINT.validate_python(value)
+    except ValueError as error:
+        raise ValueError("Ollama host must be a valid HTTP/HTTPS URL") from error
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Ollama host must be an HTTP/HTTPS URL with a hostname")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("Ollama host must not contain credentials; use environment variables")
+    return value
+
+
 class ModelConfiguration(StrictModel):
     provider: Name
     name: str = Field(min_length=1)
     parameters: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def ollama_host_is_valid(self) -> ModelConfiguration:
+        if self.provider == "ollama" and "host" in self.parameters:
+            validate_ollama_host(self.parameters["host"])
+        return self
 
 
 class ReasoningConfiguration(StrictModel):
@@ -322,7 +365,7 @@ class MemoryConfiguration(StrictModel):
 
 
 class AgentBlueprint(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
     kind: Literal["AgentBlueprint"]
     metadata: Metadata
     implementation: Implementation = Field(default_factory=Implementation)
@@ -363,7 +406,7 @@ class CapabilityRollbackConfiguration(StrictModel):
 
 
 class CapabilityDefinition(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
     kind: Literal["Capability"]
     metadata: Metadata
     targets: list[ResourceKind] = Field(min_length=1)
@@ -628,7 +671,7 @@ class ResourceLimits(StrictModel):
 
 
 class Experiment(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha2"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
     kind: Literal["Experiment"]
     metadata: Metadata
     substrate: Substrate

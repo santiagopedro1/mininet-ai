@@ -88,7 +88,9 @@ class _AdapterDraft:
     mac: str | None = None
 
 
-def _planned_node(resource: TopologyResource) -> PlannedResource:
+def _planned_node(
+    resource: TopologyResource, switch_dpids: dict[str, str]
+) -> PlannedResource:
     common = {
         "name": resource.name,
         "kind": resource.kind,
@@ -117,6 +119,7 @@ def _planned_node(resource: TopologyResource) -> PlannedResource:
     if isinstance(resource, SwitchResource):
         return PlannedSwitch(
             **common,
+            dpid=switch_dpids[resource.name],
             failMode=resource.fail_mode,
             datapath=resource.datapath,
             controllers=tuple(resource.controllers),
@@ -148,9 +151,7 @@ def _validate_resource_graph(
         current: str | None = resource_name
         while current in parents:
             if current in chain:
-                raise CompilationError(
-                    f"resource parent cycle detected at {current!r}"
-                )
+                raise CompilationError(f"resource parent cycle detected at {current!r}")
             chain.add(current)
             current = parents[current]
 
@@ -185,7 +186,9 @@ def _declare_adapters(
 
     def register(adapter: _AdapterDraft) -> None:
         if adapter.name in reserved_names:
-            raise CompilationError(f"duplicate resource or adapter name: {adapter.name!r}")
+            raise CompilationError(
+                f"duplicate resource or adapter name: {adapter.name!r}"
+            )
         reserved_names.add(adapter.name)
         adapters[adapter.name] = adapter
         by_owner[adapter.owner].append(adapter)
@@ -305,8 +308,7 @@ def _resolve_links(
                     )
                 if adapter.owner != endpoint.node:
                     raise CompilationError(
-                        f"adapter {adapter.name!r} does not belong to "
-                        f"{endpoint.node!r}"
+                        f"adapter {adapter.name!r} does not belong to {endpoint.node!r}"
                     )
             else:
                 adapter = next(
@@ -411,9 +413,12 @@ def _allocate_addresses(
         if adapter.mac is not None:
             continue
         for suffix in range(1, 0x1000000):
-            candidate_mac = prefix + ":" + ":".join(
-                f"{octet:02x}"
-                for octet in suffix.to_bytes(3, byteorder="big")
+            candidate_mac = (
+                prefix
+                + ":"
+                + ":".join(
+                    f"{octet:02x}" for octet in suffix.to_bytes(3, byteorder="big")
+                )
             )
             if candidate_mac not in used_macs:
                 break
@@ -421,6 +426,46 @@ def _allocate_addresses(
             raise CompilationError(f"MAC allocation prefix {prefix} is exhausted")
         adapter.mac = candidate_mac
         used_macs[candidate_mac] = adapter.name
+
+
+def _allocate_switch_dpids(nodes: Iterable[TopologyResource]) -> dict[str, str]:
+    """Reserve fixed IDs before allocating name-based IDs in stable order."""
+    switches = sorted(
+        (node for node in nodes if isinstance(node, SwitchResource)),
+        key=lambda switch: switch.name,
+    )
+    maximum = (1 << 64) - 1
+    allocated: dict[str, str] = {}
+    owners: dict[int, str] = {}
+    for switch in switches:
+        if switch.dpid is not None:
+            value = int(switch.dpid, 16)
+        elif re.fullmatch(r"s[0-9]+", switch.name):
+            value = int(switch.name[1:])
+            if not 0 < value <= maximum:
+                continue
+        else:
+            continue
+        if value in owners:
+            raise CompilationError(
+                f"switches {owners[value]!r} and {switch.name!r} share "
+                f"DPID {value:016x}"
+            )
+        owners[value] = switch.name
+        allocated[switch.name] = f"{value:016x}"
+
+    for switch in switches:
+        if switch.name in allocated:
+            continue
+        value = (
+            int.from_bytes(hashlib.sha256(switch.name.encode()).digest()[:8], "big")
+            or 1
+        )
+        while value in owners:
+            value = value % maximum + 1
+        owners[value] = switch.name
+        allocated[switch.name] = f"{value:016x}"
+    return allocated
 
 
 def _build_resources(loaded: LoadedExperiment) -> tuple[PlannedResource, ...]:
@@ -433,13 +478,12 @@ def _build_resources(loaded: LoadedExperiment) -> tuple[PlannedResource, ...]:
     reserved_names = set(nodes)
     _validate_resource_graph(loaded, nodes, reserved_names)
     adapters, by_owner = _declare_adapters(loaded, reserved_names)
-    links = _resolve_links(
-        loaded, nodes, adapters, by_owner, reserved_names
-    )
+    links = _resolve_links(loaded, nodes, adapters, by_owner, reserved_names)
     _allocate_addresses(loaded, adapters)
+    switch_dpids = _allocate_switch_dpids(nodes.values())
 
     resources: list[PlannedResource] = [
-        _planned_node(resource) for resource in loaded.topology.resources
+        _planned_node(resource, switch_dpids) for resource in loaded.topology.resources
     ]
     resources.extend(
         PlannedPort(
@@ -458,7 +502,9 @@ def _build_resources(loaded: LoadedExperiment) -> tuple[PlannedResource, ...]:
     return tuple(sorted(resources, key=lambda item: (item.kind.value, item.name)))
 
 
-def _select(deployment: AgentDeployment, resources: tuple[PlannedResource, ...]) -> list[PlannedResource]:
+def _select(
+    deployment: AgentDeployment, resources: tuple[PlannedResource, ...]
+) -> list[PlannedResource]:
     selector = deployment.placement.targets
     selected = [resource for resource in resources if resource.kind == selector.kind]
     if selector.names:
@@ -472,7 +518,9 @@ def _select(deployment: AgentDeployment, resources: tuple[PlannedResource, ...])
             )
         selected = [resource for resource in selected if resource.name in requested]
     for key, value in selector.match_labels.items():
-        selected = [resource for resource in selected if resource.labels.get(key) == value]
+        selected = [
+            resource for resource in selected if resource.labels.get(key) == value
+        ]
     if not selected:
         raise CompilationError(
             f"agent {deployment.name!r} selector matched no {selector.kind.value} resources"
@@ -497,8 +545,7 @@ def _target_groups(
         return [(deployment.name, (selected[0],))]
     if cardinality == Cardinality.PER_TARGET:
         return [
-            (f"{deployment.name}@{resource.name}", (resource,))
-            for resource in selected
+            (f"{deployment.name}@{resource.name}", (resource,)) for resource in selected
         ]
 
     label = deployment.placement.group_by
@@ -559,9 +606,7 @@ def _compile_instances(
                 f"agent {deployment.name!r} has duplicate observation policies: "
                 + ", ".join(duplicate_policies)
             )
-        undeclared_policies = sorted(
-            set(policy_observations) - set(deployment.observe)
-        )
+        undeclared_policies = sorted(set(policy_observations) - set(deployment.observe))
         if undeclared_policies:
             raise CompilationError(
                 "observation policy references undeclared observation "
@@ -603,8 +648,7 @@ def _compile_instances(
                 )
                 if issues:
                     raise CompilationError(
-                        f"agent {deployment.name!r}: "
-                        f"{_format_substrate_issues(issues)}"
+                        f"agent {deployment.name!r}: {_format_substrate_issues(issues)}"
                     )
 
             privileges: set[str] = set()
@@ -682,10 +726,14 @@ def _coordination(
 
     if spec.mode == CoordinationMode.CENTRALIZED:
         if spec.coordinator not in known:
-            raise CompilationError(f"unknown coordinator deployment: {spec.coordinator!r}")
+            raise CompilationError(
+                f"unknown coordinator deployment: {spec.coordinator!r}"
+            )
         coordinators = by_deployment[spec.coordinator]
         if len(coordinators) != 1:
-            raise CompilationError("centralized coordinator must compile to one instance")
+            raise CompilationError(
+                "centralized coordinator must compile to one instance"
+            )
         coordinator = coordinators[0]
         for target in instances:
             if target.id != coordinator.id:
@@ -755,7 +803,9 @@ def _snapshot(loaded: LoadedExperiment) -> dict[str, object]:
     ]
     experiment["capabilityDefinitions"] = [
         capability.model_dump(by_alias=True, mode="json")
-        for capability in sorted(loaded.capabilities, key=lambda item: item.metadata.name)
+        for capability in sorted(
+            loaded.capabilities, key=lambda item: item.metadata.name
+        )
     ]
     return experiment
 
@@ -802,15 +852,13 @@ def compile_experiment(
         raise CompilationError(
             f"substrate {driver.name!r}: {_format_substrate_issues(resource_issues)}"
         )
-    instances = _compile_instances(
-        loaded, resources, blueprints, capabilities, driver
-    )
+    instances = _compile_instances(loaded, resources, blueprints, capabilities, driver)
     coordination = _coordination(loaded, resources, instances)
     snapshot = _snapshot(loaded)
     canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
     digest = f"sha256:{hashlib.sha256(canonical.encode()).hexdigest()}"
     return DeploymentPlan(
-        apiVersion="mininet-ai/v1alpha2",
+        apiVersion="mininet-ai/v1alpha3",
         metadata=loaded.experiment.metadata,
         source=str(loaded.source),
         digest=digest,

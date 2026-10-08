@@ -9,6 +9,7 @@ from typing import Any, ClassVar, cast
 from unittest.mock import patch
 
 from mininet_ai.compiler import compile_experiment
+from mininet_ai.compiler.models import PlannedSwitch
 from mininet_ai.errors import RuntimeOperationError
 from mininet_ai.substrates import (
     ActionRequest,
@@ -33,7 +34,11 @@ from mininet_ai.substrates.mininet_ovs.state import (
     RunStateStore,
     StateStoreError,
 )
-from tests.compiler.helpers import compiler_multilayer_snapshot, experiment_from
+from tests.compiler.helpers import (
+    compiler_multilayer_snapshot,
+    experiment_from,
+    switch_experiment,
+)
 from tests.substrates.runtime_contract import SubstrateRuntimeContract
 
 
@@ -125,9 +130,7 @@ class RecordingNetwork:
     ) -> RecordingLink:
         link = RecordingLink(parameters["intfName1"], parameters["intfName2"])
         self.links.append(link)
-        self.link_calls.append(
-            {"left": left.name, "right": right.name, **parameters}
-        )
+        self.link_calls.append({"left": left.name, "right": right.name, **parameters})
         return link
 
     def get(self, name: str) -> RecordingNode:
@@ -170,10 +173,7 @@ class RecordingObservations:
         )
 
     def collect(self, query: ObservationQuery) -> dict[str, Any]:
-        return {
-            target: {"observation": query.name}
-            for target in query.targets
-        }
+        return {target: {"observation": query.name} for target in query.targets}
 
 
 class FailingObservations(RecordingObservations):
@@ -188,9 +188,7 @@ class DegradedObservations(RecordingObservations):
     def snapshot(self) -> tuple[LiveResource, ...]:
         resources = super().snapshot()
         return (
-            resources[0].model_copy(
-                update={"state": ResourceOperationalState.DOWN}
-            ),
+            resources[0].model_copy(update={"state": ResourceOperationalState.DOWN}),
             *resources[1:],
         )
 
@@ -293,9 +291,7 @@ def recording_runtime(
     if state_store is None:
         state_store = temporary_store(test_case)
     if persisted_observation_factory is None:
-        persisted_observation_factory = lambda plan: RecordingObservations(
-            plan, None
-        )
+        persisted_observation_factory = lambda plan: RecordingObservations(plan, None)
     return MininetOVSRuntime(
         clock=IncrementingClock(),
         run_id_factory=lambda: "mininet-test-run",
@@ -329,6 +325,29 @@ class MininetOVSRuntimeTests(unittest.TestCase):
 
         self.assertIsInstance(runtime, MininetOVSRuntime)
 
+    def test_controller_free_secure_switches_do_not_wait_for_a_controller(self) -> None:
+        plan = compile_experiment(
+            Path(__file__).parents[2] / "examples/hierarchical-routing/experiment.yaml"
+        )
+        runtime = recording_runtime(self, UnhealthyRecordingNetwork)
+        run = runtime.deploy(plan)
+        network = UnhealthyRecordingNetwork.instances[-1]
+        self.assertEqual(network.controllers, [])
+        self.assertEqual(network.wait_calls, [])
+        self.assertTrue(all(node.start_calls == [[]] for node in network.switches))
+        runtime.teardown(run.id)
+
+    def test_interrupted_start_rolls_back_network(self) -> None:
+        runtime = recording_runtime(self)
+        with (
+            patch.object(runtime, "_start_network", side_effect=KeyboardInterrupt),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            runtime.deploy(self.plan)
+        self.assertTrue(RecordingNetwork.instances[-1].stopped)
+        with self.assertRaises(RuntimeOperationError):
+            runtime.inspect("mininet-test-run")
+
     def test_deploy_translates_the_complete_plan_deterministically(self) -> None:
         runtime = recording_runtime(self)
 
@@ -348,15 +367,14 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertEqual(controller.start_calls, [None])
 
         switch = network.get("s1")
+        self.assertEqual(switch.parameters["dpid"], "0000000000000001")
         self.assertEqual(switch.parameters["failMode"], "secure")
         self.assertEqual(switch.parameters["datapath"], "kernel")
         self.assertEqual(switch.parameters["protocols"], "OpenFlow13")
         self.assertEqual(switch.start_calls, [[controller]])
 
         host_link = next(
-            call
-            for call in network.link_calls
-            if call["intfName1"] == "h1-eth0"
+            call for call in network.link_calls if call["intfName1"] == "h1-eth0"
         )
         self.assertEqual((host_link["left"], host_link["right"]), ("h1", "s1"))
         self.assertEqual((host_link["port1"], host_link["port2"]), (0, 1))
@@ -375,6 +393,24 @@ class MininetOVSRuntimeTests(unittest.TestCase):
             for interface in (link.intf1, link.intf2)
         ]
         self.assertTrue(all(calls == [("mtu", "1500")] for calls in mtu_calls))
+
+    def test_deploy_noncanonical_switch_with_automatic_interfaces(self) -> None:
+        snapshot = switch_experiment("edge-sw").model_dump(by_alias=True, mode="json")
+        topology = snapshot["substrate"]["topology"]
+        topology["resources"].append({"name": "client", "kind": "host"})
+        topology["links"] = [
+            {"name": "uplink", "endpoints": [{"node": "client"}, {"node": "edge-sw"}]}
+        ]
+        plan = compile_experiment(experiment_from(snapshot))
+        runtime = recording_runtime(self)
+        runtime.deploy(plan)
+        network = RecordingNetwork.instances[-1]
+        switch = network.get("edge-sw")
+        planned = next(item for item in plan.resources if item.name == "edge-sw")
+        assert isinstance(planned, PlannedSwitch)
+        self.assertEqual(switch.parameters["dpid"], planned.dpid)
+        self.assertEqual(network.link_calls[0]["intfName2"], "edge-sw-eth1")
+        self.assertEqual(network.link_calls[0]["intfName1"], "client-eth0")
 
     def test_failed_health_check_rolls_back_all_created_resources(self) -> None:
         runtime = recording_runtime(self, UnhealthyRecordingNetwork)
@@ -601,7 +637,8 @@ class MininetOVSRuntimeTests(unittest.TestCase):
             patch(
                 "mininet_ai.substrates.mininet_ovs.runtime.time.monotonic",
                 side_effect=[0, 31],
-            ),self.assertRaises(RuntimeOperationError) as context
+            ),
+            self.assertRaises(RuntimeOperationError) as context,
         ):
             controller.request_stop(run.id, timeout_seconds=30)
 

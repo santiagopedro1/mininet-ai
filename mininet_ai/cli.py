@@ -15,25 +15,27 @@ from types import FrameType
 from typing import Annotated, Self, cast
 
 import typer
+from pydantic import JsonValue
 from rich.console import Console
 from rich.table import Table
 
 from mininet_ai.agents import (
     AgnoAgentFactory,
-    OneShotAgentRuntime,
     register_builtin_providers,
 )
+from mininet_ai.artifacts import default_artifact_root, reserve_artifacts
 from mininet_ai.audit import (
     AuditEvent,
     AuditEventType,
     AuditRecorder,
-    JsonLinesAuditSink,
 )
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
 from mininet_ai.errors import MininetAIError
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
+from mininet_ai.exports import export_managed, export_offline
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
+from mininet_ai.run_setup import reserve_run
 from mininet_ai.runtime import (
     ContinuousInvocationRecord,
     LedgerAuditSink,
@@ -42,7 +44,12 @@ from mininet_ai.runtime import (
     SQLiteRunLedger,
     SQLiteSharedStateStore,
 )
-from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
+from mininet_ai.runtime.control import (
+    DEFAULT_CONTROL_DIRECTORY,
+    IntentClient,
+    IntentServer,
+)
+from mininet_ai.saved_runs import RunEvidence
 from mininet_ai.specification import (
     AgentBlueprint,
     CapabilityDefinition,
@@ -80,9 +87,10 @@ class _RunLogError(MininetAIError):
 class _RunProgress:
     """Mirror run progress to an owner-only log and optionally stderr."""
 
-    def __init__(self, path: Path, *, verbose: bool) -> None:
+    def __init__(self, path: Path, *, verbose: bool, run_id: str | None = None) -> None:
         self.path = path
         self._verbose = verbose
+        self._run_identity = json.dumps(run_id)
         descriptor: int | None = None
         try:
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -92,6 +100,7 @@ class _RunProgress:
             metadata = os.fstat(descriptor)
             if (
                 not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
                 or stat.S_IMODE(metadata.st_mode) & 0o077
             ):
                 raise _RunLogError(f"run log {path} must be an owner-only regular file")
@@ -115,32 +124,77 @@ class _RunProgress:
         self._logger.setLevel(logging.INFO)
         self._logger.propagate = False
         handler = logging.StreamHandler(self._stream)
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)s run_id=%(run_identity)s %(message)s"
+            )
+        )
         self._logger.addHandler(handler)
 
     def info(self, message: str) -> None:
-        self._logger.info(message)
+        self._logger.info(
+            message.replace("\n", "\\n"), extra={"run_identity": self._run_identity}
+        )
         if self._verbose:
-            error_console.print(f"[dim]•[/dim] {message}")
+            error_console.print(f"• {message}", markup=False, highlight=False)
 
     def error(self, message: str) -> None:
-        self._logger.error(message)
+        self._logger.error(
+            message.replace("\n", "\\n"), extra={"run_identity": self._run_identity}
+        )
         if self._verbose:
-            error_console.print(f"[bold red]×[/bold red] {message}")
+            error_console.print(f"× {message}", markup=False, highlight=False)
 
     def audit(self, event: AuditEvent) -> None:
         message = (
-            f"{event.type.value}: agent={event.agent_id} "
+            f"{event.type.value}: run={event.run_id} agent={event.agent_id} "
             f"invocation={event.invocation_id}"
         )
-        if event.type in _FAILED_AUDIT_EVENTS:
-            code = event.data.get("code")
-            detail = event.data.get("message")
-            if isinstance(code, str) and code:
-                message += f" code={code}"
-            if isinstance(detail, str) and detail:
-                message += f" message={detail}"
-        if event.type in _FAILED_AUDIT_EVENTS:
+        details: dict[str, JsonValue] = {}
+
+        def include(value: JsonValue, *keys: str) -> None:
+            if isinstance(value, dict):
+                for key in keys:
+                    if key in value and value[key] is not None:
+                        details[key] = value[key]
+
+        if event.type == AuditEventType.AGENT_STARTED:
+            include(event.data.get("context"), "intent")
+        elif event.type == AuditEventType.AGENT_COMPLETED:
+            response = event.data.get("response")
+            include(response, "message")
+            if isinstance(response, dict):
+                for key in ("proposals", "delegations", "sharedStateUpdates"):
+                    values = response.get(key)
+                    if isinstance(values, list):
+                        details[key] = len(values)
+            runtime = event.data.get("runtime")
+            include(runtime, "model", "modelProvider", "agnoRunId", "sessionId")
+            if isinstance(runtime, dict):
+                include(
+                    runtime.get("metrics"),
+                    "durationSeconds",
+                    "inputTokens",
+                    "outputTokens",
+                    "totalTokens",
+                )
+        elif event.type == AuditEventType.CAPABILITY_STARTED:
+            include(event.data.get("proposal"), "id", "capability", "target", "reason")
+        elif event.type == AuditEventType.CAPABILITY_COMPLETED:
+            result = event.data.get("result")
+            include(result, "request_id", "status", "changed", "effectLatencySeconds")
+            if isinstance(result, dict):
+                include(result.get("issue"), "code", "message")
+        for key in ("code", "message", "errorType"):
+            include(event.data, key)
+        message += "".join(
+            f" {key}={json.dumps(value, ensure_ascii=True, separators=(',', ':'))}"
+            for key, value in details.items()
+        )
+        if event.type in _FAILED_AUDIT_EVENTS or (
+            event.type == AuditEventType.CAPABILITY_COMPLETED
+            and details.get("status") not in (None, "succeeded")
+        ):
             self.error(message)
         else:
             self.info(message)
@@ -301,24 +355,6 @@ def _print_json(model) -> None:
     console.print_json(model.model_dump_json(by_alias=True, exclude_none=True))
 
 
-def _print_invocation(result: AgentInvocationResult, audit_log: Path) -> None:
-    color = "green" if result.status == InvocationStatus.SUCCEEDED else "red"
-    console.print(
-        f"[{color}]{result.status.value.title()}[/{color}] "
-        f"{result.invocation_id} for {result.agent_id}"
-    )
-    if result.response is not None and result.response.message is not None:
-        console.print(result.response.message)
-    for action in result.action_results:
-        console.print(
-            f"  {action.request_id}: {action.status.value}"
-            + (f" ({action.issue.code})" if action.issue is not None else "")
-        )
-    if result.issue is not None:
-        console.print(f"Issue: {result.issue.code}: {result.issue.message}")
-    console.print(f"Audit: {audit_log}")
-
-
 @app.command()
 def validate(
     experiment: Annotated[
@@ -418,26 +454,26 @@ def run(
         ),
     ] = False,
     ledger_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--ledger-db",
             help="Persistent experiment ledger database.",
         ),
-    ] = Path(".mininet-ai/runs.sqlite3"),
+    ] = None,
     agno_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--agno-db",
             help="Private SQLite database for Agno sessions and memory.",
         ),
-    ] = Path(".mininet-ai/agno.sqlite3"),
+    ] = None,
     shared_state_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--shared-state-db",
             help="Private SQLite database for shared operational state.",
         ),
-    ] = Path(".mininet-ai/shared-state.sqlite3"),
+    ] = None,
     discover: Annotated[
         bool,
         typer.Option(
@@ -454,12 +490,25 @@ def run(
         ),
     ] = False,
     log_file: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--log-file",
             help="Append human-readable run progress to this file.",
         ),
-    ] = Path(".mininet-ai/run.log"),
+    ] = None,
+    artifact_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--artifact-root",
+            help="Persistent live storage root (default: effective-user local state, not the project directory).",
+        ),
+    ] = None,
+    control_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--control-dir", help="Private directory for local intent submission."
+        ),
+    ] = DEFAULT_CONTROL_DIRECTORY,
 ) -> None:
     """Own a complete continuous experiment until interrupted or stopped."""
 
@@ -471,7 +520,14 @@ def run(
             _print_text_plan(deployment_plan)
         return
 
-    substrate = _runtime_or_exit(deployment_plan.substrate)
+    root_selection = "--artifact-root" if artifact_root is not None else "default"
+    artifact_root = (artifact_root or default_artifact_root()).absolute()
+    error_console.print(f"Storage root ({root_selection}): {artifact_root}")
+
+    try:
+        reserved_id, substrate = reserve_run(deployment_plan.substrate)
+    except (LookupError, TypeError, ValueError) as error:
+        raise typer.BadParameter(str(error)) from error
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
     loaded = (
@@ -492,16 +548,113 @@ def run(
             param_hint="--stop-after-intents",
         )
 
-    progress = _operation_or_exit(lambda: _RunProgress(log_file, verbose=verbose))
+    persistent_memory = any(
+        agent.memory.learned is not None and agent.memory.learned.scope == "agent"
+        for agent in deployment_plan.agents
+    )
+    legacy_memory = artifact_root.absolute() / "agno.sqlite3"
+    if persistent_memory and agno_db is None and legacy_memory.exists():
+        raise typer.BadParameter(
+            f"Existing learned-memory store found at {legacy_memory}. "
+            f"Use --agno-db {legacy_memory} to retain its agent memory, or explicitly "
+            "select a new --agno-db to start fresh. No automatic migration is performed.",
+            param_hint="--agno-db",
+        )
+    artifacts = None
+    if reserved_id is None:
+        if any(
+            path is None for path in (log_file, ledger_db, shared_state_db, agno_db)
+        ):
+            raise typer.BadParameter(
+                "This registered adapter does not support built-in identity reservation. "
+                "Provide --log-file, --ledger-db, --shared-state-db, and --agno-db explicitly; "
+                "its zero-argument factory and runtime protocol remain unchanged."
+            )
+        artifact_description = (
+            "explicit file paths (adapter assigns identity during deployment)"
+        )
+    else:
+        artifacts = _operation_or_exit(
+            lambda: reserve_artifacts(
+                artifact_root,
+                reserved_id,
+                persistent_memory=persistent_memory and agno_db is None,
+            )
+        )
+        artifact_description = str(artifacts.directory)
+        log_file = log_file or artifacts.log
+        ledger_db = ledger_db or artifacts.ledger
+        shared_state_db = shared_state_db or artifacts.shared_state
+        agno_db = agno_db or artifacts.agno
+    assert (
+        log_file is not None
+        and ledger_db is not None
+        and shared_state_db is not None
+        and agno_db is not None
+    )
+    log_file = log_file.absolute()
+    ledger_db = ledger_db.absolute()
+    shared_state_db = shared_state_db.absolute()
+    agno_db = agno_db.absolute()
+    error_console.print(
+        f"Artifacts: {artifact_description}\nLog: {log_file}\nLedger: {ledger_db}\n"
+        f"Shared state: {shared_state_db}\nAgno sessions/memory: {agno_db}"
+    )
+    if persistent_memory:
+        error_console.print(
+            "Learned memory uses the selected Agno path; stores in other roots are not automatically reused or imported."
+        )
+    evidence = None
+    if artifacts is not None and reserved_id is not None:
+        verified_writers = (
+            not loaded
+            and all(
+                item["implementation"]["type"] == "declarative"
+                for item in deployment_plan.snapshot.get("blueprints", [])
+            )
+            and all(
+                item.get("provider")
+                in {None, "substrate.action", "substrate.observation", "fake.openflow"}
+                and item["metadata"]["name"] != "host.process.start"
+                for item in deployment_plan.snapshot.get("capabilityDefinitions", [])
+            )
+        )
+        evidence = _operation_or_exit(
+            lambda: RunEvidence(
+                artifacts.directory,
+                reserved_id,
+                {
+                    "log": log_file,
+                    "ledger": ledger_db,
+                    "shared_state": shared_state_db,
+                    "agno": agno_db,
+                    "artifacts": artifacts.directory / "artifacts",
+                },
+                verified_writers=verified_writers,
+            )
+        )
+    try:
+        progress = _operation_or_exit(
+            lambda: _RunProgress(log_file, verbose=verbose, run_id=reserved_id)
+        )
+    except BaseException:
+        if evidence is not None:
+            evidence.close()
+        raise
     progress.info(
-        f"Prepared experiment {deployment_plan.metadata.name} "
+        f"Artifacts: {artifact_description}; log={log_file}; ledger={ledger_db}; shared-state={shared_state_db}; Agno={agno_db}"
+    )
+    progress.info(
+        f"Reserved run {reserved_id}; Prepared experiment {deployment_plan.metadata.name} "
         f"({len(deployment_plan.resources)} resources, "
         f"{len(deployment_plan.agents)} agents)"
     )
     ledger = None
     state_store = None
     owner = None
+    intent_server = None
     report = None
+    operation_failed = False
     try:
         progress.info(f"Opening run ledger {ledger_db}")
         ledger = _operation_or_exit(lambda: SQLiteRunLedger(ledger_db))
@@ -548,6 +701,20 @@ def run(
         )
         with stop_latch:
             run_info = _operation_or_exit(owner.start)
+            if evidence is not None:
+                evidence.active()
+            if reserved_id is not None and run_info.id != reserved_id:
+                raise MininetAIError("deployed run ID differs from reserved identity")
+            intent_server = IntentServer(
+                owner,
+                control_dir,
+                on_submit=lambda event: progress.info(
+                    f"Queued terminal intent {event.event_id} for agent {event.subject}"
+                ),
+            )
+            _operation_or_exit(intent_server.__enter__)
+            progress.info(f"Control endpoint: {intent_server.path}")
+            error_console.print(f"Control endpoint: {intent_server.path}")
             progress.info(f"Run {run_info.id} is active on {run_info.substrate}")
             for agent_id, intent in parsed_intents:
                 event = _operation_or_exit(
@@ -574,22 +741,49 @@ def run(
                     f"Log: {log_file}"
                 )
             stop_latch.wait()
+    except BaseException as error:
+        operation_failed = True
+        progress.error(f"Run {reserved_id} startup/operation failed: {error}")
+        error_console.print(
+            "Run failed; diagnostic output retained. For storage errors use --artifact-root on a private local filesystem supporting SQLite locking."
+        )
+        raise
     finally:
         try:
-            if owner is not None and owner.state == ExperimentRuntimeState.RUNNING:
-                progress.info("Stop requested; draining work and tearing down")
-                report = _operation_or_exit(owner.stop)
-                progress.info(
-                    f"Run {report.run.id} stopped with "
-                    f"{report.continuous.completed} completed and "
-                    f"{report.continuous.failed} failed invocations"
-                )
+            if intent_server is not None:
+                intent_server.close()
         finally:
-            if state_store is not None:
-                state_store.close()
-            if ledger is not None:
-                ledger.close()
-            progress.close()
+            try:
+                if owner is not None and owner.state == ExperimentRuntimeState.RUNNING:
+                    progress.info("Stop requested; draining work and tearing down")
+                    report = _operation_or_exit(owner.stop)
+                    progress.info(
+                        f"Run {report.run.id} stopped with "
+                        f"{report.continuous.completed} completed and "
+                        f"{report.continuous.failed} failed invocations"
+                    )
+            finally:
+                try:
+                    if state_store is not None:
+                        state_store.close()
+                    if ledger is not None:
+                        ledger.close()
+                    progress.close()
+                    if evidence is not None:
+                        evidence.finish(
+                            finalized=owner is not None and owner.writers_stopped,
+                            outcome=(
+                                "failed"
+                                if operation_failed
+                                or report is None
+                                or report.state == ExperimentRuntimeState.FAILED
+                                or report.continuous.failed
+                                else "succeeded"
+                            ),
+                        )
+                finally:
+                    if evidence is not None:
+                        evidence.close()
     if report is None:
         return
     if output_format == OutputFormat.JSON:
@@ -609,9 +803,102 @@ def run(
         raise typer.Exit(code=1)
 
 
+@app.command("export")
+def export_results(
+    run_id: Annotated[str, typer.Argument(help="Finalized run identity.")],
+    destination: Annotated[
+        Path, typer.Option(help="Exact new bundle directory; parent must exist.")
+    ],
+    artifact_root: Annotated[
+        Path | None,
+        typer.Option(
+            help="Source storage root; defaults to effective-user local state."
+        ),
+    ] = None,
+    acknowledge_sensitive_data: Annotated[
+        bool,
+        typer.Option(
+            help="Acknowledge that shared results are not sanitized and may expose sensitive data."
+        ),
+    ] = False,
+) -> None:
+    """Export finalized managed evidence as host-readable JSON, logs and artifacts."""
+    if not acknowledge_sensitive_data:
+        raise typer.BadParameter(
+            "export requires --acknowledge-sensitive-data; evidence is not sanitized"
+        )
+    complete = _operation_or_exit(
+        lambda: export_managed(
+            artifact_root or default_artifact_root(), run_id, destination
+        )
+    )
+    console.print(f"Exported: {destination.absolute()}")
+    if not complete:
+        error_console.print(
+            "Warning: export complete, but experiment evidence is incomplete; see manifest.json"
+        )
+
+
 def _snapshot_or_exit(substrate: str, run_id: str) -> RuntimeSnapshot:
     runtime = _runtime_or_exit(substrate)
     return _operation_or_exit(lambda: runtime.inspect(run_id))
+
+
+@app.command("export-offline")
+def export_offline_results(
+    run_id: Annotated[
+        str, typer.Argument(help="Run identity to filter from prepared snapshots.")
+    ],
+    destination: Annotated[
+        Path, typer.Option(help="Exact new bundle directory; parent must exist.")
+    ],
+    ledger_db: Annotated[
+        Path | None, typer.Option(help="Private, consistent offline ledger snapshot.")
+    ] = None,
+    shared_state_db: Annotated[
+        Path | None,
+        typer.Option(help="Private, consistent offline shared-state snapshot."),
+    ] = None,
+    log_file: Annotated[
+        Path | None, typer.Option(help="Private offline run log.")
+    ] = None,
+    artifacts_dir: Annotated[
+        Path | None, typer.Option(help="Private offline artifact directory.")
+    ] = None,
+    acknowledge_sensitive_data: Annotated[
+        bool,
+        typer.Option(
+            help="Acknowledge that exported evidence is sensitive and not sanitized."
+        ),
+    ] = False,
+    acknowledge_offline_consistency: Annotated[
+        bool,
+        typer.Option(
+            help="Take responsibility for stopping writers and preparing consistent private snapshots."
+        ),
+    ] = False,
+) -> None:
+    """Export operator-prepared offline snapshots, not a force-live export."""
+    if not acknowledge_sensitive_data or not acknowledge_offline_consistency:
+        raise typer.BadParameter(
+            "offline export requires --acknowledge-sensitive-data and --acknowledge-offline-consistency"
+        )
+    sources = {
+        role: path
+        for role, path in {
+            "ledger": ledger_db,
+            "shared_state": shared_state_db,
+            "log": log_file,
+            "artifacts": artifacts_dir,
+        }.items()
+        if path is not None
+    }
+    complete = _operation_or_exit(lambda: export_offline(run_id, sources, destination))
+    console.print(f"Exported offline snapshots: {destination.absolute()}")
+    if not complete:
+        error_console.print(
+            "Warning: export complete, but experiment evidence is incomplete; see manifest.json"
+        )
 
 
 @app.command()
@@ -704,88 +991,115 @@ def stop(
 
 @app.command()
 def invoke(
-    experiment: Annotated[
-        Path,
-        typer.Argument(
-            exists=False, dir_okay=False, readable=True, help="Experiment YAML file."
-        ),
-    ],
     run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
     agent_id: Annotated[
         str, typer.Argument(help="Compiled agent instance identifier.")
     ],
     intent: Annotated[
-        str, typer.Option("--intent", "-i", help="One-shot agent intent.")
+        str,
+        typer.Option(
+            "--intent", "-i", help="Manual intent to queue in the foreground owner."
+        ),
     ],
+    control_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--control-dir", help="The foreground owner's private control directory."
+        ),
+    ] = DEFAULT_CONTROL_DIRECTORY,
+    timeout_seconds: Annotated[
+        float,
+        typer.Option(
+            "--timeout",
+            min=0.001,
+            help="Seconds to wait for intent acceptance, not completion.",
+        ),
+    ] = 5,
     audit_log: Annotated[
-        Path,
-        typer.Option(
-            "--audit-log",
-            help="Append-only JSONL audit destination.",
-        ),
-    ] = Path(".mininet-ai/audit.jsonl"),
+        Path | None,
+        typer.Option("--audit-log", help="Deprecated: audit is recorded by the owner."),
+    ] = None,
     agno_db: Annotated[
-        Path,
-        typer.Option(
-            "--agno-db",
-            help="Private SQLite database for Agno sessions and memory.",
-        ),
-    ] = Path(".mininet-ai/agno.sqlite3"),
+        Path | None,
+        typer.Option("--agno-db", help="Deprecated: configure sessions on run."),
+    ] = None,
     shared_state_db: Annotated[
-        Path,
+        Path | None,
         typer.Option(
-            "--shared-state-db",
-            help="Private SQLite database for scoped shared operational state.",
+            "--shared-state-db", help="Deprecated: configure shared state on run."
         ),
-    ] = Path(".mininet-ai/shared-state.sqlite3"),
+    ] = None,
     discover: Annotated[
         bool,
-        typer.Option(
-            "--discover-plugins",
-            help="Load capability and deprecated provider entry points.",
-        ),
+        typer.Option("--discover-plugins", help="Deprecated: discover plugins on run."),
     ] = False,
     output_format: Annotated[
-        OutputFormat, typer.Option("--format", "-f", help="Invocation result format.")
+        OutputFormat, typer.Option("--format", "-f", help="Accepted event format.")
     ] = OutputFormat.TEXT,
 ) -> None:
-    """Invoke one compiled agent against an already-running experiment."""
+    """Queue an intent in an already-running owner, including from another terminal."""
 
-    deployment_plan = _compile_or_exit(experiment)
-    substrate = _runtime_or_exit(deployment_plan.substrate)
-    registries = ProviderRegistries()
-    register_builtin_providers(registries, substrate)
-    if discover:
-        _operation_or_exit(lambda: discover_plugins(registries))
-    try:
-        audit_log.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    except OSError as error:
+    if (
+        any(value is not None for value in (audit_log, agno_db, shared_state_db))
+        or discover
+    ):
         error_console.print(
-            f"[bold red]Error:[/bold red] cannot create audit directory: {error}"
+            "[yellow]Deprecated invoke configuration options are ignored; "
+            "the foreground owner uses the databases, audit, and plugins configured on run.[/yellow]"
         )
-        raise typer.Exit(code=1) from error
-    recorder = AuditRecorder(JsonLinesAuditSink(audit_log, sync=True))
-    state_store = _operation_or_exit(lambda: SQLiteSharedStateStore(shared_state_db))
-    runtime = OneShotAgentRuntime(
-        deployment_plan,
-        substrate,
-        registries,
-        audit=recorder,
-        agent_factory=_operation_or_exit(
-            lambda: AgnoAgentFactory(database_path=agno_db)
-        ),
-        shared_state=state_store,
+    event = _operation_or_exit(
+        lambda: IntentClient(control_dir).submit(
+            run_id,
+            agent_id,
+            intent,
+            timeout_seconds=timeout_seconds,
+        )
     )
-    try:
-        result = _operation_or_exit(lambda: runtime.invoke(run_id, agent_id, intent))
-    finally:
-        state_store.close()
     if output_format == OutputFormat.JSON:
-        _print_json(result)
+        _print_json(event)
     else:
-        _print_invocation(result, audit_log)
-    if result.status != InvocationStatus.SUCCEEDED:
-        raise typer.Exit(code=1)
+        console.print(
+            f"[green]Queued[/green] {event.event_id} for {agent_id}; "
+            "follow the owner's run log for results"
+        )
+
+
+@app.command()
+def agents(
+    run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
+    control_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--control-dir", help="The foreground owner's private control directory."
+        ),
+    ] = DEFAULT_CONTROL_DIRECTORY,
+    timeout_seconds: Annotated[
+        float,
+        typer.Option(
+            "--timeout", min=0.001, help="Seconds to wait for agent discovery."
+        ),
+    ] = 5,
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Agent discovery format.")
+    ] = OutputFormat.TEXT,
+) -> None:
+    """List live owner agent IDs and whether they accept manual intents."""
+    description = _operation_or_exit(
+        lambda: IntentClient(control_dir).describe(
+            run_id, timeout_seconds=timeout_seconds
+        )
+    )
+    if output_format == OutputFormat.JSON:
+        _print_json(description)
+        return
+    console.print(f"[bold]{description.run_id}[/bold]")
+    console.print(f"Plan digest: {description.plan_digest}")
+    table = Table("Agent", "Manual intents")
+    for agent_id in description.agents:
+        table.add_row(
+            agent_id, "yes" if agent_id in description.manual_agents else "no"
+        )
+    console.print(table)
 
 
 @app.command("schema")

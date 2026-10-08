@@ -17,7 +17,7 @@ from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.coordination import CoordinationRuntime
 from mininet_ai.errors import MininetAIError
 from mininet_ai.plugins import ProviderRegistries
-from mininet_ai.runtime.continuous import ContinuousAgentRuntime
+from mininet_ai.runtime.continuous import ContinuousAgentRuntime, ContinuousRuntimeState
 from mininet_ai.runtime.contracts import (
     ContinuousInvocationRecord,
     ContinuousRuntimeReport,
@@ -36,9 +36,9 @@ from mininet_ai.runtime.ledger import (
     RunManifest,
 )
 from mininet_ai.runtime.state import SharedStateStore
-from mininet_ai.runtime.telemetry import TelemetryPipeline
+from mininet_ai.runtime.telemetry import TelemetryPipeline, TelemetryPipelineState
 from mininet_ai.specification.models import StrictModel
-from mininet_ai.substrates import RunInfo, SubstrateRuntime, TeardownResult
+from mininet_ai.substrates import RunInfo, RunState, SubstrateRuntime, TeardownResult
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
@@ -104,7 +104,7 @@ class ExperimentRuntime:
         self._substrate = substrate
         self._registries = registries
         self._audit = audit
-        self._agent_factory = agent_factory
+        self._agent_factory = agent_factory or AgnoAgentFactory()
         self._shared_state = shared_state
         self._ledger = ledger
         self._plugins = plugins
@@ -118,8 +118,15 @@ class ExperimentRuntime:
         self._telemetry: TelemetryPipeline | None = None
         self._continuous_started = False
         self._telemetry_started = False
+        self._writers_stopped = False
         self._report: ExperimentRuntimeReport | None = None
         self._source_sequences: dict[str, int] = {}
+
+    @property
+    def writers_stopped(self) -> bool:
+        """Verified managed cleanup, separate from experiment success/failure."""
+        with self._lock:
+            return self._writers_stopped
 
     @property
     def state(self) -> ExperimentRuntimeState:
@@ -135,6 +142,20 @@ class ExperimentRuntime:
                     code="experiment.not-started",
                 )
             return self._run
+
+    @property
+    def agent_ids(self) -> tuple[str, ...]:
+        """Compiled instance IDs in deployment-plan order."""
+        return tuple(agent.id for agent in self._plan.agents)
+
+    @property
+    def manual_agent_ids(self) -> tuple[str, ...]:
+        """Instances eligible for manual intents, before coordination routing."""
+        return tuple(
+            agent.id
+            for agent in self._plan.agents
+            if any(trigger.type == "manual" for trigger in agent.triggers)
+        )
 
     def start(self) -> RunInfo:
         """Deploy and start all continuous experiment producers and consumers."""
@@ -154,9 +175,7 @@ class ExperimentRuntime:
             event_bus = InMemoryRuntimeEventBus(
                 capacity=self._plan.resource_limits.max_queued_events,
                 sink=(
-                    LedgerEventSink(self._ledger)
-                    if self._ledger is not None
-                    else None
+                    LedgerEventSink(self._ledger) if self._ledger is not None else None
                 ),
             )
             invoker = OneShotAgentRuntime(
@@ -195,11 +214,11 @@ class ExperimentRuntime:
                 self._state = ExperimentRuntimeState.RUNNING
             self._record_lifecycle("run.running", {"state": "running"})
             return run
-        except Exception as error:
+        except BaseException as error:
             self._cleanup_start_failure()
             with self._lock:
                 self._state = ExperimentRuntimeState.FAILED
-            if isinstance(error, MininetAIError):
+            if not isinstance(error, Exception) or isinstance(error, MininetAIError):
                 raise
             raise ExperimentRuntimeError(
                 f"could not start experiment runtime: {error}",
@@ -218,6 +237,19 @@ class ExperimentRuntime:
         if not agent_id or not intent or not source:
             raise ValueError("manual intent requires agent, intent, and source")
         continuous = self._require_running()
+        agent = next(
+            (agent for agent in self._plan.agents if agent.id == agent_id), None
+        )
+        if agent is None:
+            raise ExperimentRuntimeError(
+                f"unknown agent {agent_id!r}; valid agents: {', '.join(self.agent_ids)}",
+                code="experiment.intent.invalid-agent",
+            )
+        if agent_id not in self.manual_agent_ids:
+            raise ExperimentRuntimeError(
+                f"agent {agent_id!r} has no manual trigger",
+                code="experiment.intent.invalid-agent",
+            )
         with self._lock:
             sequence = self._source_sequences.get(source, 0)
             self._source_sequences[source] = sequence + 1
@@ -254,18 +286,12 @@ class ExperimentRuntime:
         if timeout_seconds <= 0:
             raise ValueError("experiment stop timeout must be positive")
         with self._lock:
-            if (
-                self._report is not None
-                and self._report.teardown is not None
-            ):
+            if self._report is not None and self._report.teardown is not None:
                 return self._report
             retrying = (
                 self._state == ExperimentRuntimeState.FAILED
                 and self._run is not None
-                and (
-                    self._report is None
-                    or self._report.teardown is None
-                )
+                and (self._report is None or self._report.teardown is None)
             )
             if self._state != ExperimentRuntimeState.RUNNING and not retrying:
                 raise ExperimentRuntimeError(
@@ -291,9 +317,7 @@ class ExperimentRuntime:
         safe_to_teardown = telemetry_stopped and continuous_stopped
         teardown = self._teardown(issues) if safe_to_teardown else None
         final_state = (
-            ExperimentRuntimeState.FAILED
-            if issues
-            else ExperimentRuntimeState.STOPPED
+            ExperimentRuntimeState.FAILED if issues else ExperimentRuntimeState.STOPPED
         )
         self._record_lifecycle(
             "run.failed" if issues else "run.stopped",
@@ -304,6 +328,12 @@ class ExperimentRuntime:
             final_state = ExperimentRuntimeState.FAILED
         with self._lock:
             self._state = final_state
+            self._writers_stopped = (
+                safe_to_teardown
+                and not issues
+                and teardown is not None
+                and teardown.run.state == RunState.STOPPED
+            )
         report = ExperimentRuntimeReport(
             run=(teardown.run if teardown is not None else self.run),
             state=final_state,
@@ -403,6 +433,10 @@ class ExperimentRuntime:
         self,
         issues: list[ExperimentRuntimeIssue],
     ) -> TeardownResult | None:
+        try:
+            self._agent_factory.close()
+        except Exception as error:
+            issues.append(self._issue("agents", error))
         if self._run is None:
             return None
         try:
@@ -414,20 +448,41 @@ class ExperimentRuntime:
     def _cleanup_start_failure(self) -> None:
         issues: list[ExperimentRuntimeIssue] = []
         safe_to_teardown = True
-        if self._telemetry is not None and self._telemetry_started:
+        if (
+            self._telemetry is not None
+            and self._telemetry_started
+            and self._telemetry.state != TelemetryPipelineState.CREATED
+        ):
             try:
                 self._telemetry.stop()
                 self._telemetry_started = False
-            except Exception:
+            except Exception as error:
                 safe_to_teardown = False
-        if self._continuous is not None and self._continuous_started:
+                issues.append(self._issue("telemetry", error))
+        if (
+            self._continuous is not None
+            and self._continuous_started
+            and self._continuous.state != ContinuousRuntimeState.CREATED
+        ):
             try:
                 self._continuous.stop(drain=False)
                 self._continuous_started = False
-            except Exception:
+            except Exception as error:
                 safe_to_teardown = False
+                issues.append(self._issue("continuous", error))
         if safe_to_teardown:
-            self._teardown(issues)
+            teardown = self._teardown(issues)
+            with self._lock:
+                self._writers_stopped = not issues and (
+                    (
+                        self._run is None
+                        and getattr(
+                            self._substrate, "deployment_cleanup_verified", False
+                        )
+                        is True
+                    )
+                    or (teardown is not None and teardown.run.state == RunState.STOPPED)
+                )
 
     @staticmethod
     def _issue(phase: str, error: Exception) -> ExperimentRuntimeIssue:
