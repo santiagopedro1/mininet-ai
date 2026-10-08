@@ -12,17 +12,12 @@ substrate:
       mac: {prefix: "02:00:00", strategy: sequential}
     resources:
       - {name: network, kind: network}
-      - name: main-controller
-        kind: controller
-        parent: network
-        type: builtin
-        port: 6653
       - name: s1
         kind: switch
         parent: network
         failMode: secure
         datapath: kernel
-        controllers: [main-controller]
+        controllers: []
         protocols: [OpenFlow13]
         labels: {role: edge, region: west}
         ports:
@@ -34,7 +29,7 @@ substrate:
         parent: network
         failMode: secure
         datapath: kernel
-        controllers: [main-controller]
+        controllers: []
         protocols: [OpenFlow13]
         labels: {role: edge, region: east}
         ports:
@@ -88,6 +83,7 @@ blueprints:
   - ./agent-blueprints/ollama-global-orchestrator.yaml
   - ./agent-blueprints/ollama-switch-router.yaml
   - ./agent-blueprints/ollama-host-traffic.yaml
+  - ./agent-blueprints/ollama-host-server.yaml
 
 capabilityDefinitions:
   - ./capabilities/openflow-flow-install.yaml
@@ -99,9 +95,9 @@ agents:
     placement:
       layer: global
       targets: {kind: network, names: [network]}
-      cardinality: singleton
+      cardinality: per-target
       runtime: orchestrator
-    observe: [topology.resources]
+    observe: [topology.resources, topology.neighbors]
     triggers:
       - {type: manual, name: operator}
     execution:
@@ -118,11 +114,10 @@ agents:
         matchLabels: {role: edge}
       cardinality: per-target
       runtime: device-sidecar
-    observe: [openflow.flows, ovs.port-counters, tc.queue-occupancy, topology.neighbors]
+    observe: [openflow.flows]
     capabilities: [openflow.flow.install]
     triggers:
       - {type: manual, name: operator}
-      - {type: interval, name: periodic-health, every: 10s, initialDelay: 0s}
     execution:
       queueCapacity: 16
       maxConcurrency: 1
@@ -138,6 +133,22 @@ agents:
       cardinality: per-target
       runtime: host-namespace
     observe: [host.reachability]
+    capabilities: [host.process.start]
+    triggers:
+      - {type: manual, name: operator}
+    execution:
+      queueCapacity: 8
+      maxConcurrency: 1
+      overflow: reject
+
+  - name: host-server
+    blueprint: ollama-host-server
+    placement:
+      layer: host
+      targets: {kind: host, names: [h3]}
+      cardinality: per-target
+      runtime: host-namespace
+    observe: [host.processes]
     capabilities: [host.process.start]
     triggers:
       - {type: manual, name: operator}

@@ -1005,13 +1005,19 @@ class MininetOVSRuntime:
     def _start_network(self, plan: DeploymentPlan, network: Any) -> None:
         for controller in network.controllers:
             controller.start()
+        needs_controller_connection = False
         for resource in plan.resources:
             if resource.kind != ResourceKind.SWITCH:
                 continue
             switch = cast("PlannedSwitch", resource)
             controllers = [network.get(name) for name in switch.controllers]
+            needs_controller_connection |= bool(controllers)
             network.get(switch.name).start(controllers)
-        if not network.waitConnected(timeout=self._connect_timeout_seconds, delay=0.1):
+        # A controller-free secure bridge intentionally has no connection;
+        # readiness is checked by the resource snapshot after startup instead.
+        if needs_controller_connection and not network.waitConnected(
+            timeout=self._connect_timeout_seconds, delay=0.1
+        ):
             raise RuntimeError("one or more switches did not become ready")
 
     @staticmethod

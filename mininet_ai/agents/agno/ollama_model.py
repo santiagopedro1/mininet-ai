@@ -11,7 +11,7 @@ from mininet_ai.specification.models import ModelConfiguration, validate_ollama_
 def create_ollama_model(
     configuration: ModelConfiguration, *, prompt_parsed: bool = False
 ) -> Ollama:
-    unknown = sorted(set(configuration.parameters) - {"host"})
+    unknown = sorted(set(configuration.parameters) - {"host", "think"})
     if unknown:
         raise AgentProviderError(
             "unsupported Ollama model parameters: " + ", ".join(unknown),
@@ -25,8 +25,18 @@ def create_ollama_model(
             raise AgentProviderError(
                 str(error), code="agent.agno.ollama-host-invalid"
             ) from error
+    request_params = None
+    if "think" in configuration.parameters:
+        think = configuration.parameters["think"]
+        if not isinstance(think, bool):
+            raise AgentProviderError(
+                "Ollama model parameter 'think' must be a boolean",
+                code="agent.agno.ollama-think-invalid",
+            )
+        request_params = {"think": think}
     return Ollama(
         id=configuration.name,
         host=host,
+        request_params=request_params,
         supports_native_structured_outputs=not prompt_parsed,
     )

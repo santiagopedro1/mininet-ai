@@ -21,9 +21,9 @@ reversible: true
 rollback: {timeout: 30s}
 postconditions:
   - observation: openflow.flows
-    path: flows.0.state
+    path: switches.0.flows.0.actions
     operator: eq
-    expected: installed
+    expected: NORMAL
     timeout: 5s
     interval: 250ms
 provider: substrate.action

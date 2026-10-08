@@ -66,7 +66,10 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
   blueprint; entries in `capabilities` name loaded capability definitions.
 - Keep credentials outside YAML. Agno providers read their standard environment
    variables; Ollama endpoints can also be set through `model.parameters.host`.
-   Python factories may supply other provider-specific configuration.
+   Declarative Ollama agents and the bundled prompt-parsed factory also support
+   boolean `model.parameters.think`; `false` disables model thinking for bounded
+   action workflows. Omit it to preserve Ollama's default. Python factories may
+   supply other provider-specific configuration.
 
 ## Experiment
 

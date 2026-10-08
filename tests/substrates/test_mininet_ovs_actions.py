@@ -5,10 +5,12 @@ import os
 import signal
 import subprocess
 import unittest
+from pathlib import Path
 from typing import Any
 from unittest.mock import call, patch
 
 from mininet_ai.compiler import compile_experiment
+from mininet_ai.sdk import AgentResponse, ExecutionCatalog
 from mininet_ai.substrates import ActionRequest, ActionStatus
 from mininet_ai.substrates.mininet_ovs.actions import (
     ActionExecutionError,
@@ -158,6 +160,31 @@ class MininetOVSActionsTests(unittest.TestCase):
                 parameters=parameters or {},
             )
         )
+
+    def test_hierarchical_client_template_uses_distinct_managed_process_ids(self) -> None:
+        plan = compile_experiment(
+            Path(__file__).parents[2] / "examples/hierarchical-routing/experiment.yaml"
+        )
+        instructions = ExecutionCatalog(plan).resolve("host-traffic@h1").blueprint.reasoning.instructions
+        assert instructions is not None
+        template = instructions[instructions.index("{"):]
+        process_ids = set()
+        for index, host in enumerate(("h1", "h2", "h1")):
+            rendered = template.replace("<targets[0]>", host).replace(
+                "<invocation_id>", f"invoke-{index}"
+            )
+            data, _ = json.JSONDecoder().raw_decode(rendered)
+            proposal = AgentResponse.model_validate(data).proposals[0]
+            outcome = self.execute(
+                proposal.capability,
+                proposal.target,
+                proposal.arguments,
+                request_id=proposal.id,
+            )
+            process_ids.add(outcome.output["processId"])
+        self.assertEqual(len(process_ids), 3)
+        self.assertEqual(len(self.network.get("h1").processes), 2)
+        self.assertEqual(len(self.network.get("h2").processes), 1)
 
     def test_link_state_actions_are_idempotent_and_change_both_endpoints(self) -> None:
         first = self.execute("link.disable", "h1-s1")

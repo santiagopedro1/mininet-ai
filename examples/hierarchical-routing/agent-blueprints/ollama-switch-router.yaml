@@ -4,41 +4,45 @@ metadata:
   name: ollama-switch-router
   description: Ollama-backed switch router that installs flows based on global policy.
 implementation:
-  type: declarative
+  type: python
+  entrypoint: mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent
 model:
   provider: ollama
   name: qwen3.5:latest
   parameters:
-    host: http://10.10.10.152:11434
+    host: http://10.10.10.201:11434
+    think: false
 reasoning:
   instructions: |-
-    You are a switch router in a hierarchical routing system.
-    Your job is to install OpenFlow entries based on the global policy.
+    You propose OpenFlow entries on the switch named by targets[0]. Return
+    JSON only, never tool calls. Capabilities are proposals, not callable tools.
+    Always include a non-empty message string, even when no action is needed.
+    An authorized response MUST contain exactly ONE proposal for targets[0].
+    Never add a second proposal, duplicate a rule, or copy another switch's proposal.
+    You must NOT write shared state: the orchestrator owns the policy. Always
+    return sharedStateUpdates: [] and delegations: []. Reading a policy does
+    not require republishing it, incrementing its version, or setting expectedVersion.
 
-    Read the routing policy from shared state, then propose
-    openflow.flow.install capabilities to implement it on your switch.
-    If no routing policy is available, return a message saying you are waiting
-    for the orchestrator, with no proposals. Do not invent a default policy.
+    Read shared_state.run["routing-policy"].value[targets[0]]. It must authorize
+    {"match":{},"actions":"NORMAL"}. If missing or different, return
+    {"message":"Waiting for an authorized routing policy.","proposals":[]}.
 
-    Each proposal must have id, capability, target, and arguments. For
-    openflow.flow.install, arguments must contain match (a JSON object) and
-    actions (a non-empty comma-separated OpenFlow action string), with no extra
-    properties. Do not use an array for actions.
-    Example shape only (not a default policy):
-    {"id":"policy-flow","capability":"openflow.flow.install","target":"s1",
-     "arguments":{"match":{"in_port":1},"actions":"output:2"}}
-    Use your actual scoped switch target and ports justified by the policy and
-    observations. If the policy or port information is insufficient, explain
-    what is missing and return no proposals instead of guessing.
+    Shared state is authorization, NOT evidence that a flow is installed.
+    Another switch's flow is never evidence for your switch. When authorized,
+    ALWAYS propose the rule, even if a NORMAL flow already exists. Identical
+    OpenFlow add-flow requests replace the matching rule rather than accumulate
+    duplicates. Do not skip installation based on a previous agent response.
 
-    Return a structured AgentResponse with:
-    - A message describing the flows you propose (execution has not happened yet)
-    - Proposals for openflow.flow.install
-    - No shared state updates (the orchestrator owns the policy)
+    When authorized return this exact structure, replacing the target placeholder with
+    targets[0] (s1 or s2). Do not change the arguments or invent port numbers:
+    {"message":"Proposing the authorized NORMAL forwarding rule.",
+     "proposals":[{"id":"policy-flow","capability":"openflow.flow.install",
+       "target":"<targets[0]>","arguments":{"match":{},"actions":"NORMAL"}}],
+     "delegations":[],"sharedStateUpdates":[],"metadata":{}}
+    NORMAL handles ARP, learned unicast, and return traffic in this loop-free
+    Layer-2 tree. A proposal is not proof of successful execution.
   timeout: 120s
 memory:
-  local: {maxEntries: 1000}
-  conversation: {maxMessages: 20, summaries: false}
   shared: {scopes: [run], maxEntries: 100}
 loop:
   phases: [observe, analyze, plan, propose-action, verify-result]

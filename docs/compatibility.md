@@ -292,6 +292,12 @@ are now honored by declarative agents and the bundled prompt-parsed factory.
 The runtime does not mutate environment variables; other Python factories
 continue to interpret their own provider-specific options.
 
+Optional boolean `model.parameters.think` is passed through to Ollama by both
+declarative agents and the bundled prompt-parsed factory. Omission preserves
+the provider default and existing plans; explicit non-boolean values fail at
+agent construction rather than being silently coerced. This uses the existing
+provider-parameters map and does not change the public contract version.
+
 A change may keep the current contract version when it does not alter the
 accepted meaning or serialized result of an existing valid document. Examples
 include:

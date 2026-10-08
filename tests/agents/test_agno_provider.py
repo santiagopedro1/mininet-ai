@@ -23,10 +23,12 @@ from mininet_ai.agents.agno import DeterministicAgnoModel
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.sdk import (
     AgentContext,
+    AgentCoordinationContext,
     AgentProvider,
     AgentProviderError,
     AgentResponse,
     ExecutionCatalog,
+    SharedStateSnapshot,
 )
 from mininet_ai.specification.models import (
     ConversationMemoryConfiguration,
@@ -143,6 +145,31 @@ class AgnoAgentProviderTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.code, "agent.context.invalid")
         self.assertEqual(model.calls, 0)
+
+    def test_safety_instructions_reference_serialized_context_fields(self) -> None:
+        model = StaticModel()
+        provider = AgnoAgentProvider(
+            self.definition,
+            factory=AgnoAgentFactory(model_resolver=lambda configuration: model),
+        )
+        context = self.context.model_copy(
+            update={
+                "coordination": AgentCoordinationContext(
+                    messageId="context-check",
+                    correlationId="context-check",
+                    kind="intent",
+                    requestedAgentId=self.context.agent_id,
+                    allowedDestinations=("another-agent",),
+                ),
+                "shared_state": SharedStateSnapshot(allowedScopes=("run",)),
+            }
+        )
+        provider.invoke(context)
+        prompt = "\n".join(str(message.content) for message in model.messages)
+        self.assertIn('"allowed_destinations"', prompt)
+        self.assertIn('"allowed_scopes"', prompt)
+        self.assertIn("coordination.allowed_destinations", prompt)
+        self.assertIn("shared_state.allowed_scopes", prompt)
 
     def test_declared_reasoning_timeout_cancels_agno_run(self) -> None:
         definition = replace(

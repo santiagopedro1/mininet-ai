@@ -325,6 +325,18 @@ class MininetOVSRuntimeTests(unittest.TestCase):
 
         self.assertIsInstance(runtime, MininetOVSRuntime)
 
+    def test_controller_free_secure_switches_do_not_wait_for_a_controller(self) -> None:
+        plan = compile_experiment(
+            Path(__file__).parents[2] / "examples/hierarchical-routing/experiment.yaml"
+        )
+        runtime = recording_runtime(self, UnhealthyRecordingNetwork)
+        run = runtime.deploy(plan)
+        network = UnhealthyRecordingNetwork.instances[-1]
+        self.assertEqual(network.controllers, [])
+        self.assertEqual(network.wait_calls, [])
+        self.assertTrue(all(node.start_calls == [[]] for node in network.switches))
+        runtime.teardown(run.id)
+
     def test_interrupted_start_rolls_back_network(self) -> None:
         runtime = recording_runtime(self)
         with (
