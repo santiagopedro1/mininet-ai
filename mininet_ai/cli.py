@@ -726,7 +726,7 @@ def run(
                         "capabilityDefinitions", []
                     )
                     if item.get("provider") in {"substrate.action", "fake.openflow"}
-                    and item["metadata"]["name"] != "host.process.start"
+                    and not item["metadata"]["name"].startswith("host.process.")
                 ),
             )
         )
@@ -814,10 +814,7 @@ def run(
                 ),
             )
             _operation_or_exit(intent_server.__enter__)
-            progress.info(f"Control endpoint: {intent_server.path}")
-            print_event(
-                error_console, "INFO", "Run", f"Control endpoint: {intent_server.path}"
-            )
+            progress.info(f"Control endpoint: {intent_server.path}", visible=True)
             progress.info(
                 f"Run {run_info.id} is active on {run_info.substrate}", visible=True
             )

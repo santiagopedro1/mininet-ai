@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import sys
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,6 +40,10 @@ def invocation_diagnostics(
         yield
     finally:
         _invocation.reset(token)
+
+
+def current_diagnostic_invocation() -> Invocation | None:
+    return _invocation.get()
 
 
 class DiagnosticSink(Protocol):
@@ -155,40 +159,33 @@ class _NativeHandler(logging.Handler):
             self.release()
 
 
-class _AgnoHandler(logging.Handler):
-    def __init__(self, sink: DiagnosticSink, run_id: str) -> None:
-        super().__init__(logging.WARNING)
-        self.sink, self.run_id = sink, run_id
-
-    def emit(self, record: logging.LogRecord) -> None:
-        context = _invocation.get()
-        if context is not None and context.run_id != self.run_id:
-            return
-        source = "Run" if context is None else f"Agent:{context.agent_id}"
-        message = (
-            f"Agno dependency {record.levelname.lower()} diagnostic dependency=agno"
-        )
-        message += (
-            " agent=unknown"
-            if context is None
-            else f" agent={context.agent_id} invocation={context.invocation_id}"
-        )
-        # Never format record.msg/args/exception: provider content is excluded.
-        self.sink(message, level=record.levelno, source=source)
-
-
 @dataclass
-class _LoggerState:
+class LoggerSnapshot:
     logger: logging.Logger
     handlers: list[logging.Handler]
     level: int
     propagate: bool
     disabled: bool
+    detached_cache: dict[int, bool] | None = None
 
     @classmethod
-    def save(cls, logger: logging.Logger) -> Self:
+    def save(cls, logger: logging.Logger, *, detached: bool = False) -> Self:
+        cache = None
+        if detached:
+            # CPython compatibility: Manager._clear_cache() skips Mininet's
+            # unregistered logger. Snapshot, rather than repair, its enablement
+            # cache so this run cannot leave foreign INFO/DEBUG enabled on exit.
+            existing = logger.__dict__.get("_cache")
+            if not isinstance(existing, dict):
+                raise RuntimeError("unsupported detached Mininet logger cache")
+            cache = existing.copy()
         return cls(
-            logger, logger.handlers[:], logger.level, logger.propagate, logger.disabled
+            logger,
+            logger.handlers[:],
+            logger.level,
+            logger.propagate,
+            logger.disabled,
+            cache,
         )
 
     def restore(self) -> None:
@@ -196,6 +193,10 @@ class _LoggerState:
         self.logger.setLevel(self.level)
         self.logger.propagate = self.propagate
         self.logger.disabled = self.disabled
+        if self.detached_cache is not None:
+            cache = self.logger.__dict__["_cache"]
+            cache.clear()
+            cache.update(self.detached_cache)
 
 
 class RunDiagnostics:
@@ -205,9 +206,9 @@ class RunDiagnostics:
         self, run_id: str, sink: DiagnosticSink, *, mininet: bool = False
     ) -> None:
         self.run_id, self.sink, self.mininet = run_id, sink, mininet
-        self.states: list[_LoggerState] = []
+        self.states: list[LoggerSnapshot] = []
         self.handlers: list[logging.Handler] = []
-        self.agno_state: tuple[object, ...] | None = None
+        self.agent_capture: AbstractContextManager[None] | None = None
 
     def __enter__(self) -> Self:
         if not _owner.acquire(blocking=False):
@@ -215,40 +216,16 @@ class RunDiagnostics:
                 "dependency diagnostics are already owned by another run"
             )
         try:
-            from agno.utils import log as agno_log
+            from mininet_ai.agents.agno.logging import capture_agno_diagnostics
 
-            self.agno_state = (
-                agno_log.logger,
-                agno_log.agent_logger,
-                agno_log.team_logger,
-                agno_log.workflow_logger,
-                agno_log.log_tracebacks,
-                agno_log.debug_on,
-                agno_log.debug_level,
-            )
-            for name in ("agno", "agno-team", "agno-workflow"):
-                self.states.append(_LoggerState.save(logging.getLogger(name)))
-            handler = _AgnoHandler(self.sink, self.run_id)
-            self.handlers.append(handler)
-            logger = logging.getLogger("mininet-ai.dependency.agno")
-            self.states.append(_LoggerState.save(logger))
-            logger.handlers = []
-            logger.setLevel(logging.WARNING)
-            logger.disabled = False
-            logger.addHandler(handler)
-            logger.propagate = False
-            agno_log.configure_agno_logging(
-                custom_default_logger=logger,
-                custom_agent_logger=logger,
-                custom_team_logger=logger,
-                custom_workflow_logger=logger,
-                enable_log_tracebacks=False,
-            )
+            capture = capture_agno_diagnostics(self.run_id, self.sink)
+            capture.__enter__()
+            self.agent_capture = capture
             if self.mininet:
                 import mininet as package  # pyright: ignore[reportMissingImports]
                 from mininet.log import lg  # pyright: ignore[reportMissingImports]
 
-                self.states.append(_LoggerState.save(lg))
+                self.states.append(LoggerSnapshot.save(lg, detached=True))
                 native = _NativeHandler(
                     self.sink, self.run_id, Path(package.__file__).parent
                 )
@@ -272,21 +249,15 @@ class RunDiagnostics:
                 handler.flush()
         finally:
             try:
-                for state in reversed(self.states):
-                    state.restore()
-                if self.agno_state is not None:
-                    from agno.utils import log
-
-                    (
-                        log.logger,
-                        log.agent_logger,
-                        log.team_logger,
-                        log.workflow_logger,
-                        log.log_tracebacks,
-                        log.debug_on,
-                        log.debug_level,
-                    ) = self.agno_state  # type: ignore[assignment]
-                for handler in self.handlers:
-                    handler.close()
+                try:
+                    for state in reversed(self.states):
+                        state.restore()
+                finally:
+                    try:
+                        if self.agent_capture is not None:
+                            self.agent_capture.__exit__(None, None, None)
+                    finally:
+                        for handler in self.handlers:
+                            handler.close()
             finally:
                 _owner.release()

@@ -24,7 +24,8 @@ source label:
 `[Run]` identifies lifecycle/runtime coordination; `[Agent:<id>]` uses the
 compiled agent-instance ID. `[Mininet]` identifies native diagnostics and
 Mininet-backed network action results, not every capability or an action
-implemented by the fake substrate. Authorization rejections are runtime errors.
+implemented by the fake substrate. Host process start/stop is runtime activity,
+not a default-visible network change. Authorization rejections are runtime errors.
 Agent summaries describe reasoning, not successful execution of their proposals.
 In interactive terminals sources are cyan, magenta, and blue respectively;
 warning/error severity is yellow/red. `NO_COLOR` or non-TTY output disables
@@ -114,7 +115,11 @@ untouched. Raw native DEBUG collection remains deferred.
 On Python 3.14 Mininet's detached logger can retain stale level-enable caches.
 Capture is configured before first native calls; a previously used logger that
 cannot enable INFO is rejected with a fresh-process diagnostic rather than
-silently losing lifecycle events. Concurrent/pre-used embedded Mininet use is
+silently losing lifecycle events. A localized CPython compatibility snapshot
+restores the detached logger's private enablement cache as well as its level;
+this prevents capture-created INFO/DEBUG flags from leaking into foreign
+logging after exit. It does not repair or promise support for pre-existing stale
+caches. Concurrent/pre-used embedded Mininet use is
 not a supported substitute for the owned CLI integration.
 
 Nonprivileged logger and deterministic-model tests do not prove live OVS or

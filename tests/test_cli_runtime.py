@@ -173,6 +173,7 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertIn("totalTokens=0", log)
         self.assertIn("Run cli-verbose-run stopped", log)
         self.assertEqual(log_mode, 0o600)
+        self.assertEqual(result.stderr.count("Control endpoint:"), 1)
 
     def test_default_progress_attributes_agent_summaries_without_json_noise(
         self,
@@ -598,6 +599,83 @@ class RuntimeCLITests(unittest.TestCase):
                     )
                 self.assertEqual(
                     json.loads(result.stdout)["continuous"]["completed"], 1
+                )
+
+    def test_host_process_stop_is_verbose_only_runtime_activity(self) -> None:
+        from datetime import UTC, datetime
+
+        from mininet_ai.substrates import ActionResult, ActionStatus
+
+        class ProcessFixture(FakeSubstrateRuntime):
+            name = "mininet-ovs"
+
+            def execute(self, run_id, request):
+                return ActionResult(
+                    run_id=run_id,
+                    request_id=request.id,
+                    status=ActionStatus.SUCCEEDED,
+                    completed_at=datetime.now(UTC),
+                    changed=True,
+                )
+
+        plan = compile_experiment(Path("examples/iperf-throughput/experiment.yaml"))
+        snapshot = plan.snapshot
+        snapshot["capabilityDefinitions"][0]["metadata"]["name"] = "host.process.stop"
+        snapshot["capabilityDefinitions"][0]["input-schema"] = {"type": "object"}
+        for declaration in snapshot["agents"]:
+            declaration["capabilities"] = ["host.process.stop"]
+        for blueprint in snapshot["blueprints"]:
+            blueprint["implementation"] = {"type": "declarative"}
+            blueprint["reasoning"]["timeout"] = None
+            blueprint["model"] = {
+                "provider": "mock",
+                "name": "deterministic",
+                "parameters": {
+                    "response": {
+                        "message": "Stopping traffic",
+                        "proposals": [
+                            {
+                                "id": "stop-traffic",
+                                "capability": "host.process.stop",
+                                "target": "server",
+                                "arguments": {},
+                            }
+                        ],
+                    }
+                },
+            }
+        plan = compile_experiment(experiment_from(snapshot))
+        for verbose in (False, True):
+            with self.subTest(verbose=verbose), TemporaryDirectory() as temporary:
+                runtime = ProcessFixture(run_id_factory=lambda: "process-run")
+                with (
+                    patch("mininet_ai.cli._compile_or_exit", return_value=plan),
+                    patch(
+                        "mininet_ai.cli.reserve_run",
+                        return_value=("process-run", runtime),
+                    ),
+                    patch("mininet_ai.cli._SignalLatch", AutoStopLatch),
+                ):
+                    result = self.runner.invoke(
+                        app,
+                        [
+                            "run",
+                            "experiment.yaml",
+                            "--format",
+                            "json",
+                            "--stop-after-intents",
+                            "--intent",
+                            "iperf-server@server=stop traffic",
+                            *(["--verbose"] if verbose else []),
+                            *self.run_databases(temporary),
+                        ],
+                    )
+                log = (Path(temporary) / "run.log").read_text()
+                self.assertEqual(result.exit_code, 0, result.output)
+                self.assertIn("[Run] capability.execution.completed:", log)
+                self.assertNotIn("[Mininet]", result.stderr)
+                self.assertEqual(
+                    "capability.execution.completed:" in result.stderr, verbose
                 )
 
     @staticmethod

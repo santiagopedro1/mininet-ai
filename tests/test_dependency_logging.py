@@ -226,3 +226,26 @@ with RunDiagnostics('next', lambda *args, **kwargs: None):
         check=False,
     )
     assert probe.returncode == 0, probe.stdout + probe.stderr
+
+
+def test_native_capture_restores_effective_info_enablement():
+    probe = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import logging
+from mininet.log import lg
+from mininet_ai.dependency_logging import RunDiagnostics
+assert lg.level == 25
+with RunDiagnostics('owned', lambda *args, **kwargs: None, mininet=True):
+    assert lg.isEnabledFor(logging.INFO)
+assert lg.level == 25
+assert not lg.isEnabledFor(logging.INFO), 'capture left INFO enabled'
+""",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert probe.returncode == 0, probe.stdout + probe.stderr
