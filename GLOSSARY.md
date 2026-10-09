@@ -26,6 +26,10 @@ _Avoid_: driver, backend, platform
 The inference service that supplies the model responses an agent reasons with.
 _Avoid_: model backend, LLM provider, AI provider
 
+**Independent Agent Invocations**:
+Agent invocations in the same experiment that do not require one another's results
+and do not make incompatible changes to shared network or decision state.
+
 **Primary Goal**:
 The main purpose of a maintained example. One of: `feature demonstration`
 (showcases specific features), `realistic scenario` (a plausible research use
