@@ -35,3 +35,12 @@ The main purpose of a maintained example. One of: `feature demonstration`
 (showcases specific features), `realistic scenario` (a plausible research use
 case), or `both`.
 _Avoid_: objective, purpose, aim
+
+**Link-Failure Trial**:
+A single experiment repetition that establishes healthy connectivity, introduces
+one link failure, and observes the agents' response and any resulting recovery.
+
+**Connectivity Recovery**:
+Restoration of host-to-host packet delivery over an alternate path while the
+failed link remains unavailable. Successful configuration changes alone do not
+establish connectivity recovery.

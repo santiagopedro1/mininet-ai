@@ -52,6 +52,8 @@ The maintained [iperf throughput example](examples/iperf-throughput/README.md)
 uses two Ollama-backed host agents to start an iperf server and client across an
 OVS switch. See its guide for model setup, traffic inspection, and limitations.
 For a simpler starting point, see the [getting started example](examples/getting-started/README.md).
+For detection, reasoning, and network-recovery timings, see the
+[link-failure latency experiment](examples/link-failure-latency/README.md).
 
 ## Running a live experiment
 
