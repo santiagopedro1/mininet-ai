@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import os
 import shutil
+import subprocess
 
 import pytest
 
@@ -25,6 +26,15 @@ from mininet_ai.substrates import MininetOVSRuntime, ResourceOperationalState
     reason="requires MININET_AI_LIVE_TESTS=1, root, Mininet, and Open vSwitch",
 )
 def test_live_trial_recovers_connectivity_over_alternate_path():
+    try:
+        subprocess.run(
+            ["ovs-vsctl", "--timeout=2", "show"],
+            check=True,
+            capture_output=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pytest.skip("Open vSwitch service is not ready")
     scenario = build_scenario(seed=7)
     snapshot = copy.deepcopy(scenario.plan.snapshot)
     snapshot["blueprints"][0]["implementation"]["entrypoint"] = (

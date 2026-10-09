@@ -189,6 +189,9 @@ def test_trial_measures_recovery_without_reenabling_failed_link(raise_action_err
 
     class FailingActions(OneShotAgentRuntime):
         def execute(self, prepared, proposal):
+            from time import sleep
+
+            sleep(0.01)
             raise RuntimeError("action adapter unavailable")
 
     runtime_type = FailingActions if raise_action_error else OneShotAgentRuntime
@@ -210,6 +213,11 @@ def test_trial_measures_recovery_without_reenabling_failed_link(raise_action_err
             assert all(agent.reasoning_seconds is not None for agent in result.agents)
             assert all(
                 agent.action_started_at_seconds is not None for agent in result.agents
+            )
+            assert all(
+                agent.action_execution_seconds is not None
+                and agent.action_execution_seconds >= 0.04
+                for agent in result.agents
             )
             assert all(agent.action_effect_seconds is None for agent in result.agents)
             return

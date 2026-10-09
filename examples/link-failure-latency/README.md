@@ -60,7 +60,8 @@ are not subtracted from monotonic timestamps.
 | --- | --- |
 | `detection_seconds` | Failure-command submission to a worker observing the failed link DOWN in global topology state. Includes administrative fault application, confirmation of traffic disruption, worker scheduling, and polling. This is not local switch detector latency. |
 | `reasoning_seconds` | Existing runtime duration of Provider construction and invocation, including model/server queueing and response parsing. Context construction is outside this field. |
-| `action_execution_seconds` | Existing runtime duration of attempted capability execution. |
+<<<<<<< HEAD
+| `action_execution_seconds` | Sum of monotonic wall durations of attempted capability executions, including attempts that raise errors. |
 | `action_effect_seconds` | First attempted recovery action by that agent to the shared successful host-to-host connectivity observation, provided the failed link is still DOWN. Includes execution and recovery polling, not just postcondition verification. |
 | `recovery_seconds` | Failure-command submission to the successful connectivity observation at trial level. |
 | `elapsed_seconds` | Failure-command submission to completion, including draining in-flight workers. Baseline/deployment-failed trials instead measure failed setup. |

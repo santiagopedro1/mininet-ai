@@ -545,6 +545,7 @@ def run_trial(
                 "Keep it down. Install this recovery policy: " + json.dumps(rules),
             )
             action_start = None
+            execution_seconds = 0.0
             if isinstance(prepared, AgentInvocationResult):
                 result = prepared
             else:
@@ -573,8 +574,9 @@ def run_trial(
                             )
                         )
                     else:
+                        execution_start = clock()
                         if action_start is None:
-                            action_start = clock()
+                            action_start = execution_start
                             measured.action_started(agent_id, at=action_start)
                         try:
                             outcomes.append(agents.execute(prepared, proposal))
@@ -587,13 +589,15 @@ def run_trial(
                                     message=str(error),
                                 ).model_copy(update={"status": ActionStatus.FAILED})
                             )
+                        finally:
+                            execution_seconds += clock() - execution_start
                 result = agents.complete(prepared, tuple(outcomes))
             measured.invoked(
                 agent_id,
                 invocation_id=result.invocation_id,
                 status=result.status.value,
                 reasoning_seconds=result.timings.reasoning_seconds,
-                action_execution_seconds=result.timings.action_execution_seconds,
+                action_execution_seconds=execution_seconds,
                 action_started_at=action_start,
                 issue=str(result.issue) if result.issue is not None else None,
             )
