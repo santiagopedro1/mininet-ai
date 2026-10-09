@@ -9,15 +9,34 @@ down. There is no model comparison.
 *Primary goal: both — a reproducible latency scenario and a demonstration of
 agent-driven explicit forwarding with network-level effect measurement.*
 
-## Generate and inspect (no root or Ollama required)
+## Files
+
+- `experiment.yaml`: checked-in seed-0 topology, switch-agent placement, and policies.
+- `agent-blueprints/ollama-switch-router.yaml`: Ollama model, endpoint, and agent instructions.
+- `capabilities/openflow-flow-install.yaml`: allowed forwarding action contract.
+- `run.py`: example-local failure injection, measurements, and result collection.
+
+The YAML files are the source of configuration, like the other maintained
+examples. The runner loads them rather than defining agents and capabilities
+in the installed `mininet_ai` package.
+
+## Validate and inspect (no root or Ollama required)
 
 From the repository root:
 
 ```bash
-.venv/bin/python -m mininet_ai.experiments.link_failure --seed 7 --plan
-.venv/bin/python -m mininet_ai.experiments.link_failure --seed 7 --spec > link-failure.yaml
+.venv/bin/mininet-ai validate examples/link-failure-latency/experiment.yaml
+.venv/bin/mininet-ai plan examples/link-failure-latency/experiment.yaml
+.venv/bin/mininet-ai run examples/link-failure-latency/experiment.yaml --dry-run
+```
+
+The checked-in topology is one random ring generated with seed 0. To generate
+another reproducible topology while retaining the YAML agent configuration:
+
+```bash
+.venv/bin/python examples/link-failure-latency/run.py --seed 7 --plan
+.venv/bin/python examples/link-failure-latency/run.py --seed 7 --spec > link-failure.yaml
 .venv/bin/mininet-ai validate link-failure.yaml
-.venv/bin/mininet-ai plan link-failure.yaml
 ```
 
 The generated JSON specification is also valid YAML. A seed fixes the ring's
@@ -32,12 +51,16 @@ reachable Ollama server with `qwen3.5:latest` installed. The default endpoint is
 `http://10.10.10.152:11434`; thinking is disabled and sampling is pinned.
 
 ```bash
-sudo "$PWD/.venv/bin/python" -m mininet_ai.experiments.link_failure \
-  --seed 7 --trials 5 --timeout 180 --poll-interval 0.1 \
+sudo "$PWD/.venv/bin/python" examples/link-failure-latency/run.py \
+  --trials 5 --timeout 180 --poll-interval 0.1 \
   --output "$PWD/link-failure-results.jsonl"
 ```
 
-Use `--ollama-host` or `--model` to override the single configured Provider.
+Without `--seed`, the runner uses the checked-in topology as written. Edit the
+blueprint YAML to change the single configured Provider, or use `--ollama-host`
+and `--model` for temporary overrides. Pass a specification path as the first
+argument to run a saved generated specification. With `--seed`, only the
+topology and seed label are regenerated; other YAML settings are retained.
 Ten agents can reason concurrently; Ollama's own request queueing is included
 in reasoning time. Each trial gets a fresh topology and fresh agent sessions.
 The harness installs and checks baseline forwarding before injecting the fault.
@@ -47,8 +70,8 @@ policy installation, **not autonomous route discovery**. Proposals must exactly
 match that policy before any are executed. Agents cannot re-enable the link.
 
 Do not use the ordinary `mininet-ai run` command to collect these measurements:
-the generated specification alone does not contain the trial scheduler or
-network-recovery collector. Use the Python module above.
+the specification alone does not contain the trial scheduler or
+network-recovery collector. Use the example-local `run.py` above.
 
 ## Measurement definitions
 

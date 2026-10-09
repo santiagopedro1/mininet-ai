@@ -1,4 +1,4 @@
-"""Link-failure measurements, separate from runtime postcondition timings."""
+"""Run the maintained YAML example and measure link-failure recovery."""
 
 from __future__ import annotations
 
@@ -22,8 +22,10 @@ from pydantic import Field
 from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
 from mininet_ai.agents.agno import AgnoAgentFactory
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
+from mininet_ai.compiler.models import PlannedLink, PlannedPort
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
+from mininet_ai.specification import load_experiment
 from mininet_ai.specification.models import Experiment, StrictModel
 from mininet_ai.substrates import (
     ActionRequest,
@@ -33,6 +35,8 @@ from mininet_ai.substrates import (
     ResourceOperationalState,
     SubstrateRuntime,
 )
+
+EXAMPLE_SPECIFICATION = Path(__file__).with_name("experiment.yaml")
 
 
 class AgentMeasurement(StrictModel):
@@ -271,11 +275,21 @@ class LinkFailureScenario:
 
 def build_scenario(
     *,
-    seed: int = 0,
-    model: str = "qwen3.5:latest",
-    ollama_host: str = "http://10.10.10.152:11434",
+    seed: int | None = None,
+    model: str | None = None,
+    ollama_host: str | None = None,
+    specification: Path = EXAMPLE_SPECIFICATION,
 ) -> LinkFailureScenario:
-    """Compile a seeded random ring with one Ollama-backed agent per switch."""
+    """Load the example YAML, optionally regenerating its ring with a seed."""
+    snapshot = compile_experiment(load_experiment(specification)).snapshot
+    configuration = snapshot["blueprints"][0]["model"]
+    if model is not None:
+        configuration["name"] = model
+    if ollama_host is not None:
+        configuration["parameters"]["host"] = ollama_host
+    if seed is None:
+        plan = compile_experiment(Experiment.model_validate(snapshot))
+        return _scenario_from_plan(plan)
     switches = [f"s{i}" for i in range(1, 11)]
     Random(seed).shuffle(switches)
     resources: list[dict[str, Any]] = [{"name": "network", "kind": "network"}]
@@ -333,97 +347,55 @@ def build_scenario(
             }
         )
         link(host, switches[index])
-    header = {"apiVersion": "mininet-ai/v1alpha3"}
-    experiment = Experiment.model_validate(
-        {
-            **header,
-            "kind": "Experiment",
-            "metadata": {"name": "link-failure-latency", "labels": {"seed": str(seed)}},
-            "substrate": {
-                "driver": "mininet-ovs",
-                "topology": {"resources": resources, "links": links},
-            },
-            "blueprints": [
-                {
-                    **header,
-                    "kind": "AgentBlueprint",
-                    "metadata": {"name": "ollama-switch-router"},
-                    "implementation": {
-                        "type": "python",
-                        "entrypoint": "mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent",
-                    },
-                    "model": {
-                        "provider": "ollama",
-                        "name": model,
-                        "parameters": {"host": ollama_host, "think": False},
-                    },
-                    "reasoning": {
-                        "timeout": "120s",
-                        "instructions": (
-                            "A topology monitor detected a link failure. Install the explicit recovery policy "
-                            "in the intent on targets[0] only. Return JSON with a nonempty message and exactly "
-                            "one proposal per supplied rule. Each proposal uses a unique id, capability "
-                            "openflow.flow.install, target targets[0], and arguments equal to the rule. "
-                            "Do not invent ports, use NORMAL, enable links, or change the policy. "
-                            "Return delegations: [] and sharedStateUpdates: []."
-                        ),
-                    },
-                }
-            ],
-            "capabilityDefinitions": [
-                {
-                    **header,
-                    "kind": "Capability",
-                    "metadata": {"name": "openflow.flow.install"},
-                    "targets": ["switch"],
-                    "layers": ["data"],
-                    "effects": ["dataplane.write"],
-                    "input-schema": {
-                        "type": "object",
-                        "required": ["priority", "match", "actions"],
-                        "properties": {
-                            "priority": {"type": "integer"},
-                            "match": {"type": "object"},
-                            "actions": {"type": "string"},
-                        },
-                        "additionalProperties": False,
-                    },
-                    "output-schema": {"type": "object"},
-                    "provider": "substrate.action",
-                }
-            ],
-            "agents": [
-                {
-                    "name": "switch-router",
-                    "blueprint": "ollama-switch-router",
-                    "placement": {
-                        "layer": "data",
-                        "targets": {"kind": "switch"},
-                        "cardinality": "per-target",
-                        "runtime": "device-sidecar",
-                    },
-                    "observe": ["topology.neighbors", "openflow.flows"],
-                    "capabilities": ["openflow.flow.install"],
-                    "triggers": [{"type": "manual", "name": "failure-monitor"}],
-                }
-            ],
-            "coordination": {"mode": "independent"},
-            "policies": {
-                "conflicting-actions": "reject",
-                "require-postcondition-check": False,
-            },
-            "resourceLimits": {
-                "max-instances": 10,
-                "max-concurrent-invocations": 10,
-                "max-queued-events": 32,
-            },
-        }
-    )
+    snapshot["metadata"]["labels"]["seed"] = str(seed)
+    snapshot["substrate"]["topology"] = {"resources": resources, "links": links}
+    experiment = Experiment.model_validate(snapshot)
     return LinkFailureScenario(
         plan=compile_experiment(experiment),
         seed=seed,
         ring=tuple(switches),
         failed_link=f"{switches[0]}-{switches[1]}",
+        ports=ports,
+    )
+
+
+def _scenario_from_plan(plan: DeploymentPlan) -> LinkFailureScenario:
+    """Read actual attachments, link names, and port numbers from the YAML plan."""
+    adapters = {r.name: r for r in plan.resources if isinstance(r, PlannedPort)}
+    adjacency: dict[str, list[str]] = {}
+    ports: dict[tuple[str, str], int] = {}
+    link_names: dict[frozenset[str], str] = {}
+    for resource in plan.resources:
+        if not isinstance(resource, PlannedLink):
+            continue
+        left, right = (adapters[name] for name in resource.endpoints)
+        if left.parent is None or right.parent is None:
+            raise ValueError("link adapters must have parent nodes")
+        adjacency.setdefault(left.parent, []).append(right.parent)
+        adjacency.setdefault(right.parent, []).append(left.parent)
+        ports[left.parent, right.parent] = left.number
+        ports[right.parent, left.parent] = right.number
+        link_names[frozenset((left.parent, right.parent))] = resource.name
+    first, second = adjacency["h1"][0], adjacency["h2"][0]
+    ring = [first, second]
+    while len(ring) < 10:
+        candidates = [
+            neighbor
+            for neighbor in adjacency[ring[-1]]
+            if neighbor.startswith("s") and neighbor != ring[-2]
+        ]
+        if len(candidates) != 1 or candidates[0] in ring:
+            raise ValueError(
+                "the latency example requires a ten-switch ring with adjacent host attachments"
+            )
+        ring.append(candidates[0])
+    if first not in adjacency[ring[-1]] or second not in adjacency[first]:
+        raise ValueError("the latency example requires a closed ring")
+    return LinkFailureScenario(
+        plan=plan,
+        seed=int(plan.metadata.labels.get("seed", "0")),
+        ring=tuple(ring),
+        failed_link=link_names[frozenset((first, second))],
         ports=ports,
     )
 
@@ -677,10 +649,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Measure agent-driven link-failure recovery (no model sweep)."
     )
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "specification", nargs="?", type=Path, default=EXAMPLE_SPECIFICATION
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="Regenerate only the topology; otherwise use the checked-in YAML.",
+    )
     parser.add_argument("--trials", type=int, default=5)
-    parser.add_argument("--model", default="qwen3.5:latest")
-    parser.add_argument("--ollama-host", default="http://10.10.10.152:11434")
+    parser.add_argument(
+        "--model", help="Override the model configured in the blueprint YAML."
+    )
+    parser.add_argument(
+        "--ollama-host",
+        help="Override the Ollama host configured in the blueprint YAML.",
+    )
     parser.add_argument("--timeout", type=float, default=180)
     parser.add_argument("--poll-interval", type=float, default=0.1)
     parser.add_argument(
@@ -701,7 +685,10 @@ def main() -> None:
     if arguments.trials < 1 or arguments.timeout <= 0 or arguments.poll_interval <= 0:
         parser.error("trials, timeout, and poll interval must be positive")
     scenario = build_scenario(
-        seed=arguments.seed, model=arguments.model, ollama_host=arguments.ollama_host
+        seed=arguments.seed,
+        model=arguments.model,
+        ollama_host=arguments.ollama_host,
+        specification=arguments.specification,
     )
     if arguments.spec:
         print(json.dumps(scenario.plan.snapshot, indent=2))
@@ -728,8 +715,10 @@ def main() -> None:
                 "schema": "mininet-ai/link-failure-latency/v1",
                 "seed": scenario.seed,
                 "failed_link": scenario.failed_link,
-                "model": arguments.model,
-                "ollama_host": arguments.ollama_host,
+                "model": scenario.plan.snapshot["blueprints"][0]["model"]["name"],
+                "ollama_host": scenario.plan.snapshot["blueprints"][0]["model"][
+                    "parameters"
+                ]["host"],
                 "timeout_seconds": arguments.timeout,
                 "poll_interval_seconds": arguments.poll_interval,
                 "requested_trials": arguments.trials,

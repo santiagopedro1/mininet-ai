@@ -10,9 +10,9 @@ import pytest
 
 from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
 from mininet_ai.agents.agno import AgnoAgentFactory
-from mininet_ai.experiments.link_failure import build_scenario, run_trial
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.substrates import MininetOVSRuntime, ResourceOperationalState
+from tests.experiments import example
 
 
 @pytest.mark.skipif(
@@ -35,7 +35,7 @@ def test_live_trial_recovers_connectivity_over_alternate_path():
         )
     except (OSError, subprocess.SubprocessError):
         pytest.skip("Open vSwitch service is not ready")
-    scenario = build_scenario(seed=7)
+    scenario = example.build_scenario(seed=7)
     snapshot = copy.deepcopy(scenario.plan.snapshot)
     snapshot["blueprints"][0]["implementation"]["entrypoint"] = (
         "tests.experiments.factories:create_recovery_agent"
@@ -49,7 +49,7 @@ def test_live_trial_recovers_connectivity_over_alternate_path():
         registries = ProviderRegistries()
         register_builtin_providers(registries, substrate)
         agents = OneShotAgentRuntime(plan, substrate, registries, agent_factory=factory)
-        result = run_trial(
+        result = example.run_trial(
             scenario,
             substrate,
             agents,

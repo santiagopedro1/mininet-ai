@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from mininet_ai.experiments.link_failure import TrialMeasurements
+from tests.experiments import example
+
+TrialMeasurements = example.TrialMeasurements
 
 
 def test_phase_timings_use_failure_onset_and_observed_network_recovery():
@@ -79,7 +81,7 @@ def test_reasoning_failure_does_not_report_unattempted_actions_as_zero():
 
 
 def test_seeded_plan_has_ten_ollama_switch_agents_and_an_alternate_route():
-    from mininet_ai.experiments.link_failure import build_scenario
+    build_scenario = example.build_scenario
 
     scenario = build_scenario(seed=7)
     repeated = build_scenario(seed=7)
@@ -109,7 +111,6 @@ def test_trial_measures_recovery_without_reenabling_failed_link(raise_action_err
     import copy
 
     from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
-    from mininet_ai.experiments.link_failure import build_scenario, run_trial
     from mininet_ai.plugins import ProviderRegistries
     from mininet_ai.substrates import (
         ActionStatus,
@@ -118,7 +119,7 @@ def test_trial_measures_recovery_without_reenabling_failed_link(raise_action_err
         ResourceOperationalState,
     )
 
-    scenario = build_scenario(seed=7)
+    scenario = example.build_scenario(seed=7)
     snapshot = copy.deepcopy(scenario.plan.snapshot)
     snapshot["blueprints"][0]["implementation"]["entrypoint"] = (
         "tests.experiments.factories:create_recovery_agent"
@@ -197,7 +198,7 @@ def test_trial_measures_recovery_without_reenabling_failed_link(raise_action_err
     runtime_type = FailingActions if raise_action_error else OneShotAgentRuntime
     agents = runtime_type(plan, substrate, registries)
     try:
-        result = run_trial(
+        result = example.run_trial(
             scenario,
             substrate,
             agents,
@@ -239,7 +240,7 @@ def test_trial_measures_recovery_without_reenabling_failed_link(raise_action_err
 
 
 def test_summary_retains_timeouts_without_treating_missing_phases_as_zero():
-    from mininet_ai.experiments.link_failure import summarize_trials
+    summarize_trials = example.summarize_trials
 
     recovered = TrialMeasurements(
         trial_id="success",
@@ -290,8 +291,7 @@ def test_generated_specification_can_be_compiled_without_live_dependencies():
     emitted = subprocess.run(
         [
             sys.executable,
-            "-m",
-            "mininet_ai.experiments.link_failure",
+            str(example.EXAMPLE_SPECIFICATION.with_name("run.py")),
             "--seed",
             "7",
             "--spec",
@@ -304,11 +304,30 @@ def test_generated_specification_can_be_compiled_without_live_dependencies():
     assert len(plan.agents) == 10
 
 
+def test_runner_uses_yaml_configuration_without_overriding_it(tmp_path):
+    import yaml
+
+    from mininet_ai.compiler import compile_experiment
+
+    checked_in = compile_experiment(example.EXAMPLE_SPECIFICATION)
+    assert example.build_scenario().plan.digest == checked_in.digest
+    snapshot = checked_in.snapshot
+    snapshot["blueprints"][0]["model"]["name"] = "custom-model"
+    snapshot["blueprints"][0]["model"]["parameters"]["host"] = "http://localhost:11434"
+    specification = tmp_path / "experiment.yaml"
+    specification.write_text(yaml.safe_dump(snapshot))
+    for seed in (None, 7):
+        scenario = example.build_scenario(specification=specification, seed=seed)
+        model = scenario.plan.snapshot["blueprints"][0]["model"]
+        assert model["name"] == "custom-model"
+        assert model["parameters"]["host"] == "http://localhost:11434"
+
+
 def test_deployment_failures_are_exported_as_unsuccessful_trials(monkeypatch, tmp_path):
     import json
     import sys
 
-    from mininet_ai.experiments import link_failure
+    from tests.experiments import example as link_failure
 
     class UnavailableSubstrate:
         def deploy(self, plan):
