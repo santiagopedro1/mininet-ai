@@ -314,6 +314,13 @@ def test_runner_uses_yaml_configuration_without_overriding_it(tmp_path):
     snapshot = checked_in.snapshot
     snapshot["blueprints"][0]["model"]["name"] = "custom-model"
     snapshot["blueprints"][0]["model"]["parameters"]["host"] = "http://localhost:11434"
+    host = next(
+        resource
+        for resource in snapshot["substrate"]["topology"]["resources"]
+        if resource["name"] == "h1"
+    )
+    host["interfaces"][0]["ipv4"] = "10.0.0.11/24"
+    host["interfaces"][0]["mac"] = "02:00:00:00:00:aa"
     specification = tmp_path / "experiment.yaml"
     specification.write_text(yaml.safe_dump(snapshot))
     for seed in (None, 7):
@@ -321,6 +328,10 @@ def test_runner_uses_yaml_configuration_without_overriding_it(tmp_path):
         model = scenario.plan.snapshot["blueprints"][0]["model"]
         assert model["name"] == "custom-model"
         assert model["parameters"]["host"] == "http://localhost:11434"
+        if seed is None:
+            rules = scenario.rules(scenario.ring[0], failed=True)
+            assert rules[0]["match"] == {"dl_dst": "02:00:00:00:00:aa"}
+            assert rules[1]["match"] == {"arp": True, "arp_tpa": "10.0.0.11"}
 
 
 def test_deployment_failures_are_exported_as_unsuccessful_trials(monkeypatch, tmp_path):

@@ -9,6 +9,7 @@ from collections import Counter, deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from ipaddress import ip_interface
 from math import ceil
 from pathlib import Path
 from random import Random
@@ -230,10 +231,18 @@ class LinkFailureScenario:
     def rules(self, switch: str, *, failed: bool = False) -> tuple[dict[str, Any], ...]:
         """Explicit unicast and directed ARP rules; no learning or failover."""
         rules = []
-        for host, attachment, ip, mac in (
-            ("h1", self.ring[0], "10.0.0.1", "02:00:00:00:00:01"),
-            ("h2", self.ring[1], "10.0.0.2", "02:00:00:00:00:02"),
-        ):
+        for host, attachment in (("h1", self.ring[0]), ("h2", self.ring[1])):
+            interface = next(
+                resource
+                for resource in self.plan.resources
+                if isinstance(resource, PlannedPort)
+                and resource.parent == host
+                and resource.role == "host-interface"
+            )
+            if interface.ipv4 is None or interface.mac is None:
+                raise ValueError(f"{host} requires an IPv4 address and MAC address")
+            ip = str(ip_interface(interface.ipv4).ip)
+            mac = interface.mac
             neighbor = (
                 host
                 if switch == attachment

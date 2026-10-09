@@ -61,6 +61,10 @@ blueprint YAML to change the single configured Provider, or use `--ollama-host`
 and `--model` for temporary overrides. Pass a specification path as the first
 argument to run a saved generated specification. With `--seed`, only the
 topology and seed label are regenerated; other YAML settings are retained.
+The runner is specific to this scenario: two hosts named `h1` and `h2`, attached
+to adjacent switches in a ten-switch ring with `s`-prefixed switch names.
+Without regeneration, forwarding policies use the addresses and port numbers
+from the YAML plan.
 Ten agents can reason concurrently; Ollama's own request queueing is included
 in reasoning time. Each trial gets a fresh topology and fresh agent sessions.
 The harness installs and checks baseline forwarding before injecting the fault.
