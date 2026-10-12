@@ -16,6 +16,14 @@ Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/d
 
 ## Git conventions
 
+### Branch completion
+
+When a branch's scoped work is complete, required checks and review are complete,
+and changes are committed, explicitly tell the user: **`<branch>` is ready to be
+merged into `main`**. Include the check results and any remaining issue-tracker
+steps. If work or validation remains blocked, report the blocker instead of
+declaring merge readiness. Merge only when the user authorizes it.
+
 ### Commit messages
 
 ```
