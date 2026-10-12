@@ -1,0 +1,23 @@
+apiVersion: mininet-ai/v1alpha3
+kind: AgentBlueprint
+metadata:
+  name: ollama-switch-router
+  description: Install explicit alternate-path forwarding after a link failure.
+implementation:
+  type: python
+  entrypoint: mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent
+model:
+  provider: ollama
+  name: qwen3.5:latest
+  parameters:
+    host: http://10.10.10.152:11434
+    think: false
+reasoning:
+  timeout: 120s
+  instructions: |-
+    A topology monitor detected a link failure. Install the explicit recovery
+    policy in the intent on targets[0] only. Return JSON with a nonempty message
+    and exactly one proposal per supplied rule. Each proposal uses a unique id,
+    capability openflow.flow.install, target targets[0], and arguments equal to
+    the rule. Do not invent ports, use NORMAL, enable links, or change the policy.
+    Return delegations: [] and sharedStateUpdates: [].
