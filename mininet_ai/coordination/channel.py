@@ -48,8 +48,13 @@ class MessageChannel(Protocol):
         self,
         *,
         timeout_seconds: float | None = None,
+        message_ids: frozenset[str] | None = None,
     ) -> CoordinationMessage | None:
-        """Return the next message, or ``None`` on timeout or drained closure."""
+        """Return the next eligible message without consuming another request's.
+
+        ``message_ids`` restricts delivery to request-owned IDs while preserving
+        the channel's shared capacity, sink, and duplicate suppression.
+        """
         ...
 
     def close(self) -> None:
@@ -114,22 +119,32 @@ class InMemoryMessageChannel:
                 self._sink.write(message)
             self._accepted_ids.add(message.message_id)
             self._messages.append(message)
-            self._condition.notify()
+            self._condition.notify_all()
 
     def receive(
         self,
         *,
         timeout_seconds: float | None = None,
+        message_ids: frozenset[str] | None = None,
     ) -> CoordinationMessage | None:
         if timeout_seconds is not None and timeout_seconds < 0:
             raise ValueError("message receive timeout cannot be negative")
         deadline = (
-            None
-            if timeout_seconds is None
-            else time.monotonic() + timeout_seconds
+            None if timeout_seconds is None else time.monotonic() + timeout_seconds
         )
         with self._condition:
-            while not self._messages:
+            while True:
+                message = next(
+                    (
+                        item
+                        for item in self._messages
+                        if message_ids is None or item.message_id in message_ids
+                    ),
+                    None,
+                )
+                if message is not None:
+                    self._messages.remove(message)
+                    return message
                 if self._closed:
                     return None
                 if deadline is None:
@@ -139,7 +154,6 @@ class InMemoryMessageChannel:
                 if remaining <= 0:
                     return None
                 self._condition.wait(remaining)
-            return self._messages.popleft()
 
     def close(self) -> None:
         with self._condition:

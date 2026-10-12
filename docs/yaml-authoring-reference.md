@@ -422,6 +422,7 @@ model:
       proposals: []
       delegations: []
       sharedStateUpdates: []
+      sharedStateReads: []
       metadata: {}
     usage: {}
 ```
@@ -433,6 +434,37 @@ Memory rules:
 - `learned.mode` is `automatic` or `agentic`.
 - `shared.scopes` contains unique values from `deployment` and `run`.
 - Declaring persistent memory requires an Agno session database at runtime.
+- Shared updates commit atomically after all associated actions and required
+  postconditions succeed. Rejected or failed actions publish no shared updates;
+  arbitrary external changes are not rolled back by a failed state commit.
+- The runtime binds omitted `expectedVersion` values to the invocation's shared
+  snapshot. Stale decisions are rejected rather than overwriting newer state.
+  Direct shared-store callers must supply `expectedVersion` when updating an
+  existing key (`0` means the key must be absent).
+- Updated keys are decision dependencies automatically. Responses must declare
+  other shared snapshot keys a decision relies on in `sharedStateReads`, as
+  `{scope: run, key: route}` entries (including dependencies on absent keys).
+  These reads are version-checked and reserved against incompatible commits;
+  merely receiving a snapshot does not lock unrelated keys.
+
+### Invocation concurrency
+
+Independent requests and sibling delegations can overlap under the existing
+`max-concurrent-invocations` and agent `maxConcurrency` limits. These budgets
+count actual agent invocations, including delegates, not parents waiting for
+descendants. A one-slot experiment remains serial. A child begins only after its
+parent completes successfully and publishes eligible shared state.
+
+Stateless agents with `maxConcurrency > 1` use invocation-isolated Agno instances
+and may complete out of order. Access to one persistent Agno session remains
+serialized because its local/history/learned memory is shared mutable state.
+
+Conflicting actions are protected throughout execution and postcondition checks,
+across requests as well as within a request. `reject` rejects incompatible work;
+`serialize` waits; `priority` orders pending conflicts without preempting running
+actions. Independent effects/targets and shared-state keys can proceed together.
+Model-driven observers and passive telemetry can see intermediate network state;
+observations are not promised a transactionally consistent network snapshot.
 
 ## Capability
 
@@ -473,6 +505,10 @@ postconditions:
 - `targets` is a non-empty list of resource kinds.
 - `layers` is a non-empty list and must match the assigned agent placement.
 - `effects` contributes to the compiled least-privilege set.
+- Built-in action effects also determine conflict admission. Missing effects and
+  custom providers are conservatively treated as unknown mutations, not as
+  read-only work. The built-in `substrate.observation` provider is observation-only
+  and still goes through normal proposal validation and execution.
 - `input-schema` and `output-schema` are JSON Schema objects.
 - `provider` names a registered capability provider. The runtime registers
   `substrate.action` and `substrate.observation`; plugins may register others.

@@ -35,6 +35,35 @@ def access(
 
 
 class SharedStateStoreContractTests(unittest.TestCase):
+    def test_existing_keys_require_versioned_updates_and_independent_keys_proceed(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temporary:
+            for store in self.stores(temporary):
+                with self.subTest(store=type(store).__name__):
+                    store.apply(
+                        access(),
+                        (SharedStateUpdate(scope="run", key="route", value="west"),),
+                    )
+                    with self.assertRaises(SharedStateError) as conflict:
+                        store.apply(
+                            access(),
+                            (
+                                SharedStateUpdate(
+                                    scope="run", key="route", value="east"
+                                ),
+                            ),
+                        )
+                    self.assertTrue(conflict.exception.conflict)
+                    store.apply(
+                        access(),
+                        (SharedStateUpdate(scope="run", key="unrelated", value=True),),
+                    )
+                    snapshot = store.snapshot(access())
+                    self.assertEqual(snapshot.run["route"].value, "west")
+                    self.assertEqual(snapshot.run["unrelated"].value, True)
+                    store.close()
+
     def stores(self, temporary: str) -> tuple[SharedStateStore, ...]:
         return (
             InMemorySharedStateStore(clock=lambda: NOW),

@@ -67,6 +67,10 @@ class ConflictArbitrator:
         self._catalog = ExecutionCatalog(plan)
         self._policy: ArbitrationPolicy = plan.policies.conflicting_actions
 
+    @property
+    def policy(self) -> ArbitrationPolicy:
+        return self._policy
+
     def arbitrate(
         self,
         proposals: tuple[tuple[AgentContext, ActionProposal], ...],
@@ -93,8 +97,7 @@ class ConflictArbitrator:
             )
         )
         commit_orders = {
-            candidate.candidate_id: index
-            for index, candidate in enumerate(ordered)
+            candidate.candidate_id: index for index, candidate in enumerate(ordered)
         }
         return ArbitrationPlan(
             candidates=candidates,
@@ -125,7 +128,7 @@ class ConflictArbitrator:
                 (
                     accepted
                     for accepted in winners
-                    if self._conflicts(accepted, candidate)
+                    if self.conflicts(accepted, candidate)
                 ),
                 None,
             )
@@ -164,30 +167,44 @@ class ConflictArbitrator:
         sequence: int,
     ) -> ArbitrationCandidate:
         definition = self._catalog.resolve(context.agent_id)
-        effects = next(
+        capability = next(
             (
-                tuple(sorted(capability.effects))
-                for capability in definition.capabilities
-                if capability.metadata.name == proposal.capability
+                c
+                for c in definition.capabilities
+                if c.metadata.name == proposal.capability
             ),
-            (),
+            None,
         )
+        # Only the built-in observation provider is known to be read-only.
+        # Unknown custom providers can affect resources beyond their target.
+        if capability is not None and capability.provider == "substrate.observation":
+            effects = ()
+        elif (
+            capability is not None
+            and capability.provider in {"substrate.action", "fake.openflow"}
+            and capability.effects
+        ):
+            effects = tuple(sorted(capability.effects))
+        else:
+            effects = ("*",)
         return ArbitrationCandidate(
             candidate_id=f"{context.invocation_id}:{proposal.id}",
             context=context,
             proposal=proposal,
             effects=effects,
-            conflict_keys=tuple(
-                f"{proposal.target}:{effect}" for effect in effects
-            ),
+            conflict_keys=tuple(f"{proposal.target}:{effect}" for effect in effects),
             admission_sequence=sequence,
         )
 
     @staticmethod
-    def _conflicts(
+    def conflicts(
         left: ArbitrationCandidate,
         right: ArbitrationCandidate,
     ) -> bool:
+        if not left.effects or not right.effects:
+            return False
+        if "*" in left.effects or "*" in right.effects:
+            return True
         return bool(set(left.conflict_keys) & set(right.conflict_keys))
 
     @staticmethod

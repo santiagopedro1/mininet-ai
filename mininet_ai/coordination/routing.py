@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from threading import Lock
-from typing import Literal, Protocol, runtime_checkable
+from threading import Condition, Lock
+from typing import Literal, Protocol, Self, runtime_checkable
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field, JsonValue
 
 from mininet_ai.compiler import DeploymentPlan
+from mininet_ai.coordination.admission import ActionAdmission
 from mininet_ai.coordination.arbitration import (
     ArbitrationCandidate,
+    ArbitrationPlan,
     ArbitrationReport,
     ConflictArbitrator,
 )
@@ -45,9 +48,7 @@ MessageIdFactory = Callable[[], str]
 COORDINATION_OUTCOME_CONTRACT_VERSION: Literal[
     "mininet-ai/coordination-outcome/v1alpha1"
 ] = "mininet-ai/coordination-outcome/v1alpha1"
-COORDINATION_OUTCOME_SCHEMA_ID = (
-    "urn:mininet-ai:schema:v1alpha1:coordination-outcome"
-)
+COORDINATION_OUTCOME_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha1:coordination-outcome"
 
 
 def _utc_now() -> datetime:
@@ -117,9 +118,7 @@ class CoordinationOutcome(StrictModel):
         },
     )
 
-    contract_version: Literal[
-        "mininet-ai/coordination-outcome/v1alpha1"
-    ] = Field(
+    contract_version: Literal["mininet-ai/coordination-outcome/v1alpha1"] = Field(
         default=COORDINATION_OUTCOME_CONTRACT_VERSION,
         alias="contractVersion",
     )
@@ -140,6 +139,44 @@ class Coordinator(Protocol):
     def coordinate(self, request: CoordinationRequest) -> CoordinationOutcome: ...
 
 
+class InvocationLease:
+    """One invocation allocation, releasable across threads exactly once."""
+
+    def __init__(self, agent_id: str, release: Callable[[], None]) -> None:
+        self.agent_id = agent_id
+        self._release = release
+        self._lock = Lock()
+        self._released = False
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._released:
+                self._released = True
+                self._release()
+
+    @property
+    def active(self) -> bool:
+        with self._lock:
+            return not self._released
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+
+@runtime_checkable
+class BudgetedCoordinator(Coordinator, Protocol):
+    """Admit entry agents before removing requests from bounded queues."""
+
+    def reserve_invocation(self, agent_id: str) -> InvocationLease: ...
+    def coordinate(
+        self, request: CoordinationRequest, *, lease: InvocationLease | None = None
+    ) -> CoordinationOutcome: ...
+    def close(self) -> None: ...
+
+
 @dataclass(frozen=True)
 class PreparedAgentInvocation:
     """Reasoning output awaiting Mininet-owned action commitment."""
@@ -147,13 +184,6 @@ class PreparedAgentInvocation:
     context: AgentContext
     response: AgentResponse
     token: object
-
-
-@dataclass(frozen=True)
-class _PendingInvocation:
-    message: CoordinationMessage
-    prepared: PreparedAgentInvocation | None = None
-    result: AgentInvocationResult | None = None
 
 
 class CoordinatedAgentInvoker(Protocol):
@@ -224,6 +254,7 @@ class CoordinationRuntime:
         self._graph = CoordinationGraph(plan)
         self._invoker = invoker
         self._arbitrator = ConflictArbitrator(plan)
+        self._admission = ActionAdmission(self._arbitrator.policy)
         self._channel = channel or InMemoryMessageChannel(
             capacity=plan.resource_limits.max_queued_events
         )
@@ -234,16 +265,59 @@ class CoordinationRuntime:
             )
         self._clock = clock
         self._message_id_factory = message_id_factory
-        self._max_concurrent_actions = plan.resource_limits.max_concurrent_invocations
-        self._coordinate_lock = Lock()
+        self._max_concurrent_invocations = (
+            plan.resource_limits.max_concurrent_invocations
+        )
+        self._slots = Condition()
+        self._active = 0
+        self._requests = 0
+        self._closing = False
+        self._active_agents = {agent.id: 0 for agent in plan.agents}
+        self._agent_limits = {
+            agent.id: agent.execution.max_concurrency for agent in plan.agents
+        }
+        self._executor = ThreadPoolExecutor(
+            max_workers=self._max_concurrent_invocations,
+            thread_name_prefix="mininet-ai-agent",
+        )
 
-    def coordinate(self, request: CoordinationRequest) -> CoordinationOutcome:
+    def coordinate(
+        self, request: CoordinationRequest, *, lease: InvocationLease | None = None
+    ) -> CoordinationOutcome:
         """Route one request and drain every accepted delegation it causes."""
 
-        with self._coordinate_lock:
-            return self._coordinate(request)
+        try:
+            return self._coordinate(request, lease=lease)
+        finally:
+            if lease is not None:
+                lease.close()
 
-    def _coordinate(self, request: CoordinationRequest) -> CoordinationOutcome:
+    def close(self) -> None:
+        with self._slots:
+            self._closing = True
+            self._slots.notify_all()
+            self._slots.wait_for(lambda: self._requests == 0)
+        self._executor.shutdown(wait=True)
+
+    @contextmanager
+    def _request_session(self):
+        with self._slots:
+            if self._closing:
+                raise CoordinationRuntimeError(
+                    "coordinator is closed", code="coordination.closed"
+                )
+            self._requests += 1
+        try:
+            yield
+        finally:
+            with self._slots:
+                self._requests -= 1
+                self._slots.notify_all()
+
+    def _coordinate(
+        self, request: CoordinationRequest, *, lease: InvocationLease | None = None
+    ) -> CoordinationOutcome:
+        channel = self._channel
         entry_agent = self._graph.entry_agent(request.requested_agent_id)
         root = CoordinationMessage(
             messageId=self._next_message_id(),
@@ -258,35 +332,201 @@ class CoordinationRuntime:
                 requestedAgentId=request.requested_agent_id,
             ).model_dump(mode="json", by_alias=True),
         )
-        self._channel.send(root)
         messages = [root]
-        pending: list[_PendingInvocation] = []
         issues: list[CoordinationIssue] = []
+        invocations: list[CoordinatedInvocation] = []
+        reports: list[ArbitrationReport] = []
+        history: list[ArbitrationCandidate] = []
+        with self._request_session():
+            channel.send(root)
+            futures = {}
+            submitted: set[str] = set()
+            if lease is not None:
+                if lease.agent_id != entry_agent:
+                    raise CoordinationRuntimeError(
+                        "entry lease belongs to another agent",
+                        code="coordination.invocation.invalid-identity",
+                    )
+                channel.receive(
+                    timeout_seconds=0, message_ids=frozenset({root.message_id})
+                )
+                futures[self._submit_invocation(root, history, lease)] = root
+                submitted.add(root.message_id)
+            while True:
+                pending = [m for m in messages if m.message_id not in submitted]
+                while (work := self._take_invocation(channel, pending)) is not None:
+                    message, allocation = work
+                    futures[self._submit_invocation(message, history, allocation)] = (
+                        message
+                    )
+                    submitted.add(message.message_id)
+                    pending.remove(message)
+                if not futures:
+                    if not pending:
+                        break
+                    with self._slots:
+                        self._slots.wait_for(
+                            lambda pending=pending: any(
+                                self._available(m.target_agent_id) for m in pending
+                            )
+                        )
+                    continue
+                done, _ = wait(futures, timeout=0.05, return_when=FIRST_COMPLETED)
+                for future in tuple(futures):
+                    if future not in done:
+                        continue
+                    message = futures.pop(future)
+                    try:
+                        result, response, arbitration = future.result()
+                    except Exception as error:
+                        issues.append(
+                            self._issue(
+                                getattr(
+                                    error, "code", "coordination.invocation.failed"
+                                ),
+                                str(error) or type(error).__name__,
+                                message,
+                            )
+                        )
+                        continue
+                    if (
+                        result.run_id != message.run_id
+                        or result.agent_id != message.target_agent_id
+                    ):
+                        issues.append(
+                            self._issue(
+                                "coordination.invocation.invalid-identity",
+                                "agent invoker returned a result for another run or agent",
+                                message,
+                            )
+                        )
+                        continue
+                    invocations.append(
+                        CoordinatedInvocation(message=message, result=result)
+                    )
+                    if arbitration is not None:
+                        reports.append(arbitration)
+                    if response is not None:
+                        payload = CoordinationIntentPayload.model_validate(
+                            message.payload
+                        )
+                        for delegation in response.delegations:
+                            self._delegate(
+                                message,
+                                result.invocation_id,
+                                payload,
+                                delegation.id,
+                                delegation.target_agent_id,
+                                delegation.intent,
+                                delegation.metadata,
+                                messages,
+                                issues,
+                                channel,
+                            )
+        return CoordinationOutcome(
+            runId=request.run_id,
+            correlationId=request.correlation_id,
+            requestedAgentId=request.requested_agent_id,
+            entryAgentId=entry_agent,
+            messages=tuple(messages),
+            invocations=tuple(invocations),
+            arbitration=ArbitrationReport(
+                policy=self._arbitrator.policy,
+                decisions=tuple(
+                    decision.model_copy(
+                        update={
+                            "admission_sequence": sequence,
+                            "commit_order": next(
+                                (
+                                    i
+                                    for i, candidate in enumerate(history)
+                                    if candidate.candidate_id == decision.candidate_id
+                                ),
+                                None,
+                            )
+                            if decision.disposition == "execute"
+                            else None,
+                        }
+                    )
+                    for sequence, decision in enumerate(
+                        d for report in reports for d in report.decisions
+                    )
+                ),
+            ),
+            issues=tuple(issues),
+        )
 
-        while (message := self._channel.receive(timeout_seconds=0)) is not None:
+    def _available(self, agent_id: str) -> bool:
+        return (
+            self._active < self._max_concurrent_invocations
+            and self._active_agents[agent_id] < self._agent_limits[agent_id]
+        )
+
+    def _submit_invocation(
+        self,
+        message: CoordinationMessage,
+        history: list[ArbitrationCandidate],
+        lease: InvocationLease,
+    ) -> Future[
+        tuple[AgentInvocationResult, AgentResponse | None, ArbitrationReport | None]
+    ]:
+        try:
+            return self._executor.submit(self._invoke_message, message, history, lease)
+        except BaseException:
+            lease.close()
+            raise
+
+    def reserve_invocation(self, agent_id: str) -> InvocationLease:
+        with self._slots:
+            self._slots.wait_for(lambda: self._closing or self._available(agent_id))
+            if self._closing:
+                raise CoordinationRuntimeError(
+                    "coordinator is closed", code="coordination.closed"
+                )
+            return self._allocate_invocation(agent_id)
+
+    def _allocate_invocation(self, agent_id: str) -> InvocationLease:
+        self._active += 1
+        self._active_agents[agent_id] += 1
+
+        def release() -> None:
+            with self._slots:
+                self._active -= 1
+                self._active_agents[agent_id] -= 1
+                self._slots.notify_all()
+
+        return InvocationLease(agent_id, release)
+
+    def _take_invocation(
+        self, channel: MessageChannel, pending: list[CoordinationMessage]
+    ) -> tuple[CoordinationMessage, InvocationLease] | None:
+        with self._slots:
+            eligible = frozenset(
+                m.message_id for m in pending if self._available(m.target_agent_id)
+            )
+            if not eligible:
+                return None
+            message = channel.receive(timeout_seconds=0, message_ids=eligible)
+            if message is None:
+                return None
+            return message, self._allocate_invocation(message.target_agent_id)
+
+    def _invoke_message(
+        self,
+        message: CoordinationMessage,
+        history: list[ArbitrationCandidate],
+        lease: InvocationLease,
+    ) -> tuple[AgentInvocationResult, AgentResponse | None, ArbitrationReport | None]:
+        with lease:
             if message.kind not in {
                 CoordinationMessageKind.INTENT,
                 CoordinationMessageKind.DELEGATION,
             }:
-                issues.append(
-                    self._issue(
-                        "coordination.message.kind-invalid",
-                        f"cannot invoke an agent from {message.kind.value!r} message",
-                        message,
-                    )
+                raise CoordinationRuntimeError(
+                    "invalid invocation message kind",
+                    code="coordination.message.kind-invalid",
                 )
-                continue
-            try:
-                payload = CoordinationIntentPayload.model_validate(message.payload)
-            except ValueError as error:
-                issues.append(
-                    self._issue(
-                        "coordination.message.payload-invalid",
-                        str(error),
-                        message,
-                    )
-                )
-                continue
+            payload = CoordinationIntentPayload.model_validate(message.payload)
             context = AgentCoordinationContext(
                 messageId=message.message_id,
                 correlationId=message.correlation_id,
@@ -298,28 +538,16 @@ class CoordinationRuntime:
                 ),
                 sourceAgentId=message.source_agent_id,
                 requestedAgentId=payload.requested_agent_id,
-                allowedDestinations=self._graph.destinations(
-                    message.target_agent_id
-                ),
+                allowedDestinations=self._graph.destinations(message.target_agent_id),
                 hopCount=message.hop_count,
                 metadata=payload.metadata,
             )
-            try:
-                prepared = self._invoker.prepare(
-                    message.run_id,
-                    message.target_agent_id,
-                    payload.intent,
-                    coordination=context,
-                )
-            except Exception as error:
-                issues.append(
-                    self._issue(
-                        "coordination.invocation.failed",
-                        str(error) or type(error).__name__,
-                        message,
-                    )
-                )
-                continue
+            prepared = self._invoker.prepare(
+                message.run_id,
+                message.target_agent_id,
+                payload.intent,
+                coordination=context,
+            )
             identity = (
                 prepared
                 if isinstance(prepared, AgentInvocationResult)
@@ -328,150 +556,110 @@ class CoordinationRuntime:
             if identity.run_id != message.run_id or identity.agent_id != (
                 message.target_agent_id
             ):
-                issues.append(
-                    self._issue(
-                        "coordination.invocation.invalid-identity",
-                        "agent invoker returned a result for another run or agent",
-                        message,
-                    )
+                raise CoordinationRuntimeError(
+                    "agent invoker returned a result for another run or agent",
+                    code="coordination.invocation.invalid-identity",
                 )
-                continue
             if isinstance(prepared, AgentInvocationResult):
-                pending.append(_PendingInvocation(message=message, result=prepared))
-                continue
-            pending.append(_PendingInvocation(message=message, prepared=prepared))
-            for delegation in prepared.response.delegations:
-                self._delegate(
-                    message,
-                    prepared.context.invocation_id,
-                    payload,
-                    delegation.id,
-                    delegation.target_agent_id,
-                    delegation.intent,
-                    delegation.metadata,
-                    messages,
-                    issues,
-                )
+                return prepared, None, None
+            return self._commit_prepared(prepared, history)
 
+    def _commit_prepared(
+        self, prepared: PreparedAgentInvocation, history: list[ArbitrationCandidate]
+    ) -> tuple[AgentInvocationResult, AgentResponse | None, ArbitrationReport | None]:
         action_results: dict[str, ActionResult] = {}
         admitted: list[tuple[AgentContext, ActionProposal]] = []
-        for item in pending:
-            if item.prepared is None:
-                continue
-            for proposal in item.prepared.response.proposals:
-                candidate_id = self._candidate_id(item.prepared, proposal)
-                rejection = self._invoker.validate(item.prepared, proposal)
-                if rejection is None:
-                    admitted.append((item.prepared.context, proposal))
-                else:
-                    action_results[candidate_id] = rejection
-
+        for proposal in prepared.response.proposals:
+            candidate_id = self._candidate_id(prepared, proposal)
+            rejection = self._invoker.validate(prepared, proposal)
+            if rejection is None:
+                admitted.append((prepared.context, proposal))
+            else:
+                action_results[candidate_id] = rejection
         arbitration = self._arbitrator.arbitrate(tuple(admitted))
-        prepared_by_candidate = {
-            self._candidate_id(item.prepared, proposal): item.prepared
-            for item in pending
-            if item.prepared is not None
-            for proposal in item.prepared.response.proposals
-        }
-        action_results.update(
-            self._execute_admitted(
-                arbitration.ordered,
-                prepared_by_candidate,
-            )
-        )
-        for candidate in arbitration.candidates:
-            if candidate.candidate_id not in arbitration.rejected:
-                continue
-            prepared = prepared_by_candidate[candidate.candidate_id]
-            action_results[candidate.candidate_id] = self._invoker.reject(
-                prepared,
-                candidate.proposal,
-                code="coordination.conflict.rejected",
-                message="action proposal conflicts with an earlier admitted action",
+        with self._admission.decision(
+            prepared.context, prepared.response, arbitration.ordered, history
+        ) as rejections:
+            return self._finish_prepared(
+                prepared, history, arbitration, action_results, rejections
             )
 
-        invocations: list[CoordinatedInvocation] = []
-        for item in pending:
-            if item.result is not None:
-                invocations.append(
-                    CoordinatedInvocation(message=item.message, result=item.result)
-                )
-                continue
-            prepared = item.prepared
-            if prepared is None:
-                raise AssertionError("pending invocation has no outcome")
-            results = tuple(
-                action_results[self._candidate_id(prepared, proposal)]
-                for proposal in prepared.response.proposals
-            )
-            try:
-                result = self._invoker.complete(prepared, results)
-            except Exception as error:
-                issues.append(
-                    self._issue(
-                        "coordination.invocation.completion-failed",
-                        str(error) or type(error).__name__,
-                        item.message,
-                    )
-                )
-                continue
-            invocations.append(CoordinatedInvocation(message=item.message, result=result))
-
-        return CoordinationOutcome(
-            runId=request.run_id,
-            correlationId=request.correlation_id,
-            requestedAgentId=request.requested_agent_id,
-            entryAgentId=entry_agent,
-            messages=tuple(messages),
-            invocations=tuple(invocations),
-            arbitration=arbitration.report,
-            issues=tuple(issues),
-        )
-
-    def _execute_admitted(
+    def _finish_prepared(
         self,
-        candidates: tuple[ArbitrationCandidate, ...],
-        prepared_by_candidate: dict[str, PreparedAgentInvocation],
-    ) -> dict[str, ActionResult]:
-        if not candidates:
-            return {}
-        futures: dict[str, Future[ActionResult]] = {}
-        latest_by_conflict_key: dict[str, Future[ActionResult]] = {}
-        with ThreadPoolExecutor(
-            max_workers=min(self._max_concurrent_actions, len(candidates)),
-            thread_name_prefix="mininet-ai-action",
-        ) as executor:
-            for candidate in candidates:
-                dependencies = tuple(
-                    dict.fromkeys(
-                        latest_by_conflict_key[key]
-                        for key in candidate.conflict_keys
-                        if key in latest_by_conflict_key
-                    )
-                )
-                future = executor.submit(
-                    self._execute_after,
-                    dependencies,
-                    prepared_by_candidate[candidate.candidate_id],
-                    candidate.proposal,
-                )
-                futures[candidate.candidate_id] = future
-                for key in candidate.conflict_keys:
-                    latest_by_conflict_key[key] = future
-        return {
-            candidate_id: future.result()
-            for candidate_id, future in futures.items()
-        }
-
-    def _execute_after(
-        self,
-        dependencies: tuple[Future[ActionResult], ...],
         prepared: PreparedAgentInvocation,
-        proposal: ActionProposal,
-    ) -> ActionResult:
-        for dependency in dependencies:
-            dependency.result()
-        return self._invoker.execute(prepared, proposal)
+        history: list[ArbitrationCandidate],
+        arbitration: ArbitrationPlan,
+        action_results: dict[str, ActionResult],
+        rejections: dict[str, ArbitrationCandidate],
+    ):
+        decisions = {d.candidate_id: d for d in arbitration.report.decisions}
+        for candidate in arbitration.ordered:
+            if candidate.candidate_id in rejections:
+                winner = rejections[candidate.candidate_id]
+                action_results[candidate.candidate_id] = self._invoker.reject(
+                    prepared,
+                    candidate.proposal,
+                    code="coordination.conflict.rejected",
+                    message="action proposal conflicts with an earlier admitted action",
+                )
+                decisions[candidate.candidate_id] = decisions[
+                    candidate.candidate_id
+                ].model_copy(
+                    update={
+                        "disposition": "reject",
+                        "commit_order": None,
+                        "winner_candidate_id": winner.candidate_id,
+                    }
+                )
+                continue
+            rejection = self._invoker.validate(prepared, candidate.proposal)
+            if rejection is not None:
+                action_results[candidate.candidate_id] = rejection
+                decisions[candidate.candidate_id] = decisions[
+                    candidate.candidate_id
+                ].model_copy(update={"disposition": "reject", "commit_order": None})
+                continue
+            with self._admission.admit(candidate, history) as winner:
+                if winner is None:
+                    action_results[candidate.candidate_id] = self._invoker.execute(
+                        prepared, candidate.proposal
+                    )
+                else:
+                    action_results[candidate.candidate_id] = self._invoker.reject(
+                        prepared,
+                        candidate.proposal,
+                        code="coordination.conflict.rejected",
+                        message="action proposal conflicts with an earlier admitted action",
+                    )
+                    decisions[candidate.candidate_id] = decisions[
+                        candidate.candidate_id
+                    ].model_copy(
+                        update={
+                            "disposition": "reject",
+                            "commit_order": None,
+                            "winner_candidate_id": winner.candidate_id,
+                        }
+                    )
+        for candidate in arbitration.candidates:
+            if candidate.candidate_id in arbitration.rejected:
+                action_results[candidate.candidate_id] = self._invoker.reject(
+                    prepared,
+                    candidate.proposal,
+                    code="coordination.conflict.rejected",
+                    message="action proposal conflicts with an earlier admitted action",
+                )
+        results = tuple(
+            action_results[self._candidate_id(prepared, proposal)]
+            for proposal in prepared.response.proposals
+        )
+        result = self._invoker.complete(prepared, results)
+        return (
+            result,
+            prepared.response if result.status.value == "succeeded" else None,
+            arbitration.report.model_copy(
+                update={"decisions": tuple(decisions.values())}
+            ),
+        )
 
     def _delegate(
         self,
@@ -484,6 +672,7 @@ class CoordinationRuntime:
         metadata: dict[str, JsonValue],
         messages: list[CoordinationMessage],
         issues: list[CoordinationIssue],
+        channel: MessageChannel,
     ) -> None:
         try:
             self._graph.authorize(parent.target_agent_id, target_agent_id)
@@ -538,7 +727,7 @@ class CoordinationRuntime:
             ).model_dump(mode="json", by_alias=True),
         )
         try:
-            self._channel.send(delegated)
+            channel.send(delegated)
         except MessageChannelError as error:
             issues.append(
                 CoordinationIssue(
