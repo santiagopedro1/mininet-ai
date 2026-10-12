@@ -133,11 +133,13 @@ class AgentSupervisor:
         self,
         agent_id: str,
         invocation: Callable[[], InvocationResult],
+        *,
+        before_wait: Callable[[], None] | None = None,
     ) -> InvocationResult:
         """Run an invocation, retrying failures within the restart budget."""
 
         while True:
-            self._await_running(agent_id)
+            self.wait_until_running(agent_id, before_wait=before_wait)
             try:
                 result = invocation()
             except Exception:
@@ -170,8 +172,7 @@ class AgentSupervisor:
                 )
             ]
             should_restart = (
-                policy.policy == "on-failure"
-                and attempt <= policy.max_attempts
+                policy.policy == "on-failure" and attempt <= policy.max_attempts
             )
             if should_restart:
                 transitions.append(
@@ -193,7 +194,10 @@ class AgentSupervisor:
         )
         return True
 
-    def _await_running(self, agent_id: str) -> None:
+    def wait_until_running(
+        self, agent_id: str, *, before_wait: Callable[[], None] | None = None
+    ) -> None:
+        """Wait out pause/restart before reserving an invocation budget."""
         with self._condition:
             state = self._known_state(agent_id)
             while state in {
@@ -201,6 +205,8 @@ class AgentSupervisor:
                 AgentLifecycleState.PAUSED,
                 AgentLifecycleState.RESTARTING,
             }:
+                if before_wait is not None:
+                    before_wait()
                 self._condition.wait()
                 state = self._known_state(agent_id)
             if state != AgentLifecycleState.RUNNING:
@@ -277,8 +283,7 @@ class AgentSupervisor:
     def _emit(
         self,
         transitions: (
-            tuple[AgentLifecycleTransition, ...]
-            | list[AgentLifecycleTransition]
+            tuple[AgentLifecycleTransition, ...] | list[AgentLifecycleTransition]
         ),
     ) -> None:
         if self._listener is not None:

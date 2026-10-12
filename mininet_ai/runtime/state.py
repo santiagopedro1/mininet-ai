@@ -100,7 +100,13 @@ def _check_expected(
     expected = update.expected_version
     visible_version = None if deleted else current_version
     if expected is None:
-        return
+        if visible_version is not None:
+            raise SharedStateError(
+                f"shared-state update for {update.scope}:{update.key} requires expectedVersion",
+                code="state.version.required",
+                conflict=True,
+            )
+        expected = 0
     if expected == 0 and visible_version is None:
         return
     if expected != visible_version:

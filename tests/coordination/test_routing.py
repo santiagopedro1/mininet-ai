@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
-from threading import Barrier
+from threading import Barrier, Lock
 
 from pydantic import JsonValue
 
@@ -48,6 +48,7 @@ class RecordingInvoker:
     ) -> None:
         self.calls: list[tuple[str, str, str, AgentCoordinationContext]] = []
         self.executed: list[tuple[str, str]] = []
+        self._lock = Lock()
         self._response = response or (
             lambda agent_id, context: AgentResponse(message=f"done:{agent_id}")
         )
@@ -62,13 +63,15 @@ class RecordingInvoker:
     ) -> PreparedAgentInvocation:
         if coordination is None:
             raise AssertionError("coordinated invocation requires context")
-        self.calls.append((run_id, agent_id, intent, coordination))
+        with self._lock:
+            self.calls.append((run_id, agent_id, intent, coordination))
+            sequence = len(self.calls)
         response = self._response(agent_id, coordination)
         from tests.sdk.test_contracts import context as base_context
 
         context = base_context().model_copy(
             update={
-                "invocation_id": f"invoke-{len(self.calls)}",
+                "invocation_id": f"invoke-{sequence}",
                 "run_id": run_id,
                 "agent_id": agent_id,
                 "priority": 0,
@@ -78,7 +81,7 @@ class RecordingInvoker:
         return PreparedAgentInvocation(
             context=context,
             response=response,
-            token=len(self.calls),
+            token=sequence,
         )
 
     def execute(
@@ -141,8 +144,7 @@ class RecordingInvoker:
             status=(
                 InvocationStatus.REJECTED
                 if any(
-                    result.status == ActionStatus.REJECTED
-                    for result in action_results
+                    result.status == ActionStatus.REJECTED for result in action_results
                 )
                 else InvocationStatus.SUCCEEDED
             ),
@@ -153,8 +155,7 @@ class RecordingInvoker:
             issue=(
                 None
                 if all(
-                    result.status == ActionStatus.SUCCEEDED
-                    for result in action_results
+                    result.status == ActionStatus.SUCCEEDED for result in action_results
                 )
                 else AgentRuntimeIssue(
                     code="coordination.conflict.rejected",
@@ -456,26 +457,26 @@ class CoordinationRoutingTests(unittest.TestCase):
 
         outcome = runtime.coordinate(request())
 
-        self.assertEqual(
-            invoker.executed,
-            [("switch-router@s1", "action-switch-router@s1")],
+        self.assertEqual(len(invoker.executed), 1)
+        winner = invoker.executed[0][0]
+        loser = (
+            "switch-router@s2" if winner == "switch-router@s1" else "switch-router@s1"
         )
         self.assertIsNotNone(outcome.arbitration)
         assert outcome.arbitration is not None
         decisions = outcome.arbitration.decisions
         self.assertEqual(
-            [decision.disposition for decision in decisions],
+            sorted(decision.disposition for decision in decisions),
             ["execute", "reject"],
         )
         results = {
-            record.result.agent_id: record.result
-            for record in outcome.invocations
+            record.result.agent_id: record.result for record in outcome.invocations
         }
         self.assertEqual(
-            results["switch-router@s2"].status,
+            results[loser].status,
             InvocationStatus.REJECTED,
         )
-        rejected_issue = results["switch-router@s2"].action_results[0].issue
+        rejected_issue = results[loser].action_results[0].issue
         self.assertIsNotNone(rejected_issue)
         assert rejected_issue is not None
         self.assertEqual(
@@ -535,8 +536,7 @@ class CoordinationRoutingTests(unittest.TestCase):
             [("switch-router@s2", "action-switch-router@s2")],
         )
         results = {
-            record.result.agent_id: record.result
-            for record in outcome.invocations
+            record.result.agent_id: record.result for record in outcome.invocations
         }
         invalid = results["switch-router@s1"].action_results[0]
         self.assertIsNotNone(invalid.issue)

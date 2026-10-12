@@ -86,6 +86,15 @@ class AgentCoordinationContext(StrictModel):
         return self
 
 
+class SharedStateRead(StrictModel):
+    """A snapshot key on which a proposed decision depends (including absence)."""
+
+    scope: Literal["run", "deployment"]
+    key: str = Field(
+        min_length=1, max_length=256, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    )
+
+
 class SharedStateUpdate(StrictModel):
     """A structured, optionally conditional shared-state mutation."""
 
@@ -274,6 +283,9 @@ class CapabilityProviderError(Exception):
 
 
 class AgentResponse(StrictModel):
+    shared_state_reads: tuple[SharedStateRead, ...] = Field(
+        default=(), alias="sharedStateReads"
+    )
     message: str | None = Field(default=None, min_length=1)
     proposals: tuple[ActionProposal, ...] = ()
     delegations: tuple[DelegationProposal, ...] = ()

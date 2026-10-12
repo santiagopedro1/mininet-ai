@@ -184,7 +184,7 @@ class OneShotAgentRuntime:
         if isinstance(prepared, AgentInvocationResult):
             return prepared
         action_results = tuple(
-            self.execute(prepared, proposal)
+            self.validate(prepared, proposal) or self.execute(prepared, proposal)
             for proposal in prepared.response.proposals
         )
         return self.complete(prepared, action_results)
@@ -197,7 +197,7 @@ class OneShotAgentRuntime:
         *,
         coordination: AgentCoordinationContext | None = None,
     ) -> PreparedAgentInvocation | AgentInvocationResult:
-        """Run reasoning and shared-state updates without committing actions."""
+        """Run reasoning without publishing action outcomes or shared state."""
 
         started_at = self._clock()
         started_tick = self._monotonic()
@@ -306,32 +306,6 @@ class OneShotAgentRuntime:
                 },
             )
 
-        try:
-            state_changes = self._apply_shared_state(
-                context,
-                access,
-                response.shared_state_updates,
-            )
-        except SharedStateError as error:
-            if self._audit is not None:
-                self._audit.record(
-                    AuditEventType.SHARED_STATE_FAILED,
-                    context,
-                    self._error_data(error),
-                )
-            return self._state_failure(
-                context,
-                started_at,
-                response,
-                error,
-                timings=self._timings(
-                    started_tick,
-                    context_seconds=context_seconds,
-                    model_queueing_seconds=execution.model_queueing_seconds,
-                    reasoning_seconds=reasoning_seconds,
-                ),
-            )
-
         state = _OneShotPreparation(
             context=context,
             response=response,
@@ -341,7 +315,7 @@ class OneShotAgentRuntime:
             context_seconds=context_seconds,
             model_queueing_seconds=execution.model_queueing_seconds,
             reasoning_seconds=reasoning_seconds,
-            state_changes=state_changes,
+            state_changes=(),
         )
         return PreparedAgentInvocation(
             context=context,
@@ -372,7 +346,52 @@ class OneShotAgentRuntime:
         """Validate one proposal before it enters conflict arbitration."""
 
         self._prepared_state(prepared)
+        try:
+            self._check_shared_state(prepared)
+        except SharedStateError as error:
+            return self.reject(prepared, proposal, code=error.code, message=str(error))
         return self._capabilities.validate(prepared.context, proposal)
+
+    def _check_shared_state(self, prepared: PreparedAgentInvocation) -> None:
+        context = prepared.context
+        updates = prepared.response.shared_state_updates
+        if self._shared_state is None:
+            if updates:
+                raise SharedStateError(
+                    "no shared-state store is configured", code="state.store.required"
+                )
+            return
+        access = self._shared_access(
+            context.run_id, self._catalog.resolve(context.agent_id)
+        )
+        current = self._shared_state.snapshot(access)
+        for update in updates:
+            access.namespace(update.scope)
+        for read in prepared.response.shared_state_reads:
+            access.namespace(read.scope)
+        identities = {
+            (read.scope, read.key) for read in prepared.response.shared_state_reads
+        }
+        identities.update((u.scope, u.key) for u in updates)
+        explicit = {(u.scope, u.key): u.expected_version for u in updates}
+        for scope, key in identities:
+            now = getattr(current, scope).get(key)
+            expected = explicit.get((scope, key))
+            observed = self._snapshot_version(context, scope, key)
+            if expected is None:
+                expected = observed
+            actual = now.version if now is not None else 0
+            if actual != expected or expected != observed:
+                raise SharedStateError(
+                    f"shared-state version conflict for {scope}:{key}; expected {expected}, found {actual}",
+                    code="state.version.conflict",
+                    conflict=True,
+                )
+
+    @staticmethod
+    def _snapshot_version(context: AgentContext, scope: str, key: str) -> int:
+        entry = getattr(context.shared_state, scope).get(key)
+        return entry.version if entry is not None else 0
 
     def reject(
         self,
@@ -422,9 +441,7 @@ class OneShotAgentRuntime:
             for result in action_results
             if result.effect_latency_seconds is not None
         )
-        effect_seconds = (
-            sum(effect_latencies) if effect_latencies else None
-        )
+        effect_seconds = sum(effect_latencies) if effect_latencies else None
         action_seconds = max(
             0.0,
             state.action_total_seconds - (effect_seconds or 0.0),
@@ -437,6 +454,33 @@ class OneShotAgentRuntime:
             action_seconds=action_seconds,
             effect_seconds=effect_seconds,
         )
+        if all(result.status == ActionStatus.SUCCEEDED for result in action_results):
+            try:
+                if (
+                    state.response.shared_state_updates
+                    or state.response.shared_state_reads
+                ):
+                    self._check_shared_state(prepared)
+                definition = self._catalog.resolve(state.context.agent_id)
+                state.state_changes = self._apply_shared_state(
+                    state.context,
+                    self._shared_access(state.context.run_id, definition),
+                    state.response.shared_state_updates,
+                )
+            except SharedStateError as error:
+                if self._audit is not None:
+                    self._audit.record(
+                        AuditEventType.SHARED_STATE_FAILED,
+                        state.context,
+                        self._error_data(error),
+                    )
+                return self._state_failure(
+                    state.context,
+                    state.started_at,
+                    state.response,
+                    error,
+                    timings=timings,
+                ).model_copy(update={"action_results": action_results})
         try:
             state.provider.record_action_results(state.context, action_results)
         except Exception as error:
@@ -649,7 +693,21 @@ class OneShotAgentRuntime:
                 "agent proposed shared-state updates without a configured store",
                 code="state.store.required",
             )
-        changes = self._shared_state.apply(access, updates)
+        # Missing expectations are bound to the invocation's snapshot, never
+        # interpreted as an unconditional overwrite of a concurrent decision.
+        versioned = tuple(
+            update.model_copy(
+                update={
+                    "expected_version": (
+                        update.expected_version
+                        if update.expected_version is not None
+                        else (self._snapshot_version(context, update.scope, update.key))
+                    )
+                }
+            )
+            for update in updates
+        )
+        changes = self._shared_state.apply(access, versioned)
         if self._audit is not None:
             self._audit.record(
                 AuditEventType.SHARED_STATE_UPDATED,
@@ -681,9 +739,7 @@ class OneShotAgentRuntime:
             runId=context.run_id,
             agentId=context.agent_id,
             status=(
-                InvocationStatus.REJECTED
-                if error.conflict
-                else InvocationStatus.FAILED
+                InvocationStatus.REJECTED if error.conflict else InvocationStatus.FAILED
             ),
             startedAt=started_at,
             completedAt=self._clock(),

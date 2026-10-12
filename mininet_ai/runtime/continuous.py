@@ -6,6 +6,7 @@ import json
 import time
 from collections import deque
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -16,11 +17,13 @@ from uuid import uuid4
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.compiler.models import AgentInstance
 from mininet_ai.coordination import (
+    BudgetedCoordinator,
     CoordinatedInvocation,
     CoordinationGraph,
     CoordinationOutcome,
     CoordinationRequest,
     Coordinator,
+    InvocationLease,
 )
 from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import MininetAIError
@@ -138,8 +141,20 @@ class ContinuousAgentRuntime:
         self._condition = Condition()
         self._report_lock = Lock()
         self._lifecycle_lock = Lock()
-        self._global_slots = Semaphore(
-            plan.resource_limits.max_concurrent_invocations
+        self._global_slots = Semaphore(plan.resource_limits.max_concurrent_invocations)
+        self._request_capacity = (
+            plan.resource_limits.max_queued_events
+            + plan.resource_limits.max_concurrent_invocations
+        )
+        self._request_slots = Semaphore(self._request_capacity)
+        self._active_requests = 0
+        self._request_executor = (
+            ThreadPoolExecutor(
+                max_workers=self._request_capacity,
+                thread_name_prefix="mininet-ai-request",
+            )
+            if isinstance(invoker, BudgetedCoordinator)
+            else None
         )
         self._queued = 0
         self._workers_closed = False
@@ -165,10 +180,7 @@ class ContinuousAgentRuntime:
         self._issues: list[ContinuousRuntimeIssue] = []
         self._lifecycle: list[AgentLifecycleTransition] = []
         self._supervisor = AgentSupervisor(
-            {
-                agent.id: agent.execution.restart
-                for agent in self._plan.agents
-            },
+            {agent.id: agent.execution.restart for agent in self._plan.agents},
             listener=self._record_transition,
             clock=clock,
         )
@@ -190,7 +202,14 @@ class ContinuousAgentRuntime:
             self._state = ContinuousRuntimeState.RUNNING
         self._supervisor.start()
         for agent in self._plan.agents:
-            for index in range(agent.execution.max_concurrency):
+            # A request worker may be waiting on descendants after its entry
+            # agent has finished. The coordinator budgets actual invocations.
+            worker_count = (
+                1
+                if isinstance(self._invoker, BudgetedCoordinator)
+                else agent.execution.max_concurrency
+            )
+            for index in range(worker_count):
                 worker = Thread(
                     target=self._worker,
                     args=(agent.id,),
@@ -272,8 +291,8 @@ class ContinuousAgentRuntime:
             if self._state == ContinuousRuntimeState.RUNNING:
                 self._state = ContinuousRuntimeState.STOPPING
                 self._drain = drain
-        if drain:
-            self._supervisor.resume_paused()
+        # Wake paused admission workers even when queued work is discarded.
+        self._supervisor.resume_paused()
         deadline = time.monotonic() + timeout_seconds
         self._interval_stop.set()
         for interval in self._intervals:
@@ -283,6 +302,18 @@ class ContinuousAgentRuntime:
             self._join(self._dispatcher, deadline)
         for worker in self._workers:
             self._join(worker, deadline)
+        with self._condition:
+            if not self._condition.wait_for(
+                lambda: self._active_requests == 0,
+                timeout=max(0, deadline - time.monotonic()),
+            ):
+                raise ContinuousRuntimeError(
+                    "coordinated requests are still active", code="runtime.stop.timeout"
+                )
+        if self._request_executor is not None:
+            self._request_executor.shutdown(wait=True)
+        if isinstance(self._invoker, BudgetedCoordinator):
+            self._invoker.close()
         self._supervisor.stop()
         with self._lifecycle_lock:
             self._state = ContinuousRuntimeState.STOPPED
@@ -490,9 +521,10 @@ class ContinuousAgentRuntime:
                 identity = (agent.id, trigger.name)
                 last = self._last_triggered.get(identity)
                 cooldown = duration_seconds(trigger.cooldown)
-                if last is not None and (
-                    event.observed_at - last
-                ).total_seconds() < cooldown:
+                if (
+                    last is not None
+                    and (event.observed_at - last).total_seconds() < cooldown
+                ):
                     self._issue(
                         "runtime.trigger.cooldown",
                         "event arrived during trigger cooldown",
@@ -527,9 +559,9 @@ class ContinuousAgentRuntime:
                         queue[index] = item
                         with self._report_lock:
                             self._counts["coalesced"] += 1
-                        self._last_triggered[
-                            (item.agent.id, item.trigger)
-                        ] = item.event.observed_at
+                        self._last_triggered[(item.agent.id, item.trigger)] = (
+                            item.event.observed_at
+                        )
                         return
             at_agent_limit = len(queue) >= execution.queue_capacity
             at_global_limit = (
@@ -559,14 +591,15 @@ class ContinuousAgentRuntime:
                     return
             queue.append(item)
             self._queued += 1
-            self._last_triggered[(item.agent.id, item.trigger)] = (
-                item.event.observed_at
-            )
+            self._last_triggered[(item.agent.id, item.trigger)] = item.event.observed_at
             with self._report_lock:
                 self._counts["enqueued"] += 1
             self._condition.notify_all()
 
     def _worker(self, agent_id: str) -> None:
+        if isinstance(self._invoker, BudgetedCoordinator):
+            self._coordinated_worker(agent_id)
+            return
         while True:
             with self._condition:
                 queue = self._queues[agent_id]
@@ -576,74 +609,134 @@ class ContinuousAgentRuntime:
                     return
                 item = queue.popleft()
                 self._queued -= 1
+            self._process_item(item)
+
+    def _coordinated_worker(self, agent_id: str) -> None:
+        invoker = self._invoker
+        executor = self._request_executor
+        assert isinstance(invoker, BudgetedCoordinator) and executor is not None
+        while True:
+            with self._condition:
+                queue = self._queues[agent_id]
+                self._condition.wait_for(
+                    lambda queue=queue: bool(queue) or self._workers_closed
+                )
+                if not self._drain and self.state != ContinuousRuntimeState.RUNNING:
+                    self._condition.wait_for(lambda: self._workers_closed)
+                    return
+                if not queue:
+                    return
             try:
-                completion = self._supervisor.execute(
-                    agent_id,
-                    lambda item=item: self._invoke(item),
-                )
-            except Exception as error:
-                self._issue(
-                    "runtime.invocation.failed",
-                    str(error) or type(error).__name__,
-                    event=item.event,
-                    agent_id=item.agent.id,
-                    trigger=item.trigger,
-                )
-                with self._report_lock:
-                    self._counts["failed"] += 1
+                self._supervisor.wait_until_running(agent_id)
+            except Exception:
+                with self._condition:
+                    if not queue:
+                        continue
+                    item = queue.popleft()
+                    self._queued -= 1
+                self._process_item(item)
                 continue
-            result = completion.result.model_copy(
-                update={
-                    "timings": completion.result.timings.model_copy(
-                        update={
-                            "event_detection_seconds": max(
-                                0.0,
-                                (
-                                    item.event.observed_at
-                                    - item.event.occurred_at
-                                ).total_seconds(),
-                            )
-                        }
-                    )
-                }
+            self._request_slots.acquire()
+            lease = invoker.reserve_invocation(agent_id)
+            with self._condition:
+                if not queue:
+                    lease.close()
+                    self._request_slots.release()
+                    continue
+                item = queue.popleft()
+                self._queued -= 1
+                self._active_requests += 1
+            executor.submit(self._process_coordinated_item, item, lease)
+
+    def _process_coordinated_item(
+        self, item: _WorkItem, lease: InvocationLease
+    ) -> None:
+        try:
+            self._process_item(item, lease)
+        finally:
+            lease.close()
+            self._request_slots.release()
+            with self._condition:
+                self._active_requests -= 1
+                self._condition.notify_all()
+
+    def _process_item(
+        self, item: _WorkItem, lease: InvocationLease | None = None
+    ) -> None:
+        agent_id = self._execution_agent_id(item.agent.id)
+        try:
+            completion = self._supervisor.execute(
+                agent_id,
+                lambda: self._invoke(item, lease),
+                before_wait=lease.close if lease is not None else None,
             )
-            coordination = self._replace_coordination_result(
-                completion.coordination,
-                result,
-            )
-            record = ContinuousInvocationRecord(
-                eventId=item.event.event_id,
-                agentId=item.agent.id,
+        except Exception as error:
+            self._issue(
+                "runtime.invocation.failed",
+                str(error) or type(error).__name__,
+                event=item.event,
+                agent_id=item.agent.id,
                 trigger=item.trigger,
-                result=result,
-                coordination=coordination,
             )
             with self._report_lock:
-                self._invocations.append(record)
-                self._counts["completed"] += 1
-                if result.status != InvocationStatus.SUCCEEDED:
-                    self._counts["failed"] += 1
-            if self._invocation_listener is not None:
-                self._invocation_listener(record)
+                self._counts["failed"] += 1
+            return
+        result = completion.result.model_copy(
+            update={
+                "timings": completion.result.timings.model_copy(
+                    update={
+                        "event_detection_seconds": max(
+                            0.0,
+                            (
+                                item.event.observed_at - item.event.occurred_at
+                            ).total_seconds(),
+                        )
+                    }
+                )
+            }
+        )
+        coordination = self._replace_coordination_result(
+            completion.coordination,
+            result,
+        )
+        record = ContinuousInvocationRecord(
+            eventId=item.event.event_id,
+            agentId=item.agent.id,
+            trigger=item.trigger,
+            result=result,
+            coordination=coordination,
+        )
+        with self._report_lock:
+            self._invocations.append(record)
+            self._counts["completed"] += 1
+            if result.status != InvocationStatus.SUCCEEDED:
+                self._counts["failed"] += 1
+        if self._invocation_listener is not None:
+            self._invocation_listener(record)
 
-    def _invoke(self, item: _WorkItem) -> _InvocationCompletion:
+    def _invoke(
+        self, item: _WorkItem, lease: InvocationLease | None = None
+    ) -> _InvocationCompletion:
+        if isinstance(self._invoker, Coordinator):
+            request = CoordinationRequest(
+                runId=self._run_id,
+                requestedAgentId=item.agent.id,
+                intent=item.intent,
+                correlationId=(item.event.correlation_id or item.event.event_id),
+                triggeringEventId=item.event.event_id,
+            )
+            outcome = (
+                self._invoker.coordinate(
+                    request, lease=lease if lease is not None and lease.active else None
+                )
+                if isinstance(self._invoker, BudgetedCoordinator)
+                else self._invoker.coordinate(request)
+            )
+            return _InvocationCompletion(
+                result=self._root_result(outcome),
+                coordination=outcome,
+            )
         with self._global_slots:
-            if isinstance(self._invoker, Coordinator):
-                outcome = self._invoker.coordinate(
-                    CoordinationRequest(
-                        runId=self._run_id,
-                        requestedAgentId=item.agent.id,
-                        intent=item.intent,
-                        correlationId=(
-                            item.event.correlation_id or item.event.event_id
-                        ),
-                        triggeringEventId=item.event.event_id,
-                    )
-                )
-                return _InvocationCompletion(
-                    result=self._root_result(outcome),
-                    coordination=outcome,
-                )
             return _InvocationCompletion(
                 result=self._invoker.invoke(
                     self._run_id,

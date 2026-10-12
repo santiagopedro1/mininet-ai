@@ -14,6 +14,7 @@ from pathlib import Path
 from threading import RLock
 from time import monotonic
 from typing import Protocol, cast
+from uuid import uuid4
 
 from agno.agent import Agent
 from agno.metrics import ModelMetrics, RunMetrics
@@ -51,6 +52,8 @@ _SAFE_OUTPUT_INSTRUCTIONS = (
     "Delegation proposals must use only coordination.allowed_destinations; when "
     "coordination is absent or has no allowed destinations, do not delegate. "
     "Shared-state updates must use only shared_state.allowed_scopes. "
+    "Declare every shared snapshot key your decision relies on in sharedStateReads, "
+    "including keys whose absence matters; updated keys are dependencies automatically. "
     "Do not execute network changes directly. Describe proposed changes, not "
     "completed changes: an action proposal is not evidence of successful execution."
 )
@@ -235,8 +238,10 @@ class AgnoAgentFactory:
         self._invocation_locks: dict[str, RLock] = {}
         self._runners: dict[str, asyncio.Runner] = {}
 
-    def create(self, definition: AgentExecutionDefinition) -> Agent:
-        identity = definition.instance.id
+    def create(
+        self, definition: AgentExecutionDefinition, *, identity: str | None = None
+    ) -> Agent:
+        identity = identity or definition.instance.id
         with self._lock:
             existing = self._agents.get(identity)
             if existing is not None:
@@ -256,6 +261,16 @@ class AgnoAgentFactory:
             self._definitions[identity] = definition
             self._invocation_locks[identity] = RLock()
             return configured
+
+    def release(self, identity: str) -> None:
+        """Release an invocation-isolated agent after its reasoning stops."""
+        with self._lock:
+            runner = self._runners.pop(identity, None)
+            if runner is not None:
+                runner.close()
+            self._agents.pop(identity, None)
+            self._definitions.pop(identity, None)
+            self._invocation_locks.pop(identity, None)
 
     @contextmanager
     def invocation(self, agent_id: str) -> Iterator[None]:
@@ -457,7 +472,16 @@ class AgnoAgentProvider:
     ) -> None:
         self._definition = definition
         self._factory = factory or AgnoAgentFactory()
-        self._agent = self._factory.create(definition)
+        memory = definition.blueprint.memory
+        self._isolated = definition.instance.execution.max_concurrency > 1 and all(
+            item is None for item in (memory.local, memory.conversation, memory.learned)
+        )
+        self._agent_key = (
+            f"{definition.instance.id}:{uuid4()}"
+            if self._isolated
+            else definition.instance.id
+        )
+        self._agent = self._factory.create(definition, identity=self._agent_key)
 
     def invoke(self, context: AgentContext) -> AgentResponse:
         return self.run(context).response
@@ -468,7 +492,11 @@ class AgnoAgentProvider:
         with invocation_diagnostics(
             context.run_id, context.agent_id, context.invocation_id
         ):
-            return self._run(context)
+            try:
+                return self._run(context)
+            finally:
+                if self._isolated:
+                    self._factory.release(self._agent_key)
 
     def _run(self, context: AgentContext) -> AgnoExecutionResult:
 
@@ -481,7 +509,7 @@ class AgnoAgentProvider:
         timeout_seconds = _reasoning_timeout_seconds(self._definition)
         try:
             queued_at = monotonic()
-            with self._factory.invocation(context.agent_id):
+            with self._factory.invocation(self._agent_key):
                 queueing_seconds = max(0.0, monotonic() - queued_at)
                 if timeout_seconds is None:
                     output = self._agent.run(
@@ -493,7 +521,7 @@ class AgnoAgentProvider:
                     )
                 else:
                     output = self._factory.run_async(
-                        context.agent_id,
+                        self._agent_key,
                         lambda: self._run_with_timeout(
                             context,
                             session_id,
