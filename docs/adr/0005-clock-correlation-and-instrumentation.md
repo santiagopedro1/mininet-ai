@@ -128,13 +128,21 @@ unchanged when instrumentation is disabled.
 - Maintain a Provider-specific ledger of every request: local request identity,
   optional Provider request identity, start, and trustworthy terminal evidence.
   Keep linkage to the trial and invocation even if completion occurs during cleanup.
-- A terminal response or confirmed remote termination can clear outstanding work.
-  A local exception, timeout, closed connection, cancellation request, completed
-  local worker, or closed factory cannot establish remote termination by itself.
+- A normal terminal response from the Provider protocol proves that request
+  completed. If a request is interrupted, only an authoritative remote-termination
+  acknowledgement/status can clear it. A local exception, timeout, closed
+  connection, cancellation request, completed local worker, or closed factory
+  cannot establish remote termination by itself.
 - Record unknown or unsupported containment evidence explicitly. Abort when the
   shared cleanup budget expires without proof that previous requests have finished
   or terminated, as required by the lifecycle contract. Timing callbacks alone do
   not provide that proof. Persistent model caches are not outstanding requests.
+- The current Ollama adapter has no repository-supported remote request identity,
+  termination acknowledgement, or status query. A normal terminal response is
+  usable completion evidence; after local timeout/cancellation, remote termination
+  remains unknown. Under ADR-0004 this requires aborting before another trial unless
+  an adapter can provide authoritative evidence. Do not claim local cancellation
+  proves remote generation stopped.
 
 ## SDK compatibility and implementation gaps
 
@@ -157,6 +165,32 @@ telemetry cadence waits after collection, and the example collector cannot retai
 all cycles or pre-onset recognition. These are implementation gaps, not assertions
 that the new contract is supported. No runtime code changes accompany this decision.
 
-Exact machine-readable field names, serialization, statuses, record relationships,
-and summary populations remain for
-[#35 — Define raw latency records and trustworthy summaries](https://github.com/santiagopedro1/mininet-ai/issues/35).
+## Handoff acceptance criteria
+
+Automated acceptance must cover the following against the contracts in ADRs
+0001–0006:
+
+- Same version/seed/configuration reproduces the generator conformance vector,
+  including graph, placements, ports, paths, and eligible-failure order.
+- Schema-valid and schema-invalid records, cross-file references, duplicate IDs,
+  sequence gaps, count reconciliation, recorder failure, and truncated/incomplete
+  artifacts are handled explicitly.
+- Timing tests cover same-domain durations, true zero, missing and malformed ticks,
+  recognition before onset, action after recovery, late completion, failed phases,
+  and fixed-slot misses without backfill.
+- Lifecycle tests cover warm-up separation/failure, every trial outcome, response
+  deadline freezing, admission races, verified cleanup, and unknown Provider
+  containment aborting before the next trial. A normal terminal response is accepted;
+  local cancellation without remote evidence is not.
+- Opt-in live Mininet acceptance proves both designated traffic directions recover
+  for three consecutive rounds with the failed link down, then verifies teardown.
+  A skipped or unavailable live test leaves live acceptance explicitly unverified;
+  unit tests or a gated skip are not evidence of live recovery.
+
+No acceptance test result may claim support for a Provider termination protocol the
+adapter does not implement. Provider-specific terminal evidence must be tested
+through the same adapter seam used by the experiment.
+
+Machine-readable field semantics, closed status values, and summary populations are
+specified in [ADR-0006](0006-raw-latency-records-and-summaries.md). Concrete JSON
+Schema files and their fixture suite are required before implementation acceptance.

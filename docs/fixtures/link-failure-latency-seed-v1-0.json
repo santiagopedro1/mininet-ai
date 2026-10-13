@@ -1,0 +1,80 @@
+{
+  "generator_version": "sha256-counter-v1",
+  "seed": 0,
+  "seed_bytes_hex": "0000000000000000",
+  "stream_keys_hex": {
+    "topology": "f7eccc789283026025594b3e7beafcf88787d8d1eee2323b1f59dd2e0e1a7ae8",
+    "placement": "33fb5f240f7bd63a20898d55a870c1209c86c0b4f31df607b4ed5a55a97a598a",
+    "warmup-failure-pass:0": "fca94287ca4160078ab0c37ccfe2204c63d35dd043f23e05d9560d589be480a1",
+    "measured-failure-pass:0": "6ff581d09f9a3a2811e3af0918f83ada9b1c2e61a19cfd7624196b4455ef647a"
+  },
+  "first_topology_words_hex": [
+    "fefffcf19d428751",
+    "b6d492b929f5d4a5",
+    "8e438877a3b066c5",
+    "8bfd87f75804f339"
+  ],
+  "canonical_switch_ids": [
+    "s1", "s10", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"
+  ],
+  "cycle": [
+    "s6", "s2", "s3", "s9", "s7", "s4", "s1", "s5", "s8", "s10"
+  ],
+  "chord_count": 1,
+  "chords": [["s10", "s9"]],
+  "edges": [
+    ["s1", "s4"],
+    ["s1", "s5"],
+    ["s10", "s6"],
+    ["s10", "s8"],
+    ["s10", "s9"],
+    ["s2", "s3"],
+    ["s2", "s6"],
+    ["s3", "s9"],
+    ["s4", "s7"],
+    ["s5", "s8"],
+    ["s7", "s9"]
+  ],
+  "host_placement_order": [
+    "s7", "s2", "s3", "s8", "s5", "s6", "s1", "s10", "s4", "s9"
+  ],
+  "host_attachments": {"h1": "s7", "h2": "s2"},
+  "host_addresses": {
+    "h1": {"ipv4": "10.0.0.1/24", "mac": "02:00:00:00:00:01"},
+    "h2": {"ipv4": "10.0.0.2/24", "mac": "02:00:00:00:00:02"}
+  },
+  "ports_by_switch": {
+    "s1": [{"neighbor": "s4", "port": 1}, {"neighbor": "s5", "port": 2}],
+    "s10": [
+      {"neighbor": "s6", "port": 1},
+      {"neighbor": "s8", "port": 2},
+      {"neighbor": "s9", "port": 3}
+    ],
+    "s2": [
+      {"neighbor": "s3", "port": 1},
+      {"neighbor": "s6", "port": 2},
+      {"neighbor": "h2", "port": 3}
+    ],
+    "s3": [{"neighbor": "s2", "port": 1}, {"neighbor": "s9", "port": 2}],
+    "s4": [{"neighbor": "s1", "port": 1}, {"neighbor": "s7", "port": 2}],
+    "s5": [{"neighbor": "s1", "port": 1}, {"neighbor": "s8", "port": 2}],
+    "s6": [{"neighbor": "s10", "port": 1}, {"neighbor": "s2", "port": 2}],
+    "s7": [
+      {"neighbor": "s4", "port": 1},
+      {"neighbor": "s9", "port": 2},
+      {"neighbor": "h1", "port": 3}
+    ],
+    "s8": [{"neighbor": "s10", "port": 1}, {"neighbor": "s5", "port": 2}],
+    "s9": [
+      {"neighbor": "s10", "port": 1},
+      {"neighbor": "s3", "port": 2},
+      {"neighbor": "s7", "port": 3}
+    ]
+  },
+  "healthy_paths": {
+    "h1_to_h2": ["h1", "s7", "s9", "s3", "s2", "h2"],
+    "h2_to_h1": ["h2", "s2", "s3", "s9", "s7", "h1"]
+  },
+  "eligible_failure_links": [["s2", "s3"], ["s3", "s9"], ["s7", "s9"]],
+  "measured_failure_order": [["s3", "s9"], ["s2", "s3"], ["s7", "s9"]]
+}

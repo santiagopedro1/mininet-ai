@@ -20,6 +20,14 @@ existing output. It builds on ADRs
 Use schema identity `mininet-ai/link-failure-latency/v2` in a new output directory.
 Do not label this layout as the existing v1 JSONL format or overwrite another run.
 
+Before implementation is accepted, publish JSON Schema Draft 2020-12 schemas for
+`run.json`, each `events.jsonl` event variant, `trials.jsonl`, `agents.jsonl`, and
+`summary.json`. Each JSONL line validates as one record. Event variants use an
+explicit discriminator. Add valid and invalid fixtures for every schema family,
+plus artifact-level valid/invalid fixtures for rules that span files. JSON Schema
+validates local record structure; a separate artifact validator checks references,
+sequences, timings, and reconciled counts.
+
 | File | Responsibility |
 | --- | --- |
 | `run.json` | Immutable run manifest: identities, requested configuration, scenario replay data, measurement environment, and schema/generator versions |
@@ -124,6 +132,25 @@ Do not label this layout as the existing v1 JSONL format or overwrite another ru
   separately for measured and warm-up attempts. Unknown outcomes or missing
   projections in incomplete artifacts are visible, not silently dropped.
 
+### Closed v2 status and transition values
+
+- Availability is exactly `available`, `unavailable`, or `not_applicable`, as
+  defined above. Cleanup outcome is exactly `verified`, `failed`, or `unknown`.
+- Trial outcome is exactly `recovered`, `timeout`, `invalid`, `setup_failed`,
+  `injection_failed`, `no_observed_disruption`, or `error`.
+- Run terminal events are `run_finished` and `run_aborted`; absence of either
+  terminal event in persisted evidence is interpreted as an incomplete artifact,
+  not as a third emitted terminal event.
+- Operation transitions are `operation_started`, `operation_completed`,
+  `operation_failed`, and `operation_cancelled`. Operation projection state is
+  exactly `not_started`, `in_progress`, `completed`, `failed`, `cancelled`, or
+  `incomplete`. `incomplete` is derived when an operation lacks a terminal
+  transition in a finalized artifact; it is not an emitted terminal transition.
+- Lateness and duration availability are independent of operation state. Unknown
+  values for closed v2 enums fail validation. Adding or changing an enum value
+  requires a new schema version and updated conformance fixtures; consumers must
+  not guess the meaning of an unknown value.
+
 ## Summary populations and statistics
 
 - Summaries are derived outputs checked against persisted raw evidence and
@@ -193,4 +220,7 @@ Its pooled summaries use nearest-rank p95, which is effectively the maximum in
 small populations, without the population/outcome labelling agreed here. Existing
 audit and ledger envelopes/storage can be reused, but do not themselves supply the
 new measurements. This ADR specifies the replacement contract, not implemented
-v2 support; no writer, runtime, or summary code changes accompany it.
+v2 support; no writer, runtime, schema files, or summary code changes accompany it.
+The handoff acceptance checklist is in
+[ADR-0005](0005-clock-correlation-and-instrumentation.md). Concrete Draft 2020-12
+schemas and valid/invalid fixtures remain required implementation-handoff artifacts.

@@ -27,24 +27,58 @@ generation or runtime behavior. It builds on the
 
 ## Seed and replay contract
 
-- Require an explicit seed and record the generator version and configuration.
-  The same seed, version, and configuration must reproduce the graph, ports,
-  host attachments, and eligible-failure ordering.
-- Keep topology generation, host placement, and failure selection in separate
-  random streams. Changing trial repetition must not change the topology.
-- Define deterministic selection and tie-breaking order. Generation must not
-  depend on unordered collection iteration or process-randomized hashes.
-- Any change to generator behavior requires a new generator version. The
-  reproducibility guarantee does not extend to a different version or configuration.
+- Require an explicit nonnegative unsigned 64-bit seed and record the generator
+  version and configuration. Encode the seed as exactly eight big-endian bytes.
+- For version 1, derive each stream key as
+  `SHA-256(UTF-8("mininet-ai/link-failure-latency/v1") || 0x00 || seed_bytes || UTF-8(stream_label))`.
+  The fixed-width seed and single separator make the encoding unambiguous.
+- Generate stream words as the first eight bytes, interpreted unsigned big-endian,
+  of `SHA-256(stream_key || counter_u64_be)`. Counters start at zero and increment
+  per digest; exhausting the unsigned 64-bit counter is an error, not a wraparound.
+- To draw uniformly from `[0, n)`, reject words `x >= floor(2^64 / n) * n`, then
+  return `x mod n`. Shuffle by descending Fisher–Yates, for `i = len(items)-1`
+  through `1`, drawing `j` uniformly from `[0, i+1)` and swapping positions `i,j`.
+- Use the canonical lexicographic ordering of UTF-8 switch IDs (`s1`, `s10`,
+  `s2`, …) before every shuffle or candidate enumeration. Shuffle this ordered
+  switch list to form the cycle; enumerate normalized non-cycle switch pairs
+  lexicographically; draw the chord count uniformly from 1–5; shuffle the complete
+  candidate list and take its first `chord_count` pairs.
+- Use independent labels `topology`, `placement`,
+  `warmup-failure-pass:<zero-based pass>`, and
+  `measured-failure-pass:<zero-based pass>`. The topology stream draws
+  the cycle shuffle, then chord count, then chord shuffle from its continuing
+  counter. The placement stream shuffles canonical switch IDs and attaches `h1`
+  and `h2` to the first two switches. For each failure pass, sort normalized
+  eligible-link pairs lexicographically, shuffle with that pass's fresh stream,
+  and consume its order before deriving the next pass. Warm-up count and failed
+  attempts therefore cannot shift measured failure order.
+- Assign switch-to-switch ports first, independently at each switch, by ascending
+  neighbor switch ID starting at port 1. Assign host-facing ports afterward by
+  ascending host ID, continuing the switch's port sequence.
+- These rules fully define version 1 scenario generation and failure ordering.
+  The same seed, version, and configuration reproduce the graph, ports, host
+  attachments, and eligible-failure ordering. Changing any rule requires a new
+  generator version. Never rely on unordered collection iteration or
+  process-randomized hashes.
 - Retain the actual graph, port mapping, host attachments, selected fault, and
   healthy/recovery forwarding paths. Recorded scenario data is authoritative for
   replay even if a later generator maps the same seed to a different scenario.
+
+### Version-1 conformance vector
+
+`../fixtures/link-failure-latency-seed-v1-0.json` is a golden vector for seed 0.
+It records the seed bytes, stream keys, first topology words, cycle, chords, full
+graph, host placements, per-switch ports, and measured eligible-failure order.
+Implementations must match it exactly before claiming generator version 1.
 
 ## Hosts, traffic, and network configuration
 
 - Use two hosts with fixed identities, IP addresses, and MAC addresses. Select
   two distinct attachment switches uniformly using the placement random stream;
   attach one host to each. Do not require adjacent attachment switches.
+- Keep the existing example addressing: `h1` is `10.0.0.1/24` with MAC
+  `02:00:00:00:00:01`; `h2` is `10.0.0.2/24` with MAC `02:00:00:00:00:02`.
+  Only their distinct switch attachments vary by seed.
 - Designate both directions between these hosts as required traffic. This is a
   focused connectivity experiment, not an all-pairs or performance workload.
 - Use controller-free switches in secure mode with OpenFlow13. Exclude learning,
@@ -58,17 +92,20 @@ generation or runtime behavior. It builds on the
 ## Supplied forwarding and eligible failures
 
 - Construct deterministic minimum-hop destination-rooted forwarding trees for
-  the two hosts, using stable switch-ID tie-breaking. Use explicit output rules
-  for host traffic and directed ARP, not cyclic-topology broadcast flooding.
+  the two hosts. At each switch, among neighbors one hop closer to the destination,
+  choose the lexicographically smallest UTF-8 switch ID (or the destination host
+  when directly attached). Use explicit output rules for host traffic and directed
+  ARP, not cyclic-topology broadcast flooding.
 - Healthy policies use the complete graph. Recovery policies exclude the failed
   link. Stable policies are loop-free; this does not promise loop-free transient
   mixtures during independent updates.
 - An eligible failure is a switch-to-switch link used by at least one designated
   healthy forwarding path, with recovery routes available for both directions
   after removing that link. Exclude host-access links and unused links.
-- Compute a stable eligible set and seed its selection order using the failure
-  random stream. Selection with or without replacement and trial repetition
-  remain lifecycle decisions, not decisions in this contract.
+- Compute the stable eligible set from the two directional healthy forwarding
+  paths and alternate-route checks, then use the per-pass streams above for the
+  agreed no-replacement selection lifecycle in
+  [#33 — Define repeated failure trials and their lifecycle](https://github.com/santiagopedro1/mininet-ai/issues/33).
 - Graph eligibility is not proof of working baseline connectivity or observed
   disruption. Require the agreed healthy baseline and at least one failed
   designated post-injection probe; never shrink the required traffic set.
@@ -99,9 +136,8 @@ general links, but adding chords to YAML alone does not implement this contract;
 general-graph generation, reconstruction, routing, and eligibility require later
 implementation work. No generator or runtime code changes accompany this decision.
 
-Trial repetition, reset, and failure-selection lifecycle remain for
-[#33 — Define repeated failure trials and their lifecycle](https://github.com/santiagopedro1/mininet-ai/issues/33).
-Clock, correlation, and observation instrumentation remain for
-[#34 — Choose clock, correlation, and instrumentation contracts](https://github.com/santiagopedro1/mininet-ai/issues/34).
-Record schemas and summary populations remain for
-[#35 — Define raw latency records and trustworthy summaries](https://github.com/santiagopedro1/mininet-ai/issues/35).
+Trial repetition, reset, and failure-selection lifecycle are specified in
+[ADR-0004](0004-repeated-failure-trial-lifecycle.md). Clock/correlation and
+instrumentation are specified in [ADR-0005](0005-clock-correlation-and-instrumentation.md);
+record semantics and summary populations are specified in
+[ADR-0006](0006-raw-latency-records-and-summaries.md).
