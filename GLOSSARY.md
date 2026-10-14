@@ -44,3 +44,27 @@ one link failure, and observes the agents' response and any resulting recovery.
 Restoration of host-to-host packet delivery over an alternate path while the
 failed link remains unavailable. Successful configuration changes alone do not
 establish connectivity recovery.
+
+**Run Evidence**:
+The retained record of an experiment run's inputs, provenance, activity,
+measurements, and outcomes, including failures and known gaps.
+_Avoid_: run memory
+
+**Shared Operational State**:
+Mutable coordination information shared by agents within a run, distinct from
+the historical record of its changes and from learned memory.
+
+**Agent Session**:
+The context of an agent's invocations within a run, including conversation
+history and local state used for continuity.
+
+**Learned Memory**:
+Knowledge retained by an agent for reuse beyond an individual invocation,
+with reuse bounded by its declared scope.
+
+**Run-Scoped Memory**:
+Agent memory whose reuse is confined to one run.
+
+**Agent-Scoped Learned Memory**:
+Learned memory associated with an agent for reuse across runs within a selected
+storage root, distinct from a run's evidence and session context.
