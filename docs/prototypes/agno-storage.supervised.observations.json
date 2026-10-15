@@ -1,0 +1,1428 @@
+{
+  "question": "Can offline Agno retain scoped state safely using zero or one database per root?",
+  "scratch_root": "/tmp/opencode/agno-storage-prototype/runs/PROTOTYPE-wipe-me-7c39midu",
+  "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+  "sqlite": "3.54.0",
+  "packages": {
+    "typer": "0.25.0",
+    "python-dotenv": "1.2.3",
+    "pydantic": "2.13.3",
+    "Pygments": "2.20.0",
+    "annotated-doc": "0.0.4",
+    "markdown-it-py": "4.0.0",
+    "pydantic_core": "2.46.3",
+    "wcwidth": "0.9.1",
+    "pydantic-settings": "2.15.0",
+    "click": "8.3.3",
+    "typing-inspection": "0.4.2",
+    "annotated-types": "0.7.0",
+    "greenlet": "3.5.6",
+    "packaging": "26.3",
+    "certifi": "2026.7.22",
+    "rich": "15.0.0",
+    "PyYAML": "6.0.3",
+    "anyio": "4.15.1",
+    "SQLAlchemy": "2.1.0",
+    "agno": "3.0.11",
+    "agnoctl": "0.2.1",
+    "h11": "0.16.0",
+    "typing_extensions": "4.16.0",
+    "prompt_toolkit": "3.0.53",
+    "docstring_parser": "0.18.0",
+    "idna": "3.20",
+    "shellingham": "1.5.4",
+    "hyperframe": "6.1.0",
+    "hpack": "4.2.0",
+    "questionary": "2.1.1",
+    "httpcore": "1.0.9",
+    "httpx": "0.28.1",
+    "mdurl": "0.1.2",
+    "h2": "4.4.1"
+  },
+  "source_sha256": "94ec9fe59800ca31f2a2a77d91aecb50590121722a7db0f42c251f32bed89b91",
+  "limits": [
+    "No remote Provider or network requests",
+    "No production code changed",
+    "Separate scenario directories represent separate selected storage roots",
+    "ObservedDb is a prototype journal, not a complete strict-persistence adapter",
+    "No crash-atomic learning, cancellation, or remote-containment guarantee"
+  ],
+  "zero_database": {
+    "history_seen": true,
+    "retained_state": {
+      "current_user_id": "run-A:agent",
+      "current_session_id": "run-A:agent",
+      "current_run_id": "608ecc86-cae7-4201-a91d-6e744b81c2e9",
+      "action_result": "installed"
+    },
+    "fresh_session_state": {
+      "current_user_id": "run-B:agent",
+      "current_session_id": "run-B:agent",
+      "current_run_id": "b2b78daa-03a6-457e-ad2e-2eb9228a4ef4"
+    },
+    "files_created": [],
+    "boundary": "One cached session on one live Agent; no restart persistence claimed."
+  },
+  "persistent": {
+    "history_restored": true,
+    "state_restored": {
+      "action_result": "installed"
+    },
+    "run_B_memories_before_learning": [],
+    "shared_memory_after_reopen": [
+      {
+        "memory_id": "27fe2a73-0802-47ed-ac89-143ce31f6828",
+        "memory": "shared-agent-fact",
+        "created_at": "2026-10-15T16:11:59",
+        "updated_at": "2026-10-15T16:11:59",
+        "input": "shared-agent-fact",
+        "user_id": "agent"
+      }
+    ],
+    "run_A_memory": [
+      {
+        "memory_id": "93ec1b07-278e-4309-b27e-7dd0f458e43f",
+        "memory": "run-A-only",
+        "created_at": "2026-10-15T16:11:59",
+        "updated_at": "2026-10-15T16:11:59",
+        "input": "run-A-only",
+        "user_id": "run-A:agent"
+      }
+    ],
+    "distinct_agent_memory": [],
+    "live_files": [
+      "PROTOTYPE-wipe-me.sqlite3",
+      "PROTOTYPE-wipe-me.sqlite3-shm",
+      "PROTOTYPE-wipe-me.sqlite3-wal"
+    ],
+    "pragmas": {
+      "journal_mode": [
+        [
+          "wal"
+        ]
+      ],
+      "synchronous": [
+        [
+          2
+        ]
+      ],
+      "busy_timeout": [
+        [
+          200
+        ]
+      ],
+      "foreign_keys": [
+        [
+          1
+        ]
+      ]
+    },
+    "tables": [
+      "agno_sessions",
+      "agno_schema_versions",
+      "agno_runs",
+      "agno_memories"
+    ],
+    "after_close_files": [
+      "PROTOTYPE-wipe-me.sqlite3"
+    ]
+  },
+  "unguarded_race": {
+    "workers": [
+      {
+        "fact": "fact-A",
+        "result": {
+          "response": "offline response",
+          "model_messages": [
+            {
+              "id": "7456f5ac-5fbe-4ae7-9ffa-3fa040ad35bb",
+              "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: shared\nMemory: seed\n\n</existing_memories>",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "system",
+              "created_at": 1792091520
+            },
+            {
+              "id": "f7f51022-74ae-4925-8652-580d4c6cdd1d",
+              "content": "fact-A",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792091520
+            },
+            {
+              "id": "16a3e43a-8205-409d-9ac2-b70853aab70e",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "offline-call",
+                  "type": "function",
+                  "function": {
+                    "name": "update_memory",
+                    "arguments": "{\"memory\": \"seed | fact-A\", \"memory_id\": \"shared\"}"
+                  }
+                }
+              ],
+              "created_at": 1792091520
+            },
+            {
+              "id": "ef5d52a5-a9d9-4ebd-ac7d-6e581d057455",
+              "content": "Memory updated successfully",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "tool",
+              "tool_call_id": "offline-call",
+              "tool_name": "update_memory",
+              "tool_args": {
+                "memory": "seed | fact-A",
+                "memory_id": "shared"
+              },
+              "tool_call_error": false,
+              "created_at": 1792091520
+            }
+          ],
+          "memories": [
+            {
+              "memory_id": "shared",
+              "memory": "seed | fact-A",
+              "created_at": "2026-10-15T16:11:59",
+              "updated_at": "2026-10-15T16:12:00",
+              "input": "fact-A",
+              "user_id": "agent"
+            }
+          ]
+        }
+      },
+      {
+        "fact": "fact-B",
+        "result": {
+          "response": "offline response",
+          "model_messages": [
+            {
+              "id": "59b37742-c3ab-4c41-ae3e-b424a8330759",
+              "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: shared\nMemory: seed\n\n</existing_memories>",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "system",
+              "created_at": 1792091520
+            },
+            {
+              "id": "85388718-f099-4848-8843-a0a8e9ebddbf",
+              "content": "fact-B",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792091520
+            },
+            {
+              "id": "7b8a68fa-fc30-4aac-9b85-a119082caf9c",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "offline-call",
+                  "type": "function",
+                  "function": {
+                    "name": "update_memory",
+                    "arguments": "{\"memory\": \"seed | fact-B\", \"memory_id\": \"shared\"}"
+                  }
+                }
+              ],
+              "created_at": 1792091520
+            },
+            {
+              "id": "996c7af4-56bf-4c2f-a394-86151020c14a",
+              "content": "Memory updated successfully",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "tool",
+              "tool_call_id": "offline-call",
+              "tool_name": "update_memory",
+              "tool_args": {
+                "memory": "seed | fact-B",
+                "memory_id": "shared"
+              },
+              "tool_call_error": false,
+              "created_at": 1792091520
+            }
+          ],
+          "memories": [
+            {
+              "memory_id": "shared",
+              "memory": "seed | fact-B",
+              "created_at": "2026-10-15T16:11:59",
+              "updated_at": "2026-10-15T16:12:00",
+              "input": "fact-B",
+              "user_id": "agent"
+            }
+          ]
+        }
+      }
+    ],
+    "exitcodes": [
+      0,
+      0
+    ],
+    "final": [
+      {
+        "memory_id": "shared",
+        "memory": "seed | fact-B",
+        "created_at": "2026-10-15T16:11:59",
+        "updated_at": "2026-10-15T16:12:00",
+        "input": "fact-B",
+        "user_id": "agent"
+      }
+    ],
+    "both_facts_retained": false
+  },
+  "guarded_race": {
+    "workers": [
+      {
+        "fact": "fact-B",
+        "result": {
+          "response": "offline response",
+          "model_messages": [
+            {
+              "id": "29251caf-2372-47c8-89e2-0d0e9bda084c",
+              "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: shared\nMemory: seed\n\n</existing_memories>",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "system",
+              "created_at": 1792091520
+            },
+            {
+              "id": "93cd31cd-b2e3-4c71-bb31-67d01956319d",
+              "content": "fact-B",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792091520
+            },
+            {
+              "id": "83c23c99-9c5f-4389-a45c-4097ceb472b3",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "offline-call",
+                  "type": "function",
+                  "function": {
+                    "name": "update_memory",
+                    "arguments": "{\"memory\": \"seed | fact-B\", \"memory_id\": \"shared\"}"
+                  }
+                }
+              ],
+              "created_at": 1792091520
+            },
+            {
+              "id": "1b5f836b-9dbe-431f-8fd1-2fed01a23ac8",
+              "content": "Memory updated successfully",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "tool",
+              "tool_call_id": "offline-call",
+              "tool_name": "update_memory",
+              "tool_args": {
+                "memory": "seed | fact-B",
+                "memory_id": "shared"
+              },
+              "tool_call_error": false,
+              "created_at": 1792091520
+            }
+          ],
+          "memories": [
+            {
+              "memory_id": "shared",
+              "memory": "seed | fact-B",
+              "created_at": "2026-10-15T16:12:00",
+              "updated_at": "2026-10-15T16:12:00",
+              "input": "fact-B",
+              "user_id": "agent"
+            }
+          ]
+        }
+      },
+      {
+        "fact": "fact-A",
+        "result": {
+          "response": "offline response",
+          "model_messages": [
+            {
+              "id": "f861894e-d3dd-42b1-bd05-ba7840be8cc8",
+              "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: shared\nMemory: seed | fact-B\n\n</existing_memories>",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "system",
+              "created_at": 1792091520
+            },
+            {
+              "id": "c50f5238-6318-4306-8ce8-9b698de1d2a4",
+              "content": "fact-A",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792091520
+            },
+            {
+              "id": "48c3de4f-4652-4404-b0e2-10386876fe7d",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "offline-call",
+                  "type": "function",
+                  "function": {
+                    "name": "update_memory",
+                    "arguments": "{\"memory\": \"seed | fact-B | fact-A\", \"memory_id\": \"shared\"}"
+                  }
+                }
+              ],
+              "created_at": 1792091520
+            },
+            {
+              "id": "5fa9a59b-b0ec-4ff0-a16b-f16428b830ec",
+              "content": "Memory updated successfully",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "tool",
+              "tool_call_id": "offline-call",
+              "tool_name": "update_memory",
+              "tool_args": {
+                "memory": "seed | fact-B | fact-A",
+                "memory_id": "shared"
+              },
+              "tool_call_error": false,
+              "created_at": 1792091520
+            }
+          ],
+          "memories": [
+            {
+              "memory_id": "shared",
+              "memory": "seed | fact-B | fact-A",
+              "created_at": "2026-10-15T16:12:00",
+              "updated_at": "2026-10-15T16:12:00",
+              "input": "fact-A",
+              "user_id": "agent"
+            }
+          ]
+        }
+      }
+    ],
+    "exitcodes": [
+      0,
+      0
+    ],
+    "final": [
+      {
+        "memory_id": "shared",
+        "memory": "seed | fact-B | fact-A",
+        "created_at": "2026-10-15T16:12:00",
+        "updated_at": "2026-10-15T16:12:00",
+        "input": "fact-A",
+        "user_id": "agent"
+      }
+    ],
+    "both_facts_retained": true
+  },
+  "failures": {
+    "session_failure": {
+      "agent_returned_content": "offline response",
+      "db_errors": [
+        "OSError('PROTOTYPE injected session write failure')"
+      ],
+      "prototype_affected_run_status": "failed"
+    },
+    "memory_failure": {
+      "response": "offline response",
+      "model_messages": [
+        {
+          "id": "94cc94e5-0a28-4c86-8c33-201398af7c24",
+          "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: 28bd992f-e1fd-4502-9fba-baa4c882fc27\nMemory: seed\n\n</existing_memories>",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "system",
+          "created_at": 1792091520
+        },
+        {
+          "id": "6cf4f47a-cc4e-477e-b19a-1aaa8f31a6ee",
+          "content": "must-not-be-saved",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "user",
+          "created_at": 1792091520
+        },
+        {
+          "id": "6c5c5dc1-cf48-4f6b-afe1-3f4a925845d5",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "offline-call",
+              "type": "function",
+              "function": {
+                "name": "update_memory",
+                "arguments": "{\"memory\": \"seed | must-not-be-saved\", \"memory_id\": \"28bd992f-e1fd-4502-9fba-baa4c882fc27\"}"
+              }
+            }
+          ],
+          "created_at": 1792091520
+        },
+        {
+          "id": "e0cafb5a-5a91-4053-b119-54a4672333da",
+          "content": "Error adding memory",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "tool",
+          "tool_call_id": "offline-call",
+          "tool_name": "update_memory",
+          "tool_args": {
+            "memory": "seed | must-not-be-saved",
+            "memory_id": "28bd992f-e1fd-4502-9fba-baa4c882fc27"
+          },
+          "tool_call_error": false,
+          "created_at": 1792091520
+        }
+      ],
+      "memories": [
+        {
+          "memory_id": "28bd992f-e1fd-4502-9fba-baa4c882fc27",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:00",
+          "updated_at": "2026-10-15T16:12:00",
+          "input": "seed",
+          "user_id": "agent"
+        }
+      ],
+      "db_errors": [
+        "OSError('PROTOTYPE injected memory write failure')"
+      ],
+      "prototype_affected_run_status": "failed"
+    },
+    "real_writer_contention": {
+      "response": "offline response",
+      "model_messages": [
+        {
+          "id": "9d0df020-4fc2-4fbf-be61-ff172f28fabd",
+          "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: 28bd992f-e1fd-4502-9fba-baa4c882fc27\nMemory: seed\n\n</existing_memories>",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "system",
+          "created_at": 1792091520
+        },
+        {
+          "id": "c5da06a0-e762-4e73-b807-21d035951943",
+          "content": "blocked-write",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "user",
+          "created_at": 1792091520
+        },
+        {
+          "id": "23c0d9f6-5659-47c6-b50a-940ae911bdbe",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "offline-call",
+              "type": "function",
+              "function": {
+                "name": "update_memory",
+                "arguments": "{\"memory\": \"seed | blocked-write\", \"memory_id\": \"28bd992f-e1fd-4502-9fba-baa4c882fc27\"}"
+              }
+            }
+          ],
+          "created_at": 1792091520
+        },
+        {
+          "id": "fd6d5371-997a-42bb-aee9-f3788a610600",
+          "content": "Error adding memory",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "tool",
+          "tool_call_id": "offline-call",
+          "tool_name": "update_memory",
+          "tool_args": {
+            "memory": "seed | blocked-write",
+            "memory_id": "28bd992f-e1fd-4502-9fba-baa4c882fc27"
+          },
+          "tool_call_error": false,
+          "created_at": 1792091521
+        }
+      ],
+      "memories": [
+        {
+          "memory_id": "28bd992f-e1fd-4502-9fba-baa4c882fc27",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:00",
+          "updated_at": "2026-10-15T16:12:00",
+          "input": "seed",
+          "user_id": "agent"
+        }
+      ],
+      "seconds": 0.20537237299868139,
+      "db_errors": [
+        "OperationalError('(sqlite3.OperationalError) database is locked')"
+      ],
+      "prototype_affected_run_status": "failed"
+    }
+  },
+  "configured_learning": {
+    "automatic-healthy": {
+      "agent_content": "offline response",
+      "status": "RunStatus.completed",
+      "memories": [
+        {
+          "memory_id": "4bf9fae6-7239-4de9-9535-d1531a19c6c2",
+          "memory": "configured-fact",
+          "created_at": "2026-10-15T16:12:01",
+          "updated_at": "2026-10-15T16:12:01",
+          "input": "remember offline fact",
+          "user_id": "automatic-healthy",
+          "agent_id": "agent"
+        }
+      ],
+      "db_errors": [],
+      "prototype_affected_run_status": "success"
+    },
+    "automatic-broken": {
+      "agent_content": "offline response",
+      "status": "RunStatus.completed",
+      "memories": [],
+      "db_errors": [
+        "OSError('PROTOTYPE injected memory write failure')"
+      ],
+      "prototype_affected_run_status": "failed"
+    },
+    "agentic-healthy": {
+      "agent_content": "offline agentic response",
+      "status": "RunStatus.completed",
+      "memories": [
+        {
+          "memory_id": "53ccbb11-9ee4-455b-b1cd-0695434f1d9b",
+          "memory": "configured-fact",
+          "created_at": "2026-10-15T16:12:01",
+          "updated_at": "2026-10-15T16:12:01",
+          "input": "remember offline fact",
+          "user_id": "agentic-healthy"
+        }
+      ],
+      "db_errors": [],
+      "prototype_affected_run_status": "success"
+    },
+    "agentic-broken": {
+      "agent_content": "offline agentic response",
+      "status": "RunStatus.completed",
+      "memories": [],
+      "db_errors": [
+        "OSError('PROTOTYPE injected memory write failure')"
+      ],
+      "prototype_affected_run_status": "failed"
+    }
+  },
+  "late_background": {
+    "returned": "RunStatus.error",
+    "foreground_return_seconds": 0.012916828000015812,
+    "background_started": true,
+    "memories_at_return": [],
+    "next_operation_can_acquire_gate": true,
+    "memories_after_old_worker_drained": [
+      {
+        "memory_id": "e0f3b206-a857-40fc-a015-0b763543852a",
+        "memory": "late-background-fact",
+        "created_at": "2026-10-15T16:12:01",
+        "updated_at": "2026-10-15T16:12:01",
+        "input": "start learning",
+        "user_id": "agent",
+        "agent_id": "agent"
+      }
+    ]
+  },
+  "gate_contention": {
+    "error": "prototype learning gate budget exceeded",
+    "seconds": 0.4064209319985821
+  },
+  "supervised_operations": {
+    "healthy": {
+      "mode": "healthy",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.3961108650000824
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.completed",
+          "at_seconds": 0.43741796299946145
+        },
+        {
+          "phase": "drained",
+          "agno_status": "RunStatus.completed",
+          "db_errors": [],
+          "affected_run_status": "success",
+          "at_seconds": 0.4374670419965696
+        }
+      ],
+      "forced_stop": false,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "local_contained": true,
+      "exitcode": 0,
+      "seconds_to_containment_check": 0.5632925270001579,
+      "affected_run_status": "success",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | healthy-fact",
+          "created_at": "2026-10-15T16:12:02",
+          "updated_at": "2026-10-15T16:12:02",
+          "input": "healthy-fact",
+          "user_id": "agent",
+          "agent_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | healthy-fact | next-operation-fact",
+          "created_at": "2026-10-15T16:12:02",
+          "updated_at": "2026-10-15T16:12:02",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "agentic-healthy": {
+      "mode": "agentic-healthy",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.39932110399968224
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.completed",
+          "at_seconds": 0.43685001199992257
+        },
+        {
+          "phase": "drained",
+          "agno_status": "RunStatus.completed",
+          "db_errors": [],
+          "affected_run_status": "success",
+          "at_seconds": 0.4377015259997279
+        }
+      ],
+      "forced_stop": false,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "local_contained": true,
+      "exitcode": 0,
+      "seconds_to_containment_check": 0.5640884210006334,
+      "affected_run_status": "success",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | agentic-healthy-fact",
+          "created_at": "2026-10-15T16:12:02",
+          "updated_at": "2026-10-15T16:12:03",
+          "input": "remember offline fact",
+          "user_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | agentic-healthy-fact | next-operation-fact",
+          "created_at": "2026-10-15T16:12:02",
+          "updated_at": "2026-10-15T16:12:03",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "memory-failure": {
+      "mode": "memory-failure",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.40154837000227417
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.completed",
+          "at_seconds": 0.4380189210023673
+        },
+        {
+          "phase": "drained",
+          "agno_status": "RunStatus.completed",
+          "db_errors": [
+            "OSError('PROTOTYPE injected memory write failure')"
+          ],
+          "affected_run_status": "failed",
+          "at_seconds": 0.43808772600095836
+        }
+      ],
+      "forced_stop": false,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "local_contained": true,
+      "exitcode": 0,
+      "seconds_to_containment_check": 0.5691572440009622,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:03",
+          "updated_at": "2026-10-15T16:12:03",
+          "user_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | next-operation-fact",
+          "created_at": "2026-10-15T16:12:03",
+          "updated_at": "2026-10-15T16:12:03",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "agentic-memory-failure": {
+      "mode": "agentic-memory-failure",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.4246587609995913
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.completed",
+          "at_seconds": 0.4617388260012376
+        },
+        {
+          "phase": "drained",
+          "agno_status": "RunStatus.completed",
+          "db_errors": [
+            "OSError('PROTOTYPE injected memory write failure')"
+          ],
+          "affected_run_status": "failed",
+          "at_seconds": 0.462384173002647
+        }
+      ],
+      "forced_stop": false,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "local_contained": true,
+      "exitcode": 0,
+      "seconds_to_containment_check": 0.5972399070014944,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:03",
+          "updated_at": "2026-10-15T16:12:03",
+          "user_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | next-operation-fact",
+          "created_at": "2026-10-15T16:12:03",
+          "updated_at": "2026-10-15T16:12:04",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "session-failure": {
+      "mode": "session-failure",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.4367902250014595
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.completed",
+          "at_seconds": 0.48238662100266083
+        },
+        {
+          "phase": "drained",
+          "agno_status": "RunStatus.completed",
+          "db_errors": [
+            "OSError('PROTOTYPE injected session write failure')",
+            "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')"
+          ],
+          "affected_run_status": "failed",
+          "at_seconds": 0.4825313159999496
+        }
+      ],
+      "forced_stop": false,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "local_contained": true,
+      "exitcode": 0,
+      "seconds_to_containment_check": 0.620719791000738,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | session-failure-fact",
+          "created_at": "2026-10-15T16:12:04",
+          "updated_at": "2026-10-15T16:12:05",
+          "input": "session-failure-fact",
+          "user_id": "agent",
+          "agent_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | session-failure-fact | next-operation-fact",
+          "created_at": "2026-10-15T16:12:04",
+          "updated_at": "2026-10-15T16:12:05",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "drain": {
+      "mode": "drain",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.4270822059988859
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.error",
+          "at_seconds": 0.5182962319995568
+        },
+        {
+          "phase": "drained",
+          "agno_status": "RunStatus.error",
+          "db_errors": [],
+          "affected_run_status": "failed",
+          "at_seconds": 0.5283367420015566
+        }
+      ],
+      "forced_stop": false,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "gate_held_while_learning_blocked": true,
+      "local_contained": true,
+      "exitcode": 0,
+      "seconds_to_containment_check": 0.6580718779987365,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | late-background-fact",
+          "created_at": "2026-10-15T16:12:05",
+          "updated_at": "2026-10-15T16:12:05",
+          "input": "drain-fact",
+          "user_id": "agent",
+          "agent_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | late-background-fact | next-operation-fact",
+          "created_at": "2026-10-15T16:12:05",
+          "updated_at": "2026-10-15T16:12:05",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "stuck": {
+      "mode": "stuck",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.40896999100004905
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.error",
+          "at_seconds": 0.5002795379987219
+        }
+      ],
+      "forced_stop": true,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "gate_held_while_learning_blocked": true,
+      "local_contained": true,
+      "exitcode": -15,
+      "seconds_to_containment_check": 0.9102984040000592,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:05",
+          "updated_at": "2026-10-15T16:12:05",
+          "user_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | next-operation-fact",
+          "created_at": "2026-10-15T16:12:05",
+          "updated_at": "2026-10-15T16:12:06",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "ignore-term": {
+      "mode": "ignore-term",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.39837142000033055
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.error",
+          "at_seconds": 0.489578338998399
+        }
+      ],
+      "forced_stop": true,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "gate_held_while_learning_blocked": true,
+      "kill_required": true,
+      "local_contained": true,
+      "exitcode": -9,
+      "seconds_to_containment_check": 1.3006385490007233,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:06",
+          "updated_at": "2026-10-15T16:12:06",
+          "user_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | next-operation-fact",
+          "created_at": "2026-10-15T16:12:06",
+          "updated_at": "2026-10-15T16:12:08",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "stall": {
+      "mode": "stall",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.39884087899918086
+        }
+      ],
+      "forced_stop": true,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "gate_held_while_learning_blocked": true,
+      "local_contained": true,
+      "exitcode": -15,
+      "seconds_to_containment_check": 0.8996654309994483,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:08",
+          "updated_at": "2026-10-15T16:12:08",
+          "user_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | next-operation-fact",
+          "created_at": "2026-10-15T16:12:08",
+          "updated_at": "2026-10-15T16:12:09",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "hard-crash": {
+      "mode": "hard-crash",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.3923192390029726
+        }
+      ],
+      "forced_stop": false,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "local_contained": true,
+      "exitcode": 23,
+      "seconds_to_containment_check": 0.3958302579994779,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:09",
+          "updated_at": "2026-10-15T16:12:09",
+          "user_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | next-operation-fact",
+          "created_at": "2026-10-15T16:12:09",
+          "updated_at": "2026-10-15T16:12:09",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "sqlite-contention": {
+      "mode": "sqlite-contention",
+      "events": [
+        {
+          "phase": "gate_acquired",
+          "at_seconds": 0.4055385890023899
+        },
+        {
+          "phase": "foreground_return",
+          "agno_status": "RunStatus.completed",
+          "at_seconds": 1.0569533070010948
+        },
+        {
+          "phase": "drained",
+          "agno_status": "RunStatus.completed",
+          "db_errors": [
+            "OperationalError('(sqlite3.OperationalError) database is locked')",
+            "OperationalError('(sqlite3.OperationalError) database is locked')",
+            "OperationalError('(sqlite3.OperationalError) database is locked')"
+          ],
+          "affected_run_status": "failed",
+          "at_seconds": 1.0571824640028353
+        }
+      ],
+      "forced_stop": false,
+      "budgets": {
+        "operation_seconds": 4,
+        "error_drain_seconds": 0.4,
+        "terminate_seconds": 0.4,
+        "kill_seconds": 0.4
+      },
+      "local_contained": true,
+      "exitcode": 0,
+      "seconds_to_containment_check": 1.1904800219999743,
+      "affected_run_status": "failed",
+      "admit_next_local_operation": true,
+      "memories_after_containment": [
+        {
+          "memory_id": "shared",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:12:09",
+          "updated_at": "2026-10-15T16:12:09",
+          "user_id": "agent"
+        }
+      ],
+      "memories_after_next_operation": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | next-operation-fact",
+          "created_at": "2026-10-15T16:12:09",
+          "updated_at": "2026-10-15T16:12:10",
+          "input": "next-operation-fact",
+          "user_id": "agent"
+        }
+      ],
+      "integrity_check": "ok",
+      "files_after_reopen_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3"
+      ]
+    },
+    "concurrent-healthy": {
+      "operations": [
+        {
+          "mode": "healthy",
+          "events": [
+            {
+              "phase": "gate_acquired",
+              "at_seconds": 0.41386118100126623
+            },
+            {
+              "phase": "foreground_return",
+              "agno_status": "RunStatus.completed",
+              "at_seconds": 0.4551088109983539
+            },
+            {
+              "phase": "drained",
+              "agno_status": "RunStatus.completed",
+              "db_errors": [],
+              "affected_run_status": "success",
+              "at_seconds": 0.45521089500107337
+            }
+          ],
+          "forced_stop": false,
+          "budgets": {
+            "operation_seconds": 4,
+            "error_drain_seconds": 0.4,
+            "terminate_seconds": 0.4,
+            "kill_seconds": 0.4
+          },
+          "local_contained": true,
+          "exitcode": 0,
+          "seconds_to_containment_check": 0.6073424599999271,
+          "affected_run_status": "success",
+          "admit_next_local_operation": true
+        },
+        {
+          "mode": "healthy",
+          "events": [
+            {
+              "phase": "gate_acquired",
+              "at_seconds": 0.46440366199749405
+            },
+            {
+              "phase": "foreground_return",
+              "agno_status": "RunStatus.completed",
+              "at_seconds": 0.5162836869967578
+            },
+            {
+              "phase": "drained",
+              "agno_status": "RunStatus.completed",
+              "db_errors": [],
+              "affected_run_status": "success",
+              "at_seconds": 0.5163892809978279
+            }
+          ],
+          "forced_stop": false,
+          "budgets": {
+            "operation_seconds": 4,
+            "error_drain_seconds": 0.4,
+            "terminate_seconds": 0.4,
+            "kill_seconds": 0.4
+          },
+          "local_contained": true,
+          "exitcode": 0,
+          "seconds_to_containment_check": 0.6615878209995572,
+          "affected_run_status": "success",
+          "admit_next_local_operation": true
+        }
+      ],
+      "final": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | fact-A | fact-B",
+          "created_at": "2026-10-15T16:12:10",
+          "updated_at": "2026-10-15T16:12:11",
+          "input": "fact-B",
+          "user_id": "agent",
+          "agent_id": "agent"
+        }
+      ],
+      "both_facts_retained": true
+    },
+    "concurrent-agentic-healthy": {
+      "operations": [
+        {
+          "mode": "agentic-healthy",
+          "events": [
+            {
+              "phase": "gate_acquired",
+              "at_seconds": 0.47607874200184597
+            },
+            {
+              "phase": "foreground_return",
+              "agno_status": "RunStatus.completed",
+              "at_seconds": 0.5189084529993124
+            },
+            {
+              "phase": "drained",
+              "agno_status": "RunStatus.completed",
+              "db_errors": [],
+              "affected_run_status": "success",
+              "at_seconds": 0.5196304960009002
+            }
+          ],
+          "forced_stop": false,
+          "budgets": {
+            "operation_seconds": 4,
+            "error_drain_seconds": 0.4,
+            "terminate_seconds": 0.4,
+            "kill_seconds": 0.4
+          },
+          "local_contained": true,
+          "exitcode": 0,
+          "seconds_to_containment_check": 0.6649321240001882,
+          "affected_run_status": "success",
+          "admit_next_local_operation": true
+        },
+        {
+          "mode": "agentic-healthy",
+          "events": [
+            {
+              "phase": "gate_acquired",
+              "at_seconds": 0.4234962589980569
+            },
+            {
+              "phase": "foreground_return",
+              "agno_status": "RunStatus.completed",
+              "at_seconds": 0.46827429499899154
+            },
+            {
+              "phase": "drained",
+              "agno_status": "RunStatus.completed",
+              "db_errors": [],
+              "affected_run_status": "success",
+              "at_seconds": 0.4690194190006878
+            }
+          ],
+          "forced_stop": false,
+          "budgets": {
+            "operation_seconds": 4,
+            "error_drain_seconds": 0.4,
+            "terminate_seconds": 0.4,
+            "kill_seconds": 0.4
+          },
+          "local_contained": true,
+          "exitcode": 0,
+          "seconds_to_containment_check": 0.618492741999944,
+          "affected_run_status": "success",
+          "admit_next_local_operation": true
+        }
+      ],
+      "final": [
+        {
+          "memory_id": "shared",
+          "memory": "seed | fact-B | fact-A",
+          "created_at": "2026-10-15T16:12:11",
+          "updated_at": "2026-10-15T16:12:11",
+          "input": "remember offline fact",
+          "user_id": "agent"
+        }
+      ],
+      "both_facts_retained": true
+    }
+  }
+}

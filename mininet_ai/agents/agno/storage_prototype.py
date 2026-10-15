@@ -16,6 +16,7 @@ import multiprocessing as mp
 import os
 from pathlib import Path
 import re
+import signal
 import sqlite3
 import sys
 import tempfile
@@ -291,6 +292,13 @@ class ObservedDb(SqliteDb):
             self.errors.append(repr(error))
             raise
 
+    def upsert_run(self, *args, **kwargs):
+        try:
+            return super().upsert_run(*args, **kwargs)
+        except Exception as error:
+            self.errors.append(repr(error))
+            raise
+
 
 def failures(root):
     db = database(root, ObservedDb)
@@ -405,6 +413,190 @@ def gate_contention(root):
     return result
 
 
+def supervised_worker(root, fact, mode, channel, entered, release):
+    """Worker owns the gate so losing its supervisor cannot unlock it early.
+
+    This experiment permits threads, not descendant processes or remote calls.
+    The supervisor must still observe process exit, not trust a completion IPC.
+    """
+    root = Path(root)
+    agent = None
+    db = None
+    if mode == "ignore-term":
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    try:
+        with gate(root, timeout=2):
+            try:
+                channel.send({"phase": "gate_acquired"})
+                db = database(root, ObservedDb)
+                if mode == "hard-crash":
+                    os._exit(23)
+                blocked = mode in ("drain", "stuck", "ignore-term", "stall")
+                learning_model = BlockedLearningModel(entered, release) if blocked else ScriptedModel(fact)
+                model = FailingForegroundModel(entered) if blocked and mode != "stall" else ScriptedModel()
+                agentic = mode.startswith("agentic")
+                if agentic:
+                    model = AgenticModel()
+                agent = Agent(id="agent", model=model, db=db, retries=0, telemetry=False,
+                              memory_manager=MemoryManager(db=db, model=learning_model),
+                              update_memory_on_run=not agentic, enable_agentic_memory=agentic)
+                db.inject_memory_error = mode in ("memory-failure", "agentic-memory-failure")
+                db.inject_session_error = mode == "session-failure"
+                response = agent.run(fact, session_id=f"{fact}:agent", user_id="agent")
+                channel.send({"phase": "foreground_return", "agno_status": str(response.status)})
+                # A foreground return is explicitly NOT the completion boundary.
+                agent.background_executor.shutdown(wait=True)
+                channel.send({"phase": "drained", "agno_status": str(response.status),
+                              "db_errors": list(db.errors),
+                              "affected_run_status": "success" if str(response.status) == "RunStatus.completed" and not db.errors else "failed"})
+            finally:
+                # Even exceptions must drain while STILL holding the gate. This
+                # may block; terminate/kill and join are the supervisor boundary.
+                if agent is not None:
+                    agent.background_executor.shutdown(wait=True)
+                if db is not None:
+                    db.close()
+    except Exception as error:
+        channel.send({"phase": "worker_error", "error": repr(error)})
+    finally:
+        channel.close()
+
+
+def supervise(root, fact, mode="healthy"):
+    ctx = mp.get_context("spawn")
+    receiver, sender = ctx.Pipe(duplex=False)
+    entered, release = ctx.Event(), ctx.Event()
+    worker = ctx.Process(target=supervised_worker,
+                         args=(str(root), fact, mode, sender, entered, release))
+    result = {"mode": mode, "events": [], "forced_stop": False,
+              "budgets": {"operation_seconds": 4, "error_drain_seconds": 0.4,
+                          "terminate_seconds": 0.4, "kill_seconds": 0.4}}
+    start = time.monotonic()
+    worker.start()
+    sender.close()
+    deadline = start + 4
+    probed = False
+    try:
+        while worker.is_alive() and time.monotonic() < deadline:
+            if entered.is_set() and not probed:
+                probed = True
+                try:
+                    with gate(root, timeout=0.06):
+                        result["gate_held_while_learning_blocked"] = False
+                except TimeoutError:
+                    result["gate_held_while_learning_blocked"] = True
+                if mode == "stall":
+                    # Deterministic stalled operation; shorten its remaining
+                    # budget only after background learning has actually begun.
+                    deadline = min(deadline, time.monotonic() + 0.4)
+            if receiver.poll(0.01):
+                try:
+                    event = receiver.recv()
+                except EOFError:
+                    break
+                event["at_seconds"] = time.monotonic() - start
+                result["events"].append(event)
+                if event["phase"] == "foreground_return" and event["agno_status"] != "RunStatus.completed":
+                    deadline = min(deadline, time.monotonic() + 0.4)
+                    if mode == "drain":
+                        release.set()
+        worker.join(timeout=max(0, deadline - time.monotonic()))
+        if worker.is_alive():
+            result["forced_stop"] = True
+            worker.terminate()
+            worker.join(timeout=0.4)
+        if worker.is_alive():
+            result["kill_required"] = True
+            worker.kill()
+            worker.join(timeout=0.4)
+        result["local_contained"] = not worker.is_alive() and worker.exitcode is not None
+        result["exitcode"] = worker.exitcode
+        result["seconds_to_containment_check"] = time.monotonic() - start
+        # Receive buffered final records only after join. EOF is not completion.
+        while receiver.poll():
+            try:
+                result["events"].append(receiver.recv())
+            except EOFError:
+                break
+        final = next((event for event in reversed(result["events"]) if event["phase"] == "drained"), None)
+        result["affected_run_status"] = (
+            "success" if result["local_contained"] and worker.exitcode == 0
+            and not result["forced_stop"] and final is not None
+            and not any(event["phase"] == "worker_error" for event in result["events"])
+            and final["affected_run_status"] == "success" else "failed")
+        result["admit_next_local_operation"] = result["local_contained"]
+        if not result["local_contained"]:
+            # Leave no prototype worker abandoned, but never claim a bounded
+            # containment success if the bounded kill/join above did not prove it.
+            raise RuntimeError("prototype local containment unproven; no next operation authorized")
+        return result
+    finally:
+        if worker.is_alive():
+            worker.kill()
+            worker.join(timeout=1)
+        receiver.close()
+
+
+def supervised_operations(root):
+    root.mkdir()
+    result = {}
+    for mode in ("healthy", "agentic-healthy", "memory-failure", "agentic-memory-failure",
+                 "session-failure", "drain", "stuck", "ignore-term", "stall", "hard-crash",
+                 "sqlite-contention"):
+        selected = root / mode
+        db = database(selected)
+        db.upsert_user_memory(UserMemory(memory_id="shared", user_id="agent", memory="seed"))
+        # Initialize the session/run schemas before holding the adversarial
+        # writer transaction, so this probes writes, not concurrent schema DDL.
+        bootstrap = Agent(id="agent", model=ScriptedModel(), db=db, telemetry=False)
+        bootstrap.run("bootstrap", session_id="bootstrap:agent", user_id="agent")
+        bootstrap.background_executor.shutdown(wait=True)
+        db.close()
+        blocker = None
+        try:
+            if mode == "sqlite-contention":
+                blocker = sqlite3.connect(selected / "PROTOTYPE-wipe-me.sqlite3")
+                blocker.execute("BEGIN IMMEDIATE")
+            observed = supervise(selected, f"{mode}-fact", mode)
+        finally:
+            if blocker is not None:
+                blocker.rollback()
+                blocker.close()
+        # Admission happens only after the supervisor has confirmed local exit.
+        # The former blocked thread is in that dead process, even if release is
+        # never signalled; no finite sleep is offered as proof of quiescence.
+        with gate(selected):
+            db = database(selected)
+            observed["memories_after_containment"] = memories(db)
+            learn(db, "next-operation-fact")
+            observed["memories_after_next_operation"] = memories(db)
+            with db.db_engine.connect() as connection:
+                observed["integrity_check"] = connection.exec_driver_sql("PRAGMA integrity_check").scalar()
+            db.close()
+        observed["files_after_reopen_close"] = sorted(p.name for p in selected.iterdir())
+        result[mode] = observed
+    # Two simultaneous independent supervisors; each uses a spawned Agent
+    # process. Seed one file once, then automatic/agentic full operations update
+    # the same learned-memory row under their worker-owned gate.
+    for mode in ("healthy", "agentic-healthy"):
+        selected = root / f"concurrent-{mode}"
+        db = database(selected)
+        db.upsert_user_memory(UserMemory(memory_id="shared", user_id="agent", memory="seed"))
+        db.close()
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(supervise, selected, fact, mode) for fact in ("fact-A", "fact-B")]
+            operations = [future.result(timeout=15) for future in futures]
+        db = database(selected)
+        final = memories(db)
+        db.close()
+        content = " ".join(m["memory"] for m in final)
+        result[f"concurrent-{mode}"] = {
+            "operations": operations, "final": final,
+            "both_facts_retained": all(fact in content for fact in ("fact-A", "fact-B"))}
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scratch-parent", type=Path, required=True)
@@ -428,7 +620,8 @@ def main():
                  ("unguarded_race", lambda p: race(p, False)),
                  ("guarded_race", lambda p: race(p, True)),
                  ("failures", failures), ("configured_learning", configured_learning),
-                 ("late_background", late_background), ("gate_contention", gate_contention)]
+                 ("late_background", late_background), ("gate_contention", gate_contention),
+                 ("supervised_operations", supervised_operations)]
     for name, experiment in scenarios:
         print(f"Running {name}", flush=True)
         try:

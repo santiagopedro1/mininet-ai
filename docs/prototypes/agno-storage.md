@@ -33,9 +33,12 @@ acceptance**: negative observations are intentional outcomes.
 
 ## Evidence and interpretation
 
-The adjacent `agno-storage.observations.json` records the captured run, complete
+The adjacent `agno-storage.observations.json` records the initial captured run, complete
 scripted model messages for race/failure operations, process exits, package
-versions, and prototype source hash. Each scenario subdirectory represents an
+versions, and prototype source hash (historical source at commit `6a69858`).
+`agno-storage.supervised.observations.json` captures the follow-up supervised
+candidate, including a rerun of the initial experiments, with its own source hash.
+Each scenario subdirectory represents an
 independent selected storage root; it is not a design with multiple databases
 inside one selected root. The prototype changes no runtime storage policy.
 
@@ -84,25 +87,96 @@ and a gate released at Agent return do not satisfy the agreed safety guarantees.
 Revisit [Choose a database-free or single-database storage architecture](https://github.com/santiagopedro1/mininet-ai/issues/41)
 without weakening those guarantees implicitly.
 
-A plausible next candidate combines full-operation cross-process serialization,
-strict per-operation persistence error accounting, and ownership of all learning
-workers until verified quiescence. Bounded local-worker containment may require
-process isolation, but this prototype does not implement or endorse that choice.
+The follow-up below exercises a candidate combining full-operation cross-process
+serialization, per-operation persistence error accounting, and process-isolated
+learning workers. It does not establish complete architecture acceptance.
 Remote Provider termination remains a separate unvalidated contract.
+
+## Follow-up: supervised local workers
+
+The user approved exploring supervised learning workers, not accepting the
+architecture. This adds **13 cases**: 11 single-operation cases plus simultaneous
+automatic and agentic operation pairs, each pair using two independent
+supervisors and spawned Agent processes sharing one file.
+
+### Candidate boundary
+
+- A spawned worker owns the root-wide file gate **before** Agno reads any state;
+  its background threads use that same guarded operation. No SQLite transaction
+  is held open during model execution.
+- Worker ownership avoids the specific parent-only-lock hazard: losing the
+  supervisor cannot itself close the worker's lock descriptor. Actual supervisor
+  death and orphan recovery are **not experimentally validated** here.
+- On graceful paths, the worker keeps the gate through executor drain and DB
+  close, including foreground error paths. A foreground response, completion
+  message, or EOF is not accepted as local containment.
+- The supervisor confirms process exit with bounded join; if needed it sends
+  SIGTERM, then SIGKILL and joins again. A missing final record, nonzero exit,
+  forced stop, worker error, or observed DB error means failed operation.
+  Failure to confirm exit denies the next local operation; the prototype raises
+  rather than pretending cleanup succeeded. That denial branch was not induced
+  on this host.
+- The prototype supervisor has a 4-second operation budget and 0.4-second
+  terminate/kill waits. Foreground errors and a deterministically observed stall
+  shorten the remaining drain budget to 0.4 seconds. Gate acquisition inside the
+  worker is bounded to 2 seconds. These are **experiment controls**, not selected
+  production budgets or hard real-time guarantees.
+- The worker contains only Agno threads. This does not contain subprocesses
+  spawned by arbitrary tools, network actions, remote model-service work, or
+  other processes that bypass the gate.
+
+### Observed results
+
+| Case | Supervisor result | Local observation |
+| --- | --- | --- |
+| Healthy automatic / agentic | Success, normal exit | Configured fact retained |
+| Automatic / agentic memory-write failure | Failed despite Agno completion | Injected error retained in journal; seed unchanged |
+| Session-write failure | Failed | Session error plus run-row FK error recorded; learned memory had already committed |
+| Foreground error, cooperative learning drain | Failed, normal exit | Gate denied a concurrent acquisition; learning completed before gate release |
+| Foreground error, blocked learning | Failed, SIGTERM exit | Gate denied acquisition while blocked; confirmed dead process before next operation; blocked fact absent |
+| Blocked learning with SIGTERM ignored | Failed, SIGKILL exit | Escalation worked; blocked fact absent |
+| Stalled normal foreground/background completion | Failed, SIGTERM exit | No foreground completion required to enforce the supervisor budget |
+| Worker `os._exit(23)` after DB open | Failed, exit 23 | Missing final record not treated as success; file reopened normally |
+| Real SQLite writer contention | Failed despite Agno completion | Three observed errors (memory/session/run writes); writer released only after the worker exited |
+| Two concurrent automatic operations | Both success | Same memory retained `seed`, `fact-A`, and `fact-B` |
+| Two concurrent agentic operations | Both success | Same memory retained `seed`, `fact-A`, and `fact-B` |
+
+All 11 single-operation cases verified process exit before opening the next
+guarded learning operation, then reopened the same database and observed
+`PRAGMA integrity_check = ok`. A clean reopen does **not** establish arbitrary
+crash recovery; the hard-crash case did not interrupt an active write transaction.
+The three forced-stop cases contained the worker in approximately 0.90, 0.91,
+and 1.30 seconds including process startup on this machine. Those timings are
+observations, not a portable bound. Post-containment inspection is not bounded
+by the supervisor's operation budget.
+
+The journal now also catches raised `upsert_run` errors. It is still incomplete
+for all persistence APIs. Its in-memory observations can be lost on worker death;
+the supervisor conservatively fails operations with missing records, but this
+does not provide durable per-write audit evidence or reliable result delivery
+if the supervisor dies.
+
+**Interpretation:** supervised processes are a promising local containment
+boundary for the covered automatic/agentic paths. This is not authorization to
+replace the runtime, resume a timed-out trial, or accept the whole architecture.
+Failed-run learning is not transactional: existing ADR 0010's partial-learning
+behavior remains, and a later failure must not be presented as a rollback.
 
 ### Still unvalidated
 
-- Full guarded automatic/agentic Agent operations across processes and threads;
-  every supported mutation, optimization, deletion, custom tool, and scope.
+- All supported mutations, optimization, deletion, custom tools, and scopes;
+  long-lived same-process concurrency beyond the covered spawned automatic and
+  agentic operations.
 - Concurrent first-use schema creation; incompatible schemas, wrong-owner/no-row
   collisions, malicious/foreign memory IDs, roots with the same agent identity.
 - Session restoration in a new process (memory race workers are new processes,
   but do not restore Agent history); cached-session reconstruction/switch-back
   loss; session summaries and their failure paths.
-- Strict end-to-end affected-run failure/evidence, retries, cancellation, timeout,
-  lock-holder/supervisor death, late-write prevention, crash recovery, partial
-  learning updates, checkpointing, permissions, live backups, and no-fallback
-  behavior across all failure modes.
+- Strict end-to-end durable affected-run failure/evidence, retries, external
+  cancellation, supervisor death/orphans, unexpected worker descendants,
+  uncontainable workers, active-write crashes, partial multi-write learning,
+  checkpointing, permissions, live backups, and no-fallback behavior across all
+  failure modes. The forced local-worker stops above cover only the shown cases.
 - Real Provider learning/retrieval quality, remote cancellation/containment,
   fairness, long-lived contention, and performance under realistic model latency.
 - Production timeout values (0.2/0.4/10-second values here are experiment controls,
