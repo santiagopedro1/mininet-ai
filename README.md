@@ -237,7 +237,12 @@ uv run mininet-ai schema capability
 The CLI also exports deployment-plan, runtime-event, coordination-message, and
 coordination-outcome schemas. See
 [compatibility and versioning](docs/compatibility.md) for contract-change rules
-and [ADR 0001](docs/adr/0001-use-agno-as-v1-agent-runtime.md) for the Agno decision.
+and the runtime architecture decisions:
+
+- [ADR 0007: Agno runtime and action authority](docs/adr/0007-agno-runtime-and-action-authority.md)
+- [ADR 0008: Shared Operational State commitment](docs/adr/0008-shared-operational-state-and-action-commitment.md)
+- [ADR 0009: Invocation budgets and session serialization](docs/adr/0009-invocation-budgets-and-session-serialization.md)
+- [ADR 0010: Sessions, learning, and evidence](docs/adr/0010-agent-sessions-learned-memory-and-run-evidence.md)
 
 ## Development
 

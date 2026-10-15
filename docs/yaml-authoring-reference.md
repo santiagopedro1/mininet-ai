@@ -447,6 +447,11 @@ Memory rules:
   These reads are version-checked and reserved against incompatible commits;
   merely receiving a snapshot does not lock unrelated keys.
 
+See [ADR 0008](adr/0008-shared-operational-state-and-action-commitment.md) for
+commitment and dependency-protection limits, and
+[ADR 0010](adr/0010-agent-sessions-learned-memory-and-run-evidence.md) for learning
+identity and evidence boundaries.
+
 ### Invocation concurrency
 
 Independent requests and sibling delegations can overlap under the existing
@@ -458,6 +463,10 @@ parent completes successfully and publishes eligible shared state.
 Stateless agents with `maxConcurrency > 1` use invocation-isolated Agno instances
 and may complete out of order. Access to one persistent Agno session remains
 serialized because its local/history/learned memory is shared mutable state.
+This serializes Agno access, not entire invocations: network phases can overlap,
+and later reasoning can precede earlier action-result persistence. See
+[ADR 0009](adr/0009-invocation-budgets-and-session-serialization.md) for the precise
+budget and ordering guarantees.
 
 Conflicting actions are protected throughout execution and postcondition checks,
 across requests as well as within a request. `reject` rejects incompatible work;

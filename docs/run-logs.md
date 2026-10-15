@@ -151,6 +151,10 @@ launch capabilities require operator-prepared offline snapshots instead.
 
 ## Bundle format (version 1)
 
+[ADR 0010](adr/0010-agent-sessions-learned-memory-and-run-evidence.md) explains why
+Agent Sessions and Learned Memory are distinct from Run Evidence. Export does not
+reconstruct mutable learned-memory inputs used during reasoning.
+
 `export` and `export-offline` require `--acknowledge-sensitive-data`, a run ID,
 and an exact new `--destination` whose parent already exists. Offline mode also
 requires `--acknowledge-offline-consistency` and at least one explicit source.
