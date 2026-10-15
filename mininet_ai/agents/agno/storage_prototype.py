@@ -8,6 +8,7 @@ is opened. Model responses are scripted; Agno execution and SQLite are real.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import fcntl
 import hashlib
 import importlib.metadata
@@ -16,6 +17,7 @@ import multiprocessing as mp
 import os
 from pathlib import Path
 import re
+import select
 import signal
 import sqlite3
 import sys
@@ -597,6 +599,212 @@ def supervised_operations(root):
     return result
 
 
+def cached_session_worker(root, channel):
+    """Long-lived per-run process; one stable Agent per explicit session."""
+    os.chdir(root)
+    agents = {}
+    try:
+        while True:
+            command = channel.recv()
+            if command["op"] == "stop":
+                break
+            session = command["session"]
+            if session not in agents:
+                agents[session] = Agent(id=session.split(":")[-1], model=ScriptedModel(),
+                                        cache_session=True, add_history_to_context=True,
+                                        telemetry=False)
+            agent = agents[session]
+            if command["op"] == "state":
+                agent.update_session_state(command["state"], session_id=session)
+            else:
+                agent.run(command["text"], session_id=session, user_id=session)
+            channel.send({"session": session, "state": agent.get_session_state(session_id=session),
+                          "model_messages": agent.model.seen, "live_sessions": sorted(agents)})
+    finally:
+        for agent in agents.values():
+            agent.background_executor.shutdown(wait=True)
+        channel.close()
+
+
+def long_lived_zero_db(root):
+    root.mkdir()
+    ctx = mp.get_context("spawn")
+    result = {}
+    for lifecycle in ("original", "restarted"):
+        controller, endpoint = ctx.Pipe()
+        worker = ctx.Process(target=cached_session_worker, args=(str(root), endpoint))
+        worker.start()
+        endpoint.close()
+        def request(command):
+            controller.send(command)
+            if not controller.poll(4):
+                raise TimeoutError("prototype cached-session reply budget exceeded")
+            return controller.recv()
+        try:
+            if lifecycle == "original":
+                result["first"] = request({"op": "run", "session": "trial:agent-A", "text": "unique agent A history"})
+                result["state_update"] = request({"op": "state", "session": "trial:agent-A", "state": {"action_result": "installed"}})
+                result["second"] = request({"op": "run", "session": "trial:agent-A", "text": "continue A"})
+                result["other_agent"] = request({"op": "run", "session": "trial:agent-B", "text": "agent B isolated"})
+                result["back_to_A"] = request({"op": "run", "session": "trial:agent-A", "text": "continue A again"})
+                result["fresh_trial"] = request({"op": "run", "session": "next-trial:agent-A", "text": "fresh trial A"})
+            else:
+                result["after_restart"] = request({"op": "run", "session": "trial:agent-A", "text": "after worker restart"})
+            controller.send({"op": "stop"})
+            worker.join(timeout=2)
+            result[f"{lifecycle}_exitcode"] = worker.exitcode
+            if worker.is_alive():
+                raise TimeoutError("cached worker did not exit in prototype budget")
+        finally:
+            if worker.is_alive():
+                worker.kill()
+                worker.join(timeout=1)
+            controller.close()
+    result["files_created"] = sorted(p.name for p in root.iterdir())
+    result["second_retained_history"] = "unique agent A history" in json.dumps(result["second"]["model_messages"])
+    result["back_to_A_retained_state"] = result["back_to_A"]["state"].get("action_result") == "installed"
+    result["other_agent_isolated"] = "action_result" not in result["other_agent"]["state"] and "unique agent A history" not in json.dumps(result["other_agent"]["model_messages"])
+    result["fresh_trial_isolated"] = "action_result" not in result["fresh_trial"]["state"] and "unique agent A history" not in json.dumps(result["fresh_trial"]["model_messages"])
+    result["restart_loses_cache"] = "action_result" not in result["after_restart"]["state"] and "unique agent A history" not in json.dumps(result["after_restart"]["model_messages"])
+    return result
+
+
+def linux_prctl(option, argument):
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(ctypes.c_int(option), argument, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "prototype prctl failed")
+
+
+class IndefinitelyBlockedLearningModel(BlockedLearningModel):
+    def invoke(self, *args, **kwargs):
+        self.entered.set()
+        self.release.wait()  # Only this experiment's controller can kill it.
+        return super().invoke(*args, **kwargs)
+
+
+def orphan_worker(root, expected_parent, armed, channel):
+    if armed:
+        linux_prctl(1, int(signal.SIGKILL))  # PR_SET_PDEATHSIG (Linux only).
+        # Close the parent-exited-before-prctl race; no DB is opened first.
+        if os.getppid() != expected_parent:
+            os._exit(72)
+    db = None
+    agent = None
+    with gate(Path(root), timeout=2):
+        try:
+            db = database(Path(root))
+            entered, release = threading.Event(), threading.Event()
+            agent = Agent(id="agent", model=FailingForegroundModel(entered), db=db,
+                          memory_manager=MemoryManager(db=db, model=IndefinitelyBlockedLearningModel(entered, release)),
+                          update_memory_on_run=True, retries=0, telemetry=False)
+            response = agent.run("orphan learning", session_id="orphan:agent", user_id="agent")
+            channel.send({"phase": "blocked_learning", "armed_parent_death_signal": armed,
+                          "pid": os.getpid(), "parent_pid": os.getppid(),
+                          "agno_status": str(response.status)})
+        finally:
+            # Deliberately cannot complete. Controller cleanup and the candidate
+            # kernel parent-death signal must stop this process, not release it.
+            if agent is not None:
+                agent.background_executor.shutdown(wait=True)
+            if db is not None:
+                db.close()
+
+
+def doomed_supervisor(root, armed, controller):
+    ctx = mp.get_context("spawn")
+    receiver, sender = ctx.Pipe(duplex=False)
+    worker = ctx.Process(target=orphan_worker, args=(root, os.getpid(), armed, sender))
+    worker.start()
+    sender.close()
+    if not receiver.poll(6):
+        worker.kill()
+        worker.join(timeout=1)
+        raise TimeoutError("prototype orphan worker did not become ready")
+    controller.send(receiver.recv())
+    command = controller.recv()
+    if command == "exit":
+        os._exit(0)  # Test normal supervisor exit as well as external SIGKILL.
+
+
+def supervisor_death(root):
+    """Linux-only controlled orphan experiment; reap only our known child PID."""
+    if sys.platform != "linux" or not hasattr(os, "pidfd_open"):
+        raise RuntimeError("supervisor-death experiment requires Linux pidfds/prctl")
+    root.mkdir()
+    previous = ctypes.c_int()
+    linux_prctl(37, ctypes.byref(previous))  # PR_GET_CHILD_SUBREAPER.
+    linux_prctl(36, 1)  # Adopt/reap our orphaned scratch workers, not PID 1.
+    result = {}
+    try:
+        for mode, armed, normal_exit in (("baseline-no-watchdog", False, False),
+                                         ("parent-killed", True, False),
+                                         ("parent-exits", True, True)):
+            selected = root / mode
+            db = database(selected)
+            db.upsert_user_memory(UserMemory(memory_id="shared", user_id="agent", memory="seed"))
+            db.close()
+            ctx = mp.get_context("spawn")
+            controller, endpoint = ctx.Pipe()
+            supervisor = ctx.Process(target=doomed_supervisor, args=(str(selected), armed, endpoint))
+            supervisor.start()
+            endpoint.close()
+            pidfd = None
+            pid = None
+            record = {}
+            try:
+                if not controller.poll(8):
+                    raise TimeoutError("prototype supervisor readiness budget exceeded")
+                record["ready"] = controller.recv()
+                pid = record["ready"]["pid"]
+                pidfd = os.pidfd_open(pid)
+                try:
+                    with gate(selected, timeout=0.06):
+                        record["gate_held_before_supervisor_death"] = False
+                except TimeoutError:
+                    record["gate_held_before_supervisor_death"] = True
+                start = time.monotonic()
+                if normal_exit:
+                    controller.send("exit")
+                else:
+                    supervisor.kill()
+                supervisor.join(timeout=1)
+                record["supervisor_exitcode"] = supervisor.exitcode
+                record["worker_exited_without_controller_kill"] = bool(select.select([pidfd], [], [], 0.5)[0])
+                record["seconds_after_supervisor_stop"] = time.monotonic() - start
+                if not record["worker_exited_without_controller_kill"]:
+                    try:
+                        with gate(selected, timeout=0.06):
+                            record["orphan_still_holds_gate"] = False
+                    except TimeoutError:
+                        record["orphan_still_holds_gate"] = True
+            finally:
+                if supervisor.is_alive():
+                    supervisor.kill()
+                    supervisor.join(timeout=1)
+                if pidfd is not None:
+                    if not select.select([pidfd], [], [], 0)[0]:
+                        signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+                    if not select.select([pidfd], [], [], 1)[0]:
+                        raise RuntimeError("orphan local containment unproven; deny next operation")
+                    # The controlled supervisor is gone; this interpreter is the
+                    # subreaper. This wait targets only the PID learned above.
+                    waited_pid, status = os.waitpid(pid, 0)
+                    record["reaped_pid"] = waited_pid
+                    record["worker_exitcode"] = os.waitstatus_to_exitcode(status)
+                    os.close(pidfd)
+                controller.close()
+            with gate(selected):
+                db = database(selected)
+                record["memories_after_worker_exit"] = memories(db)
+                learn(db, "after-supervisor-death")
+                record["next_operation_memories"] = memories(db)
+                db.close()
+            result[mode] = record
+    finally:
+        linux_prctl(36, previous.value)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scratch-parent", type=Path, required=True)
@@ -621,7 +829,9 @@ def main():
                  ("guarded_race", lambda p: race(p, True)),
                  ("failures", failures), ("configured_learning", configured_learning),
                  ("late_background", late_background), ("gate_contention", gate_contention),
-                 ("supervised_operations", supervised_operations)]
+                 ("supervised_operations", supervised_operations),
+                 ("long_lived_zero_db", long_lived_zero_db),
+                 ("supervisor_death", supervisor_death)]
     for name, experiment in scenarios:
         print(f"Running {name}", flush=True)
         try:
