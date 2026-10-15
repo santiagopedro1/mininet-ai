@@ -1,0 +1,651 @@
+{
+  "question": "Can offline Agno retain scoped state safely using zero or one database per root?",
+  "scratch_root": "/tmp/opencode/agno-storage-prototype/runs/PROTOTYPE-wipe-me-4c25tx3v",
+  "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+  "sqlite": "3.54.0",
+  "packages": {
+    "typer": "0.25.0",
+    "python-dotenv": "1.2.3",
+    "pydantic": "2.13.3",
+    "Pygments": "2.20.0",
+    "annotated-doc": "0.0.4",
+    "markdown-it-py": "4.0.0",
+    "pydantic_core": "2.46.3",
+    "wcwidth": "0.9.1",
+    "pydantic-settings": "2.15.0",
+    "click": "8.3.3",
+    "typing-inspection": "0.4.2",
+    "annotated-types": "0.7.0",
+    "greenlet": "3.5.6",
+    "packaging": "26.3",
+    "certifi": "2026.7.22",
+    "rich": "15.0.0",
+    "PyYAML": "6.0.3",
+    "anyio": "4.15.1",
+    "SQLAlchemy": "2.1.0",
+    "agno": "3.0.11",
+    "agnoctl": "0.2.1",
+    "h11": "0.16.0",
+    "typing_extensions": "4.16.0",
+    "prompt_toolkit": "3.0.53",
+    "docstring_parser": "0.18.0",
+    "idna": "3.20",
+    "shellingham": "1.5.4",
+    "hyperframe": "6.1.0",
+    "hpack": "4.2.0",
+    "questionary": "2.1.1",
+    "httpcore": "1.0.9",
+    "httpx": "0.28.1",
+    "mdurl": "0.1.2",
+    "h2": "4.4.1"
+  },
+  "source_sha256": "de5014a23b668615be54ab7556d010b4c8ec07be51aa57c388271ec50ed42fc8",
+  "limits": [
+    "No remote Provider or network requests",
+    "No production code changed",
+    "Separate scenario directories represent separate selected storage roots",
+    "ObservedDb is a prototype journal, not a complete strict-persistence adapter",
+    "No crash-atomic learning, cancellation, or remote-containment guarantee"
+  ],
+  "zero_database": {
+    "history_seen": true,
+    "retained_state": {
+      "current_user_id": "run-A:agent",
+      "current_session_id": "run-A:agent",
+      "current_run_id": "6cfb65da-9026-462c-b256-04b4c68ba634",
+      "action_result": "installed"
+    },
+    "fresh_session_state": {
+      "current_user_id": "run-B:agent",
+      "current_session_id": "run-B:agent",
+      "current_run_id": "e20fa3cc-bad6-4084-8234-ba3de7fc22eb"
+    },
+    "files_created": [],
+    "boundary": "One cached session on one live Agent; no restart persistence claimed."
+  },
+  "persistent": {
+    "history_restored": true,
+    "state_restored": {
+      "action_result": "installed"
+    },
+    "run_B_memories_before_learning": [],
+    "shared_memory_after_reopen": [
+      {
+        "memory_id": "70da0b31-302a-479c-833b-e7e95f6da4ae",
+        "memory": "shared-agent-fact",
+        "created_at": "2026-10-15T16:03:03",
+        "updated_at": "2026-10-15T16:03:03",
+        "input": "shared-agent-fact",
+        "user_id": "agent"
+      }
+    ],
+    "run_A_memory": [
+      {
+        "memory_id": "87475797-1608-45a7-8013-c328d588fd5e",
+        "memory": "run-A-only",
+        "created_at": "2026-10-15T16:03:03",
+        "updated_at": "2026-10-15T16:03:03",
+        "input": "run-A-only",
+        "user_id": "run-A:agent"
+      }
+    ],
+    "distinct_agent_memory": [],
+    "live_files": [
+      "PROTOTYPE-wipe-me.sqlite3",
+      "PROTOTYPE-wipe-me.sqlite3-shm",
+      "PROTOTYPE-wipe-me.sqlite3-wal"
+    ],
+    "pragmas": {
+      "journal_mode": [
+        [
+          "wal"
+        ]
+      ],
+      "synchronous": [
+        [
+          2
+        ]
+      ],
+      "busy_timeout": [
+        [
+          200
+        ]
+      ],
+      "foreign_keys": [
+        [
+          1
+        ]
+      ]
+    },
+    "tables": [
+      "agno_sessions",
+      "agno_schema_versions",
+      "agno_runs",
+      "agno_memories"
+    ],
+    "after_close_files": [
+      "PROTOTYPE-wipe-me.sqlite3"
+    ]
+  },
+  "unguarded_race": {
+    "workers": [
+      {
+        "fact": "fact-A",
+        "result": {
+          "response": "offline response",
+          "model_messages": [
+            {
+              "id": "d3fa8610-f3f7-4c2f-af32-3713ddceb09e",
+              "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: shared\nMemory: seed\n\n</existing_memories>",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "system",
+              "created_at": 1792090984
+            },
+            {
+              "id": "0f15ddab-0ee2-4781-8dc8-f64ae1ead247",
+              "content": "fact-A",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792090984
+            },
+            {
+              "id": "7bb10ea0-46f6-4794-a947-518a5bede58d",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "offline-call",
+                  "type": "function",
+                  "function": {
+                    "name": "update_memory",
+                    "arguments": "{\"memory\": \"seed | fact-A\", \"memory_id\": \"shared\"}"
+                  }
+                }
+              ],
+              "created_at": 1792090984
+            },
+            {
+              "id": "ea477b66-0f07-4ad7-a5ba-0f0b75b42d8c",
+              "content": "Memory updated successfully",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "tool",
+              "tool_call_id": "offline-call",
+              "tool_name": "update_memory",
+              "tool_args": {
+                "memory": "seed | fact-A",
+                "memory_id": "shared"
+              },
+              "tool_call_error": false,
+              "created_at": 1792090984
+            }
+          ],
+          "memories": [
+            {
+              "memory_id": "shared",
+              "memory": "seed | fact-B",
+              "created_at": "2026-10-15T16:03:03",
+              "updated_at": "2026-10-15T16:03:04",
+              "input": "fact-B",
+              "user_id": "agent"
+            }
+          ]
+        }
+      },
+      {
+        "fact": "fact-B",
+        "result": {
+          "response": "offline response",
+          "model_messages": [
+            {
+              "id": "7c2ef671-3da5-4b54-8d86-c59f593ac56f",
+              "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: shared\nMemory: seed\n\n</existing_memories>",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "system",
+              "created_at": 1792090984
+            },
+            {
+              "id": "1e57f586-bf4d-4c5f-80ad-8fef9105df91",
+              "content": "fact-B",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792090984
+            },
+            {
+              "id": "5a40e739-2ba3-439b-a227-397b53952193",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "offline-call",
+                  "type": "function",
+                  "function": {
+                    "name": "update_memory",
+                    "arguments": "{\"memory\": \"seed | fact-B\", \"memory_id\": \"shared\"}"
+                  }
+                }
+              ],
+              "created_at": 1792090984
+            },
+            {
+              "id": "1ba413ed-e487-4ff0-af35-676480704bad",
+              "content": "Memory updated successfully",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "tool",
+              "tool_call_id": "offline-call",
+              "tool_name": "update_memory",
+              "tool_args": {
+                "memory": "seed | fact-B",
+                "memory_id": "shared"
+              },
+              "tool_call_error": false,
+              "created_at": 1792090984
+            }
+          ],
+          "memories": [
+            {
+              "memory_id": "shared",
+              "memory": "seed | fact-B",
+              "created_at": "2026-10-15T16:03:03",
+              "updated_at": "2026-10-15T16:03:04",
+              "input": "fact-B",
+              "user_id": "agent"
+            }
+          ]
+        }
+      }
+    ],
+    "exitcodes": [
+      0,
+      0
+    ],
+    "final": [
+      {
+        "memory_id": "shared",
+        "memory": "seed | fact-B",
+        "created_at": "2026-10-15T16:03:03",
+        "updated_at": "2026-10-15T16:03:04",
+        "input": "fact-B",
+        "user_id": "agent"
+      }
+    ],
+    "both_facts_retained": false
+  },
+  "guarded_race": {
+    "workers": [
+      {
+        "fact": "fact-A",
+        "result": {
+          "response": "offline response",
+          "model_messages": [
+            {
+              "id": "c842cd02-506b-46c9-9488-b4ddeaf59438",
+              "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: shared\nMemory: seed\n\n</existing_memories>",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "system",
+              "created_at": 1792090984
+            },
+            {
+              "id": "1e07926c-3968-4214-a01f-b58e5f9be32b",
+              "content": "fact-A",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792090984
+            },
+            {
+              "id": "59fae187-6d31-4afc-a70b-52e7008a5f95",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "offline-call",
+                  "type": "function",
+                  "function": {
+                    "name": "update_memory",
+                    "arguments": "{\"memory\": \"seed | fact-A\", \"memory_id\": \"shared\"}"
+                  }
+                }
+              ],
+              "created_at": 1792090984
+            },
+            {
+              "id": "0fa59681-734f-449d-822c-95b649836f8c",
+              "content": "Memory updated successfully",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "tool",
+              "tool_call_id": "offline-call",
+              "tool_name": "update_memory",
+              "tool_args": {
+                "memory": "seed | fact-A",
+                "memory_id": "shared"
+              },
+              "tool_call_error": false,
+              "created_at": 1792090984
+            }
+          ],
+          "memories": [
+            {
+              "memory_id": "shared",
+              "memory": "seed | fact-A",
+              "created_at": "2026-10-15T16:03:04",
+              "updated_at": "2026-10-15T16:03:04",
+              "input": "fact-A",
+              "user_id": "agent"
+            }
+          ]
+        }
+      },
+      {
+        "fact": "fact-B",
+        "result": {
+          "response": "offline response",
+          "model_messages": [
+            {
+              "id": "449288bf-5bdb-43f9-9009-a1e48371c92a",
+              "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: shared\nMemory: seed | fact-A\n\n</existing_memories>",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "system",
+              "created_at": 1792090984
+            },
+            {
+              "id": "0f89b1fb-a8de-4b23-93a9-84ab9d93a7f0",
+              "content": "fact-B",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792090984
+            },
+            {
+              "id": "bf5b90d6-8a4d-4dd8-8abb-4768fb24f026",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "offline-call",
+                  "type": "function",
+                  "function": {
+                    "name": "update_memory",
+                    "arguments": "{\"memory\": \"seed | fact-A | fact-B\", \"memory_id\": \"shared\"}"
+                  }
+                }
+              ],
+              "created_at": 1792090984
+            },
+            {
+              "id": "abb533ea-5955-428b-b17e-657a1f0445f5",
+              "content": "Memory updated successfully",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "tool",
+              "tool_call_id": "offline-call",
+              "tool_name": "update_memory",
+              "tool_args": {
+                "memory": "seed | fact-A | fact-B",
+                "memory_id": "shared"
+              },
+              "tool_call_error": false,
+              "created_at": 1792090984
+            }
+          ],
+          "memories": [
+            {
+              "memory_id": "shared",
+              "memory": "seed | fact-A | fact-B",
+              "created_at": "2026-10-15T16:03:04",
+              "updated_at": "2026-10-15T16:03:04",
+              "input": "fact-B",
+              "user_id": "agent"
+            }
+          ]
+        }
+      }
+    ],
+    "exitcodes": [
+      0,
+      0
+    ],
+    "final": [
+      {
+        "memory_id": "shared",
+        "memory": "seed | fact-A | fact-B",
+        "created_at": "2026-10-15T16:03:04",
+        "updated_at": "2026-10-15T16:03:04",
+        "input": "fact-B",
+        "user_id": "agent"
+      }
+    ],
+    "both_facts_retained": true
+  },
+  "failures": {
+    "session_failure": {
+      "agent_returned_content": "offline response",
+      "db_errors": [
+        "OSError('PROTOTYPE injected session write failure')"
+      ],
+      "prototype_affected_run_status": "failed"
+    },
+    "memory_failure": {
+      "response": "offline response",
+      "model_messages": [
+        {
+          "id": "c39cf971-4bc5-47dc-8999-39ff1d63c966",
+          "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: d70218cf-1904-46ad-9e60-25f8ba53bf37\nMemory: seed\n\n</existing_memories>",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "system",
+          "created_at": 1792090984
+        },
+        {
+          "id": "a057dbd3-7655-42ee-b920-636aa561e235",
+          "content": "must-not-be-saved",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "user",
+          "created_at": 1792090984
+        },
+        {
+          "id": "f4376431-6de0-4a44-979c-7716fe151025",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "offline-call",
+              "type": "function",
+              "function": {
+                "name": "update_memory",
+                "arguments": "{\"memory\": \"seed | must-not-be-saved\", \"memory_id\": \"d70218cf-1904-46ad-9e60-25f8ba53bf37\"}"
+              }
+            }
+          ],
+          "created_at": 1792090984
+        },
+        {
+          "id": "9eec3a7b-e1ff-4aa4-a0c2-c738ca48badc",
+          "content": "Error adding memory",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "tool",
+          "tool_call_id": "offline-call",
+          "tool_name": "update_memory",
+          "tool_args": {
+            "memory": "seed | must-not-be-saved",
+            "memory_id": "d70218cf-1904-46ad-9e60-25f8ba53bf37"
+          },
+          "tool_call_error": false,
+          "created_at": 1792090984
+        }
+      ],
+      "memories": [
+        {
+          "memory_id": "d70218cf-1904-46ad-9e60-25f8ba53bf37",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:03:04",
+          "updated_at": "2026-10-15T16:03:04",
+          "input": "seed",
+          "user_id": "agent"
+        }
+      ],
+      "db_errors": [
+        "OSError('PROTOTYPE injected memory write failure')"
+      ],
+      "prototype_affected_run_status": "failed"
+    },
+    "real_writer_contention": {
+      "response": "offline response",
+      "model_messages": [
+        {
+          "id": "e84f03d7-4b66-44d8-a84b-70768edf4e0a",
+          "content": "You are a Memory Manager that is responsible for managing information and preferences about the user. You will be provided with a criteria for memories to capture in the <memories_to_capture> section and a list of existing memories in the <existing_memories> section.\n\n## When to add or update memories\n- Your first task is to decide if a memory needs to be added, updated, or deleted based on the user's message OR if no changes are needed.\n- If the user's message meets the criteria in the <memories_to_capture> section and that information is not already captured in the <existing_memories> section, you should capture it as a memory.\n- If the users messages does not meet the criteria in the <memories_to_capture> section, no memory updates are needed.\n- If the existing memories in the <existing_memories> section capture all relevant information, no memory updates are needed.\n\n## How to add or update memories\n- If you decide to add a new memory, create memories that captures key information, as if you were storing it for future reference.\n- Memories should be a brief, third-person statements that encapsulate the most important aspect of the user's input, without adding any extraneous information.\n  - Example: If the user's message is 'I'm going to the gym', a memory could be `John Doe goes to the gym regularly`.\n  - Example: If the user's message is 'My name is John Doe', a memory could be `User's name is John Doe`.\n- Don't make a single memory too long or complex, create multiple memories if needed to capture all the information.\n- Don't repeat the same information in multiple memories. Rather update existing memories if needed.\n- If a user asks for a memory to be updated or forgotten, remove all reference to the information that should be forgotten. Don't say 'The user used to like ...`\n- When updating a memory, append the existing memory with new information rather than completely overwriting it.\n- When a user's preferences change, update the relevant memories to reflect the new preferences but also capture what the user's preferences used to be and what has changed.\n\n## Criteria for creating memories\nUse the following criteria to determine if a user's message should be captured as a memory.\n\n<memories_to_capture>\nMemories should capture personal information about the user that is relevant to the current conversation, such as:\n- Personal facts: name, age, occupation, location, interests, and preferences\n- Opinions and preferences: what the user likes, dislikes, enjoys, or finds frustrating\n- Significant life events or experiences shared by the user\n- Important context about the user's current situation, challenges, or goals\n- Any other details that offer meaningful insight into the user's personality, perspective, or needs\n\n</memories_to_capture>\n\n## Updating memories\nYou will also be provided with a list of existing memories in the <existing_memories> section. You can:\n  - Decide to make no changes.\n  - Decide to add a new memory, using the `add_memory` tool.\n  - Decide to update an existing memory, using the `update_memory` tool.\nYou can call multiple tools in a single response if needed. \nOnly add or update memories if it is necessary to capture key information provided by the user.\n\n<existing_memories>\nID: d70218cf-1904-46ad-9e60-25f8ba53bf37\nMemory: seed\n\n</existing_memories>",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "system",
+          "created_at": 1792090984
+        },
+        {
+          "id": "75ee2c70-36d2-4006-9ecf-ad0d42e091b6",
+          "content": "blocked-write",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "user",
+          "created_at": 1792090984
+        },
+        {
+          "id": "adf1793b-65e8-4e67-8408-ce0f05d8dfa8",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "offline-call",
+              "type": "function",
+              "function": {
+                "name": "update_memory",
+                "arguments": "{\"memory\": \"seed | blocked-write\", \"memory_id\": \"d70218cf-1904-46ad-9e60-25f8ba53bf37\"}"
+              }
+            }
+          ],
+          "created_at": 1792090984
+        },
+        {
+          "id": "1f9d0989-54e9-4ead-a493-e0a24f09225c",
+          "content": "Error adding memory",
+          "from_history": false,
+          "stop_after_tool_call": false,
+          "role": "tool",
+          "tool_call_id": "offline-call",
+          "tool_name": "update_memory",
+          "tool_args": {
+            "memory": "seed | blocked-write",
+            "memory_id": "d70218cf-1904-46ad-9e60-25f8ba53bf37"
+          },
+          "tool_call_error": false,
+          "created_at": 1792090985
+        }
+      ],
+      "memories": [
+        {
+          "memory_id": "d70218cf-1904-46ad-9e60-25f8ba53bf37",
+          "memory": "seed",
+          "created_at": "2026-10-15T16:03:04",
+          "updated_at": "2026-10-15T16:03:04",
+          "input": "seed",
+          "user_id": "agent"
+        }
+      ],
+      "seconds": 0.20533834099842352,
+      "db_errors": [
+        "OperationalError('(sqlite3.OperationalError) database is locked')"
+      ],
+      "prototype_affected_run_status": "failed"
+    }
+  },
+  "configured_learning": {
+    "automatic-healthy": {
+      "agent_content": "offline response",
+      "status": "RunStatus.completed",
+      "memories": [
+        {
+          "memory_id": "171efe05-776b-4361-ba2e-8c86ce3c04a3",
+          "memory": "configured-fact",
+          "created_at": "2026-10-15T16:03:05",
+          "updated_at": "2026-10-15T16:03:05",
+          "input": "remember offline fact",
+          "user_id": "automatic-healthy",
+          "agent_id": "agent"
+        }
+      ],
+      "db_errors": [],
+      "prototype_affected_run_status": "success"
+    },
+    "automatic-broken": {
+      "agent_content": "offline response",
+      "status": "RunStatus.completed",
+      "memories": [],
+      "db_errors": [
+        "OSError('PROTOTYPE injected memory write failure')"
+      ],
+      "prototype_affected_run_status": "failed"
+    },
+    "agentic-healthy": {
+      "agent_content": "offline agentic response",
+      "status": "RunStatus.completed",
+      "memories": [
+        {
+          "memory_id": "72b7d070-d9ca-4088-9ac4-18aee00ab43c",
+          "memory": "configured-fact",
+          "created_at": "2026-10-15T16:03:05",
+          "updated_at": "2026-10-15T16:03:05",
+          "input": "remember offline fact",
+          "user_id": "agentic-healthy"
+        }
+      ],
+      "db_errors": [],
+      "prototype_affected_run_status": "success"
+    },
+    "agentic-broken": {
+      "agent_content": "offline agentic response",
+      "status": "RunStatus.completed",
+      "memories": [],
+      "db_errors": [
+        "OSError('PROTOTYPE injected memory write failure')"
+      ],
+      "prototype_affected_run_status": "failed"
+    }
+  },
+  "late_background": {
+    "returned": "RunStatus.error",
+    "foreground_return_seconds": 0.012547971000458347,
+    "background_started": true,
+    "memories_at_return": [],
+    "next_operation_can_acquire_gate": true,
+    "memories_after_old_worker_drained": [
+      {
+        "memory_id": "9bade416-cb11-4873-8d2e-67875884f7ba",
+        "memory": "late-background-fact",
+        "created_at": "2026-10-15T16:03:05",
+        "updated_at": "2026-10-15T16:03:05",
+        "input": "start learning",
+        "user_id": "agent",
+        "agent_id": "agent"
+      }
+    ]
+  },
+  "gate_contention": {
+    "error": "prototype learning gate budget exceeded",
+    "seconds": 0.4042509829996561
+  }
+}
