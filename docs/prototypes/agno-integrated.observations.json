@@ -1,0 +1,1526 @@
+{
+  "verdict": "NOT VALIDATED; human review required",
+  "scratch": "/tmp/opencode/agno-integrated-prototype/PROTOTYPE-wipe-me-p8s9vs9o",
+  "provenance": {
+    "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+    "platform": "Linux-7.2.9-arch1-1-x86_64-with-glibc2.44",
+    "sqlite": "3.54.0",
+    "sqlite_source_id": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcalt1",
+    "packages": {
+      "typer": "0.25.0",
+      "python-dotenv": "1.2.3",
+      "pydantic": "2.13.3",
+      "Pygments": "2.20.0",
+      "annotated-doc": "0.0.4",
+      "markdown-it-py": "4.0.0",
+      "pydantic_core": "2.46.3",
+      "wcwidth": "0.9.1",
+      "pydantic-settings": "2.15.0",
+      "click": "8.3.3",
+      "typing-inspection": "0.4.2",
+      "annotated-types": "0.7.0",
+      "greenlet": "3.5.6",
+      "packaging": "26.3",
+      "certifi": "2026.7.22",
+      "rich": "15.0.0",
+      "PyYAML": "6.0.3",
+      "anyio": "4.15.1",
+      "SQLAlchemy": "2.1.0",
+      "agno": "3.0.11",
+      "agnoctl": "0.2.1",
+      "h11": "0.16.0",
+      "typing_extensions": "4.16.0",
+      "prompt_toolkit": "3.0.53",
+      "docstring_parser": "0.18.0",
+      "idna": "3.20",
+      "shellingham": "1.5.4",
+      "hyperframe": "6.1.0",
+      "hpack": "4.2.0",
+      "questionary": "2.1.1",
+      "httpcore": "1.0.9",
+      "httpx": "0.28.1",
+      "mdurl": "0.1.2",
+      "h2": "4.4.1"
+    },
+    "source_sha256": "42cd9e9649cfd95f6bd11fba4f0f88dd1fd1d8319455aedbcfbb29486ea43db5",
+    "helper_sha256": "e9bbd1c69c03499ed47d52e30ec52327edc6cdc0d9f5e6a605670c997c0b82a0"
+  },
+  "groups": {
+    "zero_db_sessions": {
+      "checks": {
+        "independent_overlap": true,
+        "stable_A_owner": true,
+        "stable_A_object": true,
+        "history_retained": true,
+        "outcome_after_modeled_commit_failure": true,
+        "other_session_isolated": true,
+        "distinct_stateless_objects": true,
+        "duplicate_not_replayed": true,
+        "conflicting_duplicate_rejected": true,
+        "foreign_session_rejected": true,
+        "lost_reply_has_one_terminal": true,
+        "required_write_error_failed": "not exercised in DB-free mode",
+        "failed_run_denies_admission": "see missing terminal",
+        "missing_terminal_denies_success": true,
+        "coordinator_same_file_write": "not applicable",
+        "verified_exit": true
+      },
+      "missing_or_rejected_admissions": [
+        "outcome",
+        "bad",
+        "missing-terminal"
+      ],
+      "post_exit_admission": "DENIED: failed or exited worker; no cache replacement",
+      "post_failure_admission": null,
+      "observations": [
+        {
+          "ready": true,
+          "pid": 134003,
+          "limitation": "no death watchdog in this probe"
+        },
+        {
+          "id": "first",
+          "session": "trial:A",
+          "payload_hash": "a54295d5bbd914ae930ca49efe6b8499e76c162f2bcd523fd0a3396d4571b5dd",
+          "owner_thread": 140243016611520,
+          "agent_object": 140243017013568,
+          "state": {
+            "current_user_id": "trial:A",
+            "current_session_id": "trial:A",
+            "current_run_id": "first"
+          },
+          "messages": [
+            {
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "content": "unique A history",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "parallel-B",
+          "session": "trial:B",
+          "payload_hash": "351b20a972e1a9a0e963db3e9e17316c925ceab5b2442eb6c25b481c065146bf",
+          "owner_thread": 140243008218816,
+          "agent_object": 140243017016928,
+          "state": {
+            "current_user_id": "trial:B",
+            "current_session_id": "trial:B",
+            "current_run_id": "parallel-B"
+          },
+          "messages": [
+            {
+              "id": "56dee3d7-d6e9-40a4-ac28-05ceb2c0f2d9",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "parallel-A",
+          "session": "trial:A",
+          "payload_hash": "dc7d5db951d54ade58aa1838ad8d868978aad39f8c5767a3ff9703c07bc511cd",
+          "owner_thread": 140243016611520,
+          "agent_object": 140243017013568,
+          "state": {
+            "current_user_id": "trial:A",
+            "current_session_id": "trial:A",
+            "current_run_id": "parallel-A"
+          },
+          "messages": [
+            {
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "content": "unique A history",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            },
+            {
+              "id": "5d2c3d5c-27b8-4b62-be05-775d84d58381",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 6.135999865364283e-05
+              },
+              "created_at": 1792093310
+            },
+            {
+              "id": "5891234e-2e99-40b9-b066-2934a5d5bb0b",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "outcome",
+          "session": "trial:A",
+          "payload_hash": "b74f120be8f0644bdefaeade34f0021c6a5f9044338c92a9e6be39608e968d1f",
+          "owner_thread": 140243016611520,
+          "agent_object": 140243017013568,
+          "state": {
+            "current_user_id": "trial:A",
+            "current_session_id": "trial:A",
+            "current_run_id": "parallel-A",
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "messages": [
+            {
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "content": "unique A history",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            },
+            {
+              "id": "5d2c3d5c-27b8-4b62-be05-775d84d58381",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 6.135999865364283e-05
+              },
+              "created_at": 1792093310
+            },
+            {
+              "id": "5891234e-2e99-40b9-b066-2934a5d5bb0b",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            }
+          ],
+          "agno_status": "outcome updated",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "back",
+          "session": "trial:A",
+          "payload_hash": "832a992dd2e709b4157821d4348ed5fb469796b8026898c0777bbe70db959f2a",
+          "owner_thread": 140243016611520,
+          "agent_object": 140243017013568,
+          "state": {
+            "current_user_id": "trial:A",
+            "current_session_id": "trial:A",
+            "current_run_id": "back",
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "messages": [
+            {
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "content": "unique A history",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            },
+            {
+              "id": "5d2c3d5c-27b8-4b62-be05-775d84d58381",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 6.135999865364283e-05
+              },
+              "created_at": 1792093310
+            },
+            {
+              "id": "5891234e-2e99-40b9-b066-2934a5d5bb0b",
+              "content": "overlap",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            },
+            {
+              "id": "111ce2d2-a7ed-4406-98ac-86b73c679026",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 0.0008287540003948379
+              },
+              "created_at": 1792093310
+            },
+            {
+              "id": "e9b1e4c5-fcd3-44a8-b7ea-d560e5657eb4",
+              "content": "continue A",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "outcome",
+          "duplicate": true,
+          "same_payload": true,
+          "replayed": false
+        },
+        {
+          "id": "outcome",
+          "duplicate": true,
+          "same_payload": false,
+          "replayed": false
+        },
+        {
+          "rejected": "identity/version/operation",
+          "id": "bad"
+        },
+        {
+          "id": "stateless-2",
+          "session": "trial:stateless-2",
+          "payload_hash": "f7313822a56af8fe26a912f14b00ba6527b40c29bc5288bed56b227e29de30b5",
+          "owner_thread": 140242991433408,
+          "agent_object": 140243017011888,
+          "state": {
+            "current_user_id": "trial:stateless-2",
+            "current_session_id": "trial:stateless-2",
+            "current_run_id": "stateless-2"
+          },
+          "messages": [
+            {
+              "id": "715d9d9d-8d37-4115-b382-f90aed48d632",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "stateless-1",
+          "session": "trial:stateless-1",
+          "payload_hash": "b832cc532ce422451e0a1ad2e8d32c2abd22c0de7a07ebefa8a569ef375a798e",
+          "owner_thread": 140242999826112,
+          "agent_object": 140243017012224,
+          "state": {
+            "current_user_id": "trial:stateless-1",
+            "current_session_id": "trial:stateless-1",
+            "current_run_id": "stateless-1"
+          },
+          "messages": [
+            {
+              "id": "7c097dfc-f09b-4107-b064-4a5d9f192849",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093310
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        }
+      ],
+      "terminal_records": [
+        {
+          "agent_object": 140243017013568,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "first",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093310,
+              "from_history": false,
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140243016611520,
+          "payload_hash": "a54295d5bbd914ae930ca49efe6b8499e76c162f2bcd523fd0a3396d4571b5dd",
+          "session": "trial:A",
+          "state": {
+            "current_run_id": "first",
+            "current_session_id": "trial:A",
+            "current_user_id": "trial:A"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140243017016928,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "parallel-B",
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792093310,
+              "from_history": false,
+              "id": "56dee3d7-d6e9-40a4-ac28-05ceb2c0f2d9",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140243008218816,
+          "payload_hash": "351b20a972e1a9a0e963db3e9e17316c925ceab5b2442eb6c25b481c065146bf",
+          "session": "trial:B",
+          "state": {
+            "current_run_id": "parallel-B",
+            "current_session_id": "trial:B",
+            "current_user_id": "trial:B"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140243017013568,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "parallel-A",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "5d2c3d5c-27b8-4b62-be05-775d84d58381",
+              "metrics": {
+                "time_to_first_token": 6.135999865364283e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "overlap",
+              "created_at": 1792093310,
+              "from_history": false,
+              "id": "5891234e-2e99-40b9-b066-2934a5d5bb0b",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140243016611520,
+          "payload_hash": "dc7d5db951d54ade58aa1838ad8d868978aad39f8c5767a3ff9703c07bc511cd",
+          "session": "trial:A",
+          "state": {
+            "current_run_id": "parallel-A",
+            "current_session_id": "trial:A",
+            "current_user_id": "trial:A"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140243017013568,
+          "agno_status": "outcome updated",
+          "errors": [],
+          "id": "outcome",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "5d2c3d5c-27b8-4b62-be05-775d84d58381",
+              "metrics": {
+                "time_to_first_token": 6.135999865364283e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "overlap",
+              "created_at": 1792093310,
+              "from_history": false,
+              "id": "5891234e-2e99-40b9-b066-2934a5d5bb0b",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140243016611520,
+          "payload_hash": "b74f120be8f0644bdefaeade34f0021c6a5f9044338c92a9e6be39608e968d1f",
+          "session": "trial:A",
+          "state": {
+            "action_result": "installed",
+            "current_run_id": "parallel-A",
+            "current_session_id": "trial:A",
+            "current_user_id": "trial:A",
+            "shared_commit": "failed"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140243017013568,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "back",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "5d2c3d5c-27b8-4b62-be05-775d84d58381",
+              "metrics": {
+                "time_to_first_token": 6.135999865364283e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "overlap",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "5891234e-2e99-40b9-b066-2934a5d5bb0b",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "111ce2d2-a7ed-4406-98ac-86b73c679026",
+              "metrics": {
+                "time_to_first_token": 0.0008287540003948379
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "continue A",
+              "created_at": 1792093310,
+              "from_history": false,
+              "id": "e9b1e4c5-fcd3-44a8-b7ea-d560e5657eb4",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140243016611520,
+          "payload_hash": "832a992dd2e709b4157821d4348ed5fb469796b8026898c0777bbe70db959f2a",
+          "session": "trial:A",
+          "state": {
+            "action_result": "installed",
+            "current_run_id": "back",
+            "current_session_id": "trial:A",
+            "current_user_id": "trial:A",
+            "shared_commit": "failed"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140243017011888,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "stateless-2",
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792093310,
+              "from_history": false,
+              "id": "715d9d9d-8d37-4115-b382-f90aed48d632",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140242991433408,
+          "payload_hash": "f7313822a56af8fe26a912f14b00ba6527b40c29bc5288bed56b227e29de30b5",
+          "session": "trial:stateless-2",
+          "state": {
+            "current_run_id": "stateless-2",
+            "current_session_id": "trial:stateless-2",
+            "current_user_id": "trial:stateless-2"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140243017012224,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "stateless-1",
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792093310,
+              "from_history": false,
+              "id": "7c097dfc-f09b-4107-b064-4a5d9f192849",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140242999826112,
+          "payload_hash": "b832cc532ce422451e0a1ad2e8d32c2abd22c0de7a07ebefa8a569ef375a798e",
+          "session": "trial:stateless-1",
+          "state": {
+            "current_run_id": "stateless-1",
+            "current_session_id": "trial:stateless-1",
+            "current_user_id": "trial:stateless-1"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140243017013568,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "lost-reply",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "4f0a1016-5813-46a4-9d00-728bba1e56bf",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "5d2c3d5c-27b8-4b62-be05-775d84d58381",
+              "metrics": {
+                "time_to_first_token": 6.135999865364283e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "overlap",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "5891234e-2e99-40b9-b066-2934a5d5bb0b",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "111ce2d2-a7ed-4406-98ac-86b73c679026",
+              "metrics": {
+                "time_to_first_token": 0.0008287540003948379
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "continue A",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "e9b1e4c5-fcd3-44a8-b7ea-d560e5657eb4",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093310,
+              "from_history": true,
+              "id": "52f6785f-7f89-4cf5-975e-d9c5acbdd04f",
+              "metrics": {
+                "time_to_first_token": 5.348000195226632e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "do not replay",
+              "created_at": 1792093310,
+              "from_history": false,
+              "id": "b1963ed1-d75d-41e0-b3a3-bf5ea506af11",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140243016611520,
+          "payload_hash": "dde59f6039bf25ee268a5125acaeb39ae9a52410cbdb82f3442745106e331bf3",
+          "session": "trial:A",
+          "state": {
+            "action_result": "installed",
+            "current_run_id": "lost-reply",
+            "current_session_id": "trial:A",
+            "current_user_id": "trial:A",
+            "shared_commit": "failed"
+          },
+          "success": true
+        }
+      ],
+      "files": [
+        "PROTOTYPE-admissions.jsonl",
+        "PROTOTYPE-worker.jsonl"
+      ],
+      "exitcode": 0,
+      "limits": "No production coordinator, durable supervisor recovery, background learning, complete wire validation, or remote work. Missing records deny success; duplicate payload mismatch is reported, not executed."
+    },
+    "one_db_sessions": {
+      "checks": {
+        "independent_overlap": true,
+        "stable_A_owner": true,
+        "stable_A_object": true,
+        "history_retained": true,
+        "outcome_after_modeled_commit_failure": true,
+        "other_session_isolated": true,
+        "distinct_stateless_objects": true,
+        "duplicate_not_replayed": true,
+        "conflicting_duplicate_rejected": true,
+        "foreign_session_rejected": true,
+        "lost_reply_has_one_terminal": true,
+        "required_write_error_failed": true,
+        "failed_run_denies_admission": true,
+        "missing_terminal_denies_success": "covered by zero-DB probe",
+        "coordinator_same_file_write": true,
+        "verified_exit": true
+      },
+      "missing_or_rejected_admissions": [
+        "outcome",
+        "bad"
+      ],
+      "post_exit_admission": "DENIED: failed or exited worker; no cache replacement",
+      "post_failure_admission": "DENIED: failed or exited worker; no cache replacement",
+      "observations": [
+        {
+          "ready": true,
+          "pid": 134009,
+          "limitation": "no death watchdog in this probe"
+        },
+        {
+          "id": "first",
+          "session": "trial:A",
+          "payload_hash": "a54295d5bbd914ae930ca49efe6b8499e76c162f2bcd523fd0a3396d4571b5dd",
+          "owner_thread": 140574756697792,
+          "agent_object": 140574756956416,
+          "state": {},
+          "messages": [
+            {
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "content": "unique A history",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "parallel-A",
+          "session": "trial:A",
+          "payload_hash": "dc7d5db951d54ade58aa1838ad8d868978aad39f8c5767a3ff9703c07bc511cd",
+          "owner_thread": 140574756697792,
+          "agent_object": 140574756956416,
+          "state": {},
+          "messages": [
+            {
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "content": "unique A history",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            },
+            {
+              "id": "e67b0d2b-f55f-45ce-ade1-638239d1ca99",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 5.658399823005311e-05
+              },
+              "created_at": 1792093311
+            },
+            {
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "parallel-B",
+          "session": "trial:B",
+          "payload_hash": "351b20a972e1a9a0e963db3e9e17316c925ceab5b2442eb6c25b481c065146bf",
+          "owner_thread": 140574747256512,
+          "agent_object": 140574756961120,
+          "state": {},
+          "messages": [
+            {
+              "id": "ad4b937b-58ad-4fb0-aa07-d911ac13ee94",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "outcome",
+          "session": "trial:A",
+          "payload_hash": "b74f120be8f0644bdefaeade34f0021c6a5f9044338c92a9e6be39608e968d1f",
+          "owner_thread": 140574756697792,
+          "agent_object": 140574756956416,
+          "state": {
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "messages": [
+            {
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "content": "unique A history",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            },
+            {
+              "id": "e67b0d2b-f55f-45ce-ade1-638239d1ca99",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 5.658399823005311e-05
+              },
+              "created_at": 1792093311
+            },
+            {
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            }
+          ],
+          "agno_status": "outcome updated",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "back",
+          "session": "trial:A",
+          "payload_hash": "832a992dd2e709b4157821d4348ed5fb469796b8026898c0777bbe70db959f2a",
+          "owner_thread": 140574756697792,
+          "agent_object": 140574756956416,
+          "state": {
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "messages": [
+            {
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "content": "unique A history",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            },
+            {
+              "id": "e67b0d2b-f55f-45ce-ade1-638239d1ca99",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 5.658399823005311e-05
+              },
+              "created_at": 1792093311
+            },
+            {
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "content": "overlap",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            },
+            {
+              "id": "ba32dee6-3256-48bd-873a-5f9741b2a0d5",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 0.010607917996821925
+              },
+              "created_at": 1792093311
+            },
+            {
+              "id": "c9deb220-9336-4173-9959-1ad063103a38",
+              "content": "continue A",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "outcome",
+          "duplicate": true,
+          "same_payload": true,
+          "replayed": false
+        },
+        {
+          "id": "outcome",
+          "duplicate": true,
+          "same_payload": false,
+          "replayed": false
+        },
+        {
+          "rejected": "identity/version/operation",
+          "id": "bad"
+        },
+        {
+          "id": "stateless-1",
+          "session": "trial:stateless-1",
+          "payload_hash": "b832cc532ce422451e0a1ad2e8d32c2abd22c0de7a07ebefa8a569ef375a798e",
+          "owner_thread": 140574738863808,
+          "agent_object": 140574756950704,
+          "state": {},
+          "messages": [
+            {
+              "id": "97b60dbd-d40e-43ae-bed5-1d98bdaeff91",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "stateless-2",
+          "session": "trial:stateless-2",
+          "payload_hash": "f7313822a56af8fe26a912f14b00ba6527b40c29bc5288bed56b227e29de30b5",
+          "owner_thread": 140574730471104,
+          "agent_object": 140574757397776,
+          "state": {},
+          "messages": [
+            {
+              "id": "b34ed4fa-2919-4e0b-92be-8c8c5782b721",
+              "content": "overlap",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "success": true
+        },
+        {
+          "id": "write-error",
+          "session": "trial:A",
+          "payload_hash": "0c8ab8d65ffe6735a64d2a319565e47f5ca88456fc23a7d320e8405829f6fbab",
+          "owner_thread": 140574756697792,
+          "agent_object": 140574756956416,
+          "state": {
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "messages": [
+            {
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "content": "overlap",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            },
+            {
+              "id": "ba32dee6-3256-48bd-873a-5f9741b2a0d5",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 0.010607917996821925
+              },
+              "created_at": 1792093311
+            },
+            {
+              "id": "c9deb220-9336-4173-9959-1ad063103a38",
+              "content": "continue A",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            },
+            {
+              "id": "0b9c9213-863f-42c8-82fd-e02d3930d65d",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 5.550599962589331e-05
+              },
+              "created_at": 1792093311
+            },
+            {
+              "id": "d976a4f8-0172-4f0c-8e88-f85ed1a88577",
+              "content": "do not replay",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            },
+            {
+              "id": "ed11c838-1de1-458a-b15e-a6affe990d91",
+              "content": "offline response",
+              "from_history": true,
+              "stop_after_tool_call": false,
+              "role": "assistant",
+              "metrics": {
+                "time_to_first_token": 7.951299994601868e-05
+              },
+              "created_at": 1792093311
+            },
+            {
+              "id": "ed6f46b1-5338-474d-80c5-a3215dac9e30",
+              "content": "persistence failure",
+              "from_history": false,
+              "stop_after_tool_call": false,
+              "role": "user",
+              "created_at": 1792093311
+            }
+          ],
+          "agno_status": "RunStatus.completed",
+          "errors": [
+            "OSError('PROTOTYPE injected session write failure')"
+          ],
+          "success": false
+        }
+      ],
+      "terminal_records": [
+        {
+          "agent_object": 140574756956416,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "first",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574756697792,
+          "payload_hash": "a54295d5bbd914ae930ca49efe6b8499e76c162f2bcd523fd0a3396d4571b5dd",
+          "session": "trial:A",
+          "state": {},
+          "success": true
+        },
+        {
+          "agent_object": 140574756956416,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "parallel-A",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "e67b0d2b-f55f-45ce-ade1-638239d1ca99",
+              "metrics": {
+                "time_to_first_token": 5.658399823005311e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "overlap",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574756697792,
+          "payload_hash": "dc7d5db951d54ade58aa1838ad8d868978aad39f8c5767a3ff9703c07bc511cd",
+          "session": "trial:A",
+          "state": {},
+          "success": true
+        },
+        {
+          "agent_object": 140574756961120,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "parallel-B",
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "ad4b937b-58ad-4fb0-aa07-d911ac13ee94",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574747256512,
+          "payload_hash": "351b20a972e1a9a0e963db3e9e17316c925ceab5b2442eb6c25b481c065146bf",
+          "session": "trial:B",
+          "state": {},
+          "success": true
+        },
+        {
+          "agent_object": 140574756956416,
+          "agno_status": "outcome updated",
+          "errors": [],
+          "id": "outcome",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "e67b0d2b-f55f-45ce-ade1-638239d1ca99",
+              "metrics": {
+                "time_to_first_token": 5.658399823005311e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "overlap",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574756697792,
+          "payload_hash": "b74f120be8f0644bdefaeade34f0021c6a5f9044338c92a9e6be39608e968d1f",
+          "session": "trial:A",
+          "state": {
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140574756956416,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "back",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "e67b0d2b-f55f-45ce-ade1-638239d1ca99",
+              "metrics": {
+                "time_to_first_token": 5.658399823005311e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "overlap",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "ba32dee6-3256-48bd-873a-5f9741b2a0d5",
+              "metrics": {
+                "time_to_first_token": 0.010607917996821925
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "continue A",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "c9deb220-9336-4173-9959-1ad063103a38",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574756697792,
+          "payload_hash": "832a992dd2e709b4157821d4348ed5fb469796b8026898c0777bbe70db959f2a",
+          "session": "trial:A",
+          "state": {
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140574756950704,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "stateless-1",
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "97b60dbd-d40e-43ae-bed5-1d98bdaeff91",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574738863808,
+          "payload_hash": "b832cc532ce422451e0a1ad2e8d32c2abd22c0de7a07ebefa8a569ef375a798e",
+          "session": "trial:stateless-1",
+          "state": {},
+          "success": true
+        },
+        {
+          "agent_object": 140574757397776,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "stateless-2",
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "b34ed4fa-2919-4e0b-92be-8c8c5782b721",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574730471104,
+          "payload_hash": "f7313822a56af8fe26a912f14b00ba6527b40c29bc5288bed56b227e29de30b5",
+          "session": "trial:stateless-2",
+          "state": {},
+          "success": true
+        },
+        {
+          "agent_object": 140574756956416,
+          "agno_status": "RunStatus.completed",
+          "errors": [],
+          "id": "lost-reply",
+          "messages": [
+            {
+              "content": "unique A history",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "45cce3c2-09ba-451e-8f99-3ed34f1b7246",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "e67b0d2b-f55f-45ce-ade1-638239d1ca99",
+              "metrics": {
+                "time_to_first_token": 5.658399823005311e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "overlap",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "ba32dee6-3256-48bd-873a-5f9741b2a0d5",
+              "metrics": {
+                "time_to_first_token": 0.010607917996821925
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "continue A",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "c9deb220-9336-4173-9959-1ad063103a38",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "0b9c9213-863f-42c8-82fd-e02d3930d65d",
+              "metrics": {
+                "time_to_first_token": 5.550599962589331e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "do not replay",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "d976a4f8-0172-4f0c-8e88-f85ed1a88577",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574756697792,
+          "payload_hash": "dde59f6039bf25ee268a5125acaeb39ae9a52410cbdb82f3442745106e331bf3",
+          "session": "trial:A",
+          "state": {
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "success": true
+        },
+        {
+          "agent_object": 140574756956416,
+          "agno_status": "RunStatus.completed",
+          "errors": [
+            "OSError('PROTOTYPE injected session write failure')"
+          ],
+          "id": "write-error",
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "07db8f28-04d4-4416-9f72-853573ba92f4",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "ba32dee6-3256-48bd-873a-5f9741b2a0d5",
+              "metrics": {
+                "time_to_first_token": 0.010607917996821925
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "continue A",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "c9deb220-9336-4173-9959-1ad063103a38",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "0b9c9213-863f-42c8-82fd-e02d3930d65d",
+              "metrics": {
+                "time_to_first_token": 5.550599962589331e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "do not replay",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "d976a4f8-0172-4f0c-8e88-f85ed1a88577",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792093311,
+              "from_history": true,
+              "id": "ed11c838-1de1-458a-b15e-a6affe990d91",
+              "metrics": {
+                "time_to_first_token": 7.951299994601868e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "persistence failure",
+              "created_at": 1792093311,
+              "from_history": false,
+              "id": "ed6f46b1-5338-474d-80c5-a3215dac9e30",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "owner_thread": 140574756697792,
+          "payload_hash": "0c8ab8d65ffe6735a64d2a319565e47f5ca88456fc23a7d320e8405829f6fbab",
+          "session": "trial:A",
+          "state": {
+            "action_result": "installed",
+            "shared_commit": "failed"
+          },
+          "success": false
+        }
+      ],
+      "files": [
+        "PROTOTYPE-admissions.jsonl",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "PROTOTYPE-worker.jsonl"
+      ],
+      "exitcode": 0,
+      "limits": "No production coordinator, durable supervisor recovery, background learning, complete wire validation, or remote work. Missing records deny success; duplicate payload mismatch is reported, not executed."
+    },
+    "active_write_crash": {
+      "active": {
+        "active_transaction": true
+      },
+      "exitcode": -9,
+      "retained": [
+        {
+          "memory_id": "096b5a28-789a-4805-98d6-81d16c092f8a",
+          "memory": "seed | committed-before-crash",
+          "created_at": "2026-10-15T16:41:51",
+          "updated_at": "2026-10-15T16:41:52",
+          "input": "committed-before-crash",
+          "user_id": "agent"
+        }
+      ],
+      "uncommitted_scope": [],
+      "integrity": [
+        [
+          "ok"
+        ]
+      ],
+      "pragmas": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "busy_timeout": [
+          [
+            200
+          ]
+        ],
+        "foreign_keys": [
+          [
+            1
+          ]
+        ]
+      },
+      "live_files": [
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "closed_files": [
+        "PROTOTYPE-wipe-me.sqlite3"
+      ],
+      "checks": {
+        "active_write_interrupted": true,
+        "partial_learning_survives": true,
+        "uncommitted_write_absent": true,
+        "integrity_ok": true
+      },
+      "limits": "One raw SQLite UPDATE after an actual committed Agno learning call; not a crash inside every Agno multi-write route or proof of whole-operation rollback."
+    }
+  }
+}
