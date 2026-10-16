@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mininet-ai.org/schemas/link-failure-latency/v2/agent.schema.json",
+  "allOf": [{"$ref": "common.schema.json#/$defs/envelope"}],
+  "type": "object", "unevaluatedProperties": false,
+  "required": ["trial_id", "fault_id", "agent_id", "switch_id", "invocation_ids", "action_ids", "measurements", "operations", "sdk_metrics", "late", "incomplete"],
+  "properties": {
+    "trial_id": {"$ref": "common.schema.json#/$defs/id"},
+    "fault_id": {"$ref": "common.schema.json#/$defs/id"},
+    "agent_id": {"$ref": "common.schema.json#/$defs/id"},
+    "switch_id": {"$ref": "common.schema.json#/$defs/id"},
+    "invocation_ids": {"$ref": "common.schema.json#/$defs/ids"},
+    "action_ids": {"$ref": "common.schema.json#/$defs/ids"},
+    "measurements": {
+      "type": "object", "additionalProperties": false,
+      "required": ["detection", "reasoning", "action_effect"],
+      "properties": {
+        "detection": {"$ref": "common.schema.json#/$defs/duration"},
+        "reasoning": {"$ref": "common.schema.json#/$defs/duration"},
+        "action_effect": {"$ref": "common.schema.json#/$defs/duration"}
+      }
+    },
+    "operations": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/operation"}},
+    "sdk_metrics": {"type": "object", "additionalProperties": false, "properties": {
+      "eventDetectionSeconds": {"type": ["number", "null"], "minimum": 0},
+      "reasoningSeconds": {"type": ["number", "null"], "minimum": 0},
+      "actionEffectSeconds": {"type": ["number", "null"], "minimum": 0},
+      "native": {"type": "object", "additionalProperties": {"type": ["number", "string", "null"]}}
+    }},
+    "late": {"type": "boolean"},
+    "incomplete": {"type": "boolean"}
+  }
+}

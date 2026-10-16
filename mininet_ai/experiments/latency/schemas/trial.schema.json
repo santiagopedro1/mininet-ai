@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mininet-ai.org/schemas/link-failure-latency/v2/trial.schema.json",
+  "allOf": [{"$ref": "common.schema.json#/$defs/envelope"}],
+  "type": "object", "unevaluatedProperties": false,
+  "required": ["trial_id", "fault_id", "trial_kind", "ordinal", "scenario_id", "failed_link", "healthy_paths", "recovery_paths", "outcome", "stage", "reason", "started_record_id", "ended_record_id", "cleanup_record_id", "fault_record_id", "recovery_record_id", "response_deadline_ns", "cleanup_outcome", "measurements"],
+  "properties": {
+    "trial_id": {"$ref": "common.schema.json#/$defs/id"}, "fault_id": {"$ref": "common.schema.json#/$defs/id"},
+    "trial_kind": {"$ref": "common.schema.json#/$defs/trial_kind"}, "ordinal": {"type": "integer", "minimum": 1}, "scenario_id": {"$ref": "common.schema.json#/$defs/id"},
+    "failed_link": {"$ref": "common.schema.json#/$defs/link"}, "healthy_paths": {"$ref": "common.schema.json#/$defs/paths"}, "recovery_paths": {"$ref": "common.schema.json#/$defs/paths"},
+    "outcome": {"$ref": "common.schema.json#/$defs/trial_outcome"}, "stage": {"enum": ["setup", "injection", "response"]}, "reason": {"$ref": "common.schema.json#/$defs/id"},
+    "started_record_id": {"$ref": "common.schema.json#/$defs/id"}, "ended_record_id": {"$ref": "common.schema.json#/$defs/id"}, "cleanup_record_id": {"$ref": "common.schema.json#/$defs/id"},
+    "fault_record_id": {"$ref": "common.schema.json#/$defs/nullable_id"}, "recovery_record_id": {"$ref": "common.schema.json#/$defs/nullable_id"},
+    "response_deadline_ns": {"anyOf": [{"$ref": "common.schema.json#/$defs/tick"}, {"type": "null"}]},
+    "cleanup_outcome": {"$ref": "common.schema.json#/$defs/cleanup_outcome"},
+    "measurements": {"type": "object", "additionalProperties": false, "required": ["setup", "injection", "recovery", "response", "stopping", "total"], "properties": {
+      "setup": {"$ref": "common.schema.json#/$defs/duration"}, "injection": {"$ref": "common.schema.json#/$defs/duration"}, "recovery": {"$ref": "common.schema.json#/$defs/duration"},
+      "response": {"$ref": "common.schema.json#/$defs/duration"}, "stopping": {"$ref": "common.schema.json#/$defs/duration"}, "total": {"$ref": "common.schema.json#/$defs/duration"}
+    }}
+  }
+}

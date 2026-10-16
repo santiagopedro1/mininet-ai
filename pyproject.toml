@@ -11,6 +11,7 @@ dependencies = [
 	"mininet>=2.3.0.dev6",
 	"pydantic>=2.13.3",
 	"pyyaml>=6.0.3",
+	"referencing>=0.37.0",
 	"rich>=15.0.0",
 	"sqlalchemy[asyncio]>=2.1,<2.2",
 	"typer>=0.25.0",
@@ -50,3 +51,6 @@ typeCheckingMode = "basic"
 
 [tool.setuptools.packages.find]
 include = ["mininet_ai*"]
+
+[tool.setuptools.package-data]
+"mininet_ai.experiments.latency" = ["schemas/*.json"]

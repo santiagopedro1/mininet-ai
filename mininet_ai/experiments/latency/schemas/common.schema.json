@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mininet-ai.org/schemas/link-failure-latency/v2/common.schema.json",
+  "$defs": {
+    "id": {"type": "string", "minLength": 1},
+    "nullable_id": {"type": ["string", "null"], "minLength": 1},
+    "tick": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$", "not": {"pattern": "[^0-9]"}},
+    "ids": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true},
+    "link": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "traffic": {"type": "object", "additionalProperties": false, "required": ["source", "destination"], "properties": {"source": {"enum": ["h1", "h2"]}, "destination": {"enum": ["h1", "h2"]}}},
+    "paths": {"type": "object", "additionalProperties": false, "required": ["h1_to_h2", "h2_to_h1"], "properties": {"h1_to_h2": {"$ref": "#/$defs/ids"}, "h2_to_h1": {"$ref": "#/$defs/ids"}}},
+    "trial_kind": {"enum": ["warmup", "measured"]},
+    "trial_outcome": {"enum": ["recovered", "timeout", "invalid", "setup_failed", "injection_failed", "no_observed_disruption", "error"]},
+    "cleanup_outcome": {"enum": ["verified", "failed", "unknown"]},
+    "phase": {"enum": ["setup", "injection", "observation", "detector", "scheduling", "context", "reasoning", "decision_to_action", "action_attempt", "admission", "execution", "verification", "stopping", "cleanup"]},
+    "duration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["availability", "value_seconds", "reason", "start_record_id", "end_record_id", "flags"],
+      "properties": {
+        "availability": {"enum": ["available", "unavailable", "not_applicable"]},
+        "value_seconds": {"type": ["number", "null"], "minimum": 0},
+        "reason": {"$ref": "#/$defs/nullable_id"},
+        "start_record_id": {"$ref": "#/$defs/nullable_id"},
+        "end_record_id": {"$ref": "#/$defs/nullable_id"},
+        "flags": {"$ref": "#/$defs/ids"}
+      },
+      "allOf": [{
+        "if": {"properties": {"availability": {"const": "available"}}},
+        "then": {"properties": {"value_seconds": {"type": "number"}, "reason": {"type": "null"}, "start_record_id": {"$ref": "#/$defs/id"}, "end_record_id": {"$ref": "#/$defs/id"}}},
+        "else": {"properties": {"value_seconds": {"type": "null"}, "reason": {"$ref": "#/$defs/id"}}}
+      }]
+    },
+    "operation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation_id", "phase", "state", "outcome", "late", "duration", "evidence_ids"],
+      "properties": {
+        "operation_id": {"$ref": "#/$defs/id"},
+        "phase": {"$ref": "#/$defs/phase"},
+        "state": {"enum": ["not_started", "in_progress", "completed", "failed", "cancelled", "incomplete"]},
+        "outcome": {"$ref": "#/$defs/nullable_id"},
+        "late": {"type": "boolean"},
+        "duration": {"$ref": "#/$defs/duration"},
+        "evidence_ids": {"$ref": "#/$defs/ids"}
+      }
+    },
+    "envelope": {
+      "type": "object",
+      "required": ["schema", "record_id", "collector_seq", "run_id", "clock_domain_id", "tick_ns", "evidence_ids"],
+      "properties": {
+        "schema": {"const": "mininet-ai/link-failure-latency/v2"},
+        "record_id": {"$ref": "#/$defs/id"},
+        "collector_seq": {"type": "integer", "minimum": 0},
+        "run_id": {"$ref": "#/$defs/id"},
+        "clock_domain_id": {"$ref": "#/$defs/id"},
+        "tick_ns": {"$ref": "#/$defs/tick"},
+        "evidence_ids": {"$ref": "#/$defs/ids"}
+      }
+    }
+  }
+}
