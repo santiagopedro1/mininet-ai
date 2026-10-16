@@ -121,7 +121,7 @@ and SQLite are real. No Provider client, credential, network call, provisioning,
 production implementation, migration or ADR change is required.
 
 `agno-learning.admission.observations.json` captures runtime/package inventory,
-SQLite source ID/compile options, seven relevant source hashes, per-group events,
+SQLite source ID/compile options, six relevant source hashes, per-group events,
 replies and checks. Captured runtime is Python 3.14.8, Agno 3.0.11, SQLAlchemy
 2.1.0 and SQLite 3.54.0. This is not a deployment binary, hardware, power-loss or
 remote-termination audit.

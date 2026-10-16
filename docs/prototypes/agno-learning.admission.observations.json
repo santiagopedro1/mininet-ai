@@ -1,7 +1,7 @@
 {
   "verdict": "PARTIAL; live human review required",
   "question": "Can the per-run worker stop new admission at the first required-persistence failure while other operations are active, safely drain or contain admitted work, and report failure without releasing the gate early, losing partial effects, or serializing away independent concurrency?",
-  "scratch": "/tmp/opencode/af-run/PROTOTYPE-wipe-me-admission-2ahb3ic2",
+  "scratch": "/tmp/opencode/af-run2/PROTOTYPE-wipe-me-admission-xyvpmyfa",
   "provenance": {
     "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
     "platform": "Linux-7.2.10-arch1-1-x86_64-with-glibc2.44",
@@ -230,7 +230,7 @@
       "pyright": "1.1.414"
     },
     "sources": {
-      "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/admission_failure_prototype.py": "4e0d5fe5443dbd62887d24ba37564549f4d6bd6a8ad599294ed0ae76dd82f064",
+      "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/admission_failure_prototype.py": "decf3d55a615397b1b0959ec2bdef858fee6b3edf7b60024f27fe80dbb9099d8",
       "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/learning_gate_prototype.py": "8717c384c1f10acc6688165c3c1721ff91ad4ed603a1ccfd2fe6f1d03524bc64",
       "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/storage_prototype.py": "e9bbd1c69c03499ed47d52e30ec52327edc6cdc0d9f5e6a605670c997c0b82a0",
       "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_storage_prototype.py": "42cd9e9649cfd95f6bd11fba4f0f88dd1fd1d8319455aedbcfbb29486ea43db5",
@@ -253,9 +253,9 @@
           ],
           "agno_status": "n/a",
           "response": "seed",
-          "owner": 140611748361920,
-          "agent_object": 140611749216336,
-          "adapter_object": 140611748803456,
+          "owner": 140425644996288,
+          "agent_object": 140425645850704,
+          "adapter_object": 140425645437824,
           "user": "trial:A",
           "profile": "manager",
           "memory_free": false,
@@ -268,8 +268,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:48",
-              "updated_at": "2026-10-16T16:36:48",
+              "created_at": "2026-10-16T16:38:37",
+              "updated_at": "2026-10-16T16:38:37",
               "user_id": "trial:A"
             }
           ]
@@ -301,9 +301,9 @@
           ],
           "agno_status": "n/a",
           "response": "seed",
-          "owner": 140611748361920,
-          "agent_object": 140611749216336,
-          "adapter_object": 140611748803456,
+          "owner": 140425644996288,
+          "agent_object": 140425645850704,
+          "adapter_object": 140425645437824,
           "user": "trial:A",
           "profile": "manager",
           "memory_free": false,
@@ -316,8 +316,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:48",
-              "updated_at": "2026-10-16T16:36:48",
+              "created_at": "2026-10-16T16:38:37",
+              "updated_at": "2026-10-16T16:38:37",
               "user_id": "trial:A"
             }
           ]
@@ -401,8 +401,8 @@
           "kind": "terminal",
           "payload": {
             "actionable_success": false,
-            "adapter_object": 140611748803456,
-            "agent_object": 140611749216336,
+            "adapter_object": 140425645437824,
+            "agent_object": 140425645850704,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [
@@ -416,16 +416,16 @@
             "latch_mode": "write",
             "memories": [
               {
-                "created_at": "2026-10-16T16:36:48",
+                "created_at": "2026-10-16T16:38:37",
                 "memory": "seed",
                 "memory_id": "seed",
-                "updated_at": "2026-10-16T16:36:48",
+                "updated_at": "2026-10-16T16:38:37",
                 "user_id": "trial:A"
               }
             ],
             "memory_free": false,
             "owned_futures": 0,
-            "owner": 140611748361920,
+            "owner": 140425644996288,
             "profile": "manager",
             "response": "seed",
             "run_failed": true,
@@ -449,6 +449,15 @@
             "command_hash": "a87e554e314ff33b943a16789986ecfc708b42b9f7e9d0303ed77b5686eac670",
             "latch": true
           }
+        },
+        {
+          "seq": 10,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
+          }
         }
       ],
       "scopes": {
@@ -456,8 +465,8 @@
           {
             "memory_id": "seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:48",
-            "updated_at": "2026-10-16T16:36:48",
+            "created_at": "2026-10-16T16:38:37",
+            "updated_at": "2026-10-16T16:38:37",
             "user_id": "trial:A"
           }
         ],
@@ -467,8 +476,8 @@
           {
             "memory_id": "agent-seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:48",
-            "updated_at": "2026-10-16T16:36:48",
+            "created_at": "2026-10-16T16:38:37",
+            "updated_at": "2026-10-16T16:38:37",
             "user_id": "A"
           }
         ],
@@ -514,9 +523,9 @@
           ],
           "agno_status": "n/a",
           "response": "seed",
-          "owner": 139939251484352,
-          "agent_object": 139939255648336,
-          "adapter_object": 139939255235456,
+          "owner": 140583204026048,
+          "agent_object": 140583204847696,
+          "adapter_object": 140583204434816,
           "user": "trial:A",
           "profile": "manager",
           "memory_free": false,
@@ -529,8 +538,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:49",
-              "updated_at": "2026-10-16T16:36:49",
+              "created_at": "2026-10-16T16:38:38",
+              "updated_at": "2026-10-16T16:38:38",
               "user_id": "trial:A"
             }
           ]
@@ -542,9 +551,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139939251484352,
-          "agent_object": 139939255232096,
-          "adapter_object": 139939242132176,
+          "owner": 140583204026048,
+          "agent_object": 140583204431456,
+          "adapter_object": 140583186236112,
           "user": "trial:A",
           "profile": "memory-free",
           "memory_free": true,
@@ -575,9 +584,9 @@
           ],
           "agno_status": "n/a",
           "response": "seed",
-          "owner": 139939251484352,
-          "agent_object": 139939255648336,
-          "adapter_object": 139939255235456,
+          "owner": 140583204026048,
+          "agent_object": 140583204847696,
+          "adapter_object": 140583204434816,
           "user": "trial:A",
           "profile": "manager",
           "memory_free": false,
@@ -590,8 +599,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:49",
-              "updated_at": "2026-10-16T16:36:49",
+              "created_at": "2026-10-16T16:38:38",
+              "updated_at": "2026-10-16T16:38:38",
               "user_id": "trial:A"
             }
           ]
@@ -603,9 +612,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139939251484352,
-          "agent_object": 139939255232096,
-          "adapter_object": 139939242132176,
+          "owner": 140583204026048,
+          "agent_object": 140583204431456,
+          "adapter_object": 140583186236112,
           "user": "trial:A",
           "profile": "memory-free",
           "memory_free": true,
@@ -688,8 +697,8 @@
           "kind": "terminal",
           "payload": {
             "actionable_success": false,
-            "adapter_object": 139939255235456,
-            "agent_object": 139939255648336,
+            "adapter_object": 140583204434816,
+            "agent_object": 140583204847696,
             "agno_status": "n/a",
             "dispatch_check": false,
             "errors": [
@@ -703,16 +712,16 @@
             "latch_mode": "write",
             "memories": [
               {
-                "created_at": "2026-10-16T16:36:49",
+                "created_at": "2026-10-16T16:38:38",
                 "memory": "seed",
                 "memory_id": "seed",
-                "updated_at": "2026-10-16T16:36:49",
+                "updated_at": "2026-10-16T16:38:38",
                 "user_id": "trial:A"
               }
             ],
             "memory_free": false,
             "owned_futures": 0,
-            "owner": 139939251484352,
+            "owner": 140583204026048,
             "profile": "manager",
             "response": "seed",
             "run_failed": true,
@@ -768,8 +777,8 @@
           "kind": "terminal",
           "payload": {
             "actionable_success": false,
-            "adapter_object": 139939242132176,
-            "agent_object": 139939255232096,
+            "adapter_object": 140583186236112,
+            "agent_object": 140583204431456,
             "agno_status": "n/a",
             "dispatch_check": false,
             "errors": [],
@@ -779,7 +788,7 @@
             "memories": [],
             "memory_free": true,
             "owned_futures": 0,
-            "owner": 139939251484352,
+            "owner": 140583204026048,
             "profile": "memory-free",
             "response": "offline response",
             "run_failed": true,
@@ -789,20 +798,20 @@
         },
         {
           "seq": 14,
-          "id": "D",
-          "kind": "admission-denied",
-          "payload": {
-            "command_hash": "a87e554e314ff33b943a16789986ecfc708b42b9f7e9d0303ed77b5686eac670",
-            "latch": true
-          }
-        },
-        {
-          "seq": 15,
           "id": "worker",
           "kind": "quiesced",
           "payload": {
             "executing": 0,
             "queued": 0
+          }
+        },
+        {
+          "seq": 15,
+          "id": "D",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "a87e554e314ff33b943a16789986ecfc708b42b9f7e9d0303ed77b5686eac670",
+            "latch": true
           }
         }
       ],
@@ -811,8 +820,8 @@
           {
             "memory_id": "seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:49",
-            "updated_at": "2026-10-16T16:36:49",
+            "created_at": "2026-10-16T16:38:38",
+            "updated_at": "2026-10-16T16:38:38",
             "user_id": "trial:A"
           }
         ],
@@ -822,8 +831,8 @@
           {
             "memory_id": "agent-seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:49",
-            "updated_at": "2026-10-16T16:36:49",
+            "created_at": "2026-10-16T16:38:38",
+            "updated_at": "2026-10-16T16:38:38",
             "user_id": "A"
           }
         ],
@@ -869,9 +878,9 @@
           ],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139659778717376,
-          "agent_object": 139659783143504,
-          "adapter_object": 139659782730624,
+          "owner": 139870376818368,
+          "agent_object": 139870380736592,
+          "adapter_object": 139870380323712,
           "user": "trial:A",
           "profile": "automatic",
           "memory_free": false,
@@ -884,8 +893,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:49",
-              "updated_at": "2026-10-16T16:36:49",
+              "created_at": "2026-10-16T16:38:38",
+              "updated_at": "2026-10-16T16:38:38",
               "user_id": "trial:A"
             }
           ]
@@ -910,9 +919,9 @@
           ],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139659778717376,
-          "agent_object": 139659783143504,
-          "adapter_object": 139659782730624,
+          "owner": 139870376818368,
+          "agent_object": 139870380736592,
+          "adapter_object": 139870380323712,
           "user": "trial:A",
           "profile": "automatic",
           "memory_free": false,
@@ -925,8 +934,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:49",
-              "updated_at": "2026-10-16T16:36:49",
+              "created_at": "2026-10-16T16:38:38",
+              "updated_at": "2026-10-16T16:38:38",
               "user_id": "trial:A"
             }
           ]
@@ -1106,8 +1115,8 @@
           "kind": "terminal",
           "payload": {
             "actionable_success": false,
-            "adapter_object": 139659782730624,
-            "agent_object": 139659783143504,
+            "adapter_object": 139870380323712,
+            "agent_object": 139870380736592,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [
@@ -1121,16 +1130,16 @@
             "latch_mode": "write",
             "memories": [
               {
-                "created_at": "2026-10-16T16:36:49",
+                "created_at": "2026-10-16T16:38:38",
                 "memory": "seed",
                 "memory_id": "seed",
-                "updated_at": "2026-10-16T16:36:49",
+                "updated_at": "2026-10-16T16:38:38",
                 "user_id": "trial:A"
               }
             ],
             "memory_free": false,
             "owned_futures": 1,
-            "owner": 139659778717376,
+            "owner": 139870376818368,
             "profile": "automatic",
             "response": "offline response",
             "run_failed": true,
@@ -1144,8 +1153,8 @@
           {
             "memory_id": "seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:49",
-            "updated_at": "2026-10-16T16:36:49",
+            "created_at": "2026-10-16T16:38:38",
+            "updated_at": "2026-10-16T16:38:38",
             "user_id": "trial:A"
           }
         ],
@@ -1155,8 +1164,8 @@
           {
             "memory_id": "agent-seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:49",
-            "updated_at": "2026-10-16T16:36:49",
+            "created_at": "2026-10-16T16:38:38",
+            "updated_at": "2026-10-16T16:38:38",
             "user_id": "A"
           }
         ],
@@ -1202,9 +1211,9 @@
           ],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139672564004544,
-          "agent_object": 139672564875344,
-          "adapter_object": 139672564462464,
+          "owner": 139696683349696,
+          "agent_object": 139696684073040,
+          "adapter_object": 139696683660160,
           "user": "trial:A",
           "profile": "automatic",
           "memory_free": false,
@@ -1217,8 +1226,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:50",
-              "updated_at": "2026-10-16T16:36:50",
+              "created_at": "2026-10-16T16:38:39",
+              "updated_at": "2026-10-16T16:38:39",
               "user_id": "trial:A"
             }
           ]
@@ -1230,9 +1239,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139672470681280,
-          "agent_object": 139672564885088,
-          "adapter_object": 139672545885584,
+          "owner": 139696664467136,
+          "agent_object": 139696684082784,
+          "adapter_object": 139696665083600,
           "user": "trial:B",
           "profile": "memory-free",
           "memory_free": true,
@@ -1257,9 +1266,9 @@
           ],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139672564004544,
-          "agent_object": 139672564875344,
-          "adapter_object": 139672564462464,
+          "owner": 139696683349696,
+          "agent_object": 139696684073040,
+          "adapter_object": 139696683660160,
           "user": "trial:A",
           "profile": "automatic",
           "memory_free": false,
@@ -1272,8 +1281,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:50",
-              "updated_at": "2026-10-16T16:36:50",
+              "created_at": "2026-10-16T16:38:39",
+              "updated_at": "2026-10-16T16:38:39",
               "user_id": "trial:A"
             }
           ]
@@ -1285,9 +1294,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139672470681280,
-          "agent_object": 139672564885088,
-          "adapter_object": 139672545885584,
+          "owner": 139696664467136,
+          "agent_object": 139696684082784,
+          "adapter_object": 139696665083600,
           "user": "trial:B",
           "profile": "memory-free",
           "memory_free": true,
@@ -1469,8 +1478,8 @@
           "kind": "terminal",
           "payload": {
             "actionable_success": true,
-            "adapter_object": 139672545885584,
-            "agent_object": 139672564885088,
+            "adapter_object": 139696665083600,
+            "agent_object": 139696684082784,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [],
@@ -1480,7 +1489,7 @@
             "memories": [],
             "memory_free": true,
             "owned_futures": 0,
-            "owner": 139672470681280,
+            "owner": 139696664467136,
             "profile": "memory-free",
             "response": "offline response",
             "run_failed": false,
@@ -1536,8 +1545,8 @@
           "kind": "terminal",
           "payload": {
             "actionable_success": false,
-            "adapter_object": 139672564462464,
-            "agent_object": 139672564875344,
+            "adapter_object": 139696683660160,
+            "agent_object": 139696684073040,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [
@@ -1551,16 +1560,16 @@
             "latch_mode": "finalize",
             "memories": [
               {
-                "created_at": "2026-10-16T16:36:50",
+                "created_at": "2026-10-16T16:38:39",
                 "memory": "seed",
                 "memory_id": "seed",
-                "updated_at": "2026-10-16T16:36:50",
+                "updated_at": "2026-10-16T16:38:39",
                 "user_id": "trial:A"
               }
             ],
             "memory_free": false,
             "owned_futures": 1,
-            "owner": 139672564004544,
+            "owner": 139696683349696,
             "profile": "automatic",
             "response": "offline response",
             "run_failed": true,
@@ -1574,8 +1583,8 @@
           {
             "memory_id": "seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:50",
-            "updated_at": "2026-10-16T16:36:50",
+            "created_at": "2026-10-16T16:38:39",
+            "updated_at": "2026-10-16T16:38:39",
             "user_id": "trial:A"
           }
         ],
@@ -1585,8 +1594,8 @@
           {
             "memory_id": "agent-seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:50",
-            "updated_at": "2026-10-16T16:36:50",
+            "created_at": "2026-10-16T16:38:39",
+            "updated_at": "2026-10-16T16:38:39",
             "user_id": "A"
           }
         ],
@@ -1627,48 +1636,15 @@
           "rejected": "admission closed by failure latch"
         },
         {
-          "id": "A",
-          "hash": "fac41bc7098f0544f9420c71647bb0e47a53b5f622d13839df02b5899699d977",
-          "success": false,
-          "errors": [
-            {
-              "method": "upsert_user_memory",
-              "error": "OSError('PROTOTYPE required write exception')"
-            }
-          ],
-          "agno_status": "n/a",
-          "response": "offline response",
-          "owner": 140063143884480,
-          "agent_object": 140063144822832,
-          "adapter_object": 140063144536784,
-          "user": "trial:A",
-          "profile": "automatic",
-          "memory_free": false,
-          "owned_futures": 1,
-          "dispatch_check": true,
-          "latch_mode": "write",
-          "run_failed": true,
-          "actionable_success": false,
-          "memories": [
-            {
-              "memory_id": "seed",
-              "memory": "seed",
-              "created_at": "2026-10-16T16:36:50",
-              "updated_at": "2026-10-16T16:36:50",
-              "user_id": "trial:A"
-            }
-          ]
-        },
-        {
           "id": "B",
           "hash": "70869fa942714d2717913a7d9e5b9fe958552a0e3a0addd9b37e1cbb064d4dd5",
           "success": true,
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 140063135491776,
-          "agent_object": 140063144344752,
-          "adapter_object": 140063144342400,
+          "owner": 140087103841984,
+          "agent_object": 140087113139600,
+          "adapter_object": 140087112902416,
           "user": "trial:B",
           "profile": "memory-free",
           "memory_free": true,
@@ -1687,39 +1663,6 @@
           "run_failed": true,
           "rejected": "admission closed by failure latch"
         },
-        "A": {
-          "id": "A",
-          "hash": "fac41bc7098f0544f9420c71647bb0e47a53b5f622d13839df02b5899699d977",
-          "success": false,
-          "errors": [
-            {
-              "method": "upsert_user_memory",
-              "error": "OSError('PROTOTYPE required write exception')"
-            }
-          ],
-          "agno_status": "n/a",
-          "response": "offline response",
-          "owner": 140063143884480,
-          "agent_object": 140063144822832,
-          "adapter_object": 140063144536784,
-          "user": "trial:A",
-          "profile": "automatic",
-          "memory_free": false,
-          "owned_futures": 1,
-          "dispatch_check": true,
-          "latch_mode": "write",
-          "run_failed": true,
-          "actionable_success": false,
-          "memories": [
-            {
-              "memory_id": "seed",
-              "memory": "seed",
-              "created_at": "2026-10-16T16:36:50",
-              "updated_at": "2026-10-16T16:36:50",
-              "user_id": "trial:A"
-            }
-          ]
-        },
         "B": {
           "id": "B",
           "hash": "70869fa942714d2717913a7d9e5b9fe958552a0e3a0addd9b37e1cbb064d4dd5",
@@ -1727,9 +1670,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 140063135491776,
-          "agent_object": 140063144344752,
-          "adapter_object": 140063144342400,
+          "owner": 140087103841984,
+          "agent_object": 140087113139600,
+          "adapter_object": 140087112902416,
           "user": "trial:B",
           "profile": "memory-free",
           "memory_free": true,
@@ -1744,22 +1687,22 @@
       "events": [
         {
           "seq": 1,
-          "id": "B",
-          "kind": "admitted",
-          "payload": {
-            "command_hash": "70869fa942714d2717913a7d9e5b9fe958552a0e3a0addd9b37e1cbb064d4dd5",
-            "profile": "memory-free",
-            "user": "trial:B"
-          }
-        },
-        {
-          "seq": 2,
           "id": "A",
           "kind": "admitted",
           "payload": {
             "command_hash": "fac41bc7098f0544f9420c71647bb0e47a53b5f622d13839df02b5899699d977",
             "profile": "automatic",
             "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "B",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "70869fa942714d2717913a7d9e5b9fe958552a0e3a0addd9b37e1cbb064d4dd5",
+            "profile": "memory-free",
+            "user": "trial:B"
           }
         },
         {
@@ -1772,16 +1715,16 @@
         },
         {
           "seq": 4,
-          "id": "A",
-          "kind": "db-ack",
+          "id": "B",
+          "kind": "db-attempt",
           "payload": {
-            "method": "get_user_memories"
+            "method": "upsert_session"
           }
         },
         {
           "seq": 5,
           "id": "B",
-          "kind": "db-attempt",
+          "kind": "db-ack",
           "payload": {
             "method": "upsert_session"
           }
@@ -1789,31 +1732,31 @@
         {
           "seq": 6,
           "id": "B",
-          "kind": "db-ack",
-          "payload": {
-            "method": "upsert_session"
-          }
-        },
-        {
-          "seq": 7,
-          "id": "B",
           "kind": "db-attempt",
           "payload": {
             "method": "upsert_run"
           }
         },
         {
-          "seq": 8,
+          "seq": 7,
           "id": "A",
-          "kind": "db-attempt",
+          "kind": "db-ack",
           "payload": {
             "method": "get_user_memories"
           }
         },
         {
+          "seq": 8,
+          "id": "B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
           "seq": 9,
           "id": "A",
-          "kind": "db-ack",
+          "kind": "db-attempt",
           "payload": {
             "method": "get_user_memories"
           }
@@ -1821,17 +1764,17 @@
         {
           "seq": 10,
           "id": "B",
-          "kind": "db-ack",
+          "kind": "finalize-hold",
           "payload": {
-            "method": "upsert_run"
+            "op": "B"
           }
         },
         {
           "seq": 11,
-          "id": "B",
-          "kind": "finalize-hold",
+          "id": "A",
+          "kind": "db-ack",
           "payload": {
-            "op": "B"
+            "method": "get_user_memories"
           }
         },
         {
@@ -1914,15 +1857,6 @@
         },
         {
           "seq": 21,
-          "id": "D",
-          "kind": "admission-denied",
-          "payload": {
-            "command_hash": "c585074e598090393d63564bb7256a2817e94e23dae61cdfdccde1d1a3388fa3",
-            "latch": true
-          }
-        },
-        {
-          "seq": 22,
           "id": "A",
           "kind": "db-ack",
           "payload": {
@@ -1930,7 +1864,7 @@
           }
         },
         {
-          "seq": 23,
+          "seq": 22,
           "id": "A",
           "kind": "db-attempt",
           "payload": {
@@ -1938,7 +1872,7 @@
           }
         },
         {
-          "seq": 24,
+          "seq": 23,
           "id": "A",
           "kind": "db-ack",
           "payload": {
@@ -1946,13 +1880,13 @@
           }
         },
         {
-          "seq": 25,
+          "seq": 24,
           "id": "A",
           "kind": "terminal",
           "payload": {
             "actionable_success": false,
-            "adapter_object": 140063144536784,
-            "agent_object": 140063144822832,
+            "adapter_object": 140087112708992,
+            "agent_object": 140087113138256,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [
@@ -1966,16 +1900,16 @@
             "latch_mode": "write",
             "memories": [
               {
-                "created_at": "2026-10-16T16:36:50",
+                "created_at": "2026-10-16T16:38:39",
                 "memory": "seed",
                 "memory_id": "seed",
-                "updated_at": "2026-10-16T16:36:50",
+                "updated_at": "2026-10-16T16:38:39",
                 "user_id": "trial:A"
               }
             ],
             "memory_free": false,
             "owned_futures": 1,
-            "owner": 140063143884480,
+            "owner": 140087112234688,
             "profile": "automatic",
             "response": "offline response",
             "run_failed": true,
@@ -1984,13 +1918,22 @@
           }
         },
         {
+          "seq": 25,
+          "id": "D",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "c585074e598090393d63564bb7256a2817e94e23dae61cdfdccde1d1a3388fa3",
+            "latch": true
+          }
+        },
+        {
           "seq": 26,
           "id": "B",
           "kind": "terminal",
           "payload": {
             "actionable_success": false,
-            "adapter_object": 140063144342400,
-            "agent_object": 140063144344752,
+            "adapter_object": 140087112902416,
+            "agent_object": 140087113139600,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [],
@@ -2000,12 +1943,21 @@
             "memories": [],
             "memory_free": true,
             "owned_futures": 0,
-            "owner": 140063135491776,
+            "owner": 140087103841984,
             "profile": "memory-free",
             "response": "offline response",
             "run_failed": true,
             "success": true,
             "user": "trial:B"
+          }
+        },
+        {
+          "seq": 27,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
           }
         }
       ],
@@ -2014,8 +1966,8 @@
           {
             "memory_id": "seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:50",
-            "updated_at": "2026-10-16T16:36:50",
+            "created_at": "2026-10-16T16:38:39",
+            "updated_at": "2026-10-16T16:38:39",
             "user_id": "trial:A"
           }
         ],
@@ -2025,8 +1977,8 @@
           {
             "memory_id": "agent-seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:50",
-            "updated_at": "2026-10-16T16:36:50",
+            "created_at": "2026-10-16T16:38:39",
+            "updated_at": "2026-10-16T16:38:39",
             "user_id": "A"
           }
         ],
@@ -2073,9 +2025,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 139875248502464,
-            "agent_object": 139875253223504,
-            "adapter_object": 139875252810624,
+            "owner": 140104422127296,
+            "agent_object": 140104422981712,
+            "adapter_object": 140104422568832,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -2088,8 +2040,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed",
-                "created_at": "2026-10-16T16:36:51",
-                "updated_at": "2026-10-16T16:36:51",
+                "created_at": "2026-10-16T16:38:50",
+                "updated_at": "2026-10-16T16:38:50",
                 "user_id": "trial:A"
               }
             ]
@@ -2114,9 +2066,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 139875248502464,
-            "agent_object": 139875253223504,
-            "adapter_object": 139875252810624,
+            "owner": 140104422127296,
+            "agent_object": 140104422981712,
+            "adapter_object": 140104422568832,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -2129,8 +2081,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed",
-                "created_at": "2026-10-16T16:36:51",
-                "updated_at": "2026-10-16T16:36:51",
+                "created_at": "2026-10-16T16:38:50",
+                "updated_at": "2026-10-16T16:38:50",
                 "user_id": "trial:A"
               }
             ]
@@ -2287,8 +2239,8 @@
             "kind": "terminal",
             "payload": {
               "actionable_success": false,
-              "adapter_object": 139875252810624,
-              "agent_object": 139875253223504,
+              "adapter_object": 140104422568832,
+              "agent_object": 140104422981712,
               "agno_status": "n/a",
               "dispatch_check": true,
               "errors": [
@@ -2302,16 +2254,16 @@
               "latch_mode": "write",
               "memories": [
                 {
-                  "created_at": "2026-10-16T16:36:51",
+                  "created_at": "2026-10-16T16:38:50",
                   "memory": "seed",
                   "memory_id": "seed",
-                  "updated_at": "2026-10-16T16:36:51",
+                  "updated_at": "2026-10-16T16:38:50",
                   "user_id": "trial:A"
                 }
               ],
               "memory_free": false,
               "owned_futures": 1,
-              "owner": 139875248502464,
+              "owner": 140104422127296,
               "profile": "automatic",
               "response": "offline response",
               "run_failed": true,
@@ -2327,15 +2279,6 @@
               "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
               "latch": true
             }
-          },
-          {
-            "seq": 19,
-            "id": "worker",
-            "kind": "quiesced",
-            "payload": {
-              "executing": 0,
-              "queued": 0
-            }
           }
         ],
         "scopes": {
@@ -2343,8 +2286,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:51",
-              "updated_at": "2026-10-16T16:36:51",
+              "created_at": "2026-10-16T16:38:50",
+              "updated_at": "2026-10-16T16:38:50",
               "user_id": "trial:A"
             }
           ],
@@ -2354,8 +2297,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:51",
-              "updated_at": "2026-10-16T16:36:51",
+              "created_at": "2026-10-16T16:38:50",
+              "updated_at": "2026-10-16T16:38:50",
               "user_id": "A"
             }
           ],
@@ -2401,9 +2344,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 139693323712192,
-            "agent_object": 139693324435536,
-            "adapter_object": 139693324022656,
+            "owner": 139975503902400,
+            "agent_object": 139975504773200,
+            "adapter_object": 139975504360320,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -2416,8 +2359,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed",
-                "created_at": "2026-10-16T16:36:51",
-                "updated_at": "2026-10-16T16:36:51",
+                "created_at": "2026-10-16T16:38:51",
+                "updated_at": "2026-10-16T16:38:51",
                 "user_id": "trial:A"
               }
             ]
@@ -2442,9 +2385,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 139693323712192,
-            "agent_object": 139693324435536,
-            "adapter_object": 139693324022656,
+            "owner": 139975503902400,
+            "agent_object": 139975504773200,
+            "adapter_object": 139975504360320,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -2457,8 +2400,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed",
-                "created_at": "2026-10-16T16:36:51",
-                "updated_at": "2026-10-16T16:36:51",
+                "created_at": "2026-10-16T16:38:51",
+                "updated_at": "2026-10-16T16:38:51",
                 "user_id": "trial:A"
               }
             ]
@@ -2615,8 +2558,8 @@
             "kind": "terminal",
             "payload": {
               "actionable_success": false,
-              "adapter_object": 139693324022656,
-              "agent_object": 139693324435536,
+              "adapter_object": 139975504360320,
+              "agent_object": 139975504773200,
               "agno_status": "n/a",
               "dispatch_check": true,
               "errors": [
@@ -2630,16 +2573,16 @@
               "latch_mode": "write",
               "memories": [
                 {
-                  "created_at": "2026-10-16T16:36:51",
+                  "created_at": "2026-10-16T16:38:51",
                   "memory": "seed",
                   "memory_id": "seed",
-                  "updated_at": "2026-10-16T16:36:51",
+                  "updated_at": "2026-10-16T16:38:51",
                   "user_id": "trial:A"
                 }
               ],
               "memory_free": false,
               "owned_futures": 1,
-              "owner": 139693323712192,
+              "owner": 139975503902400,
               "profile": "automatic",
               "response": "offline response",
               "run_failed": true,
@@ -2649,20 +2592,20 @@
           },
           {
             "seq": 18,
-            "id": "D",
-            "kind": "admission-denied",
-            "payload": {
-              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
-              "latch": true
-            }
-          },
-          {
-            "seq": 19,
             "id": "worker",
             "kind": "quiesced",
             "payload": {
               "executing": 0,
               "queued": 0
+            }
+          },
+          {
+            "seq": 19,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
             }
           }
         ],
@@ -2671,8 +2614,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:51",
-              "updated_at": "2026-10-16T16:36:51",
+              "created_at": "2026-10-16T16:38:51",
+              "updated_at": "2026-10-16T16:38:51",
               "user_id": "trial:A"
             }
           ],
@@ -2682,8 +2625,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:51",
-              "updated_at": "2026-10-16T16:36:51",
+              "created_at": "2026-10-16T16:38:51",
+              "updated_at": "2026-10-16T16:38:51",
               "user_id": "A"
             }
           ],
@@ -2733,9 +2676,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 140367924033216,
-            "agent_object": 140367928279120,
-            "adapter_object": 140367927866240,
+            "owner": 140027289925312,
+            "agent_object": 140027293663312,
+            "adapter_object": 140027293250432,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -2748,8 +2691,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed | fact-A",
-                "created_at": "2026-10-16T16:36:52",
-                "updated_at": "2026-10-16T16:36:52",
+                "created_at": "2026-10-16T16:38:51",
+                "updated_at": "2026-10-16T16:38:51",
                 "input": "offline automatic",
                 "user_id": "trial:A",
                 "agent_id": "A"
@@ -2780,9 +2723,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 140367924033216,
-            "agent_object": 140367928279120,
-            "adapter_object": 140367927866240,
+            "owner": 140027289925312,
+            "agent_object": 140027293663312,
+            "adapter_object": 140027293250432,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -2795,8 +2738,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed | fact-A",
-                "created_at": "2026-10-16T16:36:52",
-                "updated_at": "2026-10-16T16:36:52",
+                "created_at": "2026-10-16T16:38:51",
+                "updated_at": "2026-10-16T16:38:51",
                 "input": "offline automatic",
                 "user_id": "trial:A",
                 "agent_id": "A"
@@ -2956,8 +2899,8 @@
             "kind": "terminal",
             "payload": {
               "actionable_success": false,
-              "adapter_object": 140367927866240,
-              "agent_object": 140367928279120,
+              "adapter_object": 140027293250432,
+              "agent_object": 140027293663312,
               "agno_status": "n/a",
               "dispatch_check": true,
               "errors": [
@@ -2976,17 +2919,17 @@
               "memories": [
                 {
                   "agent_id": "A",
-                  "created_at": "2026-10-16T16:36:52",
+                  "created_at": "2026-10-16T16:38:51",
                   "input": "offline automatic",
                   "memory": "seed | fact-A",
                   "memory_id": "seed",
-                  "updated_at": "2026-10-16T16:36:52",
+                  "updated_at": "2026-10-16T16:38:51",
                   "user_id": "trial:A"
                 }
               ],
               "memory_free": false,
               "owned_futures": 1,
-              "owner": 140367924033216,
+              "owner": 140027289925312,
               "profile": "automatic",
               "response": "offline response",
               "run_failed": true,
@@ -2996,20 +2939,20 @@
           },
           {
             "seq": 18,
-            "id": "D",
-            "kind": "admission-denied",
-            "payload": {
-              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
-              "latch": true
-            }
-          },
-          {
-            "seq": 19,
             "id": "worker",
             "kind": "quiesced",
             "payload": {
               "executing": 0,
               "queued": 0
+            }
+          },
+          {
+            "seq": 19,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
             }
           }
         ],
@@ -3018,8 +2961,8 @@
             {
               "memory_id": "seed",
               "memory": "seed | fact-A",
-              "created_at": "2026-10-16T16:36:52",
-              "updated_at": "2026-10-16T16:36:52",
+              "created_at": "2026-10-16T16:38:51",
+              "updated_at": "2026-10-16T16:38:51",
               "input": "offline automatic",
               "user_id": "trial:A",
               "agent_id": "A"
@@ -3031,8 +2974,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:52",
-              "updated_at": "2026-10-16T16:36:52",
+              "created_at": "2026-10-16T16:38:51",
+              "updated_at": "2026-10-16T16:38:51",
               "user_id": "A"
             }
           ],
@@ -3082,9 +3025,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 140130480289472,
-            "agent_object": 140130484207696,
-            "adapter_object": 140130483794816,
+            "owner": 140487046461120,
+            "agent_object": 140487050641488,
+            "adapter_object": 140487050212224,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -3097,8 +3040,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed | fact-A",
-                "created_at": "2026-10-16T16:36:52",
-                "updated_at": "2026-10-16T16:36:53",
+                "created_at": "2026-10-16T16:38:52",
+                "updated_at": "2026-10-16T16:38:52",
                 "input": "offline automatic",
                 "user_id": "trial:A",
                 "agent_id": "A"
@@ -3129,9 +3072,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 140130480289472,
-            "agent_object": 140130484207696,
-            "adapter_object": 140130483794816,
+            "owner": 140487046461120,
+            "agent_object": 140487050641488,
+            "adapter_object": 140487050212224,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -3144,8 +3087,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed | fact-A",
-                "created_at": "2026-10-16T16:36:52",
-                "updated_at": "2026-10-16T16:36:53",
+                "created_at": "2026-10-16T16:38:52",
+                "updated_at": "2026-10-16T16:38:52",
                 "input": "offline automatic",
                 "user_id": "trial:A",
                 "agent_id": "A"
@@ -3305,8 +3248,8 @@
             "kind": "terminal",
             "payload": {
               "actionable_success": false,
-              "adapter_object": 140130483794816,
-              "agent_object": 140130484207696,
+              "adapter_object": 140487050212224,
+              "agent_object": 140487050641488,
               "agno_status": "n/a",
               "dispatch_check": true,
               "errors": [
@@ -3325,17 +3268,17 @@
               "memories": [
                 {
                   "agent_id": "A",
-                  "created_at": "2026-10-16T16:36:52",
+                  "created_at": "2026-10-16T16:38:52",
                   "input": "offline automatic",
                   "memory": "seed | fact-A",
                   "memory_id": "seed",
-                  "updated_at": "2026-10-16T16:36:53",
+                  "updated_at": "2026-10-16T16:38:52",
                   "user_id": "trial:A"
                 }
               ],
               "memory_free": false,
               "owned_futures": 1,
-              "owner": 140130480289472,
+              "owner": 140487046461120,
               "profile": "automatic",
               "response": "offline response",
               "run_failed": true,
@@ -3345,20 +3288,20 @@
           },
           {
             "seq": 18,
-            "id": "D",
-            "kind": "admission-denied",
-            "payload": {
-              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
-              "latch": true
-            }
-          },
-          {
-            "seq": 19,
             "id": "worker",
             "kind": "quiesced",
             "payload": {
               "executing": 0,
               "queued": 0
+            }
+          },
+          {
+            "seq": 19,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
             }
           }
         ],
@@ -3367,8 +3310,8 @@
             {
               "memory_id": "seed",
               "memory": "seed | fact-A",
-              "created_at": "2026-10-16T16:36:52",
-              "updated_at": "2026-10-16T16:36:53",
+              "created_at": "2026-10-16T16:38:52",
+              "updated_at": "2026-10-16T16:38:52",
               "input": "offline automatic",
               "user_id": "trial:A",
               "agent_id": "A"
@@ -3380,8 +3323,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:52",
-              "updated_at": "2026-10-16T16:36:52",
+              "created_at": "2026-10-16T16:38:52",
+              "updated_at": "2026-10-16T16:38:52",
               "user_id": "A"
             }
           ],
@@ -3427,9 +3370,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 140506931656384,
-            "agent_object": 140506936361040,
-            "adapter_object": 140506935948160,
+            "owner": 140518633764544,
+            "agent_object": 140518638010448,
+            "adapter_object": 140518637597568,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -3442,8 +3385,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed | fact-A",
-                "created_at": "2026-10-16T16:36:53",
-                "updated_at": "2026-10-16T16:36:53",
+                "created_at": "2026-10-16T16:38:52",
+                "updated_at": "2026-10-16T16:38:53",
                 "input": "offline automatic",
                 "user_id": "trial:A",
                 "agent_id": "A"
@@ -3470,9 +3413,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 140506931656384,
-            "agent_object": 140506936361040,
-            "adapter_object": 140506935948160,
+            "owner": 140518633764544,
+            "agent_object": 140518638010448,
+            "adapter_object": 140518637597568,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -3485,8 +3428,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed | fact-A",
-                "created_at": "2026-10-16T16:36:53",
-                "updated_at": "2026-10-16T16:36:53",
+                "created_at": "2026-10-16T16:38:52",
+                "updated_at": "2026-10-16T16:38:53",
                 "input": "offline automatic",
                 "user_id": "trial:A",
                 "agent_id": "A"
@@ -3645,8 +3588,8 @@
             "kind": "terminal",
             "payload": {
               "actionable_success": false,
-              "adapter_object": 140506935948160,
-              "agent_object": 140506936361040,
+              "adapter_object": 140518637597568,
+              "agent_object": 140518638010448,
               "agno_status": "n/a",
               "dispatch_check": true,
               "errors": [
@@ -3661,17 +3604,17 @@
               "memories": [
                 {
                   "agent_id": "A",
-                  "created_at": "2026-10-16T16:36:53",
+                  "created_at": "2026-10-16T16:38:52",
                   "input": "offline automatic",
                   "memory": "seed | fact-A",
                   "memory_id": "seed",
-                  "updated_at": "2026-10-16T16:36:53",
+                  "updated_at": "2026-10-16T16:38:53",
                   "user_id": "trial:A"
                 }
               ],
               "memory_free": false,
               "owned_futures": 1,
-              "owner": 140506931656384,
+              "owner": 140518633764544,
               "profile": "automatic",
               "response": "offline response",
               "run_failed": true,
@@ -3681,20 +3624,20 @@
           },
           {
             "seq": 18,
-            "id": "D",
-            "kind": "admission-denied",
-            "payload": {
-              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
-              "latch": true
-            }
-          },
-          {
-            "seq": 19,
             "id": "worker",
             "kind": "quiesced",
             "payload": {
               "executing": 0,
               "queued": 0
+            }
+          },
+          {
+            "seq": 19,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
             }
           }
         ],
@@ -3703,8 +3646,8 @@
             {
               "memory_id": "seed",
               "memory": "seed | fact-A",
-              "created_at": "2026-10-16T16:36:53",
-              "updated_at": "2026-10-16T16:36:53",
+              "created_at": "2026-10-16T16:38:52",
+              "updated_at": "2026-10-16T16:38:53",
               "input": "offline automatic",
               "user_id": "trial:A",
               "agent_id": "A"
@@ -3716,8 +3659,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:53",
-              "updated_at": "2026-10-16T16:36:53",
+              "created_at": "2026-10-16T16:38:52",
+              "updated_at": "2026-10-16T16:38:52",
               "user_id": "A"
             }
           ],
@@ -3763,9 +3706,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 139839460603584,
-            "agent_object": 139839464865872,
-            "adapter_object": 139839464452992,
+            "owner": 139675578660544,
+            "agent_object": 139675583103056,
+            "adapter_object": 139675582690176,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -3778,8 +3721,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed | fact-A",
-                "created_at": "2026-10-16T16:36:53",
-                "updated_at": "2026-10-16T16:36:54",
+                "created_at": "2026-10-16T16:38:53",
+                "updated_at": "2026-10-16T16:38:53",
                 "input": "offline automatic",
                 "user_id": "trial:A",
                 "agent_id": "A"
@@ -3806,9 +3749,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 139839460603584,
-            "agent_object": 139839464865872,
-            "adapter_object": 139839464452992,
+            "owner": 139675578660544,
+            "agent_object": 139675583103056,
+            "adapter_object": 139675582690176,
             "user": "trial:A",
             "profile": "automatic",
             "memory_free": false,
@@ -3821,8 +3764,8 @@
               {
                 "memory_id": "seed",
                 "memory": "seed | fact-A",
-                "created_at": "2026-10-16T16:36:53",
-                "updated_at": "2026-10-16T16:36:54",
+                "created_at": "2026-10-16T16:38:53",
+                "updated_at": "2026-10-16T16:38:53",
                 "input": "offline automatic",
                 "user_id": "trial:A",
                 "agent_id": "A"
@@ -3981,8 +3924,8 @@
             "kind": "terminal",
             "payload": {
               "actionable_success": false,
-              "adapter_object": 139839464452992,
-              "agent_object": 139839464865872,
+              "adapter_object": 139675582690176,
+              "agent_object": 139675583103056,
               "agno_status": "n/a",
               "dispatch_check": true,
               "errors": [
@@ -3997,17 +3940,17 @@
               "memories": [
                 {
                   "agent_id": "A",
-                  "created_at": "2026-10-16T16:36:53",
+                  "created_at": "2026-10-16T16:38:53",
                   "input": "offline automatic",
                   "memory": "seed | fact-A",
                   "memory_id": "seed",
-                  "updated_at": "2026-10-16T16:36:54",
+                  "updated_at": "2026-10-16T16:38:53",
                   "user_id": "trial:A"
                 }
               ],
               "memory_free": false,
               "owned_futures": 1,
-              "owner": 139839460603584,
+              "owner": 139675578660544,
               "profile": "automatic",
               "response": "offline response",
               "run_failed": true,
@@ -4017,20 +3960,20 @@
           },
           {
             "seq": 18,
-            "id": "worker",
-            "kind": "quiesced",
-            "payload": {
-              "executing": 0,
-              "queued": 0
-            }
-          },
-          {
-            "seq": 19,
             "id": "D",
             "kind": "admission-denied",
             "payload": {
               "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
               "latch": true
+            }
+          },
+          {
+            "seq": 19,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
             }
           }
         ],
@@ -4039,8 +3982,8 @@
             {
               "memory_id": "seed",
               "memory": "seed | fact-A",
-              "created_at": "2026-10-16T16:36:53",
-              "updated_at": "2026-10-16T16:36:54",
+              "created_at": "2026-10-16T16:38:53",
+              "updated_at": "2026-10-16T16:38:53",
               "input": "offline automatic",
               "user_id": "trial:A",
               "agent_id": "A"
@@ -4052,8 +3995,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:53",
-              "updated_at": "2026-10-16T16:36:53",
+              "created_at": "2026-10-16T16:38:53",
+              "updated_at": "2026-10-16T16:38:53",
               "user_id": "A"
             }
           ],
@@ -4103,9 +4046,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 139662462023360,
-            "agent_object": 139662462500016,
-            "adapter_object": 139662462497664,
+            "owner": 139934919816896,
+            "agent_object": 139934920277168,
+            "adapter_object": 139934920274816,
             "user": "trial:A",
             "profile": "memory-free",
             "memory_free": true,
@@ -4140,9 +4083,9 @@
             ],
             "agno_status": "n/a",
             "response": "offline response",
-            "owner": 139662462023360,
-            "agent_object": 139662462500016,
-            "adapter_object": 139662462497664,
+            "owner": 139934919816896,
+            "agent_object": 139934920277168,
+            "adapter_object": 139934920274816,
             "user": "trial:A",
             "profile": "memory-free",
             "memory_free": true,
@@ -4226,8 +4169,8 @@
             "kind": "terminal",
             "payload": {
               "actionable_success": false,
-              "adapter_object": 139662462497664,
-              "agent_object": 139662462500016,
+              "adapter_object": 139934920274816,
+              "agent_object": 139934920277168,
               "agno_status": "n/a",
               "dispatch_check": true,
               "errors": [
@@ -4246,7 +4189,7 @@
               "memories": [],
               "memory_free": true,
               "owned_futures": 0,
-              "owner": 139662462023360,
+              "owner": 139934919816896,
               "profile": "memory-free",
               "response": "offline response",
               "run_failed": true,
@@ -4256,20 +4199,20 @@
           },
           {
             "seq": 8,
-            "id": "worker",
-            "kind": "quiesced",
-            "payload": {
-              "executing": 0,
-              "queued": 0
-            }
-          },
-          {
-            "seq": 9,
             "id": "D",
             "kind": "admission-denied",
             "payload": {
               "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
               "latch": true
+            }
+          },
+          {
+            "seq": 9,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
             }
           }
         ],
@@ -4278,8 +4221,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:54",
-              "updated_at": "2026-10-16T16:36:54",
+              "created_at": "2026-10-16T16:38:53",
+              "updated_at": "2026-10-16T16:38:53",
               "user_id": "trial:A"
             }
           ],
@@ -4289,8 +4232,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:54",
-              "updated_at": "2026-10-16T16:36:54",
+              "created_at": "2026-10-16T16:38:53",
+              "updated_at": "2026-10-16T16:38:53",
               "user_id": "A"
             }
           ],
@@ -4454,19 +4397,19 @@
           },
           {
             "seq": 14,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 15,
             "id": "D",
             "kind": "admission-denied",
             "payload": {
               "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
               "latch": true
-            }
-          },
-          {
-            "seq": 15,
-            "id": "A",
-            "kind": "db-ack",
-            "payload": {
-              "method": "upsert_run"
             }
           },
           {
@@ -4491,8 +4434,8 @@
             "kind": "terminal",
             "payload": {
               "actionable_success": false,
-              "adapter_object": 139976337634176,
-              "agent_object": 139976338047056,
+              "adapter_object": 139899999138688,
+              "agent_object": 139899999551568,
               "agno_status": "n/a",
               "dispatch_check": true,
               "errors": [
@@ -4506,16 +4449,16 @@
               "latch_mode": "write",
               "memories": [
                 {
-                  "created_at": "2026-10-16T16:36:54",
+                  "created_at": "2026-10-16T16:38:54",
                   "memory": "seed",
                   "memory_id": "seed",
-                  "updated_at": "2026-10-16T16:36:54",
+                  "updated_at": "2026-10-16T16:38:54",
                   "user_id": "trial:A"
                 }
               ],
               "memory_free": false,
               "owned_futures": 1,
-              "owner": 139976333326016,
+              "owner": 139899994896064,
               "profile": "automatic",
               "response": "offline response",
               "run_failed": true,
@@ -4529,8 +4472,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:54",
-              "updated_at": "2026-10-16T16:36:54",
+              "created_at": "2026-10-16T16:38:54",
+              "updated_at": "2026-10-16T16:38:54",
               "user_id": "trial:A"
             }
           ],
@@ -4540,8 +4483,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:54",
-              "updated_at": "2026-10-16T16:36:54",
+              "created_at": "2026-10-16T16:38:54",
+              "updated_at": "2026-10-16T16:38:54",
               "user_id": "A"
             }
           ],
@@ -4689,15 +4632,6 @@
           },
           {
             "seq": 12,
-            "id": "D",
-            "kind": "admission-denied",
-            "payload": {
-              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
-              "latch": true
-            }
-          },
-          {
-            "seq": 13,
             "id": "A",
             "kind": "db-attempt",
             "payload": {
@@ -4705,7 +4639,7 @@
             }
           },
           {
-            "seq": 14,
+            "seq": 13,
             "id": "A",
             "kind": "db-ack",
             "payload": {
@@ -4713,11 +4647,20 @@
             }
           },
           {
-            "seq": 15,
+            "seq": 14,
             "id": "A",
             "kind": "db-attempt",
             "payload": {
               "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 15,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
             }
           },
           {
@@ -4750,8 +4693,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:55",
-              "updated_at": "2026-10-16T16:36:55",
+              "created_at": "2026-10-16T16:38:54",
+              "updated_at": "2026-10-16T16:38:54",
               "user_id": "trial:A"
             }
           ],
@@ -4761,8 +4704,8 @@
             {
               "memory_id": "agent-seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:55",
-              "updated_at": "2026-10-16T16:36:55",
+              "created_at": "2026-10-16T16:38:54",
+              "updated_at": "2026-10-16T16:38:54",
               "user_id": "A"
             }
           ],
@@ -4809,9 +4752,9 @@
           ],
           "agno_status": "n/a",
           "response": "seed",
-          "owner": 140283577628352,
-          "agent_object": 140283578531920,
-          "adapter_object": 140283578119040,
+          "owner": 140436141242048,
+          "agent_object": 140436142063696,
+          "adapter_object": 140436141650816,
           "user": "trial:A",
           "profile": "manager",
           "memory_free": false,
@@ -4824,8 +4767,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:55",
-              "updated_at": "2026-10-16T16:36:55",
+              "created_at": "2026-10-16T16:38:55",
+              "updated_at": "2026-10-16T16:38:55",
               "user_id": "trial:A"
             }
           ]
@@ -4850,9 +4793,9 @@
           ],
           "agno_status": "n/a",
           "response": "seed",
-          "owner": 140283577628352,
-          "agent_object": 140283578531920,
-          "adapter_object": 140283578119040,
+          "owner": 140436141242048,
+          "agent_object": 140436142063696,
+          "adapter_object": 140436141650816,
           "user": "trial:A",
           "profile": "manager",
           "memory_free": false,
@@ -4865,8 +4808,8 @@
             {
               "memory_id": "seed",
               "memory": "seed",
-              "created_at": "2026-10-16T16:36:55",
-              "updated_at": "2026-10-16T16:36:55",
+              "created_at": "2026-10-16T16:38:55",
+              "updated_at": "2026-10-16T16:38:55",
               "user_id": "trial:A"
             }
           ]
@@ -4943,8 +4886,8 @@
           "kind": "terminal",
           "payload": {
             "actionable_success": false,
-            "adapter_object": 140283578119040,
-            "agent_object": 140283578531920,
+            "adapter_object": 140436141650816,
+            "agent_object": 140436142063696,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [
@@ -4958,16 +4901,16 @@
             "latch_mode": "write",
             "memories": [
               {
-                "created_at": "2026-10-16T16:36:55",
+                "created_at": "2026-10-16T16:38:55",
                 "memory": "seed",
                 "memory_id": "seed",
-                "updated_at": "2026-10-16T16:36:55",
+                "updated_at": "2026-10-16T16:38:55",
                 "user_id": "trial:A"
               }
             ],
             "memory_free": false,
             "owned_futures": 0,
-            "owner": 140283577628352,
+            "owner": 140436141242048,
             "profile": "manager",
             "response": "seed",
             "run_failed": true,
@@ -4999,8 +4942,8 @@
           {
             "memory_id": "seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:55",
-            "updated_at": "2026-10-16T16:36:55",
+            "created_at": "2026-10-16T16:38:55",
+            "updated_at": "2026-10-16T16:38:55",
             "user_id": "trial:A"
           }
         ],
@@ -5010,8 +4953,8 @@
           {
             "memory_id": "agent-seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:55",
-            "updated_at": "2026-10-16T16:36:55",
+            "created_at": "2026-10-16T16:38:55",
+            "updated_at": "2026-10-16T16:38:55",
             "user_id": "A"
           }
         ],
@@ -5125,8 +5068,8 @@
           {
             "memory_id": "seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:56",
-            "updated_at": "2026-10-16T16:36:56",
+            "created_at": "2026-10-16T16:38:55",
+            "updated_at": "2026-10-16T16:38:55",
             "user_id": "trial:A"
           }
         ],
@@ -5136,8 +5079,8 @@
           {
             "memory_id": "agent-seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:56",
-            "updated_at": "2026-10-16T16:36:56",
+            "created_at": "2026-10-16T16:38:55",
+            "updated_at": "2026-10-16T16:38:55",
             "user_id": "A"
           }
         ],
@@ -5189,9 +5132,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139730288113344,
-          "agent_object": 139730288967760,
-          "adapter_object": 139730288554880,
+          "owner": 139646418810560,
+          "agent_object": 139646419648592,
+          "adapter_object": 139646419235712,
           "user": "trial:A",
           "profile": "automatic",
           "memory_free": false,
@@ -5204,8 +5147,8 @@
             {
               "memory_id": "seed",
               "memory": "seed | late-background-fact",
-              "created_at": "2026-10-16T16:36:57",
-              "updated_at": "2026-10-16T16:36:58",
+              "created_at": "2026-10-16T16:38:57",
+              "updated_at": "2026-10-16T16:38:57",
               "input": "offline automatic",
               "user_id": "trial:A",
               "agent_id": "A"
@@ -5219,9 +5162,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139730269230784,
-          "agent_object": 139730269489200,
-          "adapter_object": 139730269988304,
+          "owner": 139646399928000,
+          "agent_object": 139646400169024,
+          "adapter_object": 139646400664336,
           "user": "trial:B",
           "profile": "memory-free",
           "memory_free": true,
@@ -5239,9 +5182,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139730260838080,
-          "agent_object": 139730269488192,
-          "adapter_object": 139730269983504,
+          "owner": 139646391535296,
+          "agent_object": 139646400173056,
+          "adapter_object": 139646400670736,
           "user": "trial:C",
           "profile": "memory-free",
           "memory_free": true,
@@ -5261,9 +5204,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139730288113344,
-          "agent_object": 139730288967760,
-          "adapter_object": 139730288554880,
+          "owner": 139646418810560,
+          "agent_object": 139646419648592,
+          "adapter_object": 139646419235712,
           "user": "trial:A",
           "profile": "automatic",
           "memory_free": false,
@@ -5276,8 +5219,8 @@
             {
               "memory_id": "seed",
               "memory": "seed | late-background-fact",
-              "created_at": "2026-10-16T16:36:57",
-              "updated_at": "2026-10-16T16:36:58",
+              "created_at": "2026-10-16T16:38:57",
+              "updated_at": "2026-10-16T16:38:57",
               "input": "offline automatic",
               "user_id": "trial:A",
               "agent_id": "A"
@@ -5291,9 +5234,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139730269230784,
-          "agent_object": 139730269489200,
-          "adapter_object": 139730269988304,
+          "owner": 139646399928000,
+          "agent_object": 139646400169024,
+          "adapter_object": 139646400664336,
           "user": "trial:B",
           "profile": "memory-free",
           "memory_free": true,
@@ -5311,9 +5254,9 @@
           "errors": [],
           "agno_status": "n/a",
           "response": "offline response",
-          "owner": 139730260838080,
-          "agent_object": 139730269488192,
-          "adapter_object": 139730269983504,
+          "owner": 139646391535296,
+          "agent_object": 139646400173056,
+          "adapter_object": 139646400670736,
           "user": "trial:C",
           "profile": "memory-free",
           "memory_free": true,
@@ -5376,22 +5319,22 @@
         },
         {
           "seq": 7,
-          "id": "C",
-          "kind": "admitted",
-          "payload": {
-            "command_hash": "53dcee87d0069f3885697b4cb1024f8caf19d3d70227fda90db411e722e5079e",
-            "profile": "memory-free",
-            "user": "trial:C"
-          }
-        },
-        {
-          "seq": 8,
           "id": "B",
           "kind": "admitted",
           "payload": {
             "command_hash": "9db07859141a29d1870b656c30000c42bc328829bf758b2785173d9acf94d5fc",
             "profile": "memory-free",
             "user": "trial:B"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "C",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "53dcee87d0069f3885697b4cb1024f8caf19d3d70227fda90db411e722e5079e",
+            "profile": "memory-free",
+            "user": "trial:C"
           }
         },
         {
@@ -5468,14 +5411,6 @@
         },
         {
           "seq": 18,
-          "id": "B",
-          "kind": "db-attempt",
-          "payload": {
-            "method": "upsert_session"
-          }
-        },
-        {
-          "seq": 19,
           "id": "A",
           "kind": "db-ack",
           "payload": {
@@ -5483,13 +5418,13 @@
           }
         },
         {
-          "seq": 20,
+          "seq": 19,
           "id": "A",
           "kind": "terminal",
           "payload": {
             "actionable_success": true,
-            "adapter_object": 139730288554880,
-            "agent_object": 139730288967760,
+            "adapter_object": 139646419235712,
+            "agent_object": 139646419648592,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [],
@@ -5499,17 +5434,17 @@
             "memories": [
               {
                 "agent_id": "A",
-                "created_at": "2026-10-16T16:36:57",
+                "created_at": "2026-10-16T16:38:57",
                 "input": "offline automatic",
                 "memory": "seed | late-background-fact",
                 "memory_id": "seed",
-                "updated_at": "2026-10-16T16:36:58",
+                "updated_at": "2026-10-16T16:38:57",
                 "user_id": "trial:A"
               }
             ],
             "memory_free": false,
             "owned_futures": 1,
-            "owner": 139730288113344,
+            "owner": 139646418810560,
             "profile": "automatic",
             "response": "offline response",
             "run_failed": false,
@@ -5518,9 +5453,17 @@
           }
         },
         {
-          "seq": 21,
+          "seq": 20,
           "id": "B",
-          "kind": "db-ack",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "C",
+          "kind": "db-attempt",
           "payload": {
             "method": "upsert_session"
           }
@@ -5528,43 +5471,51 @@
         {
           "seq": 22,
           "id": "B",
-          "kind": "db-attempt",
-          "payload": {
-            "method": "upsert_run"
-          }
-        },
-        {
-          "seq": 23,
-          "id": "C",
-          "kind": "db-attempt",
+          "kind": "db-ack",
           "payload": {
             "method": "upsert_session"
           }
         },
         {
-          "seq": 24,
+          "seq": 23,
           "id": "B",
-          "kind": "db-ack",
+          "kind": "db-attempt",
           "payload": {
             "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "C",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
           }
         },
         {
           "seq": 25,
           "id": "C",
-          "kind": "db-ack",
+          "kind": "db-attempt",
           "payload": {
-            "method": "upsert_session"
+            "method": "upsert_run"
           }
         },
         {
           "seq": 26,
           "id": "B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 27,
+          "id": "B",
           "kind": "terminal",
           "payload": {
             "actionable_success": true,
-            "adapter_object": 139730269988304,
-            "agent_object": 139730269489200,
+            "adapter_object": 139646400664336,
+            "agent_object": 139646400169024,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [],
@@ -5574,20 +5525,12 @@
             "memories": [],
             "memory_free": true,
             "owned_futures": 0,
-            "owner": 139730269230784,
+            "owner": 139646399928000,
             "profile": "memory-free",
             "response": "offline response",
             "run_failed": false,
             "success": true,
             "user": "trial:B"
-          }
-        },
-        {
-          "seq": 27,
-          "id": "C",
-          "kind": "db-attempt",
-          "payload": {
-            "method": "upsert_run"
           }
         },
         {
@@ -5604,8 +5547,8 @@
           "kind": "terminal",
           "payload": {
             "actionable_success": true,
-            "adapter_object": 139730269983504,
-            "agent_object": 139730269488192,
+            "adapter_object": 139646400670736,
+            "agent_object": 139646400173056,
             "agno_status": "n/a",
             "dispatch_check": true,
             "errors": [],
@@ -5615,7 +5558,7 @@
             "memories": [],
             "memory_free": true,
             "owned_futures": 0,
-            "owner": 139730260838080,
+            "owner": 139646391535296,
             "profile": "memory-free",
             "response": "offline response",
             "run_failed": false,
@@ -5629,8 +5572,8 @@
           {
             "memory_id": "seed",
             "memory": "seed | late-background-fact",
-            "created_at": "2026-10-16T16:36:57",
-            "updated_at": "2026-10-16T16:36:58",
+            "created_at": "2026-10-16T16:38:57",
+            "updated_at": "2026-10-16T16:38:57",
             "input": "offline automatic",
             "user_id": "trial:A",
             "agent_id": "A"
@@ -5642,8 +5585,8 @@
           {
             "memory_id": "agent-seed",
             "memory": "seed",
-            "created_at": "2026-10-16T16:36:57",
-            "updated_at": "2026-10-16T16:36:57",
+            "created_at": "2026-10-16T16:38:57",
+            "updated_at": "2026-10-16T16:38:57",
             "user_id": "A"
           }
         ],
