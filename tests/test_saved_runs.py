@@ -560,10 +560,19 @@ def test_verified_start_failure_reports_stopped_writers(tmp_path):
     from tests.test_cli_runtime import fake_plan
 
     class FailedDeployment(FakeSubstrateRuntime):
-        deployment_cleanup_verified = True
-
         def deploy(self, plan):
-            raise MininetAIError("deployment failed before any workers started")
+            from mininet_ai.errors import RuntimeOperationError
+            from mininet_ai.outcomes import CleanupOutcome, CleanupStatus
+
+            raise RuntimeOperationError(
+                "deployment failed before any workers started",
+                code="runtime.deploy.failed",
+                cleanup=CleanupOutcome(
+                    status=CleanupStatus.VERIFIED,
+                    evidence=("fake: no workers created",),
+                    evidence_gaps=(),
+                ),
+            )
 
     database = tmp_path / "agno.sqlite3"
     owner = ExperimentRuntime(
@@ -585,14 +594,22 @@ def test_cleaned_start_failure_exports_explicitly_incomplete_evidence(
     from typer.testing import CliRunner
 
     from mininet_ai.cli import app
-    from mininet_ai.errors import MininetAIError
     from mininet_ai.substrates import FakeSubstrateRuntime
 
     class FailedDeployment(FakeSubstrateRuntime):
-        deployment_cleanup_verified = True
-
         def deploy(self, plan):
-            raise MininetAIError("deployment failed before any workers started")
+            from mininet_ai.errors import RuntimeOperationError
+            from mininet_ai.outcomes import CleanupOutcome, CleanupStatus
+
+            raise RuntimeOperationError(
+                "deployment failed before any workers started",
+                code="runtime.deploy.failed",
+                cleanup=CleanupOutcome(
+                    status=CleanupStatus.VERIFIED,
+                    evidence=("fake: no workers created",),
+                    evidence_gaps=(),
+                ),
+            )
 
     specification = tmp_path / "experiment.yaml"
     specification.write_text(
@@ -627,6 +644,8 @@ def test_cleaned_start_failure_exports_explicitly_incomplete_evidence(
     assert exported.exit_code == 0, exported.output
     manifest = json.loads((destination / "manifest.json").read_text())
     assert manifest["outcome"] == "failed"
+    assert manifest["operation"] == "failed"
+    assert manifest["cleanup"]["status"] == "verified"
     assert manifest["missing_sources"] == ["ledger_run"]
     assert not manifest["evidence_complete"]
     assert (destination / "EXPORT_COMPLETE").exists()

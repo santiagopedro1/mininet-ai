@@ -14,6 +14,7 @@ from pydantic import JsonValue, TypeAdapter
 from mininet_ai.capabilities.verification import PostconditionVerifier
 from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import AgentRuntimeError
+from mininet_ai.outcomes import MutationEffects
 from mininet_ai.plugins.registry import ProviderRegistry
 from mininet_ai.sdk.catalog import AgentExecutionDefinition, ExecutionCatalog
 from mininet_ai.sdk.contracts import (
@@ -323,6 +324,9 @@ class CapabilityEngine:
                 "status": ActionStatus.FAILED,
                 "completed_at": self._clock(),
                 "changed": changed,
+                "effects": MutationEffects.UNKNOWN
+                if rollback is not None
+                else result.effects,
                 "postconditions": checks,
                 "rollback": rollback,
                 "effect_latency_seconds": effect_seconds,
@@ -369,6 +373,7 @@ class CapabilityEngine:
                     status=raw.status,
                     completedAt=self._clock(),
                     changed=raw.changed,
+                    effects=raw.effects,
                     output=raw.output,
                     issue=raw.issue,
                 )
@@ -377,6 +382,9 @@ class CapabilityEngine:
                 status=ActionStatus.SUCCEEDED,
                 completedAt=self._clock(),
                 changed=normalized.changed,
+                effects=MutationEffects.CHANGED
+                if normalized.changed
+                else MutationEffects.UNCHANGED,
                 output=normalized.output,
             )
         except Exception as error:
@@ -427,9 +435,7 @@ class CapabilityEngine:
         context: AgentContext,
         proposal: ActionProposal,
     ) -> CapabilityDefinition:
-        capabilities = {
-            item.metadata.name: item for item in definition.capabilities
-        }
+        capabilities = {item.metadata.name: item for item in definition.capabilities}
         try:
             capability = capabilities[proposal.capability]
         except KeyError as error:
@@ -455,12 +461,9 @@ class CapabilityEngine:
         if layer not in capability.layers:
             self._reject(
                 "capability.layer.denied",
-                f"capability {proposal.capability!r} is unavailable at layer "
-                f"{layer!r}",
+                f"capability {proposal.capability!r} is unavailable at layer {layer!r}",
             )
-        missing_effects = set(capability.effects) - set(
-            definition.instance.privileges
-        )
+        missing_effects = set(capability.effects) - set(definition.instance.privileges)
         if missing_effects:
             self._reject(
                 "capability.effects.denied",
@@ -474,9 +477,7 @@ class CapabilityEngine:
         definition: AgentExecutionDefinition,
         proposal: ActionProposal,
     ) -> ActionProposal:
-        declared = duration_seconds(
-            definition.instance.execution.action_timeout
-        )
+        declared = duration_seconds(definition.instance.execution.action_timeout)
         return proposal.model_copy(
             update={"timeout_seconds": min(proposal.timeout_seconds, declared)}
         )
@@ -576,6 +577,13 @@ class CapabilityEngine:
             status=status,
             completed_at=self._clock(),
             changed=changed,
+            effects=(MutationEffects.CHANGED if changed else MutationEffects.UNCHANGED)
+            if status == ActionStatus.SUCCEEDED
+            else (
+                MutationEffects.UNCHANGED
+                if status == ActionStatus.REJECTED
+                else MutationEffects.UNKNOWN
+            ),
             output=output or {},
             issue=issue,
         )

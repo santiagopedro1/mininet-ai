@@ -16,7 +16,7 @@ The project currently defines ten contract families:
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
-- `mininet-ai/substrate-runtime/v1alpha2` covers the stateful lifecycle
+- `mininet-ai/substrate-runtime/v1alpha3` covers the stateful lifecycle
   interface implemented by executable substrate adapters: deploy, inspect,
   observe, execute, and teardown. It is separate from the planning contract so
   compiling an experiment never requires privileged networking access.
@@ -197,6 +197,50 @@ This compatibility applies to the ownership envelope, not to the embedded
 deployment plan. When upgrading the public specification version, follow its
 migration guide and stop old runs with the old software first.
 
+### Substrate runtime v1alpha2 to v1alpha3: explicit outcomes
+
+Adapters must now advertise `mininet-ai/substrate-runtime/v1alpha3`.
+Operation outcome (`succeeded`, `failed`, `rejected`, `accepted`, `unknown`),
+mutation effects (`unchanged`, `changed`, `partial`, `unknown`), and cleanup
+verification are independent. `ActionResult.changed` remains for compatibility;
+it does not establish that a failed/timed-out action had no effects. Consumers
+must preserve `effects`, including partial/unknown results and rollback uncertainty.
+Runtime errors carry operation, effects, and cleanup too.
+Experiment reports and saved/exported metadata retain structured `teardown_error`
+details separately from the work outcome, including unknown operation status and
+partial mutation effects. Failed startup effects are retained in saved metadata.
+Stop retries preserve earlier work failure and expose earlier issues rather than
+turning a subsequently verified cleanup into a successful experiment.
+
+Cleanup is `verified`, `incomplete` (known remaining resources), or `unknown`.
+It includes remaining/unknown resource identities, evidence, and evidence gaps.
+Verified cleanup requires positive evidence with no unresolved resources/gaps.
+Omitted fields in old saved records default to unknown, never already clean.
+`TeardownResult.succeeded` requires completed stop, successful operation, and
+verified cleanup. `already_stopped` requires the same retained completion proof.
+An accepted stop or a successful cleanup tool call is not that proof.
+
+Experiment reports preserve work outcome independently of cleanup. `run` and
+`stop` exit nonzero on incomplete/unknown cleanup even when work succeeded;
+terminal `status` also exits nonzero without verified cleanup. All three support
+`--format json`, including typed runtime errors. Saved `run.json` and managed
+export manifests retain operation and cleanup alongside the overall outcome.
+
+The legacy Mininet adapter does not comprehensively verify owned network and
+descendant absence: successful teardown/recovery therefore remains unknown,
+including repeated stop and owner exit. Lifecycle `stopped` means the legacy
+cleanup procedure ended, not that the host is clean. Missing state is a typed
+unknown-run error without a valid stopped record. This intentionally changes
+legacy live-command exit status and prevents unverified repeated trials.
+Inspect `status RUN_ID` and seek administrator help for unresolved resources;
+do not use global cleanup as a substitute for run-owned evidence.
+
+The fake adapter verifies only its in-memory model, not host security. This
+slice adds no helper, trusted recovery authority, non-root live execution,
+containment, provisioning, or general sandboxing. Compile, validate, and dry-run
+remain rootless. Privileged host guarantees require real development-VM checks;
+mock/conformance success does not establish them.
+
 ## Changes allowed within a contract version
 
 ### Cross-terminal CLI intent submission
@@ -282,8 +326,9 @@ formats and local bookkeeping are separate from the versioned experiment/runtime
 contracts. Export never migrates data, exports Agno/raw SQLite, follows artifact
 symlinks, overwrites destinations, or silently repairs unsafe storage. See
 `docs/run-logs.md` for the version-1 bundle and completion/provenance contract.
-An optional failed-deployment cleanup receipt is consumed when available; adapters
-without one fail closed for that case, with no new required protocol methods.
+Failed-deployment cleanup is carried by typed runtime errors; the former optional
+boolean receipt is not verification evidence. Adapters without evidence fail
+closed for finalization, with no new required protocol methods.
 
 Ollama endpoint configuration uses the existing `model.parameters.host` key,
 without adding serialized fields or changing omitted-host plans, snapshots,

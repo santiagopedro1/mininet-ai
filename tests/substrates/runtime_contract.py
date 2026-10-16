@@ -17,9 +17,11 @@ from mininet_ai.substrates import (
 )
 
 if TYPE_CHECKING:
+
     class _TestCase(unittest.TestCase):
         pass
 else:
+
     class _TestCase:
         pass
 
@@ -85,8 +87,17 @@ class SubstrateRuntimeContract(_TestCase):
 
         self.assertEqual(first.run.state, RunState.STOPPED)
         self.assertFalse(first.already_stopped)
-        self.assertTrue(first.released_resources)
-        self.assertTrue(second.already_stopped)
+        if first.cleanup.verified:
+            self.assertTrue(first.succeeded)
+            self.assertTrue(first.cleanup.evidence)
+            self.assertTrue(first.released_resources)
+            self.assertTrue(second.already_stopped)
+            self.assertEqual(second.cleanup, first.cleanup)
+        else:
+            self.assertFalse(first.succeeded)
+            self.assertFalse(second.succeeded)
+            self.assertFalse(second.already_stopped)
+            self.assertTrue(first.cleanup.evidence_gaps)
         self.assertEqual(second.released_resources, ())
 
     def test_unknown_run_has_typed_error(self) -> None:

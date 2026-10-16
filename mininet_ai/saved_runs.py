@@ -18,6 +18,12 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from mininet_ai.outcomes import (
+    CleanupOutcome,
+    MutationEffects,
+    OperationFailure,
+    OperationOutcome,
+)
 from mininet_ai.storage import (
     PrivateStoragePathError,
     check_private_directory,
@@ -188,6 +194,10 @@ class RunMetadata(BaseModel):
     finalized: bool = False
     managed_writers_verified: bool = False
     outcome: str = "unknown"
+    operation: OperationOutcome = OperationOutcome.UNKNOWN
+    cleanup: CleanupOutcome = Field(default_factory=CleanupOutcome)
+    effects: MutationEffects = MutationEffects.UNKNOWN
+    teardown_error: OperationFailure | None = None
     source_identities: dict[str, tuple[int, int]] = Field(default_factory=dict)
 
 
@@ -271,13 +281,26 @@ class RunEvidence:
         self.metadata.lifecycle = "running"
         write_metadata(self.directory, self.metadata)
 
-    def finish(self, *, finalized: bool, outcome: str) -> None:
+    def finish(
+        self,
+        *,
+        finalized: bool,
+        outcome: str,
+        operation: OperationOutcome = OperationOutcome.UNKNOWN,
+        cleanup: CleanupOutcome | None = None,
+        effects: MutationEffects = MutationEffects.UNKNOWN,
+        teardown_error: OperationFailure | None = None,
+    ) -> None:
         self._run_lock.verify()
         if self._source_locks is not None:
             self._source_locks.verify()
         self.metadata.lifecycle = "stopped" if finalized else "failed"
         self.metadata.finalized = finalized
         self.metadata.outcome = outcome
+        self.metadata.operation = operation
+        self.metadata.cleanup = cleanup or CleanupOutcome()
+        self.metadata.effects = effects
+        self.metadata.teardown_error = teardown_error
         write_metadata(self.directory, self.metadata)
 
     def close(self) -> None:

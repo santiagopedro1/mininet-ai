@@ -9,6 +9,12 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from mininet_ai.errors import RuntimeOperationError
+from mininet_ai.outcomes import (
+    CleanupOutcome,
+    CleanupStatus,
+    MutationEffects,
+    OperationOutcome,
+)
 from mininet_ai.substrates.runtime import (
     RUNTIME_CONTRACT_VERSION,
     ActionRequest,
@@ -88,6 +94,8 @@ class FakeSubstrateRuntime:
             plan_digest=plan.digest,
             state=RunState.RUNNING,
             started_at=self._clock(),
+            operation=OperationOutcome.SUCCEEDED,
+            effects=MutationEffects.CHANGED,
         )
         resources = tuple(
             LiveResource(
@@ -114,9 +122,7 @@ class FakeSubstrateRuntime:
             resources=run.resources,
         )
 
-    def observe(
-        self, run_id: str, query: ObservationQuery
-    ) -> ObservationResult:
+    def observe(self, run_id: str, query: ObservationQuery) -> ObservationResult:
         run = self._require_running(run_id)
         resources = {resource.name for resource in run.resources}
         self._require_targets(run_id, query.targets, resources)
@@ -143,6 +149,7 @@ class FakeSubstrateRuntime:
             status=ActionStatus.SUCCEEDED,
             completed_at=self._clock(),
             changed=True,
+            effects=MutationEffects.CHANGED,
             output={
                 "action": request.name,
                 "target": request.target,
@@ -153,18 +160,39 @@ class FakeSubstrateRuntime:
     def teardown(self, run_id: str) -> TeardownResult:
         run = self._get_run(run_id)
         if run.info.state == RunState.STOPPED:
-            return TeardownResult(run=run.info, already_stopped=True)
+            return TeardownResult(
+                run=run.info,
+                already_stopped=True,
+                operation=OperationOutcome.SUCCEEDED,
+                effects=MutationEffects.UNCHANGED,
+                cleanup=run.info.cleanup,
+            )
 
         stopped_at = self._clock()
+        cleanup = CleanupOutcome(
+            status=CleanupStatus.VERIFIED,
+            evidence=("fake in-memory resource model is empty; not host verification",),
+            evidence_gaps=(),
+        )
         run.info = run.info.model_copy(
-            update={"state": RunState.STOPPED, "stopped_at": stopped_at}
+            update={
+                "state": RunState.STOPPED,
+                "stopped_at": stopped_at,
+                "cleanup": cleanup,
+            }
         )
         released = tuple(resource.name for resource in run.resources)
         run.resources = tuple(
             resource.model_copy(update={"state": ResourceOperationalState.STOPPED})
             for resource in run.resources
         )
-        return TeardownResult(run=run.info, released_resources=released)
+        return TeardownResult(
+            run=run.info,
+            released_resources=released,
+            operation=OperationOutcome.SUCCEEDED,
+            effects=MutationEffects.CHANGED,
+            cleanup=cleanup,
+        )
 
     def _get_run(self, run_id: str) -> _FakeRun:
         try:

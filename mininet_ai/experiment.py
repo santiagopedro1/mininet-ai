@@ -15,7 +15,8 @@ from mininet_ai.agents.runtime import OneShotAgentRuntime
 from mininet_ai.audit import AuditRecorder
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.coordination import CoordinationRuntime
-from mininet_ai.errors import MininetAIError
+from mininet_ai.errors import MininetAIError, describe_failure
+from mininet_ai.outcomes import CleanupOutcome, OperationFailure, OperationOutcome
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime.continuous import ContinuousAgentRuntime, ContinuousRuntimeState
 from mininet_ai.runtime.contracts import (
@@ -38,7 +39,7 @@ from mininet_ai.runtime.ledger import (
 from mininet_ai.runtime.state import SharedStateStore
 from mininet_ai.runtime.telemetry import TelemetryPipeline, TelemetryPipelineState
 from mininet_ai.specification.models import StrictModel
-from mininet_ai.substrates import RunInfo, RunState, SubstrateRuntime, TeardownResult
+from mininet_ai.substrates import RunInfo, SubstrateRuntime, TeardownResult
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
@@ -74,12 +75,20 @@ class ExperimentRuntimeReport(StrictModel):
     telemetry: TelemetryPipelineReport
     teardown: TeardownResult | None = None
     issues: tuple[ExperimentRuntimeIssue, ...] = ()
+    operation: OperationOutcome = OperationOutcome.UNKNOWN
+    cleanup: CleanupOutcome = Field(default_factory=CleanupOutcome)
+    teardown_error: OperationFailure | None = None
+    previous_issues: tuple[ExperimentRuntimeIssue, ...] = ()
 
 
 class ExperimentRuntimeError(MininetAIError):
-    def __init__(self, message: str, *, code: str) -> None:
+    def __init__(
+        self, message: str, *, code: str, cleanup: CleanupOutcome | None = None
+    ) -> None:
         super().__init__(message)
         self.code = code
+        self.cleanup = cleanup or CleanupOutcome()
+        self.operation = OperationOutcome.FAILED
 
 
 class ExperimentRuntime:
@@ -120,7 +129,21 @@ class ExperimentRuntime:
         self._telemetry_started = False
         self._writers_stopped = False
         self._report: ExperimentRuntimeReport | None = None
+        self._cleanup = CleanupOutcome()
+        self._start_failed = False
+        self._operation_failed = False
+        self._teardown_error: OperationFailure | None = None
         self._source_sequences: dict[str, int] = {}
+
+    @property
+    def cleanup(self) -> CleanupOutcome:
+        """Latest substrate cleanup evidence, including failed startup."""
+        return self._cleanup
+
+    @property
+    def teardown_error(self) -> OperationFailure | None:
+        """Latest teardown failure, including cleanup during failed startup."""
+        return self._teardown_error
 
     @property
     def writers_stopped(self) -> bool:
@@ -215,14 +238,23 @@ class ExperimentRuntime:
             self._record_lifecycle("run.running", {"state": "running"})
             return run
         except BaseException as error:
+            self._start_failed = True
+            self._cleanup = getattr(error, "cleanup", CleanupOutcome())
             self._cleanup_start_failure()
             with self._lock:
                 self._state = ExperimentRuntimeState.FAILED
             if not isinstance(error, Exception) or isinstance(error, MininetAIError):
+                if isinstance(error, MininetAIError):
+                    error.with_cleanup(
+                        self._cleanup, teardown_error=self._teardown_error
+                    )
                 raise
             raise ExperimentRuntimeError(
                 f"could not start experiment runtime: {error}",
                 code="experiment.start.failed",
+                cleanup=self._cleanup,
+            ).with_cleanup(
+                self._cleanup, teardown_error=self._teardown_error
             ) from error
 
     def submit_intent(
@@ -286,12 +318,12 @@ class ExperimentRuntime:
         if timeout_seconds <= 0:
             raise ValueError("experiment stop timeout must be positive")
         with self._lock:
-            if self._report is not None and self._report.teardown is not None:
+            if self._report is not None and self._writers_stopped:
                 return self._report
             retrying = (
                 self._state == ExperimentRuntimeState.FAILED
                 and self._run is not None
-                and (self._report is None or self._report.teardown is None)
+                and not self._writers_stopped
             )
             if self._state != ExperimentRuntimeState.RUNNING and not retrying:
                 raise ExperimentRuntimeError(
@@ -299,6 +331,11 @@ class ExperimentRuntime:
                     code="experiment.lifecycle.invalid",
                 )
             self._state = ExperimentRuntimeState.STOPPING
+        previous_issues = (
+            self._report.previous_issues + self._report.issues
+            if self._report is not None
+            else ()
+        )
         issues: list[ExperimentRuntimeIssue] = []
         self._record_lifecycle(
             "run.stop-retrying" if retrying else "run.stopping",
@@ -316,14 +353,42 @@ class ExperimentRuntime:
         )
         safe_to_teardown = telemetry_stopped and continuous_stopped
         teardown = self._teardown(issues) if safe_to_teardown else None
+        self._operation_failed = (
+            self._operation_failed
+            or self._start_failed
+            # Worker-drain and substrate cleanup uncertainty can be resolved by
+            # retry; they do not retroactively fail completed experiment work.
+            or any(issue.phase in {"agents", "ledger"} for issue in issues)
+            or bool(continuous_report.failed)
+        )
+        operation = (
+            OperationOutcome.FAILED
+            if self._operation_failed
+            else OperationOutcome.SUCCEEDED
+        )
+        if teardown is None or not teardown.succeeded:
+            issues.append(
+                ExperimentRuntimeIssue(
+                    phase="cleanup",
+                    code="experiment.cleanup.unverified",
+                    message="cleanup is not verified; inspect run status and seek administrator help for unresolved resources",
+                )
+            )
         final_state = (
-            ExperimentRuntimeState.FAILED if issues else ExperimentRuntimeState.STOPPED
+            ExperimentRuntimeState.FAILED
+            if issues or operation == OperationOutcome.FAILED
+            else ExperimentRuntimeState.STOPPED
         )
         self._record_lifecycle(
-            "run.failed" if issues else "run.stopped",
+            "run.failed"
+            if final_state == ExperimentRuntimeState.FAILED
+            else "run.stopped",
             {"state": final_state.value, "issues": len(issues)},
             issues=issues,
         )
+        if any(issue.phase == "ledger" for issue in issues):
+            self._operation_failed = True
+            operation = OperationOutcome.FAILED
         if issues:
             final_state = ExperimentRuntimeState.FAILED
         with self._lock:
@@ -332,7 +397,7 @@ class ExperimentRuntime:
                 safe_to_teardown
                 and not issues
                 and teardown is not None
-                and teardown.run.state == RunState.STOPPED
+                and teardown.succeeded
             )
         report = ExperimentRuntimeReport(
             run=(teardown.run if teardown is not None else self.run),
@@ -341,6 +406,10 @@ class ExperimentRuntime:
             telemetry=telemetry_report,
             teardown=teardown,
             issues=tuple(issues),
+            operation=operation,
+            cleanup=self._cleanup,
+            teardown_error=self._teardown_error,
+            previous_issues=previous_issues,
         )
         with self._lock:
             self._report = report
@@ -433,6 +502,7 @@ class ExperimentRuntime:
         self,
         issues: list[ExperimentRuntimeIssue],
     ) -> TeardownResult | None:
+        self._teardown_error = None
         try:
             self._agent_factory.close()
         except Exception as error:
@@ -440,8 +510,12 @@ class ExperimentRuntime:
         if self._run is None:
             return None
         try:
-            return self._substrate.teardown(self._run.id)
+            result = self._substrate.teardown(self._run.id)
+            self._cleanup = result.cleanup
+            return result
         except Exception as error:
+            self._teardown_error = describe_failure(error)
+            self._cleanup = self._teardown_error.cleanup
             issues.append(self._issue("substrate", error))
             return None
 
@@ -474,14 +548,8 @@ class ExperimentRuntime:
             teardown = self._teardown(issues)
             with self._lock:
                 self._writers_stopped = not issues and (
-                    (
-                        self._run is None
-                        and getattr(
-                            self._substrate, "deployment_cleanup_verified", False
-                        )
-                        is True
-                    )
-                    or (teardown is not None and teardown.run.state == RunState.STOPPED)
+                    (self._run is None and self._cleanup.verified)
+                    or (teardown is not None and teardown.succeeded)
                 )
 
     @staticmethod

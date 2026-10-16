@@ -18,6 +18,7 @@ from typing import Any
 
 from mininet_ai.artifacts import run_directory
 from mininet_ai.errors import MininetAIError
+from mininet_ai.outcomes import CleanupOutcome, MutationEffects, OperationFailure
 from mininet_ai.runtime.ledger import LedgerRecord, RunManifest
 from mininet_ai.saved_runs import (
     SourceLocks,
@@ -301,6 +302,10 @@ def _bundle(
     outcome: str,
     missing: list[str],
     trees: list[Path],
+    operation: str = "unknown",
+    cleanup: CleanupOutcome | None = None,
+    effects: MutationEffects = MutationEffects.UNKNOWN,
+    teardown_error: OperationFailure | None = None,
 ) -> _Publication:
     destination = absolute(destination)
     _check_destination(destination, trees)
@@ -370,6 +375,12 @@ def _bundle(
                     "schema_version": 1,
                     "run_id": run_id,
                     "outcome": outcome,
+                    "operation": operation,
+                    "cleanup": (cleanup or CleanupOutcome()).model_dump(mode="json"),
+                    "effects": effects.value,
+                    "teardown_error": teardown_error.model_dump(mode="json")
+                    if teardown_error is not None
+                    else None,
                     "provenance": provenance,
                     "evidence_complete": not missing,
                     "missing_sources": sorted(set(missing)),
@@ -482,6 +493,10 @@ def export_managed(root: Path, run_id: str, destination: Path) -> bool:
                     locks,
                     provenance="managed",
                     outcome=metadata.outcome,
+                    operation=metadata.operation.value,
+                    cleanup=metadata.cleanup,
+                    effects=metadata.effects,
+                    teardown_error=metadata.teardown_error,
                     missing=missing,
                     trees=[
                         directory,
