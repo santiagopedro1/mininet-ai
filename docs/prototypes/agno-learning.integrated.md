@@ -20,7 +20,8 @@ owning worker thread. Later commands change **scripted fixture inputs**, not Age
 flags, managers, model objects or execution owners. The Agent Session always uses
 `trial:<compiled-agent>`; the worker's fixed memory scope selects either that
 session or the compiled agent as its Learned Memory identity. The history window
-is explicitly configured to twenty runs; this is not unbounded history retention.
+is explicitly configured to twenty runs, with session state included in reasoning
+context from construction; this is not unbounded history retention.
 
 The older controller now accepts a worker target and constructor options, and can
 release the new fixture's blocked learning after gate checks. Its legacy default
@@ -63,8 +64,8 @@ operations in one worker using the same cached Agent and owner:
 5. Scoped deletion, offline optimization and scoped clear.
 6. A separate session outcome update, then further reasoning.
 
-The captured report records **five groups, 66 terminal replies and 150 passing
-observation checks**. Eleven focused regression tests independently inspect the
+The captured report records **five groups, 66 terminal replies and 155 passing
+observation checks**. Sixteen focused regression tests independently inspect the
 CLI/report boundary rather than calling the report checker as their oracle.
 
 - Agent/manager/adapter/model/executor object identities and owner thread stayed
@@ -72,7 +73,8 @@ CLI/report boundary rather than calling the report checker as their oracle.
   settings and history-window configuration also stayed constant.
 - Final model input retained the initial unique history through the intervening
   learning/mutation routes. Session state retained `action_result=installed`
-  after the separate outcome operation. No network action or production
+  after the separate outcome operation, and the final model input actually
+  included that outcome. No network action or production
   coordinator commitment is simulated as having actually executed.
 - Scoped snapshots observed manager-created facts, direct add/replacement,
   read/search results, both hook facts, the actual custom-tool event and tool
@@ -131,7 +133,10 @@ The CLI exits nonzero for failed observation checks. Unit/regression tests drove
 the missing behavior red before green: route-specific Agent replacement, absent
 history/outcome continuity, absent agentic profile, missing held-background
 evidence, missing agent scope, missing independent overlap, and absent report
-checks/provenance. These tests are throwaway assets on this branch, not a new
+checks/provenance. Review then exposed that retained outcome state was not yet
+visible to reasoning: five new profile-specific checks failed before enabling
+session-state context once at construction, and now pass on final model input.
+These tests are throwaway assets on this branch, not a new
 production API or production test contract.
 
 Validation: focused tests pass; the original 41-group/180-check probe also passes
@@ -139,7 +144,7 @@ with the controller extension. The new source and test pass Ruff and targeted
 Pyright with `.venv/bin/python`. The legacy helper already had 99 Pyright errors
 with that interpreter before this change; this work does not claim to repair or
 typecheck the entire historical prototype. Full suite with live tests explicitly
-disabled: **542 passed, 4 skipped, 179 subtests passed**.
+disabled: **547 passed, 4 skipped, 179 subtests passed**.
 
 ## Human-review boundary
 

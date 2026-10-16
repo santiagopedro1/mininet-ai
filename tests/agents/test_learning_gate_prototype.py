@@ -36,6 +36,15 @@ def test_mixed_routes_retain_history_and_action_outcome(observations):
     assert final.get("session_state") == {"action_result": "installed"}
 
 
+@pytest.mark.parametrize("group_name", ["mixed", "agentic", "automatic-agent-scope", "agentic-agent-scope", "memory-free"])
+def test_subsequent_reasoning_receives_recorded_action_outcome(observations, group_name):
+    replies = {r["id"]: r for r in observations["groups"][group_name]["replies"] if "id" in r}
+    final = replies["back-A" if group_name == "memory-free" else "back"]
+    model_input = json.dumps(final["model_messages"])
+    assert "action_result" in model_input
+    assert "installed" in model_input
+
+
 def test_fixed_profiles_exercise_their_actual_learning_paths(observations):
     automatic = {r["id"]: r for r in observations["groups"]["mixed"]["replies"] if "id" in r}
     agentic = {r["id"]: r for r in observations["groups"]["agentic"]["replies"] if "id" in r}

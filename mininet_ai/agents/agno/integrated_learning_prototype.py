@@ -160,6 +160,7 @@ def integrated_worker(root, channel, mode="automatic", scope="run"):
                               update_memory_on_run=mode == "automatic", enable_agentic_memory=mode == "agentic",
                               add_memories_to_context=memory_capable,
                               add_history_to_context=True,
+                              add_session_state_to_context=True,
                               num_history_runs=20,
                               tools=[remember_fixture] if memory_capable else None,
                               pre_hooks=[pre_hook] if memory_capable else None,
@@ -196,6 +197,7 @@ def integrated_worker(root, channel, mode="automatic", scope="run"):
                       "session": session, "user": user, "mode": mode,
                       "settings": {"automatic": agent.update_memory_on_run,
                                    "agentic": agent.enable_agentic_memory,
+                                   "session_state_context": agent.add_session_state_to_context,
                                    "history_runs": agent.num_history_runs},
                       "session_state": agent.get_session_state(session_id=session),
                       "memories": memories(db, user) if memory_capable else []}
@@ -272,12 +274,16 @@ def check_groups(groups):
             checks[name + ":distinct-owners"] = replies["overlap-A"]["owner"] != replies["overlap-B"]["owner"]
             checks[name + ":history-isolation"] = "unique A history" not in json.dumps(replies["back-B"]["model_messages"])
             checks[name + ":A-continuity"] = "unique A history" in json.dumps(replies["back-A"]["model_messages"])
+            checks[name + ":outcome-in-reasoning"] = all(
+                text in json.dumps(replies["back-A"]["model_messages"]) for text in ("action_result", "installed"))
             checks[name + ":no-learning-gate"] = not any(e["kind"] == "gate-acquired" for e in group["events"])
             checks[name + ":no-memory-access"] = not any(
                 "memor" in e["payload"].get("method", "") for e in group["events"])
             continue
         checks[name + ":history"] = "unique A history" in json.dumps(replies["back"]["model_messages"])
         checks[name + ":outcome"] = replies["back"]["session_state"] == {"action_result": "installed"}
+        checks[name + ":outcome-in-reasoning"] = all(
+            text in json.dumps(replies["back"]["model_messages"]) for text in ("action_result", "installed"))
         checks[name + ":direct-add"] = "direct mixed fact" in json.dumps(replies["add"]["memories"])
         checks[name + ":replace-read"] = "replaced mixed fact" in replies["read"]["response"]
         checks[name + ":search"] = "replaced mixed fact" in replies["search"]["response"]
