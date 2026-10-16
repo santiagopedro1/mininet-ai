@@ -504,12 +504,14 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         repeated = fresh.teardown(run.id)
         snapshot = fresh.inspect(run.id)
 
-        self.assertTrue(repeated.already_stopped)
+        self.assertFalse(repeated.already_stopped)
+        self.assertFalse(repeated.succeeded)
+        self.assertTrue(repeated.cleanup.evidence_gaps)
         self.assertEqual(repeated.released_resources, ())
         self.assertEqual(snapshot.run.state, RunState.STOPPED)
         self.assertTrue(
             all(
-                resource.state == ResourceOperationalState.STOPPED
+                resource.state == ResourceOperationalState.UNKNOWN
                 for resource in snapshot.resources
             )
         )
@@ -621,6 +623,8 @@ class MininetOVSRuntimeTests(unittest.TestCase):
 
         self.assertEqual(signals, [(ProcessOwner.current().pid, signal.SIGTERM)])
         self.assertEqual(result.run.state, RunState.STOPPED)
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.cleanup.status.value, "unknown")
         self.assertFalse(store.state_path.exists())
 
     def test_external_stop_has_typed_timeout(self) -> None:
@@ -643,6 +647,9 @@ class MininetOVSRuntimeTests(unittest.TestCase):
             controller.request_stop(run.id, timeout_seconds=30)
 
         self.assertEqual(context.exception.code, "runtime.stop.timeout")
+        self.assertEqual(context.exception.operation.value, "unknown")
+        self.assertEqual(context.exception.effects.value, "unknown")
+        self.assertFalse(context.exception.cleanup.verified)
         owner.teardown(run.id)
 
     def test_actions_delegate_to_provider_and_refresh_live_resources(self) -> None:

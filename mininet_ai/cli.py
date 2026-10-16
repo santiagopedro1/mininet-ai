@@ -32,10 +32,11 @@ from mininet_ai.audit import (
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
 from mininet_ai.dependency_logging import RunDiagnostics
-from mininet_ai.errors import MininetAIError
+from mininet_ai.errors import MininetAIError, describe_failure
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.exports import export_managed, export_offline
 from mininet_ai.log_output import RunLogFormatter, print_event
+from mininet_ai.outcomes import CleanupOutcome, MutationEffects, OperationOutcome
 from mininet_ai.plugins import ProviderRegistries, discover_plugins
 from mininet_ai.run_setup import reserve_run
 from mininet_ai.runtime import (
@@ -410,13 +411,48 @@ def _runtime_or_exit(substrate: str) -> SubstrateRuntime:
         raise typer.Exit(code=1) from error
 
 
-def _operation_or_exit(operation):
+def _operation_or_exit(operation, output_format=OutputFormat.TEXT):
     try:
         return operation()
     except MininetAIError as error:
+        failure = describe_failure(error)
+        if output_format == OutputFormat.JSON:
+            console.print_json(
+                json.dumps(
+                    {
+                        "operation": failure.operation,
+                        "effects": failure.effects,
+                        "cleanup": failure.cleanup.model_dump(mode="json"),
+                        "issue": {
+                            "code": failure.code,
+                            "message": failure.message,
+                        },
+                        "run_id": failure.run_id,
+                        "teardown_error": error.teardown_error.model_dump(mode="json")
+                        if error.teardown_error is not None
+                        else None,
+                    }
+                )
+            )
+            raise typer.Exit(code=1) from error
         error_code = getattr(error, "code", None)
         code = f" ({error_code})" if error_code else ""
         error_console.print(f"[bold red]Error{code}:[/bold red] {error}")
+        error_console.print(
+            f"Operation: {failure.operation}; effects: {failure.effects}"
+        )
+        cleanup = failure.cleanup
+        error_console.print(
+            f"Cleanup: {cleanup.status.value}; evidence gaps: {', '.join(cleanup.evidence_gaps) or 'none'}"
+        )
+        if cleanup.remaining_resources or cleanup.unknown_resources:
+            error_console.print(
+                f"Remaining resources: {', '.join(cleanup.remaining_resources) or 'none known'}; unknown resources: {', '.join(cleanup.unknown_resources) or 'none'}"
+            )
+        if error.teardown_error is not None:
+            error_console.print(
+                f"Teardown operation: {error.teardown_error.operation.value}; effects: {error.teardown_error.effects.value}; {error.teardown_error.code}: {error.teardown_error.message}"
+            )
         raise typer.Exit(code=1) from error
 
 
@@ -748,6 +784,7 @@ def run(
     intent_server = None
     report = None
     operation_failed = False
+    pending_error: MininetAIError | None = None
     diagnostics = None
     try:
         if reserved_id is not None:
@@ -801,7 +838,7 @@ def run(
             ),
         )
         with stop_latch:
-            run_info = _operation_or_exit(owner.start)
+            run_info = owner.start()
             if evidence is not None:
                 evidence.active()
             if reserved_id is not None and run_info.id != reserved_id:
@@ -813,18 +850,13 @@ def run(
                     f"Queued terminal intent {event.event_id} for agent {event.subject}"
                 ),
             )
-            _operation_or_exit(intent_server.__enter__)
+            intent_server.__enter__()
             progress.info(f"Control endpoint: {intent_server.path}", visible=True)
             progress.info(
                 f"Run {run_info.id} is active on {run_info.substrate}", visible=True
             )
             for agent_id, intent in parsed_intents:
-                event = _operation_or_exit(
-                    lambda agent_id=agent_id, intent=intent: owner.submit_intent(
-                        agent_id,
-                        intent,
-                    )
-                )
+                event = owner.submit_intent(agent_id, intent)
                 progress.info(f"Queued intent {event.event_id} for agent {agent_id}")
                 if intent_tracker is not None:
                     intent_tracker.track(event.event_id)
@@ -849,7 +881,10 @@ def run(
         error_console.print(
             "Run failed; diagnostic output retained. For storage errors use --artifact-root on a private local filesystem supporting SQLite locking."
         )
-        raise
+        if isinstance(error, MininetAIError):
+            pending_error = error
+        else:
+            raise
     finally:
         try:
             if intent_server is not None:
@@ -861,7 +896,7 @@ def run(
                         "Stop requested; draining work and tearing down", visible=True
                     )
                     try:
-                        report = _operation_or_exit(owner.stop)
+                        report = _operation_or_exit(owner.stop, output_format)
                     except BaseException as error:
                         progress.error(f"Cleanup failed for run {reserved_id}: {error}")
                         raise
@@ -903,10 +938,39 @@ def run(
                                 or report.continuous.failed
                                 else "succeeded"
                             ),
+                            operation=(
+                                report.operation
+                                if report is not None and not operation_failed
+                                else OperationOutcome.FAILED
+                            ),
+                            cleanup=(
+                                owner.cleanup if owner is not None else CleanupOutcome()
+                            ),
+                            effects=(
+                                pending_error.effects
+                                if pending_error is not None
+                                else MutationEffects.UNKNOWN
+                            ),
+                            teardown_error=(
+                                owner.teardown_error if owner is not None else None
+                            ),
                         )
                 finally:
                     if evidence is not None:
                         evidence.close()
+    if pending_error is not None:
+        # Report only after teardown, so cleanup evidence is the final outcome,
+        # not the default uncertainty at the instant the operation failed.
+        pending_error.with_cleanup(
+            owner.cleanup if owner is not None else CleanupOutcome(),
+            teardown_error=owner.teardown_error if owner is not None else None,
+        )
+
+        def failed_operation():
+            assert pending_error is not None
+            raise pending_error
+
+        _operation_or_exit(failed_operation, output_format)
     if report is None:
         return
     if output_format == OutputFormat.JSON:
@@ -918,10 +982,15 @@ def run(
             else 0
         )
         console.print(
-            f"[green]Stopped[/green] {report.run.id}; "
+            f"{'Stopped' if report.cleanup.verified else 'Unresolved'} {report.run.id}; operation: {report.operation.value}; cleanup: {report.cleanup.status.value}; "
             f"{report.continuous.completed} invocations, "
             f"released {released} resources"
         )
+        _print_cleanup(report.cleanup)
+        if report.teardown_error is not None:
+            console.print(
+                f"Teardown operation: {report.teardown_error.operation.value}; effects: {report.teardown_error.effects.value}"
+            )
     if report.state == ExperimentRuntimeState.FAILED or report.continuous.failed > 0:
         raise typer.Exit(code=1)
 
@@ -962,9 +1031,11 @@ def export_results(
         )
 
 
-def _snapshot_or_exit(substrate: str, run_id: str) -> RuntimeSnapshot:
+def _snapshot_or_exit(
+    substrate: str, run_id: str, output_format=OutputFormat.TEXT
+) -> RuntimeSnapshot:
     runtime = _runtime_or_exit(substrate)
-    return _operation_or_exit(lambda: runtime.inspect(run_id))
+    return _operation_or_exit(lambda: runtime.inspect(run_id), output_format)
 
 
 @app.command("export-offline")
@@ -1036,20 +1107,41 @@ def status(
 ) -> None:
     """Show lifecycle state for a substrate run."""
 
-    snapshot = _snapshot_or_exit(substrate, run_id)
+    snapshot = _snapshot_or_exit(substrate, run_id, output_format)
+    info = snapshot.run
     if output_format == OutputFormat.JSON:
         _print_json(snapshot)
-        return
-    info = snapshot.run
-    console.print(f"[bold]{info.id}[/bold]")
-    console.print(f"Substrate: {info.substrate}")
-    console.print(f"State: {info.state.value}")
-    console.print(f"Plan digest: {info.plan_digest}")
-    console.print(f"Started: {info.started_at.isoformat()}")
-    if info.stopped_at is not None:
-        console.print(f"Stopped: {info.stopped_at.isoformat()}")
-    if info.issue is not None:
-        console.print(f"Issue: {info.issue.code}: {info.issue.message}")
+    else:
+        console.print(f"[bold]{info.id}[/bold]")
+        console.print(f"Substrate: {info.substrate}")
+        console.print(f"State: {info.state.value}")
+        console.print(f"Operation: {info.operation.value}")
+        _print_cleanup(info.cleanup)
+        console.print(f"Plan digest: {info.plan_digest}")
+        console.print(f"Started: {info.started_at.isoformat()}")
+        if info.stopped_at is not None:
+            console.print(f"Stopped: {info.stopped_at.isoformat()}")
+        if info.issue is not None:
+            console.print(f"Issue: {info.issue.code}: {info.issue.message}")
+    if info.state.value == "failed" or (
+        info.state.value == "stopped"
+        and (not info.cleanup.verified or info.operation != OperationOutcome.SUCCEEDED)
+    ):
+        raise typer.Exit(code=1)
+
+
+def _print_cleanup(cleanup: CleanupOutcome) -> None:
+    console.print(f"Cleanup: {cleanup.status.value}")
+    if cleanup.remaining_resources:
+        console.print(f"Remaining resources: {', '.join(cleanup.remaining_resources)}")
+    if cleanup.unknown_resources:
+        console.print(f"Unknown resources: {', '.join(cleanup.unknown_resources)}")
+    for gap in cleanup.evidence_gaps:
+        console.print(f"Evidence gap: {gap}")
+    if not cleanup.verified:
+        console.print(
+            "Inspect run status; seek administrator help for unresolved resources. No trusted recovery authority is provided by legacy cleanup."
+        )
 
 
 @app.command()
@@ -1093,6 +1185,9 @@ def stop(
             help="Maximum seconds to wait for owner teardown.",
         ),
     ] = 30,
+    output_format: Annotated[
+        OutputFormat, typer.Option("--format", "-f", help="Output format.")
+    ] = OutputFormat.TEXT,
 ) -> None:
     """Stop an owned run, recovering it first if the owner has exited."""
 
@@ -1102,14 +1197,18 @@ def stop(
             lambda: runtime.request_stop(
                 run_id,
                 timeout_seconds=timeout_seconds,
-            )
+            ),
+            output_format,
         )
     else:
-        result = _operation_or_exit(lambda: runtime.teardown(run_id))
-    console.print(
-        f"[green]Stopped[/green] {result.run.id}; "
-        f"released {len(result.released_resources)} resources"
-    )
+        result = _operation_or_exit(lambda: runtime.teardown(run_id), output_format)
+    if output_format == OutputFormat.JSON:
+        _print_json(result)
+    else:
+        console.print(f"Run {result.run.id}; stop operation: {result.operation.value}")
+        _print_cleanup(result.cleanup)
+    if not result.succeeded:
+        raise typer.Exit(code=1)
 
 
 @app.command()

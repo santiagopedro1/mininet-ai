@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, NoReturn, cast
 from uuid import uuid4
 
 from mininet_ai.errors import RuntimeOperationError
+from mininet_ai.outcomes import CleanupOutcome, MutationEffects, OperationOutcome
 from mininet_ai.specification.models import (
     ControllerType,
     ResourceKind,
@@ -215,17 +216,9 @@ class MininetOVSRuntime:
         self._persisted_observation_factory = persisted_observation_factory
         self._action_factory = action_factory
         self._runs: dict[str, _MininetRun] = {}
-        self._deployment_cleanup_verified = False
-
-    @property
-    def deployment_cleanup_verified(self) -> bool:
-        """Optional failed-deployment receipt; absence is never cleanup proof."""
-        return self._deployment_cleanup_verified
 
     def deploy(self, plan: DeploymentPlan) -> RunInfo:
-        # No new network workers exist until construction begins. Thereafter,
-        # only successful rollback and checked process cessation restore proof.
-        self._deployment_cleanup_verified = True
+        mutation_started = False
         self._validate_plan(plan)
         self._ensure_no_active_run()
         run_id = self._new_run_id()
@@ -245,7 +238,7 @@ class MininetOVSRuntime:
         try:
             bindings = self._bindings_factory()
             self._preflight_interfaces(plan)
-            self._deployment_cleanup_verified = False
+            mutation_started = True
             network = self._create_network(bindings)
             self._build_network(plan, bindings, network)
             process_groups = self._network_process_groups(network)
@@ -267,13 +260,16 @@ class MininetOVSRuntime:
                 raise RuntimeError(
                     "deployed resources are not operational: " + ", ".join(unavailable)
                 )
-            info = info.model_copy(update={"state": RunState.RUNNING})
+            info = info.model_copy(
+                update={
+                    "state": RunState.RUNNING,
+                    "operation": OperationOutcome.SUCCEEDED,
+                    "effects": MutationEffects.CHANGED,
+                }
+            )
             self._write_state(info, plan, process_groups)
         except BaseException as error:
-            before_network = self._deployment_cleanup_verified
-            cleanup_groups = (
-                self._network_process_groups(network) if network is not None else ()
-            )
+            before_network = not mutation_started
             rollback_error = self._rollback(network, plan) if network else None
             state_error = self._settle_failed_deploy(
                 info,
@@ -281,12 +277,8 @@ class MininetOVSRuntime:
                 process_groups,
                 rollback_error,
             )
-            self._deployment_cleanup_verified = (
-                rollback_error is None
-                and state_error is None
-                and (before_network or network is not None)
-                and all(not process.is_alive() for process in cleanup_groups)
-            )
+            # Process leaders and successful tool calls do not prove absence of
+            # descendants, interfaces, bridges, and other owned artifacts.
             if (
                 not isinstance(error, Exception)
                 and rollback_error is None
@@ -298,6 +290,12 @@ class MininetOVSRuntime:
                 and rollback_error is None
                 and state_error is None
             ):
+                error.cleanup = self._legacy_cleanup(plan)
+                error.effects = (
+                    MutationEffects.UNCHANGED
+                    if before_network
+                    else MutationEffects.UNKNOWN
+                )
                 raise
             detail = f": {error}"
             if rollback_error is not None:
@@ -308,6 +306,10 @@ class MininetOVSRuntime:
                 f"could not deploy Mininet/OVS run {run_id!r}{detail}",
                 code="runtime.deploy.failed",
                 run_id=run_id,
+                cleanup=self._legacy_cleanup(plan),
+                effects=MutationEffects.UNCHANGED
+                if before_network
+                else MutationEffects.UNKNOWN,
             ) from error
 
         self._runs[run_id] = _MininetRun(
@@ -324,6 +326,10 @@ class MininetOVSRuntime:
         run = self._runs.get(run_id)
         if run is None:
             return self._inspect_persisted(run_id)
+        if run.info.state == RunState.STOPPED:
+            return RuntimeSnapshot(
+                run=run.info, observed_at=self._clock(), resources=run.resources
+            )
         try:
             run.resources = run.observations.snapshot()
         except ObservationCollectionError as error:
@@ -402,6 +408,11 @@ class MininetOVSRuntime:
                 run_id=run_id,
                 request_id=request.id,
                 status=error.status,
+                effects=(
+                    MutationEffects.UNCHANGED
+                    if error.status == ActionStatus.REJECTED
+                    else MutationEffects.UNKNOWN
+                ),
                 completed_at=self._clock(),
                 issue=RuntimeIssue(
                     code=error.code,
@@ -427,6 +438,9 @@ class MininetOVSRuntime:
             status=ActionStatus.SUCCEEDED,
             completed_at=self._clock(),
             changed=outcome.changed,
+            effects=MutationEffects.CHANGED
+            if outcome.changed
+            else MutationEffects.UNCHANGED,
             output=outcome.output,
         )
 
@@ -435,7 +449,13 @@ class MininetOVSRuntime:
         if run is None:
             return self._recover_persisted(run_id)
         if run.info.state == RunState.STOPPED:
-            return TeardownResult(run=run.info, already_stopped=True)
+            return TeardownResult(
+                run=run.info,
+                cleanup=run.info.cleanup,
+                operation=OperationOutcome.SUCCEEDED,
+                effects=MutationEffects.UNCHANGED,
+                already_stopped=run.info.cleanup.verified,
+            )
 
         try:
             run.info = run.info.model_copy(update={"state": RunState.STOPPING})
@@ -457,7 +477,11 @@ class MininetOVSRuntime:
             if cleanup_errors:
                 raise RuntimeError("; ".join(str(error) for error in cleanup_errors))
             stopped_info = run.info.model_copy(
-                update={"state": RunState.STOPPED, "stopped_at": self._clock()}
+                update={
+                    "state": RunState.STOPPED,
+                    "stopped_at": self._clock(),
+                    "cleanup": self._legacy_cleanup(run.plan),
+                }
             )
             self._state_store.write_stopped(
                 PersistedStoppedRun(
@@ -471,6 +495,7 @@ class MininetOVSRuntime:
             failed_info = run.info.model_copy(
                 update={
                     "state": RunState.FAILED,
+                    "cleanup": self._legacy_cleanup(run.plan),
                     "issue": RuntimeIssue(
                         code="runtime.teardown.failed",
                         message=str(error),
@@ -495,16 +520,21 @@ class MininetOVSRuntime:
                 f"could not tear down Mininet/OVS run {run_id!r}: {error}",
                 code="runtime.teardown.failed",
                 run_id=run_id,
+                cleanup=self._legacy_cleanup(run.plan),
             ) from error
         self._state_store.release()
 
         run.info = stopped_info
-        released = tuple(resource.name for resource in run.resources)
         run.resources = tuple(
-            resource.model_copy(update={"state": ResourceOperationalState.STOPPED})
+            resource.model_copy(update={"state": ResourceOperationalState.UNKNOWN})
             for resource in run.resources
         )
-        return TeardownResult(run=run.info, released_resources=released)
+        return TeardownResult(
+            run=run.info,
+            cleanup=run.info.cleanup,
+            operation=OperationOutcome.SUCCEEDED,
+            effects=MutationEffects.UNKNOWN,
+        )
 
     def request_stop(
         self, run_id: str, *, timeout_seconds: float = 30
@@ -553,20 +583,8 @@ class MininetOVSRuntime:
                     run_id=run_id,
                 ) from error
             if current is None:
-                stopped = record.run.model_copy(
-                    update={
-                        "state": RunState.STOPPED,
-                        "stopped_at": self._clock(),
-                        "issue": None,
-                    }
-                )
-                plan = self._plan_from_record(record)
-                return TeardownResult(
-                    run=stopped,
-                    released_resources=tuple(
-                        resource.name for resource in plan.resources
-                    ),
-                )
+                # Read a completion record, never manufacture one from absence.
+                return self.teardown(run_id)
             if current.run.id != run_id:
                 raise RuntimeOperationError(
                     f"runtime state changed while stopping run {run_id!r}",
@@ -579,6 +597,8 @@ class MininetOVSRuntime:
             f"timed out waiting for run {run_id!r} to stop",
             code="runtime.stop.timeout",
             run_id=run_id,
+            operation=OperationOutcome.UNKNOWN,
+            cleanup=self._legacy_cleanup(self._plan_from_record(record)),
         )
 
     def _claim_run(self, info: RunInfo, plan: DeploymentPlan) -> None:
@@ -687,7 +707,9 @@ class MininetOVSRuntime:
                 observed_at=self._clock(),
                 resources=_live_resources(
                     plan.resources,
-                    ResourceOperationalState.STOPPED,
+                    ResourceOperationalState.STOPPED
+                    if stopped_record.run.cleanup.verified
+                    else ResourceOperationalState.UNKNOWN,
                 ),
             )
         if record.run.id != run_id:
@@ -769,7 +791,10 @@ class MininetOVSRuntime:
                     self._raise_unknown_run(run_id)
                 return TeardownResult(
                     run=stopped_record.run,
-                    already_stopped=True,
+                    cleanup=stopped_record.run.cleanup,
+                    operation=OperationOutcome.SUCCEEDED,
+                    effects=MutationEffects.UNCHANGED,
+                    already_stopped=stopped_record.run.cleanup.verified,
                 )
             if record.run.id != run_id:
                 self._raise_unknown_run(run_id)
@@ -780,6 +805,7 @@ class MininetOVSRuntime:
                     "state": RunState.STOPPED,
                     "stopped_at": self._clock(),
                     "issue": None,
+                    "cleanup": self._legacy_cleanup(plan),
                 }
             )
             self._state_store.write_stopped(
@@ -809,7 +835,17 @@ class MininetOVSRuntime:
 
         return TeardownResult(
             run=stopped,
-            released_resources=tuple(resource.name for resource in plan.resources),
+            operation=OperationOutcome.SUCCEEDED,
+            cleanup=stopped.cleanup,
+        )
+
+    @staticmethod
+    def _legacy_cleanup(plan: DeploymentPlan) -> CleanupOutcome:
+        return CleanupOutcome(
+            unknown_resources=tuple(resource.name for resource in plan.resources),
+            evidence_gaps=(
+                "legacy Mininet cleanup does not verify all owned network artifacts or descendant absence",
+            ),
         )
 
     @staticmethod

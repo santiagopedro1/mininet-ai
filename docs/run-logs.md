@@ -138,6 +138,12 @@ or failed cleanup do not certify stable evidence. Normal export refuses those
 runs, even if the owner/socket disappeared or locks became available after reboot.
 An unsuccessful deployment with no returned run requires an explicit adapter
 cleanup receipt; missing run information alone is never proof of clean rollback.
+`run.json` preserves independent `operation` and structured `cleanup` fields
+alongside overall `outcome`; older records default to unknown cleanup. Managed
+export manifests preserve both fields as well. These are editable user evidence,
+not trusted cleanup authority. Legacy Mininet cleanup cannot certify absence and
+therefore no longer finalizes managed evidence merely because its tools returned
+success; prepare consistent offline snapshots explicitly when needed.
 
 Cooperating writers retain shared lifetime locks in the fixed private local
 `/tmp/mininet-ai-locks-<effective-uid>` namespace; export takes nonblocking

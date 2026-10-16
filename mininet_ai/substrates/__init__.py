@@ -3,6 +3,13 @@
 from collections.abc import Mapping
 from typing import Any
 
+from mininet_ai.outcomes import (
+    CleanupOutcome,
+    CleanupStatus,
+    MutationEffects,
+    OperationFailure,
+    OperationOutcome,
+)
 from mininet_ai.substrates.builtin_runtimes import register_builtin_runtimes
 from mininet_ai.substrates.fake import FakeSubstrateDriver
 from mininet_ai.substrates.fake_runtime import FakeSubstrateRuntime
@@ -76,6 +83,8 @@ __all__ = [
     "ActionRequest",
     "ActionResult",
     "ActionStatus",
+    "CleanupOutcome",
+    "CleanupStatus",
     "ExternallyStoppableRuntime",
     "FakeSubstrateDriver",
     "FakeSubstrateRuntime",
@@ -84,8 +93,11 @@ __all__ = [
     "ManifestSubstrateDriver",
     "MininetOVSDriver",
     "MininetOVSRuntime",
+    "MutationEffects",
     "ObservationQuery",
     "ObservationResult",
+    "OperationFailure",
+    "OperationOutcome",
     "PostconditionResult",
     "ResourceOperationalState",
     "RollbackResult",

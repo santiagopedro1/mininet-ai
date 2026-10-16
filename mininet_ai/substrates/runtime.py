@@ -12,13 +12,14 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import AwareDatetime, Field, JsonValue, model_validator
 
+from mininet_ai.outcomes import CleanupOutcome, MutationEffects, OperationOutcome
 from mininet_ai.specification.models import ResourceKind, StrictModel
 
 if TYPE_CHECKING:
     from mininet_ai.compiler.models import DeploymentPlan
 
 
-RUNTIME_CONTRACT_VERSION = "mininet-ai/substrate-runtime/v1alpha2"
+RUNTIME_CONTRACT_VERSION = "mininet-ai/substrate-runtime/v1alpha3"
 
 
 class RunState(StrEnum):
@@ -57,6 +58,9 @@ class RunInfo(StrictModel):
     started_at: AwareDatetime
     stopped_at: AwareDatetime | None = None
     issue: RuntimeIssue | None = None
+    operation: OperationOutcome = OperationOutcome.UNKNOWN
+    effects: MutationEffects = MutationEffects.UNKNOWN
+    cleanup: CleanupOutcome = Field(default_factory=CleanupOutcome)
 
     @model_validator(mode="after")
     def terminal_fields_match_state(self) -> RunInfo:
@@ -119,6 +123,7 @@ class RollbackResult(StrictModel):
     status: ActionStatus
     completed_at: AwareDatetime = Field(alias="completedAt")
     changed: bool = False
+    effects: MutationEffects = MutationEffects.UNKNOWN
     output: dict[str, Any] = Field(default_factory=dict)
     issue: RuntimeIssue | None = None
 
@@ -137,6 +142,7 @@ class ActionResult(StrictModel):
     status: ActionStatus
     completed_at: AwareDatetime
     changed: bool = False
+    effects: MutationEffects = MutationEffects.UNKNOWN
     output: dict[str, Any] = Field(default_factory=dict)
     postconditions: tuple[PostconditionResult, ...] = ()
     rollback: RollbackResult | None = None
@@ -158,8 +164,29 @@ class ActionResult(StrictModel):
 
 class TeardownResult(StrictModel):
     run: RunInfo
+    operation: OperationOutcome = OperationOutcome.UNKNOWN
+    effects: MutationEffects = MutationEffects.UNKNOWN
+    cleanup: CleanupOutcome = Field(default_factory=CleanupOutcome)
     released_resources: tuple[str, ...] = ()
     already_stopped: bool = False
+
+    @model_validator(mode="after")
+    def repeated_completion_requires_proof(self) -> TeardownResult:
+        if self.cleanup != self.run.cleanup:
+            raise ValueError("teardown and run cleanup evidence must match")
+        if self.already_stopped and not self.succeeded:
+            raise ValueError(
+                "already_stopped requires a verified successful completion"
+            )
+        return self
+
+    @property
+    def succeeded(self) -> bool:
+        return (
+            self.operation == OperationOutcome.SUCCEEDED
+            and self.run.state == RunState.STOPPED
+            and self.cleanup.verified
+        )
 
 
 @runtime_checkable
@@ -167,8 +194,8 @@ class SubstrateRuntime(Protocol):
     """Lifecycle interface implemented by each executable substrate adapter.
 
     ``deploy`` is synchronous: it returns only after the run is healthy. An
-    implementation must roll back its owned effects before raising on a
-    deployment failure. Observation and action operations require a running
+    implementation must attempt rollback and report effects and cleanup evidence
+    on deployment failure. Observation and action operations require a running
     run. ``teardown`` affects only resources owned by the run and is
     idempotent.
     """
@@ -184,9 +211,7 @@ class SubstrateRuntime(Protocol):
         """Return lifecycle and normalized live-resource state for a run."""
         ...
 
-    def observe(
-        self, run_id: str, query: ObservationQuery
-    ) -> ObservationResult:
+    def observe(self, run_id: str, query: ObservationQuery) -> ObservationResult:
         """Read a normalized observation from a running run."""
         ...
 
@@ -195,7 +220,7 @@ class SubstrateRuntime(Protocol):
         ...
 
     def teardown(self, run_id: str) -> TeardownResult:
-        """Release run-owned resources; repeated calls are successful no-ops."""
+        """Attempt cleanup; repeat success requires retained verification evidence."""
         ...
 
 

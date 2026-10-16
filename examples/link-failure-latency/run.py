@@ -789,7 +789,18 @@ def main() -> None:
                                 factory.close()
                         finally:
                             if run is not None and substrate is not None:
-                                substrate.teardown(run.id)
+                                teardown = substrate.teardown(run.id)
+                                write(
+                                    {
+                                        "type": "cleanup",
+                                        "trial_id": trial_id,
+                                        **teardown.model_dump(mode="json"),
+                                    }
+                                )
+                                if not teardown.succeeded:
+                                    raise RuntimeError(
+                                        "cleanup is unverified; refusing another trial"
+                                    )
                     except Exception as error:
                         # Do not deploy another topology after unverified cleanup.
                         write(
