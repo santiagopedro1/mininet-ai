@@ -51,12 +51,20 @@ is load-bearing:
 
 ### Why the latch must be armed at the write
 
-Pinned Agno 3.0.11's `Agent.run` waits for the automatic memory future via
-`wait_for_open_threads` (`agno/utils/agent.py:70`), which **catches and logs** that
-future's exception. A required write failing inside background learning therefore
-does not surface on the run's return value. The adapter must observe and re-raise
-the failure (`StrictDb.checked`) and arm the latch itself; recognizing failure only
-at operation finalization leaves a window in which new work is admitted.
+Pinned Agno 3.0.11's non-streaming `Agent.run` waits for the automatic memory
+future via `wait_for_open_threads` (`agno/utils/agent.py:70`), which **catches and
+logs** that future's exception. A required write failing inside background learning
+therefore does not surface on the run's return value. The adapter must observe and
+re-raise the failure (`StrictDb.checked`) and arm the latch itself; recognizing
+failure only at operation finalization leaves a window in which new work is
+admitted.
+
+`Agent.run(stream=True)` behaves differently: it yields foreground content
+(`RunContentEvent`) *before* it awaits the background memory future
+(`agent/_run.py:wait_for_thread_tasks_stream`). So streaming is the genuine state
+in which the caller already has the answer while the required background write is
+still owned; the prototype exercises that path with real Agno streaming rather than
+modeling it.
 
 Because a genuinely hanging Agno memory future would hang `run_route` itself,
 containment is modeled with a `hold_forever` fixture option rather than a real
@@ -64,8 +72,9 @@ stuck Agno thread.
 
 ## Sequence and observed evidence
 
-The captured report records **ten groups and 47 passing observation checks**. Exit
-code is zero; `failed checks: none`.
+The captured report records **twelve groups and 62 passing observation checks**. Exit
+code is zero; `failed checks: none`. The checks are deterministic across repeated
+runs (identical results).
 
 - **Proposed boundary (`write+dispatch`).** The first failure is marked with
   `source == "adapter"` (latch armed at the write) and precedes every terminal
@@ -90,6 +99,16 @@ code is zero; `failed checks: none`.
 - **Failure classes.** `upsert_user_memory`, `upsert_session` and `upsert_run`,
   each as `raise` and as `missing`, plus a memory-free session fault, all latch
   and deny post-failure admission.
+- **Surface writes.** Hook, custom-tool and session-outcome writes funnel through
+  the same adapter; a required write failure on each latches and denies
+  post-failure admission.
+- **Foreground delivered while background still owned.** Under streaming, the
+  foreground answer is delivered while the required automatic-memory future is
+  still owned (`owned_futures >= 1`); that write then fails. The operation is
+  reported `run_failed=True` / `actionable_success=False` — a streamed answer is
+  not a clean success — and later work is refused.
+- **No transparent fallback.** Every group shows a single SQLite database (no
+  fallback store) and no reasoning/action replay events.
 - **Evidence-write failures.** Both simulated evidence faults latch and deny
   post-failure admission, but the durable cause evidence is **absent** for the
   `db-error` case: the latch fires while the failure cannot be recorded. Latching

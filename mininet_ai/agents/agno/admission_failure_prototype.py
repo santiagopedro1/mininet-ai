@@ -39,6 +39,7 @@ from agno.db.schemas.memory import UserMemory
 from agno.memory.manager import MemoryManager
 from agno.models.response import ModelResponse
 from agno.run import RunStatus
+from agno.run.agent import RunContentEvent
 from sqlalchemy import create_engine
 
 sys.path.append(str(Path(__file__).resolve().parent))
@@ -211,10 +212,26 @@ class FixtureLearningModel(BlockedLearningModel):
         return ScriptedModel.invoke(self, *args, **kwargs)
 
 
-def run_route(agent, manager, command, session, user):
+def run_route(agent, manager, command, session, user, emit=None):
     route = command["route"]
     if route in {"reason", "session", "overlap", "automatic", "agentic", "hooks", "tool"}:
         agent.model.route = route
+        if command.get("stream"):
+            # Streaming delivers foreground content before Agno awaits the
+            # background memory future (agent/_run.py wait_for_thread_tasks_stream).
+            # Record that state: the caller has the answer while required
+            # background work is still owned.
+            response = None
+            announced = False
+            for item in agent.run(command.get("text", "offline " + route), session_id=session,
+                                  user_id=user, run_id=command["id"], stream=True):
+                response = item
+                if (not announced and emit is not None
+                        and isinstance(item, RunContentEvent)):
+                    emit("foreground-content",
+                         {"owned_futures": len(agent.background_executor.owned)})
+                    announced = True
+            return response
         response = agent.run(command.get("text", "offline " + route), session_id=session,
                              user_id=user, run_id=command["id"])
         if response.status != RunStatus.completed:
@@ -424,7 +441,7 @@ def admission_worker(root, channel, config=None):
                 response = None
                 route_error = None
                 try:
-                    response = run_route(agent, manager, cmd, session, user)
+                    response = run_route(agent, manager, cmd, session, user, emit)
                     status = str(getattr(response, "status", "n/a"))
                 except Exception as error:
                     route_error = repr(error)
@@ -793,6 +810,44 @@ def group_healthy(root, config):
     return collect(handle, replies=collect_replies(parent, {"A", "B", "C"}, timeout=12))
 
 
+def group_foreground_return(root, config):
+    """Streaming delivers the foreground answer while the required background
+    memory write is still owned; that write then fails."""
+    handle = start_worker(root, config)
+    parent, path = handle["parent"], handle["path"]
+    parent.send(command("A", "automatic", background="block", stream=True,
+                        fault="upsert_user_memory:raise"))
+    content = wait_event(path, "foreground-content", "A")
+    parent.send({"release_background": "A"})
+    first = collect_replies(parent, {"A"})
+    wait_event(path, "first-failure", "A")
+    parent.send(command("D", "session", text="after streamed delivery"))
+    first.update(collect_replies(parent, {"D"}))
+    observed = collect(handle, replies=first)
+    observed["foreground_content"] = content
+    return observed
+
+
+def group_surface_failures(root, config):
+    """Hooks, tool and session-outcome writes all funnel through the same
+    adapter and must latch like the memory/session/run rows."""
+    results = {}
+    for name, route, fault, extra in (
+            ("hooks", "hooks", "upsert_user_memory:raise", {}),
+            ("tool", "tool", "upsert_user_memory:raise", {}),
+            ("outcome", "outcome", "upsert_session:raise",
+             {"state": {"action_result": "installed"}})):
+        selected = root / name
+        handle = start_worker(selected, config)
+        parent = handle["parent"]
+        parent.send(command("A", route, fault=fault, **extra))
+        first = collect_replies(parent, {"A"})
+        parent.send(command("D", "session", text="after surface failure"))
+        first.update(collect_replies(parent, {"D"}))
+        results[name] = collect(handle, replies=first)
+    return results
+
+
 def check_report(groups):
     checks: dict[str, bool] = {}
 
@@ -876,6 +931,44 @@ def check_report(groups):
     checks["healthy:all_success"] = all(r.get("success") is True for r in healthy["replies"])
     owners = {r["owner"] for r in healthy["replies"] if r.get("id") in {"B", "C"}}
     checks["healthy:independent_owners"] = len(owners) == 2
+
+    # --- foreground delivered while the required background write is owned ---
+    foreground = group("foreground-return")
+    content = foreground.get("foreground_content")
+    foreground_failure = first_failure(foreground["events"])
+    checks["foreground:content_while_background_owned"] = (
+        content is not None and content["payload"].get("owned_futures", 0) >= 1)
+    checks["foreground:content_precedes_failure"] = (
+        content is not None and foreground_failure is not None
+        and content["seq"] < foreground_failure["seq"])
+    foreground_a = next((r for r in foreground["replies"] if r.get("id") == "A"), None)
+    checks["foreground:streamed_not_actionable"] = (
+        foreground_a is not None and foreground_a.get("run_failed") is True
+        and foreground_a.get("actionable_success") is False)
+    checks["foreground:late_refused"] = bool(
+        refused_after_failure(foreground["events"], "admission-denied"))
+
+    # --- hooks / tool / outcome writes latch through the same adapter ---
+    surfaces = group("surface-failures")
+    for name, observed in surfaces.items():
+        checks[f"surface:{name}:latched"] = first_failure(observed["events"]) is not None
+        checks[f"surface:{name}:no_start_after"] = not started_after_failure(observed["events"])
+        checks[f"surface:{name}:late_refused"] = bool(
+            refused_after_failure(observed["events"], "admission-denied"))
+
+    # --- no transparent fallback storage, replacement or replay ---
+    leaves = []
+    for observed in groups.values():
+        if "events" in observed and "live_files" in observed:
+            leaves.append(observed)
+        else:
+            leaves.extend(sub for sub in observed.values()
+                          if isinstance(sub, dict) and "events" in sub)
+    checks["no-fallback:single_database_per_group"] = all(
+        len([f for f in leaf["live_files"] if f.endswith(".sqlite3")]) == 1
+        for leaf in leaves if "live_files" in leaf)
+    checks["no-replay:no_replay_events"] = not any(
+        "replay" in e["kind"] for leaf in leaves for e in leaf.get("events", []))
     return checks
 
 
@@ -937,8 +1030,10 @@ def main():
         ("arm-timing/finalize", lambda p: group_arm_timing(p, CONFIGS["finalize+dispatch"])),
         ("concurrent/active-sibling", lambda p: group_active_sibling(p, CONFIGS["write+dispatch"])),
         ("failure-classes", lambda p: group_failure_classes(p, CONFIGS["write+dispatch"])),
+        ("surface-failures", lambda p: group_surface_failures(p, CONFIGS["write+dispatch"])),
         ("evidence-failures", lambda p: group_evidence_failures(p, CONFIGS["write+dispatch"])),
         ("quiescence", lambda p: group_quiescence(p, CONFIGS["write+dispatch"])),
+        ("foreground-return", lambda p: group_foreground_return(p, CONFIGS["write+dispatch"])),
         ("containment", lambda p: group_containment(
             p, {"latch_mode": "write", "dispatch_check": True, "quiescence_bound": 1.0})),
         ("healthy", lambda p: group_healthy(p, CONFIGS["write+dispatch"])),
