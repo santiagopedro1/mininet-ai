@@ -1,0 +1,6115 @@
+{
+  "checks": {
+    "actual-worker-imports-construction": true,
+    "alias:conflicting-owner": true,
+    "alias:db-hardlink": true,
+    "alias:db-replacement": true,
+    "alias:db-symlink": true,
+    "alias:gate-replacement": true,
+    "alias:relative-canonical": true,
+    "alias:root-replacement": true,
+    "alias:root-symlink": true,
+    "alias:root-symlink-retarget": true,
+    "alternate-store": true,
+    "async-factory": true,
+    "background-fault-missing:accounted": true,
+    "background-fault-missing:background-before-terminal": true,
+    "background-fault-missing:clean-exit": true,
+    "background-fault-missing:drained-before-terminal": true,
+    "background-fault-missing:external-gate-denied": true,
+    "background-fault-missing:gated-access": true,
+    "background-fault-missing:no-failed-write-effect": true,
+    "background-fault-missing:no-fallback": true,
+    "background-fault-missing:result": true,
+    "background-fault-raise:accounted": true,
+    "background-fault-raise:background-before-terminal": true,
+    "background-fault-raise:clean-exit": true,
+    "background-fault-raise:drained-before-terminal": true,
+    "background-fault-raise:external-gate-denied": true,
+    "background-fault-raise:gated-access": true,
+    "background-fault-raise:no-failed-write-effect": true,
+    "background-fault-raise:no-fallback": true,
+    "background-fault-raise:result": true,
+    "background:background-before-terminal": true,
+    "background:clean-exit": true,
+    "background:drained-before-terminal": true,
+    "background:external-gate-denied": true,
+    "background:gated-access": true,
+    "background:no-fallback": true,
+    "background:result": true,
+    "background:scoped-effects": true,
+    "factory-A-stable": true,
+    "fresh-factory-isolation": true,
+    "hooks-fault-missing:accounted": true,
+    "hooks-fault-missing:clean-exit": true,
+    "hooks-fault-missing:drained-before-terminal": true,
+    "hooks-fault-missing:gated-access": true,
+    "hooks-fault-missing:no-failed-write-effect": true,
+    "hooks-fault-missing:no-fallback": true,
+    "hooks-fault-missing:result": true,
+    "hooks-fault-raise:accounted": true,
+    "hooks-fault-raise:clean-exit": true,
+    "hooks-fault-raise:drained-before-terminal": true,
+    "hooks-fault-raise:gated-access": true,
+    "hooks-fault-raise:no-failed-write-effect": true,
+    "hooks-fault-raise:no-fallback": true,
+    "hooks-fault-raise:result": true,
+    "hooks:clean-exit": true,
+    "hooks:drained-before-terminal": true,
+    "hooks:gated-access": true,
+    "hooks:no-fallback": true,
+    "hooks:result": true,
+    "hooks:scoped-effects": true,
+    "import-thread-B-reject": true,
+    "import-thread-owner-eligible": true,
+    "independent-adapter-engines": true,
+    "independent-overlap": true,
+    "loader:clean-exit": true,
+    "local-stable": true,
+    "loop-reject": true,
+    "module-A-stable": true,
+    "module-B-reject": true,
+    "parent-reject": true,
+    "raw-engine": true,
+    "session-history-continuity": true,
+    "session-history-isolation": true,
+    "singleton-B-reject": true,
+    "tool-fault-missing:accounted": true,
+    "tool-fault-missing:clean-exit": true,
+    "tool-fault-missing:drained-before-terminal": true,
+    "tool-fault-missing:gated-access": true,
+    "tool-fault-missing:no-failed-write-effect": true,
+    "tool-fault-missing:no-fallback": true,
+    "tool-fault-missing:result": true,
+    "tool-fault-raise:accounted": true,
+    "tool-fault-raise:clean-exit": true,
+    "tool-fault-raise:drained-before-terminal": true,
+    "tool-fault-raise:gated-access": true,
+    "tool-fault-raise:no-failed-write-effect": true,
+    "tool-fault-raise:no-fallback": true,
+    "tool-fault-raise:result": true,
+    "tool:clean-exit": true,
+    "tool:drained-before-terminal": true,
+    "tool:gated-access": true,
+    "tool:no-fallback": true,
+    "tool:result": true,
+    "tool:scoped-effects": true,
+    "untracked": true,
+    "worker-local-resources-used": true,
+    "worker_not_coordinator": true
+  },
+  "groups": {
+    "aliases": {
+      "conflicting-owner": {
+        "accepted": false,
+        "diagnostic": "TimeoutError('prototype learning gate budget exceeded')"
+      },
+      "db-hardlink": {
+        "accepted": false,
+        "diagnostic": "ValueError('store/gate hardlink unsupported')"
+      },
+      "db-replacement": {
+        "accepted": false,
+        "diagnostic": "ValueError('storage root/store/gate inode replaced')"
+      },
+      "db-symlink": {
+        "accepted": false,
+        "diagnostic": "ValueError('store/gate symlink unsupported')"
+      },
+      "gate-replacement": {
+        "accepted": false,
+        "diagnostic": "ValueError('storage root/store/gate inode replaced')"
+      },
+      "relative-canonical": {
+        "accepted": true,
+        "value": true
+      },
+      "root-replacement": {
+        "accepted": false,
+        "diagnostic": "ValueError('storage root inode replaced')"
+      },
+      "root-symlink": {
+        "accepted": true,
+        "value": true
+      },
+      "root-symlink-retarget": {
+        "accepted": false,
+        "diagnostic": "ValueError('selected root alias was retargeted')"
+      }
+    },
+    "background": {
+      "events": [
+        {
+          "command": {
+            "fault": null,
+            "form": "background",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 139703490705088,
+          "pid": 47447,
+          "seq": 1
+        },
+        {
+          "form": "background",
+          "kind": "module-import",
+          "pid": 47447,
+          "seq": 2,
+          "thread": 139703490705088
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/background/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139703491163680,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139703490705088,
+          "pid": 47447,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 139703491643104,
+          "pid": 47447,
+          "resources": false,
+          "seq": 4,
+          "thread": 139703490705088
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "background-waiting",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 8
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 9
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 10
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 11
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 1,
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "owned-background",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 16
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_user_memory",
+          "seq": 17
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "background-done",
+          "seq": 18
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 19
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 20,
+          "success": true
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": true,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ],
+        [
+          "trial:extension",
+          "\"owned-background\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47447,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14117
+          ],
+          [
+            41,
+            14118
+          ],
+          [
+            41,
+            14126
+          ]
+        ]
+      },
+      "results": [
+        {
+          "background_waiting": "extension"
+        },
+        {
+          "adapter": 139703491164016,
+          "agent": 139703491643104,
+          "agno_status": "RunStatus.completed",
+          "engine": 139703491163680,
+          "errors": [],
+          "executor": 139703491642768,
+          "form": "background",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 139703491642432,
+          "messages": [
+            {
+              "content": "You have the capability to retain memories from previous interactions with the user, but have not had any interactions with the user yet.",
+              "created_at": 1792181077,
+              "from_history": false,
+              "id": "c248a932-927b-41fa-bac3-6a575766dfec",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181077,
+              "from_history": false,
+              "id": "8563c5d8-11a4-4ff4-97b3-4d793877eba3",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139703491641760,
+          "owner": 139703490705088,
+          "pid": 47447,
+          "success": true
+        }
+      ]
+    },
+    "background-fault-missing": {
+      "events": [
+        {
+          "command": {
+            "fault": "upsert_user_memory:missing",
+            "form": "background",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 139651569415872,
+          "pid": 47459,
+          "seq": 1
+        },
+        {
+          "form": "background",
+          "kind": "module-import",
+          "pid": 47459,
+          "seq": 2,
+          "thread": 139651569415872
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/background-fault-missing/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139651569907232,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139651569415872,
+          "pid": 47459,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 139651570370272,
+          "pid": 47459,
+          "resources": false,
+          "seq": 4,
+          "thread": 139651569415872
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "background-waiting",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 8
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 9
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 10
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 11
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 1,
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "owned-background",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 16
+        },
+        {
+          "error": "RuntimeError('required upsert returned no row')",
+          "gate": true,
+          "id": "extension",
+          "kind": "db-error",
+          "method": "upsert_user_memory",
+          "seq": 17
+        },
+        {
+          "error": "RuntimeError('required upsert returned no row')",
+          "id": "extension",
+          "kind": "failure-latch",
+          "method": "upsert_user_memory",
+          "seq": 18
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "background-done",
+          "seq": 19
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 20
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 21,
+          "success": false
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": true,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47459,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14151
+          ],
+          [
+            41,
+            14152
+          ],
+          [
+            41,
+            14159
+          ]
+        ]
+      },
+      "results": [
+        {
+          "background_waiting": "extension"
+        },
+        {
+          "adapter": 139651569907568,
+          "agent": 139651570370272,
+          "agno_status": "RunStatus.completed",
+          "engine": 139651569907232,
+          "errors": [
+            {
+              "error": "RuntimeError('required upsert returned no row')",
+              "method": "upsert_user_memory"
+            }
+          ],
+          "executor": 139651570369936,
+          "form": "background",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 139651570369600,
+          "messages": [
+            {
+              "content": "You have the capability to retain memories from previous interactions with the user, but have not had any interactions with the user yet.",
+              "created_at": 1792181078,
+              "from_history": false,
+              "id": "c48eb9a1-2a25-4306-92dc-b4673f817cc5",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181078,
+              "from_history": false,
+              "id": "2073760f-97a0-4a0e-9a51-09aaa6b88ccf",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139651570368928,
+          "owner": 139651569415872,
+          "pid": 47459,
+          "success": false
+        },
+        {
+          "id": "late",
+          "rejected": "failure latch closed admission"
+        }
+      ]
+    },
+    "background-fault-raise": {
+      "events": [
+        {
+          "command": {
+            "fault": "upsert_user_memory:raise",
+            "form": "background",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 140478919997120,
+          "pid": 47453,
+          "seq": 1
+        },
+        {
+          "form": "background",
+          "kind": "module-import",
+          "pid": 47453,
+          "seq": 2,
+          "thread": 140478919997120
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/background-fault-raise/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 140478924109344,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 140478919997120,
+          "pid": 47453,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 140478924572384,
+          "pid": 47453,
+          "resources": false,
+          "seq": 4,
+          "thread": 140478919997120
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "background-waiting",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 8
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 9
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 10
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 11
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 1,
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "owned-background",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 16
+        },
+        {
+          "error": "OSError('PROTOTYPE required write exception')",
+          "gate": true,
+          "id": "extension",
+          "kind": "db-error",
+          "method": "upsert_user_memory",
+          "seq": 17
+        },
+        {
+          "error": "OSError('PROTOTYPE required write exception')",
+          "id": "extension",
+          "kind": "failure-latch",
+          "method": "upsert_user_memory",
+          "seq": 18
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "background-done",
+          "seq": 19
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 20
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 21,
+          "success": false
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": true,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47453,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14135
+          ],
+          [
+            41,
+            14136
+          ],
+          [
+            41,
+            14143
+          ]
+        ]
+      },
+      "results": [
+        {
+          "background_waiting": "extension"
+        },
+        {
+          "adapter": 140478924109680,
+          "agent": 140478924572384,
+          "agno_status": "RunStatus.completed",
+          "engine": 140478924109344,
+          "errors": [
+            {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            }
+          ],
+          "executor": 140478924572048,
+          "form": "background",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 140478924571712,
+          "messages": [
+            {
+              "content": "You have the capability to retain memories from previous interactions with the user, but have not had any interactions with the user yet.",
+              "created_at": 1792181078,
+              "from_history": false,
+              "id": "a1c09cd6-0a60-4977-b3cf-21e862e669e4",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181078,
+              "from_history": false,
+              "id": "e33c7172-b605-4244-977b-8f342f9e9fc0",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 140478924571040,
+          "owner": 140478919997120,
+          "pid": 47453,
+          "success": false
+        },
+        {
+          "id": "late",
+          "rejected": "failure latch closed admission"
+        }
+      ]
+    },
+    "hooks": {
+      "events": [
+        {
+          "command": {
+            "fault": null,
+            "form": "hooks",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 139754385438400,
+          "pid": 47422,
+          "seq": 1
+        },
+        {
+          "form": "hooks",
+          "kind": "module-import",
+          "pid": 47422,
+          "seq": 2,
+          "thread": 139754385438400
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/hooks/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139754389173792,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139754385438400,
+          "pid": 47422,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 139754389653216,
+          "pid": 47422,
+          "resources": false,
+          "seq": 4,
+          "thread": 139754385438400
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "hook",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 8
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_user_memory",
+          "seq": 9
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 10
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 11
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "hook",
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 16
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 17
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_user_memory",
+          "seq": 18
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 19
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 20
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 21
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 22
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 23
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 24
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 25,
+          "success": true
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": null,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ],
+        [
+          "trial:extension",
+          "\"hook\""
+        ],
+        [
+          "trial:extension",
+          "\"hook\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47422,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14017
+          ],
+          [
+            41,
+            14018
+          ],
+          [
+            41,
+            14026
+          ]
+        ]
+      },
+      "results": [
+        {
+          "adapter": 139754389174128,
+          "agent": 139754389653216,
+          "agno_status": "RunStatus.completed",
+          "engine": 139754389173792,
+          "errors": [],
+          "executor": 139754389652880,
+          "form": "hooks",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 139754389652544,
+          "messages": [
+            {
+              "content": "You have access to user info and preferences from previous interactions that you can use to personalize your response:\n\n<memories_from_previous_interactions>\n- hook\n</memories_from_previous_interactions>\n\nNote: this information is from previous interactions and may be updated in this conversation. You should always prefer information from this conversation over the past memories.",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "794dcfdb-a694-4959-836d-6852d260850c",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "5fad2a97-5b09-4b9b-ad0c-1f38a4c287f2",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139754389651872,
+          "owner": 139754385438400,
+          "pid": 47422,
+          "success": true
+        }
+      ]
+    },
+    "hooks-fault-missing": {
+      "events": [
+        {
+          "command": {
+            "fault": "upsert_user_memory:missing",
+            "form": "hooks",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 140602635187904,
+          "pid": 47430,
+          "seq": 1
+        },
+        {
+          "form": "hooks",
+          "kind": "module-import",
+          "pid": 47430,
+          "seq": 2,
+          "thread": 140602635187904
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/hooks-fault-missing/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 140602638890528,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 140602635187904,
+          "pid": 47430,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 140602639337184,
+          "pid": 47430,
+          "resources": false,
+          "seq": 4,
+          "thread": 140602635187904
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "hook",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 8
+        },
+        {
+          "error": "RuntimeError('required upsert returned no row')",
+          "gate": true,
+          "id": "extension",
+          "kind": "db-error",
+          "method": "upsert_user_memory",
+          "seq": 9
+        },
+        {
+          "error": "RuntimeError('required upsert returned no row')",
+          "id": "extension",
+          "kind": "failure-latch",
+          "method": "upsert_user_memory",
+          "seq": 10
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 11
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "hook",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 16
+        },
+        {
+          "error": "RuntimeError('required upsert returned no row')",
+          "gate": true,
+          "id": "extension",
+          "kind": "db-error",
+          "method": "upsert_user_memory",
+          "seq": 17
+        },
+        {
+          "error": "RuntimeError('required upsert returned no row')",
+          "id": "extension",
+          "kind": "failure-latch",
+          "method": "upsert_user_memory",
+          "seq": 18
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 19
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 20
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 21
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 22
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 23
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 24
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 25,
+          "success": false
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": null,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47430,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14051
+          ],
+          [
+            41,
+            14052
+          ],
+          [
+            41,
+            14059
+          ]
+        ]
+      },
+      "results": [
+        {
+          "adapter": 140602638890864,
+          "agent": 140602639337184,
+          "agno_status": "RunStatus.completed",
+          "engine": 140602638890528,
+          "errors": [
+            {
+              "error": "RuntimeError('required upsert returned no row')",
+              "method": "upsert_user_memory"
+            },
+            {
+              "error": "RuntimeError('required upsert returned no row')",
+              "method": "upsert_user_memory"
+            }
+          ],
+          "executor": 140602639336848,
+          "form": "hooks",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 140602639336512,
+          "messages": [
+            {
+              "content": "You have the capability to retain memories from previous interactions with the user, but have not had any interactions with the user yet.",
+              "created_at": 1792181075,
+              "from_history": false,
+              "id": "11d45631-982e-499c-abbc-5106825a3dea",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181075,
+              "from_history": false,
+              "id": "2bca51c0-c665-4a79-8a78-eb447077f86f",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 140602639335840,
+          "owner": 140602635187904,
+          "pid": 47430,
+          "success": false
+        },
+        {
+          "id": "late",
+          "rejected": "failure latch closed admission"
+        }
+      ]
+    },
+    "hooks-fault-raise": {
+      "events": [
+        {
+          "command": {
+            "fault": "upsert_user_memory:raise",
+            "form": "hooks",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 139967982466752,
+          "pid": 47426,
+          "seq": 1
+        },
+        {
+          "form": "hooks",
+          "kind": "module-import",
+          "pid": 47426,
+          "seq": 2,
+          "thread": 139967982466752
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/hooks-fault-raise/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139967986185760,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139967982466752,
+          "pid": 47426,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 139967986648800,
+          "pid": 47426,
+          "resources": false,
+          "seq": 4,
+          "thread": 139967982466752
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "hook",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 8
+        },
+        {
+          "error": "OSError('PROTOTYPE required write exception')",
+          "gate": true,
+          "id": "extension",
+          "kind": "db-error",
+          "method": "upsert_user_memory",
+          "seq": 9
+        },
+        {
+          "error": "OSError('PROTOTYPE required write exception')",
+          "id": "extension",
+          "kind": "failure-latch",
+          "method": "upsert_user_memory",
+          "seq": 10
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 11
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "hook",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 16
+        },
+        {
+          "error": "OSError('PROTOTYPE required write exception')",
+          "gate": true,
+          "id": "extension",
+          "kind": "db-error",
+          "method": "upsert_user_memory",
+          "seq": 17
+        },
+        {
+          "error": "OSError('PROTOTYPE required write exception')",
+          "id": "extension",
+          "kind": "failure-latch",
+          "method": "upsert_user_memory",
+          "seq": 18
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 19
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 20
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 21
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 22
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 23
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 24
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 25,
+          "success": false
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": null,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47426,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14035
+          ],
+          [
+            41,
+            14036
+          ],
+          [
+            41,
+            14043
+          ]
+        ]
+      },
+      "results": [
+        {
+          "adapter": 139967986186096,
+          "agent": 139967986648800,
+          "agno_status": "RunStatus.completed",
+          "engine": 139967986185760,
+          "errors": [
+            {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            },
+            {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            }
+          ],
+          "executor": 139967986648464,
+          "form": "hooks",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 139967986648128,
+          "messages": [
+            {
+              "content": "You have the capability to retain memories from previous interactions with the user, but have not had any interactions with the user yet.",
+              "created_at": 1792181074,
+              "from_history": false,
+              "id": "ee926751-ebb2-49fd-bdf2-52532b7ae815",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181074,
+              "from_history": false,
+              "id": "00ed03b7-3446-4a3e-ab61-3c499cc624bb",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139967986647456,
+          "owner": 139967982466752,
+          "pid": 47426,
+          "success": false
+        },
+        {
+          "id": "late",
+          "rejected": "failure latch closed admission"
+        }
+      ]
+    },
+    "loader": {
+      "events": [
+        {
+          "command": {
+            "form": "factory",
+            "id": "factory-A",
+            "identity": "trial:A",
+            "text": "only-A-private-history-marker"
+          },
+          "id": "factory-A",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": false,
+          "id": "factory-A",
+          "kind": "operation-start",
+          "owner": 139789137344192,
+          "pid": 47385,
+          "seq": 1
+        },
+        {
+          "form": "factory",
+          "kind": "module-import",
+          "pid": 47385,
+          "seq": 2,
+          "thread": 139789137344192
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/loader/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139789141505568,
+          "id": "factory-A",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139789137344192,
+          "pid": 47385,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "factory-A",
+          "kind": "constructed",
+          "object": 139789141984992,
+          "pid": 47385,
+          "resources": false,
+          "seq": 4,
+          "thread": 139789137344192
+        },
+        {
+          "gate": false,
+          "id": "factory-A",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 5
+        },
+        {
+          "gate": false,
+          "id": "factory-A",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 6
+        },
+        {
+          "gate": false,
+          "id": "factory-A",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 7
+        },
+        {
+          "gate": false,
+          "id": "factory-A",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 8
+        },
+        {
+          "gate": false,
+          "id": "factory-A",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 9
+        },
+        {
+          "gate": false,
+          "id": "factory-A",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 10
+        },
+        {
+          "gate": false,
+          "id": "factory-A",
+          "kind": "terminal",
+          "seq": 11,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "factory",
+            "id": "factory-A-again",
+            "identity": "trial:A"
+          },
+          "id": "factory-A-again",
+          "kind": "command",
+          "seq": 12
+        },
+        {
+          "gate": false,
+          "id": "factory-A-again",
+          "kind": "operation-start",
+          "owner": 139789137344192,
+          "pid": 47385,
+          "seq": 13
+        },
+        {
+          "gate": false,
+          "id": "factory-A-again",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 14
+        },
+        {
+          "gate": false,
+          "id": "factory-A-again",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 15
+        },
+        {
+          "gate": false,
+          "id": "factory-A-again",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 16
+        },
+        {
+          "gate": false,
+          "id": "factory-A-again",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 17
+        },
+        {
+          "gate": false,
+          "id": "factory-A-again",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 18
+        },
+        {
+          "gate": false,
+          "id": "factory-A-again",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 19
+        },
+        {
+          "gate": false,
+          "id": "factory-A-again",
+          "kind": "terminal",
+          "seq": 20,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "factory",
+            "id": "factory-B",
+            "identity": "trial:B"
+          },
+          "id": "factory-B",
+          "kind": "command",
+          "seq": 21
+        },
+        {
+          "gate": false,
+          "id": "factory-B",
+          "kind": "operation-start",
+          "owner": 139789127902912,
+          "pid": 47385,
+          "seq": 22
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/loader/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139789128343760,
+          "id": "factory-B",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139789127902912,
+          "pid": 47385,
+          "seq": 23,
+          "synchronous": 2
+        },
+        {
+          "id": "factory-B",
+          "kind": "constructed",
+          "object": 139789141502880,
+          "pid": 47385,
+          "resources": false,
+          "seq": 24,
+          "thread": 139789127902912
+        },
+        {
+          "gate": false,
+          "id": "factory-B",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 25
+        },
+        {
+          "gate": false,
+          "id": "factory-B",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 26
+        },
+        {
+          "gate": false,
+          "id": "factory-B",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 27
+        },
+        {
+          "gate": false,
+          "id": "factory-B",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 28
+        },
+        {
+          "gate": false,
+          "id": "factory-B",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 29
+        },
+        {
+          "gate": false,
+          "id": "factory-B",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 30
+        },
+        {
+          "gate": false,
+          "id": "factory-B",
+          "kind": "terminal",
+          "seq": 31,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "module-agent",
+            "id": "module-A",
+            "identity": "module:A"
+          },
+          "id": "module-A",
+          "kind": "command",
+          "seq": 32
+        },
+        {
+          "gate": false,
+          "id": "module-A",
+          "kind": "operation-start",
+          "owner": 139789119510208,
+          "pid": 47385,
+          "seq": 33
+        },
+        {
+          "form": "module-agent",
+          "kind": "module-import",
+          "pid": 47385,
+          "seq": 34,
+          "thread": 139789119510208
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/loader/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139789128526224,
+          "id": "module-A",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139789119510208,
+          "pid": 47385,
+          "seq": 35,
+          "synchronous": 2
+        },
+        {
+          "id": "module-A",
+          "kind": "constructed",
+          "object": 139789141995072,
+          "pid": 47385,
+          "resources": false,
+          "seq": 36,
+          "thread": 139789119510208
+        },
+        {
+          "gate": false,
+          "id": "module-A",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 37
+        },
+        {
+          "gate": false,
+          "id": "module-A",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 38
+        },
+        {
+          "gate": false,
+          "id": "module-A",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 39
+        },
+        {
+          "gate": false,
+          "id": "module-A",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 40
+        },
+        {
+          "gate": false,
+          "id": "module-A",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 41
+        },
+        {
+          "gate": false,
+          "id": "module-A",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 42
+        },
+        {
+          "gate": false,
+          "id": "module-A",
+          "kind": "terminal",
+          "seq": 43,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "module-agent",
+            "id": "module-A-again",
+            "identity": "module:A"
+          },
+          "id": "module-A-again",
+          "kind": "command",
+          "seq": 44
+        },
+        {
+          "gate": false,
+          "id": "module-A-again",
+          "kind": "operation-start",
+          "owner": 139789119510208,
+          "pid": 47385,
+          "seq": 45
+        },
+        {
+          "gate": false,
+          "id": "module-A-again",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 46
+        },
+        {
+          "gate": false,
+          "id": "module-A-again",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 47
+        },
+        {
+          "gate": false,
+          "id": "module-A-again",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 48
+        },
+        {
+          "gate": false,
+          "id": "module-A-again",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 49
+        },
+        {
+          "gate": false,
+          "id": "module-A-again",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 50
+        },
+        {
+          "gate": false,
+          "id": "module-A-again",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 51
+        },
+        {
+          "gate": false,
+          "id": "module-A-again",
+          "kind": "terminal",
+          "seq": 52,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "module-agent",
+            "id": "module-B-reject",
+            "identity": "module:B"
+          },
+          "id": "module-B-reject",
+          "kind": "command",
+          "seq": 53
+        },
+        {
+          "gate": false,
+          "id": "module-B-reject",
+          "kind": "operation-start",
+          "owner": 139788904560320,
+          "pid": 47385,
+          "seq": 54
+        },
+        {
+          "error": "ValueError('mutable singleton alias already owned by module:A; no cloning/serialization fallback')",
+          "form": "module-agent",
+          "id": "module-B-reject",
+          "identity": "module:B",
+          "kind": "rejected",
+          "seq": 55
+        },
+        {
+          "command": {
+            "form": "singleton-factory",
+            "id": "singleton-A",
+            "identity": "singleton:A"
+          },
+          "id": "singleton-A",
+          "kind": "command",
+          "seq": 56
+        },
+        {
+          "gate": false,
+          "id": "singleton-A",
+          "kind": "operation-start",
+          "owner": 139788896167616,
+          "pid": 47385,
+          "seq": 57
+        },
+        {
+          "form": "singleton-factory",
+          "kind": "module-import",
+          "pid": 47385,
+          "seq": 58,
+          "thread": 139788896167616
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/loader/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139789128362464,
+          "id": "singleton-A",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139788896167616,
+          "pid": 47385,
+          "seq": 59,
+          "synchronous": 2
+        },
+        {
+          "id": "singleton-A",
+          "kind": "constructed",
+          "object": 139789141999104,
+          "pid": 47385,
+          "resources": false,
+          "seq": 60,
+          "thread": 139788896167616
+        },
+        {
+          "gate": false,
+          "id": "singleton-A",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 61
+        },
+        {
+          "gate": false,
+          "id": "singleton-A",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 62
+        },
+        {
+          "gate": false,
+          "id": "singleton-A",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 63
+        },
+        {
+          "gate": false,
+          "id": "singleton-A",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 64
+        },
+        {
+          "gate": false,
+          "id": "singleton-A",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 65
+        },
+        {
+          "gate": false,
+          "id": "singleton-A",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 66
+        },
+        {
+          "gate": false,
+          "id": "singleton-A",
+          "kind": "terminal",
+          "seq": 67,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "singleton-factory",
+            "id": "singleton-B-reject",
+            "identity": "singleton:B"
+          },
+          "id": "singleton-B-reject",
+          "kind": "command",
+          "seq": 68
+        },
+        {
+          "gate": false,
+          "id": "singleton-B-reject",
+          "kind": "operation-start",
+          "owner": 139788887774912,
+          "pid": 47385,
+          "seq": 69
+        },
+        {
+          "error": "ValueError('mutable singleton alias already owned by singleton:A; no cloning/serialization fallback')",
+          "form": "singleton-factory",
+          "id": "singleton-B-reject",
+          "identity": "singleton:B",
+          "kind": "rejected",
+          "seq": 70
+        },
+        {
+          "command": {
+            "form": "local-resources",
+            "id": "local",
+            "identity": "local:A"
+          },
+          "id": "local",
+          "kind": "command",
+          "seq": 71
+        },
+        {
+          "gate": false,
+          "id": "local",
+          "kind": "operation-start",
+          "owner": 139788879382208,
+          "pid": 47385,
+          "seq": 72
+        },
+        {
+          "form": "local-resources",
+          "kind": "module-import",
+          "pid": 47385,
+          "seq": 73,
+          "thread": 139788879382208
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/loader/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139789128366720,
+          "id": "local",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139788879382208,
+          "pid": 47385,
+          "seq": 74,
+          "synchronous": 2
+        },
+        {
+          "id": "local",
+          "kind": "constructed",
+          "object": 139789110542752,
+          "pid": 47385,
+          "resources": true,
+          "seq": 75,
+          "thread": 139788879382208
+        },
+        {
+          "client_ready": true,
+          "gate": false,
+          "id": "local",
+          "kind": "resource-use",
+          "pid": 47385,
+          "seq": 76,
+          "thread": 139788879382208
+        },
+        {
+          "gate": false,
+          "id": "local",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 77
+        },
+        {
+          "gate": false,
+          "id": "local",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 78
+        },
+        {
+          "gate": false,
+          "id": "local",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 79
+        },
+        {
+          "gate": false,
+          "id": "local",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 80
+        },
+        {
+          "gate": false,
+          "id": "local",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 81
+        },
+        {
+          "gate": false,
+          "id": "local",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 82
+        },
+        {
+          "gate": false,
+          "id": "local",
+          "kind": "terminal",
+          "seq": 83,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "local-resources",
+            "id": "local-again",
+            "identity": "local:A"
+          },
+          "id": "local-again",
+          "kind": "command",
+          "seq": 84
+        },
+        {
+          "gate": false,
+          "id": "local-again",
+          "kind": "operation-start",
+          "owner": 139788879382208,
+          "pid": 47385,
+          "seq": 85
+        },
+        {
+          "client_ready": true,
+          "gate": false,
+          "id": "local-again",
+          "kind": "resource-use",
+          "pid": 47385,
+          "seq": 86,
+          "thread": 139788879382208
+        },
+        {
+          "gate": false,
+          "id": "local-again",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 87
+        },
+        {
+          "gate": false,
+          "id": "local-again",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 88
+        },
+        {
+          "gate": false,
+          "id": "local-again",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 89
+        },
+        {
+          "gate": false,
+          "id": "local-again",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 90
+        },
+        {
+          "gate": false,
+          "id": "local-again",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 91
+        },
+        {
+          "gate": false,
+          "id": "local-again",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 92
+        },
+        {
+          "gate": false,
+          "id": "local-again",
+          "kind": "terminal",
+          "seq": 93,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "import-thread",
+            "id": "import-thread-A",
+            "identity": "import-thread:A"
+          },
+          "id": "import-thread-A",
+          "kind": "command",
+          "seq": 94
+        },
+        {
+          "gate": false,
+          "id": "import-thread-A",
+          "kind": "operation-start",
+          "owner": 139788870989504,
+          "pid": 47385,
+          "seq": 95
+        },
+        {
+          "form": "import-thread",
+          "kind": "module-import",
+          "pid": 47385,
+          "seq": 96,
+          "thread": 139788870989504
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/loader/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139789110203824,
+          "id": "import-thread-A",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139788870989504,
+          "pid": 47385,
+          "seq": 97,
+          "synchronous": 2
+        },
+        {
+          "id": "import-thread-A",
+          "kind": "constructed",
+          "object": 139789110543760,
+          "pid": 47385,
+          "resources": false,
+          "seq": 98,
+          "thread": 139788870989504
+        },
+        {
+          "gate": false,
+          "id": "import-thread-A",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 99
+        },
+        {
+          "gate": false,
+          "id": "import-thread-A",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 100
+        },
+        {
+          "gate": false,
+          "id": "import-thread-A",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 101
+        },
+        {
+          "gate": false,
+          "id": "import-thread-A",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 102
+        },
+        {
+          "gate": false,
+          "id": "import-thread-A",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 103
+        },
+        {
+          "gate": false,
+          "id": "import-thread-A",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 104
+        },
+        {
+          "gate": false,
+          "id": "import-thread-A",
+          "kind": "terminal",
+          "seq": 105,
+          "success": true
+        },
+        {
+          "command": {
+            "form": "import-thread",
+            "id": "import-thread-B-reject",
+            "identity": "import-thread:B"
+          },
+          "id": "import-thread-B-reject",
+          "kind": "command",
+          "seq": 106
+        },
+        {
+          "gate": false,
+          "id": "import-thread-B-reject",
+          "kind": "operation-start",
+          "owner": 139788862596800,
+          "pid": 47385,
+          "seq": 107
+        },
+        {
+          "error": "RuntimeError('module resource belongs to its import thread; cannot reuse on another owner')",
+          "form": "import-thread",
+          "id": "import-thread-B-reject",
+          "identity": "import-thread:B",
+          "kind": "rejected",
+          "seq": 108
+        },
+        {
+          "command": {
+            "form": "parent-state",
+            "id": "parent-reject",
+            "identity": "parent:A"
+          },
+          "id": "parent-reject",
+          "kind": "command",
+          "seq": 109
+        },
+        {
+          "gate": false,
+          "id": "parent-reject",
+          "kind": "operation-start",
+          "owner": 139788854204096,
+          "pid": 47385,
+          "seq": 110
+        },
+        {
+          "form": "parent-state",
+          "kind": "module-import",
+          "pid": 47385,
+          "seq": 111,
+          "thread": 139788854204096
+        },
+        {
+          "error": "RuntimeError('parent-only global/resource absent in spawned worker; initialize locally')",
+          "form": "parent-state",
+          "id": "parent-reject",
+          "identity": "parent:A",
+          "kind": "rejected",
+          "seq": 112
+        },
+        {
+          "command": {
+            "form": "running-loop",
+            "id": "loop-reject",
+            "identity": "loop:A"
+          },
+          "id": "loop-reject",
+          "kind": "command",
+          "seq": 113
+        },
+        {
+          "gate": false,
+          "id": "loop-reject",
+          "kind": "operation-start",
+          "owner": 139788367689408,
+          "pid": 47385,
+          "seq": 114
+        },
+        {
+          "form": "running-loop",
+          "kind": "module-import",
+          "pid": 47385,
+          "seq": 115,
+          "thread": 139788367689408
+        },
+        {
+          "error": "RuntimeError('no running event loop')",
+          "form": "running-loop",
+          "id": "loop-reject",
+          "identity": "loop:A",
+          "kind": "rejected",
+          "seq": 116
+        },
+        {
+          "command": {
+            "form": "alternate-store",
+            "id": "alternate-store",
+            "identity": "alternate-store"
+          },
+          "id": "alternate-store",
+          "kind": "command",
+          "seq": 117
+        },
+        {
+          "error": "ValueError('unsupported trusted-extension contract: alternate-store')",
+          "form": "alternate-store",
+          "id": "alternate-store",
+          "identity": "alternate-store",
+          "kind": "rejected",
+          "seq": 118
+        },
+        {
+          "command": {
+            "form": "async-factory",
+            "id": "async-factory",
+            "identity": "async-factory"
+          },
+          "id": "async-factory",
+          "kind": "command",
+          "seq": 119
+        },
+        {
+          "error": "ValueError('unsupported trusted-extension contract: async-factory')",
+          "form": "async-factory",
+          "id": "async-factory",
+          "identity": "async-factory",
+          "kind": "rejected",
+          "seq": 120
+        },
+        {
+          "command": {
+            "form": "raw-engine",
+            "id": "raw-engine",
+            "identity": "raw-engine"
+          },
+          "id": "raw-engine",
+          "kind": "command",
+          "seq": 121
+        },
+        {
+          "error": "ValueError('unsupported trusted-extension contract: raw-engine')",
+          "form": "raw-engine",
+          "id": "raw-engine",
+          "identity": "raw-engine",
+          "kind": "rejected",
+          "seq": 122
+        },
+        {
+          "command": {
+            "form": "untracked",
+            "id": "untracked",
+            "identity": "untracked"
+          },
+          "id": "untracked",
+          "kind": "command",
+          "seq": 123
+        },
+        {
+          "error": "ValueError('unsupported trusted-extension contract: untracked')",
+          "form": "untracked",
+          "id": "untracked",
+          "identity": "untracked",
+          "kind": "rejected",
+          "seq": 124
+        },
+        {
+          "command": {
+            "form": "factory",
+            "id": "stateless:invocation-1",
+            "identity": "stateless:invocation-1",
+            "text": "overlap"
+          },
+          "id": "stateless:invocation-1",
+          "kind": "command",
+          "seq": 125
+        },
+        {
+          "command": {
+            "form": "factory",
+            "id": "stateless:invocation-2",
+            "identity": "stateless:invocation-2",
+            "text": "overlap"
+          },
+          "id": "stateless:invocation-2",
+          "kind": "command",
+          "seq": 126
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-2",
+          "kind": "operation-start",
+          "owner": 139788317333184,
+          "pid": 47385,
+          "seq": 127
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-1",
+          "kind": "operation-start",
+          "owner": 139788325725888,
+          "pid": 47385,
+          "seq": 128
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/loader/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139789110158992,
+          "id": "stateless:invocation-2",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139788317333184,
+          "pid": 47385,
+          "seq": 129,
+          "synchronous": 2
+        },
+        {
+          "id": "stateless:invocation-2",
+          "kind": "constructed",
+          "object": 139789110544432,
+          "pid": 47385,
+          "resources": false,
+          "seq": 130,
+          "thread": 139788317333184
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/loader/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139789110162528,
+          "id": "stateless:invocation-1",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139788325725888,
+          "pid": 47385,
+          "seq": 131,
+          "synchronous": 2
+        },
+        {
+          "id": "stateless:invocation-1",
+          "kind": "constructed",
+          "object": 139789110545104,
+          "pid": 47385,
+          "resources": false,
+          "seq": 132,
+          "thread": 139788325725888
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-1",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 133
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-2",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 134
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-1",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 135
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-1",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 136
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-2",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 137
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-2",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 138
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-1",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 139
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-1",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 140
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-1",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 141
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-1",
+          "kind": "terminal",
+          "seq": 142,
+          "success": true
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-2",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 143
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-2",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 144
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-2",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 145
+        },
+        {
+          "gate": false,
+          "id": "stateless:invocation-2",
+          "kind": "terminal",
+          "seq": 146,
+          "success": true
+        }
+      ],
+      "exitcode": 0,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "pending": 0,
+      "ready": {
+        "pid": 47385,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            13977
+          ],
+          [
+            41,
+            13978
+          ],
+          [
+            41,
+            13994
+          ]
+        ]
+      },
+      "results": [
+        {
+          "adapter": 139789141505904,
+          "agent": 139789141984992,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789141505568,
+          "errors": [],
+          "executor": 139789141984656,
+          "form": "factory",
+          "id": "factory-A",
+          "identity": "trial:A",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "only-A-private-history-marker",
+              "created_at": 1792181072,
+              "from_history": false,
+              "id": "89e1708a-fc3c-4ef6-b39f-32506bddf90a",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789141983648,
+          "owner": 139789137344192,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "adapter": 139789141505904,
+          "agent": 139789141984992,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789141505568,
+          "errors": [],
+          "executor": 139789141984656,
+          "form": "factory",
+          "id": "factory-A-again",
+          "identity": "trial:A",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "only-A-private-history-marker",
+              "created_at": 1792181072,
+              "from_history": true,
+              "id": "89e1708a-fc3c-4ef6-b39f-32506bddf90a",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792181072,
+              "from_history": true,
+              "id": "5750db54-266f-40e8-b873-4ec9e6bb7fcf",
+              "metrics": {
+                "time_to_first_token": 6.047399983799551e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "9fc9de25-4b5e-42d4-874e-0e2c57eddb1a",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789141983648,
+          "owner": 139789137344192,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "adapter": 139789128344080,
+          "agent": 139789141502880,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789128343760,
+          "errors": [],
+          "executor": 139789128346640,
+          "form": "factory",
+          "id": "factory-B",
+          "identity": "trial:B",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "2c86398f-64a6-44c1-9f7a-341314e89c63",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789128346960,
+          "owner": 139789127902912,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "adapter": 139789128526544,
+          "agent": 139789141995072,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789128526224,
+          "errors": [],
+          "executor": 139789128529104,
+          "form": "module-agent",
+          "id": "module-A",
+          "identity": "module:A",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "0470a3d5-55a7-497d-8010-1eaf07bc0dd7",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789128529424,
+          "owner": 139789119510208,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "adapter": 139789128526544,
+          "agent": 139789141995072,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789128526224,
+          "errors": [],
+          "executor": 139789128529104,
+          "form": "module-agent",
+          "id": "module-A-again",
+          "identity": "module:A",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": true,
+              "id": "0470a3d5-55a7-497d-8010-1eaf07bc0dd7",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792181073,
+              "from_history": true,
+              "id": "289820e6-0ec8-43aa-b45f-90ea357873a1",
+              "metrics": {
+                "time_to_first_token": 2.9982998967170715e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "dcfaf17d-3438-4a9c-8f76-2e9aacb763fd",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789128529424,
+          "owner": 139789119510208,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "form": "module-agent",
+          "id": "module-B-reject",
+          "identity": "module:B",
+          "rejected": "ValueError('mutable singleton alias already owned by module:A; no cloning/serialization fallback')"
+        },
+        {
+          "adapter": 139789128784848,
+          "agent": 139789141999104,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789128362464,
+          "errors": [],
+          "executor": 139789128364896,
+          "form": "singleton-factory",
+          "id": "singleton-A",
+          "identity": "singleton:A",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "ace41eb9-049c-455f-9fcd-db44a9e4c224",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789128365200,
+          "owner": 139788896167616,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "form": "singleton-factory",
+          "id": "singleton-B-reject",
+          "identity": "singleton:B",
+          "rejected": "ValueError('mutable singleton alias already owned by singleton:A; no cloning/serialization fallback')"
+        },
+        {
+          "adapter": 139789110176144,
+          "agent": 139789110542752,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789128366720,
+          "errors": [],
+          "executor": 139789110560016,
+          "form": "local-resources",
+          "id": "local",
+          "identity": "local:A",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "818ee615-0997-46c9-828c-d82ac09e9a85",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789110560320,
+          "owner": 139788879382208,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "adapter": 139789110176144,
+          "agent": 139789110542752,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789128366720,
+          "errors": [],
+          "executor": 139789110560016,
+          "form": "local-resources",
+          "id": "local-again",
+          "identity": "local:A",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": true,
+              "id": "818ee615-0997-46c9-828c-d82ac09e9a85",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline response",
+              "created_at": 1792181073,
+              "from_history": true,
+              "id": "2c074ab6-60cb-47d0-b61f-2b85728a6130",
+              "metrics": {
+                "time_to_first_token": 4.143899968767073e-05
+              },
+              "role": "assistant",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "8c71f617-1dbf-4e21-b339-85361a267b3d",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789110560320,
+          "owner": 139788879382208,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "adapter": 139789110633936,
+          "agent": 139789110543760,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789110203824,
+          "errors": [],
+          "executor": 139789110206416,
+          "form": "import-thread",
+          "id": "import-thread-A",
+          "identity": "import-thread:A",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "offline",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "d22516b6-ec05-4b5a-bb17-fa79d043ab1e",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789110206704,
+          "owner": 139788870989504,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "form": "import-thread",
+          "id": "import-thread-B-reject",
+          "identity": "import-thread:B",
+          "rejected": "RuntimeError('module resource belongs to its import thread; cannot reuse on another owner')"
+        },
+        {
+          "form": "parent-state",
+          "id": "parent-reject",
+          "identity": "parent:A",
+          "rejected": "RuntimeError('parent-only global/resource absent in spawned worker; initialize locally')"
+        },
+        {
+          "form": "running-loop",
+          "id": "loop-reject",
+          "identity": "loop:A",
+          "rejected": "RuntimeError('no running event loop')"
+        },
+        {
+          "form": "alternate-store",
+          "id": "alternate-store",
+          "identity": "alternate-store",
+          "rejected": "ValueError('unsupported trusted-extension contract: alternate-store')"
+        },
+        {
+          "form": "async-factory",
+          "id": "async-factory",
+          "identity": "async-factory",
+          "rejected": "ValueError('unsupported trusted-extension contract: async-factory')"
+        },
+        {
+          "form": "raw-engine",
+          "id": "raw-engine",
+          "identity": "raw-engine",
+          "rejected": "ValueError('unsupported trusted-extension contract: raw-engine')"
+        },
+        {
+          "form": "untracked",
+          "id": "untracked",
+          "identity": "untracked",
+          "rejected": "ValueError('unsupported trusted-extension contract: untracked')"
+        },
+        {
+          "adapter": 139789110885776,
+          "agent": 139789110545104,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789110162528,
+          "errors": [],
+          "executor": 139789110164976,
+          "form": "factory",
+          "id": "stateless:invocation-1",
+          "identity": "stateless:invocation-1",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "cb8eea9d-2b92-49d7-8dc9-6474d4303d2d",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789110165248,
+          "owner": 139788325725888,
+          "pid": 47385,
+          "success": true
+        },
+        {
+          "adapter": 139789110640336,
+          "agent": 139789110544432,
+          "agno_status": "RunStatus.completed",
+          "engine": 139789110158992,
+          "errors": [],
+          "executor": 139789110161168,
+          "form": "factory",
+          "id": "stateless:invocation-2",
+          "identity": "stateless:invocation-2",
+          "manager": 139789216596896,
+          "messages": [
+            {
+              "content": "overlap",
+              "created_at": 1792181073,
+              "from_history": false,
+              "id": "7593a840-d965-4757-94e4-f9ae080a1bf0",
+              "role": "user",
+              "stop_after_tool_call": false
+            }
+          ],
+          "model": 139789110161440,
+          "owner": 139788317333184,
+          "pid": 47385,
+          "success": true
+        }
+      ]
+    },
+    "tool": {
+      "events": [
+        {
+          "command": {
+            "fault": null,
+            "form": "tool",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 140410914600640,
+          "pid": 47434,
+          "seq": 1
+        },
+        {
+          "form": "tool",
+          "kind": "module-import",
+          "pid": 47434,
+          "seq": 2,
+          "thread": 140410914600640
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/tool/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 140410915026464,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 140410914600640,
+          "pid": 47434,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 140410915505888,
+          "pid": 47434,
+          "resources": false,
+          "seq": 4,
+          "thread": 140410914600640
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "tool offline tool fact",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 8
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 9
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 10
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_user_memory",
+          "seq": 11
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 16
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 17
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 18,
+          "success": true
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": null,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ],
+        [
+          "trial:extension",
+          "\"tool offline tool fact\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47434,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14067
+          ],
+          [
+            41,
+            14068
+          ],
+          [
+            41,
+            14076
+          ]
+        ]
+      },
+      "results": [
+        {
+          "adapter": 140410915026800,
+          "agent": 140410915505888,
+          "agno_status": "RunStatus.completed",
+          "engine": 140410915026464,
+          "errors": [],
+          "executor": 140410915505552,
+          "form": "tool",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 140410915505216,
+          "messages": [
+            {
+              "content": "You have the capability to retain memories from previous interactions with the user, but have not had any interactions with the user yet.",
+              "created_at": 1792181075,
+              "from_history": false,
+              "id": "3d12991a-a4c7-494b-a52f-927ff91e29a4",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181075,
+              "from_history": false,
+              "id": "0c9459c1-2029-4c50-ba48-83544319aa36",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "created_at": 1792181075,
+              "from_history": false,
+              "id": "91c21c92-8730-429a-acc4-46ccf6836044",
+              "role": "assistant",
+              "stop_after_tool_call": false,
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"task\":\"offline tool fact\"}",
+                    "name": "remember_fixture"
+                  },
+                  "id": "admission-tool",
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "content": "remembered",
+              "created_at": 1792181075,
+              "from_history": false,
+              "id": "58495e2e-e227-437a-8e15-003573999255",
+              "role": "tool",
+              "stop_after_tool_call": false,
+              "tool_args": {
+                "task": "offline tool fact"
+              },
+              "tool_call_error": false,
+              "tool_call_id": "admission-tool",
+              "tool_name": "remember_fixture"
+            }
+          ],
+          "model": 140410915504544,
+          "owner": 140410914600640,
+          "pid": 47434,
+          "success": true
+        }
+      ]
+    },
+    "tool-fault-missing": {
+      "events": [
+        {
+          "command": {
+            "fault": "upsert_user_memory:missing",
+            "form": "tool",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 139765167945408,
+          "pid": 47442,
+          "seq": 1
+        },
+        {
+          "form": "tool",
+          "kind": "module-import",
+          "pid": 47442,
+          "seq": 2,
+          "thread": 139765167945408
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/tool-fault-missing/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139765168436768,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139765167945408,
+          "pid": 47442,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 139765168899808,
+          "pid": 47442,
+          "resources": false,
+          "seq": 4,
+          "thread": 139765167945408
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "tool offline tool fact",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 8
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 9
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 10
+        },
+        {
+          "error": "RuntimeError('required upsert returned no row')",
+          "gate": true,
+          "id": "extension",
+          "kind": "db-error",
+          "method": "upsert_user_memory",
+          "seq": 11
+        },
+        {
+          "error": "RuntimeError('required upsert returned no row')",
+          "id": "extension",
+          "kind": "failure-latch",
+          "method": "upsert_user_memory",
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 16
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 17
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 18
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 19,
+          "success": false
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": null,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47442,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14101
+          ],
+          [
+            41,
+            14102
+          ],
+          [
+            41,
+            14109
+          ]
+        ]
+      },
+      "results": [
+        {
+          "adapter": 139765168437104,
+          "agent": 139765168899808,
+          "agno_status": "RunStatus.completed",
+          "engine": 139765168436768,
+          "errors": [
+            {
+              "error": "RuntimeError('required upsert returned no row')",
+              "method": "upsert_user_memory"
+            }
+          ],
+          "executor": 139765168899472,
+          "form": "tool",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 139765168899136,
+          "messages": [
+            {
+              "content": "You have the capability to retain memories from previous interactions with the user, but have not had any interactions with the user yet.",
+              "created_at": 1792181076,
+              "from_history": false,
+              "id": "895025b1-31f1-494b-bd17-8f52292ab9e6",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181076,
+              "from_history": false,
+              "id": "15c54ef9-3c21-47ab-9b02-31ef6dde06db",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "created_at": 1792181076,
+              "from_history": false,
+              "id": "6ff263ab-4e1e-427d-b696-91bc2a31585b",
+              "role": "assistant",
+              "stop_after_tool_call": false,
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"task\":\"offline tool fact\"}",
+                    "name": "remember_fixture"
+                  },
+                  "id": "admission-tool",
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "content": "remembered",
+              "created_at": 1792181076,
+              "from_history": false,
+              "id": "080d849a-e5c1-4ddd-982d-439022e33154",
+              "role": "tool",
+              "stop_after_tool_call": false,
+              "tool_args": {
+                "task": "offline tool fact"
+              },
+              "tool_call_error": false,
+              "tool_call_id": "admission-tool",
+              "tool_name": "remember_fixture"
+            }
+          ],
+          "model": 139765168898464,
+          "owner": 139765167945408,
+          "pid": 47442,
+          "success": false
+        },
+        {
+          "id": "late",
+          "rejected": "failure latch closed admission"
+        }
+      ]
+    },
+    "tool-fault-raise": {
+      "events": [
+        {
+          "command": {
+            "fault": "upsert_user_memory:raise",
+            "form": "tool",
+            "id": "extension",
+            "identity": "trial:extension"
+          },
+          "id": "extension",
+          "kind": "command",
+          "seq": 0
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "operation-start",
+          "owner": 139677576197824,
+          "pid": 47438,
+          "seq": 1
+        },
+        {
+          "form": "tool",
+          "kind": "module-import",
+          "pid": 47438,
+          "seq": 2,
+          "thread": 139677576197824
+        },
+        {
+          "database_list": [
+            [
+              0,
+              "main",
+              "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2/tool-fault-raise/PROTOTYPE-wipe-me.sqlite3"
+            ]
+          ],
+          "engine": 139677576689184,
+          "id": "extension",
+          "journal_mode": "wal",
+          "kind": "adapter-opened",
+          "owner": 139677576197824,
+          "pid": 47438,
+          "seq": 3,
+          "synchronous": 2
+        },
+        {
+          "id": "extension",
+          "kind": "constructed",
+          "object": 139677577152224,
+          "pid": 47438,
+          "resources": false,
+          "seq": 4,
+          "thread": 139677576197824
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 5
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 6
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "extension-enter",
+          "label": "tool offline tool fact",
+          "seq": 7
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "get_user_memories",
+          "seq": 8
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "get_user_memories",
+          "seq": 9
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_user_memory",
+          "seq": 10
+        },
+        {
+          "error": "OSError('PROTOTYPE required write exception')",
+          "gate": true,
+          "id": "extension",
+          "kind": "db-error",
+          "method": "upsert_user_memory",
+          "seq": 11
+        },
+        {
+          "error": "OSError('PROTOTYPE required write exception')",
+          "id": "extension",
+          "kind": "failure-latch",
+          "method": "upsert_user_memory",
+          "seq": 12
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_session",
+          "seq": 13
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_session",
+          "seq": 14
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-attempt",
+          "method": "upsert_run",
+          "seq": 15
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "db-ack",
+          "method": "upsert_run",
+          "seq": 16
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "foreground-return",
+          "owned": 0,
+          "seq": 17
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "drained",
+          "owned": 0,
+          "seq": 18
+        },
+        {
+          "gate": true,
+          "id": "extension",
+          "kind": "terminal",
+          "seq": 19,
+          "success": false
+        }
+      ],
+      "exitcode": 0,
+      "external_gate_denied_while_background": null,
+      "files_before_close": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "gate_released": true,
+      "inspection_pragmas": {
+        "compile_options": [
+          [
+            "ATOMIC_INTRINSICS=1"
+          ],
+          [
+            "COMPILER=gcc-16.2.1 20260810"
+          ],
+          [
+            "DEFAULT_AUTOVACUUM"
+          ],
+          [
+            "DEFAULT_CACHE_SIZE=-2000"
+          ],
+          [
+            "DEFAULT_FILE_FORMAT=4"
+          ],
+          [
+            "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+          ],
+          [
+            "DEFAULT_MMAP_SIZE=0"
+          ],
+          [
+            "DEFAULT_PAGE_SIZE=4096"
+          ],
+          [
+            "DEFAULT_PCACHE_INITSZ=20"
+          ],
+          [
+            "DEFAULT_RECURSIVE_TRIGGERS"
+          ],
+          [
+            "DEFAULT_SECTOR_SIZE=4096"
+          ],
+          [
+            "DEFAULT_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+          ],
+          [
+            "DEFAULT_WAL_SYNCHRONOUS=2"
+          ],
+          [
+            "DEFAULT_WORKER_THREADS=0"
+          ],
+          [
+            "DIRECT_OVERFLOW_READ"
+          ],
+          [
+            "ENABLE_COLUMN_METADATA"
+          ],
+          [
+            "ENABLE_DBSTAT_VTAB"
+          ],
+          [
+            "ENABLE_FTS3"
+          ],
+          [
+            "ENABLE_FTS3_PARENTHESIS"
+          ],
+          [
+            "ENABLE_FTS4"
+          ],
+          [
+            "ENABLE_FTS5"
+          ],
+          [
+            "ENABLE_MATH_FUNCTIONS"
+          ],
+          [
+            "ENABLE_PERCENTILE"
+          ],
+          [
+            "ENABLE_PREUPDATE_HOOK"
+          ],
+          [
+            "ENABLE_RTREE"
+          ],
+          [
+            "ENABLE_SESSION"
+          ],
+          [
+            "ENABLE_STAT4"
+          ],
+          [
+            "ENABLE_STMTVTAB"
+          ],
+          [
+            "ENABLE_UNLOCK_NOTIFY"
+          ],
+          [
+            "HAVE_ISNAN"
+          ],
+          [
+            "MALLOC_SOFT_LIMIT=1024"
+          ],
+          [
+            "MAX_ATTACHED=10"
+          ],
+          [
+            "MAX_COLUMN=2000"
+          ],
+          [
+            "MAX_COMPOUND_SELECT=500"
+          ],
+          [
+            "MAX_DEFAULT_PAGE_SIZE=8192"
+          ],
+          [
+            "MAX_EXPR_DEPTH=10000"
+          ],
+          [
+            "MAX_FUNCTION_ARG=1000"
+          ],
+          [
+            "MAX_LENGTH=1000000000"
+          ],
+          [
+            "MAX_LIKE_PATTERN_LENGTH=50000"
+          ],
+          [
+            "MAX_MMAP_SIZE=0x7fff0000"
+          ],
+          [
+            "MAX_PAGE_COUNT=0xfffffffe"
+          ],
+          [
+            "MAX_PAGE_SIZE=65536"
+          ],
+          [
+            "MAX_SCHEMA=10000000"
+          ],
+          [
+            "MAX_SQL_LENGTH=1000000000"
+          ],
+          [
+            "MAX_TRIGGER_DEPTH=1000"
+          ],
+          [
+            "MAX_VARIABLE_NUMBER=250000"
+          ],
+          [
+            "MAX_VDBE_OP=250000000"
+          ],
+          [
+            "MAX_WORKER_THREADS=8"
+          ],
+          [
+            "MUTEX_PTHREADS"
+          ],
+          [
+            "SECURE_DELETE"
+          ],
+          [
+            "SYSTEM_MALLOC"
+          ],
+          [
+            "TEMP_STORE=1"
+          ],
+          [
+            "THREADSAFE=1"
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ],
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ]
+      },
+      "memory_rows": [
+        [
+          "A",
+          "\"seed\""
+        ],
+        [
+          "foreign",
+          "\"seed\""
+        ],
+        [
+          "trial:A",
+          "\"seed\""
+        ]
+      ],
+      "pending": 0,
+      "ready": {
+        "pid": 47438,
+        "ready": true,
+        "root_pin": [
+          [
+            41,
+            14085
+          ],
+          [
+            41,
+            14086
+          ],
+          [
+            41,
+            14093
+          ]
+        ]
+      },
+      "results": [
+        {
+          "adapter": 139677576689520,
+          "agent": 139677577152224,
+          "agno_status": "RunStatus.completed",
+          "engine": 139677576689184,
+          "errors": [
+            {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            }
+          ],
+          "executor": 139677577151888,
+          "form": "tool",
+          "id": "extension",
+          "identity": "trial:extension",
+          "manager": 139677577151552,
+          "messages": [
+            {
+              "content": "You have the capability to retain memories from previous interactions with the user, but have not had any interactions with the user yet.",
+              "created_at": 1792181076,
+              "from_history": false,
+              "id": "b72db634-b54e-4b69-8620-b805a4a44e6d",
+              "role": "system",
+              "stop_after_tool_call": false
+            },
+            {
+              "content": "offline",
+              "created_at": 1792181076,
+              "from_history": false,
+              "id": "17470b65-a8ba-4987-91ed-d6d325aa5c4b",
+              "role": "user",
+              "stop_after_tool_call": false
+            },
+            {
+              "created_at": 1792181076,
+              "from_history": false,
+              "id": "1469c62c-450e-46c9-92f3-91c188c94161",
+              "role": "assistant",
+              "stop_after_tool_call": false,
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"task\":\"offline tool fact\"}",
+                    "name": "remember_fixture"
+                  },
+                  "id": "admission-tool",
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "content": "remembered",
+              "created_at": 1792181076,
+              "from_history": false,
+              "id": "2e78eead-77c2-4d63-8410-213bf37c3b29",
+              "role": "tool",
+              "stop_after_tool_call": false,
+              "tool_args": {
+                "task": "offline tool fact"
+              },
+              "tool_call_error": false,
+              "tool_call_id": "admission-tool",
+              "tool_name": "remember_fixture"
+            }
+          ],
+          "model": 139677577150880,
+          "owner": 139677576197824,
+          "pid": 47438,
+          "success": false
+        },
+        {
+          "id": "late",
+          "rejected": "failure latch closed admission"
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "coordinator_pid": 47329,
+    "declared_rejected_forms": [
+      "alternate-store",
+      "async-factory",
+      "raw-engine",
+      "untracked"
+    ],
+    "packages": {
+      "agno": "3.0.11",
+      "sqlalchemy": "2.1.0"
+    },
+    "platform": "Linux-7.2.10-arch1-1-x86_64-with-glibc2.44",
+    "probed_entrypoint_forms": [
+      "background",
+      "factory",
+      "hooks",
+      "import-thread",
+      "local-resources",
+      "module-agent",
+      "parent-state",
+      "running-loop",
+      "singleton-factory",
+      "tool"
+    ],
+    "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+    "scratch_root": "/tmp/opencode/gh73/final/PROTOTYPE-wipe-me-eligibility-ekfwvmk2",
+    "sqlite": "3.54.0",
+    "start_method": "spawn"
+  }
+}
