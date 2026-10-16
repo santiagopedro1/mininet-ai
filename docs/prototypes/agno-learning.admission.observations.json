@@ -1,0 +1,5735 @@
+{
+  "verdict": "PARTIAL; live human review required",
+  "question": "Can the per-run worker stop new admission at the first required-persistence failure while other operations are active, safely drain or contain admitted work, and report failure without releasing the gate early, losing partial effects, or serializing away independent concurrency?",
+  "scratch": "/tmp/opencode/af-run/PROTOTYPE-wipe-me-admission-2ahb3ic2",
+  "provenance": {
+    "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+    "platform": "Linux-7.2.10-arch1-1-x86_64-with-glibc2.44",
+    "sqlite": "3.54.0",
+    "sqlite_source_id": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcalt1",
+    "sqlite_compile_options": [
+      [
+        "ATOMIC_INTRINSICS=1"
+      ],
+      [
+        "COMPILER=gcc-16.2.1 20260810"
+      ],
+      [
+        "DEFAULT_AUTOVACUUM"
+      ],
+      [
+        "DEFAULT_CACHE_SIZE=-2000"
+      ],
+      [
+        "DEFAULT_FILE_FORMAT=4"
+      ],
+      [
+        "DEFAULT_JOURNAL_SIZE_LIMIT=-1"
+      ],
+      [
+        "DEFAULT_MMAP_SIZE=0"
+      ],
+      [
+        "DEFAULT_PAGE_SIZE=4096"
+      ],
+      [
+        "DEFAULT_PCACHE_INITSZ=20"
+      ],
+      [
+        "DEFAULT_RECURSIVE_TRIGGERS"
+      ],
+      [
+        "DEFAULT_SECTOR_SIZE=4096"
+      ],
+      [
+        "DEFAULT_SYNCHRONOUS=2"
+      ],
+      [
+        "DEFAULT_WAL_AUTOCHECKPOINT=1000"
+      ],
+      [
+        "DEFAULT_WAL_SYNCHRONOUS=2"
+      ],
+      [
+        "DEFAULT_WORKER_THREADS=0"
+      ],
+      [
+        "DIRECT_OVERFLOW_READ"
+      ],
+      [
+        "ENABLE_COLUMN_METADATA"
+      ],
+      [
+        "ENABLE_DBSTAT_VTAB"
+      ],
+      [
+        "ENABLE_FTS3"
+      ],
+      [
+        "ENABLE_FTS3_PARENTHESIS"
+      ],
+      [
+        "ENABLE_FTS4"
+      ],
+      [
+        "ENABLE_FTS5"
+      ],
+      [
+        "ENABLE_MATH_FUNCTIONS"
+      ],
+      [
+        "ENABLE_PERCENTILE"
+      ],
+      [
+        "ENABLE_PREUPDATE_HOOK"
+      ],
+      [
+        "ENABLE_RTREE"
+      ],
+      [
+        "ENABLE_SESSION"
+      ],
+      [
+        "ENABLE_STAT4"
+      ],
+      [
+        "ENABLE_STMTVTAB"
+      ],
+      [
+        "ENABLE_UNLOCK_NOTIFY"
+      ],
+      [
+        "HAVE_ISNAN"
+      ],
+      [
+        "MALLOC_SOFT_LIMIT=1024"
+      ],
+      [
+        "MAX_ATTACHED=10"
+      ],
+      [
+        "MAX_COLUMN=2000"
+      ],
+      [
+        "MAX_COMPOUND_SELECT=500"
+      ],
+      [
+        "MAX_DEFAULT_PAGE_SIZE=8192"
+      ],
+      [
+        "MAX_EXPR_DEPTH=10000"
+      ],
+      [
+        "MAX_FUNCTION_ARG=1000"
+      ],
+      [
+        "MAX_LENGTH=1000000000"
+      ],
+      [
+        "MAX_LIKE_PATTERN_LENGTH=50000"
+      ],
+      [
+        "MAX_MMAP_SIZE=0x7fff0000"
+      ],
+      [
+        "MAX_PAGE_COUNT=0xfffffffe"
+      ],
+      [
+        "MAX_PAGE_SIZE=65536"
+      ],
+      [
+        "MAX_SCHEMA=10000000"
+      ],
+      [
+        "MAX_SQL_LENGTH=1000000000"
+      ],
+      [
+        "MAX_TRIGGER_DEPTH=1000"
+      ],
+      [
+        "MAX_VARIABLE_NUMBER=250000"
+      ],
+      [
+        "MAX_VDBE_OP=250000000"
+      ],
+      [
+        "MAX_WORKER_THREADS=8"
+      ],
+      [
+        "MUTEX_PTHREADS"
+      ],
+      [
+        "SECURE_DELETE"
+      ],
+      [
+        "SYSTEM_MALLOC"
+      ],
+      [
+        "TEMP_STORE=1"
+      ],
+      [
+        "THREADSAFE=1"
+      ]
+    ],
+    "packages": {
+      "hyperframe": "6.1.0",
+      "ollama": "0.6.2",
+      "annotated-types": "0.7.0",
+      "rpds-py": "2026.6.3",
+      "typing-inspection": "0.4.2",
+      "truststore": "0.10.4",
+      "sniffio": "1.3.1",
+      "certifi": "2026.7.22",
+      "aiosqlite": "0.22.1",
+      "agnoctl": "0.2.1",
+      "referencing": "0.37.0",
+      "nodeenv": "1.10.0",
+      "typing_extensions": "4.16.0",
+      "docstring_parser": "0.18.0",
+      "h11": "0.16.0",
+      "jsonschema-specifications": "2025.9.1",
+      "mininet-ai": "0.1.0",
+      "hpack": "4.2.0",
+      "httpcore2": "2.13.1",
+      "httpx2": "2.13.1",
+      "mdurl": "0.1.2",
+      "python-dotenv": "1.2.3",
+      "jsonschema": "4.26.0",
+      "pydantic-settings": "2.15.0",
+      "pluggy": "1.6.0",
+      "annotated-doc": "0.0.4",
+      "anyio": "4.15.1",
+      "shellingham": "1.5.4",
+      "idna": "3.20",
+      "iniconfig": "2.3.0",
+      "h2": "4.4.1",
+      "httpx": "0.28.1",
+      "httpcore": "1.0.9",
+      "questionary": "2.1.1",
+      "pydantic": "2.13.3",
+      "mininet": "2.3.0.dev6",
+      "typer": "0.25.0",
+      "attrs": "26.1.0",
+      "packaging": "26.3",
+      "jiter": "0.17.0",
+      "rich": "15.0.0",
+      "markdown-it-py": "4.0.0",
+      "click": "8.3.3",
+      "wcwidth": "0.9.1",
+      "PyYAML": "6.0.3",
+      "pydantic_core": "2.46.3",
+      "greenlet": "3.5.6",
+      "pytest": "9.1.1",
+      "ruff": "0.16.9",
+      "prompt_toolkit": "3.0.53",
+      "Pygments": "2.20.0",
+      "setuptools": "84.0.0",
+      "SQLAlchemy": "2.1.0",
+      "agno": "3.0.11",
+      "openai": "3.19.2",
+      "pyright": "1.1.414"
+    },
+    "sources": {
+      "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/admission_failure_prototype.py": "4e0d5fe5443dbd62887d24ba37564549f4d6bd6a8ad599294ed0ae76dd82f064",
+      "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/learning_gate_prototype.py": "8717c384c1f10acc6688165c3c1721ff91ad4ed603a1ccfd2fe6f1d03524bc64",
+      "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/storage_prototype.py": "e9bbd1c69c03499ed47d52e30ec52327edc6cdc0d9f5e6a605670c997c0b82a0",
+      "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_storage_prototype.py": "42cd9e9649cfd95f6bd11fba4f0f88dd1fd1d8319455aedbcfbb29486ea43db5",
+      "/home/pedro/projects/mininet-ai/mininet-ai/.venv/lib/python3.14/site-packages/agno/memory/manager.py": "4121911b91b3015f460933a5ceab9512ec306dda62b7d6f60b500f85162b727d",
+      "/home/pedro/projects/mininet-ai/mininet-ai/.venv/lib/python3.14/site-packages/agno/db/sqlite/sqlite.py": "135f51b42482c9cd15be5268927791fd7b4e96b6cc9ad9d12f91866b22a56cdc"
+    }
+  },
+  "groups": {
+    "queued/proposed": {
+      "replies": [
+        {
+          "id": "A",
+          "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140611748361920,
+          "agent_object": 140611749216336,
+          "adapter_object": 140611748803456,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:48",
+              "updated_at": "2026-10-16T16:36:48",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "success": false,
+          "run_failed": true,
+          "dispatch": "refused",
+          "rejected": "queued work refused after failure latch"
+        },
+        {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      ],
+      "replies_by_id": {
+        "A": {
+          "id": "A",
+          "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140611748361920,
+          "agent_object": 140611749216336,
+          "adapter_object": 140611748803456,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:48",
+              "updated_at": "2026-10-16T16:36:48",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        "C": {
+          "id": "C",
+          "success": false,
+          "run_failed": true,
+          "dispatch": "refused",
+          "rejected": "queued work refused after failure latch"
+        },
+        "D": {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "A",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "A",
+          "kind": "db-error",
+          "payload": {
+            "error": "OSError('PROTOTYPE required write exception')",
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "A",
+          "kind": "first-failure",
+          "payload": {
+            "entry": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            },
+            "executing": 1,
+            "operation": "A",
+            "queued": 1,
+            "source": "adapter"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "A",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140611748803456,
+            "agent_object": 140611749216336,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [
+              {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_user_memory"
+              }
+            ],
+            "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+            "id": "A",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-16T16:36:48",
+                "memory": "seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-16T16:36:48",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140611748361920,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": true,
+            "success": false,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "C",
+          "kind": "dispatch-denied",
+          "payload": {
+            "command_hash": "3598d480e786a43db25f1e577c335a552949da3eead251a4d9baa6ed6b7b16ab"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "D",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "a87e554e314ff33b943a16789986ecfc708b42b9f7e9d0303ed77b5686eac670",
+            "latch": true
+          }
+        }
+      ],
+      "scopes": {
+        "trial:A": [
+          {
+            "memory_id": "seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:48",
+            "updated_at": "2026-10-16T16:36:48",
+            "user_id": "trial:A"
+          }
+        ],
+        "trial:B": [],
+        "trial:C": [],
+        "A": [
+          {
+            "memory_id": "agent-seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:48",
+            "updated_at": "2026-10-16T16:36:48",
+            "user_id": "A"
+          }
+        ],
+        "B": [],
+        "C": []
+      },
+      "exitcode": 0,
+      "live_files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "pragmas_inspection_connection": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ]
+      }
+    },
+    "queued/no-dispatch": {
+      "replies": [
+        {
+          "id": "A",
+          "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 139939251484352,
+          "agent_object": 139939255648336,
+          "adapter_object": 139939255235456,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": false,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:49",
+              "updated_at": "2026-10-16T16:36:49",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "hash": "3598d480e786a43db25f1e577c335a552949da3eead251a4d9baa6ed6b7b16ab",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139939251484352,
+          "agent_object": 139939255232096,
+          "adapter_object": 139939242132176,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": false,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        },
+        {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      ],
+      "replies_by_id": {
+        "A": {
+          "id": "A",
+          "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 139939251484352,
+          "agent_object": 139939255648336,
+          "adapter_object": 139939255235456,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": false,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:49",
+              "updated_at": "2026-10-16T16:36:49",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        "C": {
+          "id": "C",
+          "hash": "3598d480e786a43db25f1e577c335a552949da3eead251a4d9baa6ed6b7b16ab",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139939251484352,
+          "agent_object": 139939255232096,
+          "adapter_object": 139939242132176,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": false,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        },
+        "D": {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "A",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "A",
+          "kind": "db-error",
+          "payload": {
+            "error": "OSError('PROTOTYPE required write exception')",
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "A",
+          "kind": "first-failure",
+          "payload": {
+            "entry": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            },
+            "executing": 1,
+            "operation": "A",
+            "queued": 1,
+            "source": "adapter"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "A",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 139939255235456,
+            "agent_object": 139939255648336,
+            "agno_status": "n/a",
+            "dispatch_check": false,
+            "errors": [
+              {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_user_memory"
+              }
+            ],
+            "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+            "id": "A",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-16T16:36:49",
+                "memory": "seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-16T16:36:49",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 139939251484352,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": true,
+            "success": false,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "C",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "3598d480e786a43db25f1e577c335a552949da3eead251a4d9baa6ed6b7b16ab",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "C",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "C",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "C",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "C",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "C",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 139939242132176,
+            "agent_object": 139939255232096,
+            "agno_status": "n/a",
+            "dispatch_check": false,
+            "errors": [],
+            "hash": "3598d480e786a43db25f1e577c335a552949da3eead251a4d9baa6ed6b7b16ab",
+            "id": "C",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 139939251484352,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "D",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "a87e554e314ff33b943a16789986ecfc708b42b9f7e9d0303ed77b5686eac670",
+            "latch": true
+          }
+        },
+        {
+          "seq": 15,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
+          }
+        }
+      ],
+      "scopes": {
+        "trial:A": [
+          {
+            "memory_id": "seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:49",
+            "updated_at": "2026-10-16T16:36:49",
+            "user_id": "trial:A"
+          }
+        ],
+        "trial:B": [],
+        "trial:C": [],
+        "A": [
+          {
+            "memory_id": "agent-seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:49",
+            "updated_at": "2026-10-16T16:36:49",
+            "user_id": "A"
+          }
+        ],
+        "B": [],
+        "C": []
+      },
+      "exitcode": 0,
+      "live_files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "pragmas_inspection_connection": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ]
+      }
+    },
+    "arm-timing/write": {
+      "replies": [
+        {
+          "id": "A",
+          "hash": "00fd3748b63b2c906e672c87ee65d80e5cc4219b7cd44f2ba06e90a96b45774b",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139659778717376,
+          "agent_object": 139659783143504,
+          "adapter_object": 139659782730624,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:49",
+              "updated_at": "2026-10-16T16:36:49",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      ],
+      "replies_by_id": {
+        "A": {
+          "id": "A",
+          "hash": "00fd3748b63b2c906e672c87ee65d80e5cc4219b7cd44f2ba06e90a96b45774b",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139659778717376,
+          "agent_object": 139659783143504,
+          "adapter_object": 139659782730624,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:49",
+              "updated_at": "2026-10-16T16:36:49",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        "D": {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "A",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "00fd3748b63b2c906e672c87ee65d80e5cc4219b7cd44f2ba06e90a96b45774b",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "A",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 7,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "A",
+          "kind": "db-error",
+          "payload": {
+            "error": "OSError('PROTOTYPE required write exception')",
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "A",
+          "kind": "first-failure",
+          "payload": {
+            "entry": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            },
+            "executing": 1,
+            "operation": "A",
+            "queued": 0,
+            "source": "adapter"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "A",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "A"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "D",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "fb5532d456379e075849533e70b2caadf9349080d8f5b8834109531bd6ea86df",
+            "latch": true
+          }
+        },
+        {
+          "seq": 18,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "A",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 139659782730624,
+            "agent_object": 139659783143504,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [
+              {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_user_memory"
+              }
+            ],
+            "hash": "00fd3748b63b2c906e672c87ee65d80e5cc4219b7cd44f2ba06e90a96b45774b",
+            "id": "A",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-16T16:36:49",
+                "memory": "seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-16T16:36:49",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 1,
+            "owner": 139659778717376,
+            "profile": "automatic",
+            "response": "offline response",
+            "run_failed": true,
+            "success": false,
+            "user": "trial:A"
+          }
+        }
+      ],
+      "scopes": {
+        "trial:A": [
+          {
+            "memory_id": "seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:49",
+            "updated_at": "2026-10-16T16:36:49",
+            "user_id": "trial:A"
+          }
+        ],
+        "trial:B": [],
+        "trial:C": [],
+        "A": [
+          {
+            "memory_id": "agent-seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:49",
+            "updated_at": "2026-10-16T16:36:49",
+            "user_id": "A"
+          }
+        ],
+        "B": [],
+        "C": []
+      },
+      "exitcode": 0,
+      "live_files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "pragmas_inspection_connection": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ]
+      }
+    },
+    "arm-timing/finalize": {
+      "replies": [
+        {
+          "id": "A",
+          "hash": "00fd3748b63b2c906e672c87ee65d80e5cc4219b7cd44f2ba06e90a96b45774b",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139672564004544,
+          "agent_object": 139672564875344,
+          "adapter_object": 139672564462464,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "finalize",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:50",
+              "updated_at": "2026-10-16T16:36:50",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "D",
+          "hash": "fb5532d456379e075849533e70b2caadf9349080d8f5b8834109531bd6ea86df",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139672470681280,
+          "agent_object": 139672564885088,
+          "adapter_object": 139672545885584,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "finalize",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        }
+      ],
+      "replies_by_id": {
+        "A": {
+          "id": "A",
+          "hash": "00fd3748b63b2c906e672c87ee65d80e5cc4219b7cd44f2ba06e90a96b45774b",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139672564004544,
+          "agent_object": 139672564875344,
+          "adapter_object": 139672564462464,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "finalize",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:50",
+              "updated_at": "2026-10-16T16:36:50",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        "D": {
+          "id": "D",
+          "hash": "fb5532d456379e075849533e70b2caadf9349080d8f5b8834109531bd6ea86df",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139672470681280,
+          "agent_object": 139672564885088,
+          "adapter_object": 139672545885584,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "finalize",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        }
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "A",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "00fd3748b63b2c906e672c87ee65d80e5cc4219b7cd44f2ba06e90a96b45774b",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "A",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 7,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "A",
+          "kind": "db-error",
+          "payload": {
+            "error": "OSError('PROTOTYPE required write exception')",
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "A",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "A"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "D",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "fb5532d456379e075849533e70b2caadf9349080d8f5b8834109531bd6ea86df",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "D",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "D",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "D",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "D",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "D",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 139672545885584,
+            "agent_object": 139672564885088,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "fb5532d456379e075849533e70b2caadf9349080d8f5b8834109531bd6ea86df",
+            "id": "D",
+            "latch_mode": "finalize",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 139672470681280,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "A",
+          "kind": "first-failure",
+          "payload": {
+            "entry": {
+              "db_errors": [
+                {
+                  "error": "OSError('PROTOTYPE required write exception')",
+                  "method": "upsert_user_memory"
+                }
+              ],
+              "errors": [
+                {
+                  "error": "OSError('PROTOTYPE required write exception')",
+                  "method": "upsert_user_memory"
+                }
+              ],
+              "route_error": null
+            },
+            "executing": 1,
+            "operation": "A",
+            "queued": 0,
+            "source": "finalize"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 25,
+          "id": "A",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 139672564462464,
+            "agent_object": 139672564875344,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [
+              {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_user_memory"
+              }
+            ],
+            "hash": "00fd3748b63b2c906e672c87ee65d80e5cc4219b7cd44f2ba06e90a96b45774b",
+            "id": "A",
+            "latch_mode": "finalize",
+            "memories": [
+              {
+                "created_at": "2026-10-16T16:36:50",
+                "memory": "seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-16T16:36:50",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 1,
+            "owner": 139672564004544,
+            "profile": "automatic",
+            "response": "offline response",
+            "run_failed": true,
+            "success": false,
+            "user": "trial:A"
+          }
+        }
+      ],
+      "scopes": {
+        "trial:A": [
+          {
+            "memory_id": "seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:50",
+            "updated_at": "2026-10-16T16:36:50",
+            "user_id": "trial:A"
+          }
+        ],
+        "trial:B": [],
+        "trial:C": [],
+        "A": [
+          {
+            "memory_id": "agent-seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:50",
+            "updated_at": "2026-10-16T16:36:50",
+            "user_id": "A"
+          }
+        ],
+        "B": [],
+        "C": []
+      },
+      "exitcode": 0,
+      "live_files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "pragmas_inspection_connection": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ]
+      }
+    },
+    "concurrent/active-sibling": {
+      "replies": [
+        {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        },
+        {
+          "id": "A",
+          "hash": "fac41bc7098f0544f9420c71647bb0e47a53b5f622d13839df02b5899699d977",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140063143884480,
+          "agent_object": 140063144822832,
+          "adapter_object": 140063144536784,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:50",
+              "updated_at": "2026-10-16T16:36:50",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "hash": "70869fa942714d2717913a7d9e5b9fe958552a0e3a0addd9b37e1cbb064d4dd5",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140063135491776,
+          "agent_object": 140063144344752,
+          "adapter_object": 140063144342400,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        }
+      ],
+      "replies_by_id": {
+        "D": {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        },
+        "A": {
+          "id": "A",
+          "hash": "fac41bc7098f0544f9420c71647bb0e47a53b5f622d13839df02b5899699d977",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140063143884480,
+          "agent_object": 140063144822832,
+          "adapter_object": 140063144536784,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:50",
+              "updated_at": "2026-10-16T16:36:50",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        "B": {
+          "id": "B",
+          "hash": "70869fa942714d2717913a7d9e5b9fe958552a0e3a0addd9b37e1cbb064d4dd5",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140063135491776,
+          "agent_object": 140063144344752,
+          "adapter_object": 140063144342400,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        }
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "B",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "70869fa942714d2717913a7d9e5b9fe958552a0e3a0addd9b37e1cbb064d4dd5",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "A",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "fac41bc7098f0544f9420c71647bb0e47a53b5f622d13839df02b5899699d977",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "B",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "B",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "B",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "B"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "A",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 13,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "A",
+          "kind": "db-error",
+          "payload": {
+            "error": "OSError('PROTOTYPE required write exception')",
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "A",
+          "kind": "first-failure",
+          "payload": {
+            "entry": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            },
+            "executing": 2,
+            "operation": "A",
+            "queued": 0,
+            "source": "adapter"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "D",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "c585074e598090393d63564bb7256a2817e94e23dae61cdfdccde1d1a3388fa3",
+            "latch": true
+          }
+        },
+        {
+          "seq": 22,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 25,
+          "id": "A",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140063144536784,
+            "agent_object": 140063144822832,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [
+              {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_user_memory"
+              }
+            ],
+            "hash": "fac41bc7098f0544f9420c71647bb0e47a53b5f622d13839df02b5899699d977",
+            "id": "A",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-16T16:36:50",
+                "memory": "seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-16T16:36:50",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 1,
+            "owner": 140063143884480,
+            "profile": "automatic",
+            "response": "offline response",
+            "run_failed": true,
+            "success": false,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 26,
+          "id": "B",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140063144342400,
+            "agent_object": 140063144344752,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "70869fa942714d2717913a7d9e5b9fe958552a0e3a0addd9b37e1cbb064d4dd5",
+            "id": "B",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140063135491776,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:B"
+          }
+        }
+      ],
+      "scopes": {
+        "trial:A": [
+          {
+            "memory_id": "seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:50",
+            "updated_at": "2026-10-16T16:36:50",
+            "user_id": "trial:A"
+          }
+        ],
+        "trial:B": [],
+        "trial:C": [],
+        "A": [
+          {
+            "memory_id": "agent-seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:50",
+            "updated_at": "2026-10-16T16:36:50",
+            "user_id": "A"
+          }
+        ],
+        "B": [],
+        "C": []
+      },
+      "exitcode": 0,
+      "live_files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "pragmas_inspection_connection": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ]
+      }
+    },
+    "failure-classes": {
+      "upsert_user_memory:raise": {
+        "replies": [
+          {
+            "id": "A",
+            "hash": "7b8387dbb2c3a2cc4ff12965a3681fdde03c053438786466aca13e406210b245",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_user_memory",
+                "error": "OSError('PROTOTYPE required write exception')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 139875248502464,
+            "agent_object": 139875253223504,
+            "adapter_object": 139875252810624,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed",
+                "created_at": "2026-10-16T16:36:51",
+                "updated_at": "2026-10-16T16:36:51",
+                "user_id": "trial:A"
+              }
+            ]
+          },
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "A": {
+            "id": "A",
+            "hash": "7b8387dbb2c3a2cc4ff12965a3681fdde03c053438786466aca13e406210b245",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_user_memory",
+                "error": "OSError('PROTOTYPE required write exception')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 139875248502464,
+            "agent_object": 139875253223504,
+            "adapter_object": 139875252810624,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed",
+                "created_at": "2026-10-16T16:36:51",
+                "updated_at": "2026-10-16T16:36:51",
+                "user_id": "trial:A"
+              }
+            ]
+          },
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "7b8387dbb2c3a2cc4ff12965a3681fdde03c053438786466aca13e406210b245",
+              "profile": "automatic",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_user_memory"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 9,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 10,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 11,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 12,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 13,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 14,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 15,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 16,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 17,
+            "id": "A",
+            "kind": "terminal",
+            "payload": {
+              "actionable_success": false,
+              "adapter_object": 139875252810624,
+              "agent_object": 139875253223504,
+              "agno_status": "n/a",
+              "dispatch_check": true,
+              "errors": [
+                {
+                  "error": "OSError('PROTOTYPE required write exception')",
+                  "method": "upsert_user_memory"
+                }
+              ],
+              "hash": "7b8387dbb2c3a2cc4ff12965a3681fdde03c053438786466aca13e406210b245",
+              "id": "A",
+              "latch_mode": "write",
+              "memories": [
+                {
+                  "created_at": "2026-10-16T16:36:51",
+                  "memory": "seed",
+                  "memory_id": "seed",
+                  "updated_at": "2026-10-16T16:36:51",
+                  "user_id": "trial:A"
+                }
+              ],
+              "memory_free": false,
+              "owned_futures": 1,
+              "owner": 139875248502464,
+              "profile": "automatic",
+              "response": "offline response",
+              "run_failed": true,
+              "success": false,
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 18,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          },
+          {
+            "seq": 19,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:51",
+              "updated_at": "2026-10-16T16:36:51",
+              "user_id": "trial:A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:51",
+              "updated_at": "2026-10-16T16:36:51",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.learning.lock",
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      },
+      "upsert_user_memory:missing": {
+        "replies": [
+          {
+            "id": "A",
+            "hash": "5a58085c2e06c8748217da55e1d9a2376de6a64250067f4134e6daf728f082fd",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_user_memory",
+                "error": "RuntimeError('required upsert returned no row')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 139693323712192,
+            "agent_object": 139693324435536,
+            "adapter_object": 139693324022656,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed",
+                "created_at": "2026-10-16T16:36:51",
+                "updated_at": "2026-10-16T16:36:51",
+                "user_id": "trial:A"
+              }
+            ]
+          },
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "A": {
+            "id": "A",
+            "hash": "5a58085c2e06c8748217da55e1d9a2376de6a64250067f4134e6daf728f082fd",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_user_memory",
+                "error": "RuntimeError('required upsert returned no row')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 139693323712192,
+            "agent_object": 139693324435536,
+            "adapter_object": 139693324022656,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed",
+                "created_at": "2026-10-16T16:36:51",
+                "updated_at": "2026-10-16T16:36:51",
+                "user_id": "trial:A"
+              }
+            ]
+          },
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "5a58085c2e06c8748217da55e1d9a2376de6a64250067f4134e6daf728f082fd",
+              "profile": "automatic",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "RuntimeError('required upsert returned no row')",
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "RuntimeError('required upsert returned no row')",
+                "method": "upsert_user_memory"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 9,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 10,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 11,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 12,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 13,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 14,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 15,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 16,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 17,
+            "id": "A",
+            "kind": "terminal",
+            "payload": {
+              "actionable_success": false,
+              "adapter_object": 139693324022656,
+              "agent_object": 139693324435536,
+              "agno_status": "n/a",
+              "dispatch_check": true,
+              "errors": [
+                {
+                  "error": "RuntimeError('required upsert returned no row')",
+                  "method": "upsert_user_memory"
+                }
+              ],
+              "hash": "5a58085c2e06c8748217da55e1d9a2376de6a64250067f4134e6daf728f082fd",
+              "id": "A",
+              "latch_mode": "write",
+              "memories": [
+                {
+                  "created_at": "2026-10-16T16:36:51",
+                  "memory": "seed",
+                  "memory_id": "seed",
+                  "updated_at": "2026-10-16T16:36:51",
+                  "user_id": "trial:A"
+                }
+              ],
+              "memory_free": false,
+              "owned_futures": 1,
+              "owner": 139693323712192,
+              "profile": "automatic",
+              "response": "offline response",
+              "run_failed": true,
+              "success": false,
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 18,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          },
+          {
+            "seq": 19,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:51",
+              "updated_at": "2026-10-16T16:36:51",
+              "user_id": "trial:A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:51",
+              "updated_at": "2026-10-16T16:36:51",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.learning.lock",
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      },
+      "upsert_session:raise": {
+        "replies": [
+          {
+            "id": "A",
+            "hash": "470781a7554807ce091c7d2fd91cff8924d45a3b3e45c4c39f6eb76b9047702a",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_session",
+                "error": "OSError('PROTOTYPE required write exception')"
+              },
+              {
+                "method": "upsert_run",
+                "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 140367924033216,
+            "agent_object": 140367928279120,
+            "adapter_object": 140367927866240,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed | fact-A",
+                "created_at": "2026-10-16T16:36:52",
+                "updated_at": "2026-10-16T16:36:52",
+                "input": "offline automatic",
+                "user_id": "trial:A",
+                "agent_id": "A"
+              }
+            ]
+          },
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "A": {
+            "id": "A",
+            "hash": "470781a7554807ce091c7d2fd91cff8924d45a3b3e45c4c39f6eb76b9047702a",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_session",
+                "error": "OSError('PROTOTYPE required write exception')"
+              },
+              {
+                "method": "upsert_run",
+                "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 140367924033216,
+            "agent_object": 140367928279120,
+            "adapter_object": 140367927866240,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed | fact-A",
+                "created_at": "2026-10-16T16:36:52",
+                "updated_at": "2026-10-16T16:36:52",
+                "input": "offline automatic",
+                "user_id": "trial:A",
+                "agent_id": "A"
+              }
+            ]
+          },
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "470781a7554807ce091c7d2fd91cff8924d45a3b3e45c4c39f6eb76b9047702a",
+              "profile": "automatic",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 9,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 10,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 11,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 12,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_session"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 13,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 14,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')",
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 15,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 16,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 17,
+            "id": "A",
+            "kind": "terminal",
+            "payload": {
+              "actionable_success": false,
+              "adapter_object": 140367927866240,
+              "agent_object": 140367928279120,
+              "agno_status": "n/a",
+              "dispatch_check": true,
+              "errors": [
+                {
+                  "error": "OSError('PROTOTYPE required write exception')",
+                  "method": "upsert_session"
+                },
+                {
+                  "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')",
+                  "method": "upsert_run"
+                }
+              ],
+              "hash": "470781a7554807ce091c7d2fd91cff8924d45a3b3e45c4c39f6eb76b9047702a",
+              "id": "A",
+              "latch_mode": "write",
+              "memories": [
+                {
+                  "agent_id": "A",
+                  "created_at": "2026-10-16T16:36:52",
+                  "input": "offline automatic",
+                  "memory": "seed | fact-A",
+                  "memory_id": "seed",
+                  "updated_at": "2026-10-16T16:36:52",
+                  "user_id": "trial:A"
+                }
+              ],
+              "memory_free": false,
+              "owned_futures": 1,
+              "owner": 140367924033216,
+              "profile": "automatic",
+              "response": "offline response",
+              "run_failed": true,
+              "success": false,
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 18,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          },
+          {
+            "seq": 19,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed | fact-A",
+              "created_at": "2026-10-16T16:36:52",
+              "updated_at": "2026-10-16T16:36:52",
+              "input": "offline automatic",
+              "user_id": "trial:A",
+              "agent_id": "A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:52",
+              "updated_at": "2026-10-16T16:36:52",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.learning.lock",
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      },
+      "upsert_session:missing": {
+        "replies": [
+          {
+            "id": "A",
+            "hash": "998491c762202779ec053075d37f52e61b778f035ec136d4120b6e9ece81a287",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_session",
+                "error": "RuntimeError('required upsert returned no row')"
+              },
+              {
+                "method": "upsert_run",
+                "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 140130480289472,
+            "agent_object": 140130484207696,
+            "adapter_object": 140130483794816,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed | fact-A",
+                "created_at": "2026-10-16T16:36:52",
+                "updated_at": "2026-10-16T16:36:53",
+                "input": "offline automatic",
+                "user_id": "trial:A",
+                "agent_id": "A"
+              }
+            ]
+          },
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "A": {
+            "id": "A",
+            "hash": "998491c762202779ec053075d37f52e61b778f035ec136d4120b6e9ece81a287",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_session",
+                "error": "RuntimeError('required upsert returned no row')"
+              },
+              {
+                "method": "upsert_run",
+                "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 140130480289472,
+            "agent_object": 140130484207696,
+            "adapter_object": 140130483794816,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed | fact-A",
+                "created_at": "2026-10-16T16:36:52",
+                "updated_at": "2026-10-16T16:36:53",
+                "input": "offline automatic",
+                "user_id": "trial:A",
+                "agent_id": "A"
+              }
+            ]
+          },
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "998491c762202779ec053075d37f52e61b778f035ec136d4120b6e9ece81a287",
+              "profile": "automatic",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 9,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 10,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 11,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "RuntimeError('required upsert returned no row')",
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 12,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "RuntimeError('required upsert returned no row')",
+                "method": "upsert_session"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 13,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 14,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')",
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 15,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 16,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 17,
+            "id": "A",
+            "kind": "terminal",
+            "payload": {
+              "actionable_success": false,
+              "adapter_object": 140130483794816,
+              "agent_object": 140130484207696,
+              "agno_status": "n/a",
+              "dispatch_check": true,
+              "errors": [
+                {
+                  "error": "RuntimeError('required upsert returned no row')",
+                  "method": "upsert_session"
+                },
+                {
+                  "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')",
+                  "method": "upsert_run"
+                }
+              ],
+              "hash": "998491c762202779ec053075d37f52e61b778f035ec136d4120b6e9ece81a287",
+              "id": "A",
+              "latch_mode": "write",
+              "memories": [
+                {
+                  "agent_id": "A",
+                  "created_at": "2026-10-16T16:36:52",
+                  "input": "offline automatic",
+                  "memory": "seed | fact-A",
+                  "memory_id": "seed",
+                  "updated_at": "2026-10-16T16:36:53",
+                  "user_id": "trial:A"
+                }
+              ],
+              "memory_free": false,
+              "owned_futures": 1,
+              "owner": 140130480289472,
+              "profile": "automatic",
+              "response": "offline response",
+              "run_failed": true,
+              "success": false,
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 18,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          },
+          {
+            "seq": 19,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed | fact-A",
+              "created_at": "2026-10-16T16:36:52",
+              "updated_at": "2026-10-16T16:36:53",
+              "input": "offline automatic",
+              "user_id": "trial:A",
+              "agent_id": "A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:52",
+              "updated_at": "2026-10-16T16:36:52",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.learning.lock",
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      },
+      "upsert_run:raise": {
+        "replies": [
+          {
+            "id": "A",
+            "hash": "ff3031c56f8b8be62649fa8ae44cdb4103350572d0776015d51a97c825935da3",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_run",
+                "error": "OSError('PROTOTYPE required write exception')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 140506931656384,
+            "agent_object": 140506936361040,
+            "adapter_object": 140506935948160,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed | fact-A",
+                "created_at": "2026-10-16T16:36:53",
+                "updated_at": "2026-10-16T16:36:53",
+                "input": "offline automatic",
+                "user_id": "trial:A",
+                "agent_id": "A"
+              }
+            ]
+          },
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "A": {
+            "id": "A",
+            "hash": "ff3031c56f8b8be62649fa8ae44cdb4103350572d0776015d51a97c825935da3",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_run",
+                "error": "OSError('PROTOTYPE required write exception')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 140506931656384,
+            "agent_object": 140506936361040,
+            "adapter_object": 140506935948160,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed | fact-A",
+                "created_at": "2026-10-16T16:36:53",
+                "updated_at": "2026-10-16T16:36:53",
+                "input": "offline automatic",
+                "user_id": "trial:A",
+                "agent_id": "A"
+              }
+            ]
+          },
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "ff3031c56f8b8be62649fa8ae44cdb4103350572d0776015d51a97c825935da3",
+              "profile": "automatic",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 9,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 10,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 11,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 12,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 13,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 14,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_run"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 15,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 16,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 17,
+            "id": "A",
+            "kind": "terminal",
+            "payload": {
+              "actionable_success": false,
+              "adapter_object": 140506935948160,
+              "agent_object": 140506936361040,
+              "agno_status": "n/a",
+              "dispatch_check": true,
+              "errors": [
+                {
+                  "error": "OSError('PROTOTYPE required write exception')",
+                  "method": "upsert_run"
+                }
+              ],
+              "hash": "ff3031c56f8b8be62649fa8ae44cdb4103350572d0776015d51a97c825935da3",
+              "id": "A",
+              "latch_mode": "write",
+              "memories": [
+                {
+                  "agent_id": "A",
+                  "created_at": "2026-10-16T16:36:53",
+                  "input": "offline automatic",
+                  "memory": "seed | fact-A",
+                  "memory_id": "seed",
+                  "updated_at": "2026-10-16T16:36:53",
+                  "user_id": "trial:A"
+                }
+              ],
+              "memory_free": false,
+              "owned_futures": 1,
+              "owner": 140506931656384,
+              "profile": "automatic",
+              "response": "offline response",
+              "run_failed": true,
+              "success": false,
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 18,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          },
+          {
+            "seq": 19,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed | fact-A",
+              "created_at": "2026-10-16T16:36:53",
+              "updated_at": "2026-10-16T16:36:53",
+              "input": "offline automatic",
+              "user_id": "trial:A",
+              "agent_id": "A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:53",
+              "updated_at": "2026-10-16T16:36:53",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.learning.lock",
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      },
+      "upsert_run:missing": {
+        "replies": [
+          {
+            "id": "A",
+            "hash": "33becc265a76db7efce0865c8bed36d7e6d42ae39934d30ae4b969f640533716",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_run",
+                "error": "RuntimeError('required run row absent')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 139839460603584,
+            "agent_object": 139839464865872,
+            "adapter_object": 139839464452992,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed | fact-A",
+                "created_at": "2026-10-16T16:36:53",
+                "updated_at": "2026-10-16T16:36:54",
+                "input": "offline automatic",
+                "user_id": "trial:A",
+                "agent_id": "A"
+              }
+            ]
+          },
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "A": {
+            "id": "A",
+            "hash": "33becc265a76db7efce0865c8bed36d7e6d42ae39934d30ae4b969f640533716",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_run",
+                "error": "RuntimeError('required run row absent')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 139839460603584,
+            "agent_object": 139839464865872,
+            "adapter_object": 139839464452992,
+            "user": "trial:A",
+            "profile": "automatic",
+            "memory_free": false,
+            "owned_futures": 1,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": [
+              {
+                "memory_id": "seed",
+                "memory": "seed | fact-A",
+                "created_at": "2026-10-16T16:36:53",
+                "updated_at": "2026-10-16T16:36:54",
+                "input": "offline automatic",
+                "user_id": "trial:A",
+                "agent_id": "A"
+              }
+            ]
+          },
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "33becc265a76db7efce0865c8bed36d7e6d42ae39934d30ae4b969f640533716",
+              "profile": "automatic",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 9,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 10,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 11,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 12,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 13,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "RuntimeError('required run row absent')",
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 14,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "RuntimeError('required run row absent')",
+                "method": "upsert_run"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 15,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 16,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 17,
+            "id": "A",
+            "kind": "terminal",
+            "payload": {
+              "actionable_success": false,
+              "adapter_object": 139839464452992,
+              "agent_object": 139839464865872,
+              "agno_status": "n/a",
+              "dispatch_check": true,
+              "errors": [
+                {
+                  "error": "RuntimeError('required run row absent')",
+                  "method": "upsert_run"
+                }
+              ],
+              "hash": "33becc265a76db7efce0865c8bed36d7e6d42ae39934d30ae4b969f640533716",
+              "id": "A",
+              "latch_mode": "write",
+              "memories": [
+                {
+                  "agent_id": "A",
+                  "created_at": "2026-10-16T16:36:53",
+                  "input": "offline automatic",
+                  "memory": "seed | fact-A",
+                  "memory_id": "seed",
+                  "updated_at": "2026-10-16T16:36:54",
+                  "user_id": "trial:A"
+                }
+              ],
+              "memory_free": false,
+              "owned_futures": 1,
+              "owner": 139839460603584,
+              "profile": "automatic",
+              "response": "offline response",
+              "run_failed": true,
+              "success": false,
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 18,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
+            }
+          },
+          {
+            "seq": 19,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed | fact-A",
+              "created_at": "2026-10-16T16:36:53",
+              "updated_at": "2026-10-16T16:36:54",
+              "input": "offline automatic",
+              "user_id": "trial:A",
+              "agent_id": "A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:53",
+              "updated_at": "2026-10-16T16:36:53",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.learning.lock",
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      },
+      "memory-free:upsert_session:raise": {
+        "replies": [
+          {
+            "id": "A",
+            "hash": "c31d6101967cb0bdf284bbe2c94527db9705bf59e0fafd4bd0c77fb11e3240f2",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_session",
+                "error": "OSError('PROTOTYPE required write exception')"
+              },
+              {
+                "method": "upsert_run",
+                "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 139662462023360,
+            "agent_object": 139662462500016,
+            "adapter_object": 139662462497664,
+            "user": "trial:A",
+            "profile": "memory-free",
+            "memory_free": true,
+            "owned_futures": 0,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": []
+          },
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "A": {
+            "id": "A",
+            "hash": "c31d6101967cb0bdf284bbe2c94527db9705bf59e0fafd4bd0c77fb11e3240f2",
+            "success": false,
+            "errors": [
+              {
+                "method": "upsert_session",
+                "error": "OSError('PROTOTYPE required write exception')"
+              },
+              {
+                "method": "upsert_run",
+                "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')"
+              }
+            ],
+            "agno_status": "n/a",
+            "response": "offline response",
+            "owner": 139662462023360,
+            "agent_object": 139662462500016,
+            "adapter_object": 139662462497664,
+            "user": "trial:A",
+            "profile": "memory-free",
+            "memory_free": true,
+            "owned_futures": 0,
+            "dispatch_check": true,
+            "latch_mode": "write",
+            "run_failed": true,
+            "actionable_success": false,
+            "memories": []
+          },
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "c31d6101967cb0bdf284bbe2c94527db9705bf59e0fafd4bd0c77fb11e3240f2",
+              "profile": "memory-free",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_session"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')",
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "terminal",
+            "payload": {
+              "actionable_success": false,
+              "adapter_object": 139662462497664,
+              "agent_object": 139662462500016,
+              "agno_status": "n/a",
+              "dispatch_check": true,
+              "errors": [
+                {
+                  "error": "OSError('PROTOTYPE required write exception')",
+                  "method": "upsert_session"
+                },
+                {
+                  "error": "IntegrityError('(sqlite3.IntegrityError) FOREIGN KEY constraint failed')",
+                  "method": "upsert_run"
+                }
+              ],
+              "hash": "c31d6101967cb0bdf284bbe2c94527db9705bf59e0fafd4bd0c77fb11e3240f2",
+              "id": "A",
+              "latch_mode": "write",
+              "memories": [],
+              "memory_free": true,
+              "owned_futures": 0,
+              "owner": 139662462023360,
+              "profile": "memory-free",
+              "response": "offline response",
+              "run_failed": true,
+              "success": false,
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "worker",
+            "kind": "quiesced",
+            "payload": {
+              "executing": 0,
+              "queued": 0
+            }
+          },
+          {
+            "seq": 9,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:54",
+              "updated_at": "2026-10-16T16:36:54",
+              "user_id": "trial:A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:54",
+              "updated_at": "2026-10-16T16:36:54",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      }
+    },
+    "evidence-failures": {
+      "db-error": {
+        "replies": [
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "502b94bccf14334c616282f6012dbdf54ea271f32e2706f8319a170a51d7aa01",
+              "profile": "automatic",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "background-entered",
+            "payload": {}
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "OSError('PROTOTYPE evidence write failure: db-error')",
+                "method": "upsert_user_memory"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 9,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 10,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 11,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 12,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 13,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 14,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          },
+          {
+            "seq": 15,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 16,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 17,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 18,
+            "id": "A",
+            "kind": "terminal",
+            "payload": {
+              "actionable_success": false,
+              "adapter_object": 139976337634176,
+              "agent_object": 139976338047056,
+              "agno_status": "n/a",
+              "dispatch_check": true,
+              "errors": [
+                {
+                  "error": "OSError('PROTOTYPE required write exception')",
+                  "method": "upsert_user_memory"
+                }
+              ],
+              "hash": "502b94bccf14334c616282f6012dbdf54ea271f32e2706f8319a170a51d7aa01",
+              "id": "A",
+              "latch_mode": "write",
+              "memories": [
+                {
+                  "created_at": "2026-10-16T16:36:54",
+                  "memory": "seed",
+                  "memory_id": "seed",
+                  "updated_at": "2026-10-16T16:36:54",
+                  "user_id": "trial:A"
+                }
+              ],
+              "memory_free": false,
+              "owned_futures": 1,
+              "owner": 139976333326016,
+              "profile": "automatic",
+              "response": "offline response",
+              "run_failed": true,
+              "success": false,
+              "user": "trial:A"
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:54",
+              "updated_at": "2026-10-16T16:36:54",
+              "user_id": "trial:A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:54",
+              "updated_at": "2026-10-16T16:36:54",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.learning.lock",
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      },
+      "terminal": {
+        "replies": [
+          {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        ],
+        "replies_by_id": {
+          "D": {
+            "id": "D",
+            "success": false,
+            "run_failed": true,
+            "rejected": "admission closed by failure latch"
+          }
+        },
+        "events": [
+          {
+            "seq": 1,
+            "id": "A",
+            "kind": "admitted",
+            "payload": {
+              "command_hash": "7477db865503971d078b19f35ad68cbd9dcf164f023ddba0979f223b79f40aa3",
+              "profile": "automatic",
+              "user": "trial:A"
+            }
+          },
+          {
+            "seq": 2,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 3,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 4,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 5,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 6,
+            "id": "A",
+            "kind": "background-entered",
+            "payload": {}
+          },
+          {
+            "seq": 7,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 8,
+            "id": "A",
+            "kind": "db-error",
+            "payload": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            }
+          },
+          {
+            "seq": 9,
+            "id": "A",
+            "kind": "first-failure",
+            "payload": {
+              "entry": {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_user_memory"
+              },
+              "executing": 1,
+              "operation": "A",
+              "queued": 0,
+              "source": "adapter"
+            }
+          },
+          {
+            "seq": 10,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 11,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 12,
+            "id": "D",
+            "kind": "admission-denied",
+            "payload": {
+              "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+              "latch": true
+            }
+          },
+          {
+            "seq": 13,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 14,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_session"
+            }
+          },
+          {
+            "seq": 15,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 16,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "upsert_run"
+            }
+          },
+          {
+            "seq": 17,
+            "id": "A",
+            "kind": "db-attempt",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          },
+          {
+            "seq": 18,
+            "id": "A",
+            "kind": "db-ack",
+            "payload": {
+              "method": "get_user_memories"
+            }
+          }
+        ],
+        "scopes": {
+          "trial:A": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:55",
+              "updated_at": "2026-10-16T16:36:55",
+              "user_id": "trial:A"
+            }
+          ],
+          "trial:B": [],
+          "trial:C": [],
+          "A": [
+            {
+              "memory_id": "agent-seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:55",
+              "updated_at": "2026-10-16T16:36:55",
+              "user_id": "A"
+            }
+          ],
+          "B": [],
+          "C": []
+        },
+        "exitcode": 0,
+        "live_files": [
+          "PROTOTYPE-wipe-me.learning.lock",
+          "PROTOTYPE-wipe-me.sqlite3",
+          "PROTOTYPE-wipe-me.sqlite3-shm",
+          "PROTOTYPE-wipe-me.sqlite3-wal"
+        ],
+        "pragmas_inspection_connection": {
+          "journal_mode": [
+            [
+              "wal"
+            ]
+          ],
+          "synchronous": [
+            [
+              2
+            ]
+          ],
+          "integrity_check": [
+            [
+              "ok"
+            ]
+          ]
+        }
+      }
+    },
+    "quiescence": {
+      "replies": [
+        {
+          "id": "A",
+          "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140283577628352,
+          "agent_object": 140283578531920,
+          "adapter_object": 140283578119040,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:55",
+              "updated_at": "2026-10-16T16:36:55",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      ],
+      "replies_by_id": {
+        "A": {
+          "id": "A",
+          "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+          "success": false,
+          "errors": [
+            {
+              "method": "upsert_user_memory",
+              "error": "OSError('PROTOTYPE required write exception')"
+            }
+          ],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140283577628352,
+          "agent_object": 140283578531920,
+          "adapter_object": 140283578119040,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed",
+              "created_at": "2026-10-16T16:36:55",
+              "updated_at": "2026-10-16T16:36:55",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        "D": {
+          "id": "D",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "A",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "A",
+          "kind": "db-error",
+          "payload": {
+            "error": "OSError('PROTOTYPE required write exception')",
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "A",
+          "kind": "first-failure",
+          "payload": {
+            "entry": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            },
+            "executing": 1,
+            "operation": "A",
+            "queued": 0,
+            "source": "adapter"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "A",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140283578119040,
+            "agent_object": 140283578531920,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [
+              {
+                "error": "OSError('PROTOTYPE required write exception')",
+                "method": "upsert_user_memory"
+              }
+            ],
+            "hash": "33fecb4246f26cdb33d22c6cef3b85534db7faa22494c69230436a88dce12ed7",
+            "id": "A",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-16T16:36:55",
+                "memory": "seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-16T16:36:55",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140283577628352,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": true,
+            "success": false,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
+          }
+        },
+        {
+          "seq": 9,
+          "id": "D",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "1cafb356de8f2edeac80a8f405199c16ff47786f28c020bf9162d554cd7a0069",
+            "latch": true
+          }
+        }
+      ],
+      "scopes": {
+        "trial:A": [
+          {
+            "memory_id": "seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:55",
+            "updated_at": "2026-10-16T16:36:55",
+            "user_id": "trial:A"
+          }
+        ],
+        "trial:B": [],
+        "trial:C": [],
+        "A": [
+          {
+            "memory_id": "agent-seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:55",
+            "updated_at": "2026-10-16T16:36:55",
+            "user_id": "A"
+          }
+        ],
+        "B": [],
+        "C": []
+      },
+      "exitcode": 0,
+      "live_files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "pragmas_inspection_connection": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ]
+      },
+      "quiesced": {
+        "seq": 8,
+        "payload": {
+          "executing": 0,
+          "queued": 0
+        }
+      },
+      "gate_released_after_quiescence": true
+    },
+    "containment": {
+      "replies": [
+        {
+          "contained": true,
+          "refused": "gate retained; local quiescence unverified"
+        }
+      ],
+      "replies_by_id": null,
+      "events": [
+        {
+          "seq": 1,
+          "id": "A",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "5e7c7639ed1af0a6501366c1d6ba0c9fc3e95e8513eadc53384699e176d98856",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "A",
+          "kind": "db-error",
+          "payload": {
+            "error": "OSError('PROTOTYPE required write exception')",
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "A",
+          "kind": "first-failure",
+          "payload": {
+            "entry": {
+              "error": "OSError('PROTOTYPE required write exception')",
+              "method": "upsert_user_memory"
+            },
+            "executing": 1,
+            "operation": "A",
+            "queued": 0,
+            "source": "adapter"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "A",
+          "kind": "hold-forever",
+          "payload": {
+            "pending": 0
+          }
+        },
+        {
+          "seq": 6,
+          "id": "worker",
+          "kind": "containment",
+          "payload": {
+            "executing": 1,
+            "queued": 0
+          }
+        }
+      ],
+      "scopes": {
+        "trial:A": [
+          {
+            "memory_id": "seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:56",
+            "updated_at": "2026-10-16T16:36:56",
+            "user_id": "trial:A"
+          }
+        ],
+        "trial:B": [],
+        "trial:C": [],
+        "A": [
+          {
+            "memory_id": "agent-seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:56",
+            "updated_at": "2026-10-16T16:36:56",
+            "user_id": "A"
+          }
+        ],
+        "B": [],
+        "C": []
+      },
+      "exitcode": -9,
+      "live_files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "pragmas_inspection_connection": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ]
+      },
+      "containment": {
+        "seq": 6,
+        "payload": {
+          "executing": 1,
+          "queued": 0
+        }
+      },
+      "gate_probe_while_contained": {
+        "gate_probe": "denied"
+      },
+      "local_contained": true
+    },
+    "healthy": {
+      "replies": [
+        {
+          "id": "A",
+          "hash": "b574b65130765701c0867327bf24a9f8206c2da3f2417aed5e172abe0aeb4ec7",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139730288113344,
+          "agent_object": 139730288967760,
+          "adapter_object": 139730288554880,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed | late-background-fact",
+              "created_at": "2026-10-16T16:36:57",
+              "updated_at": "2026-10-16T16:36:58",
+              "input": "offline automatic",
+              "user_id": "trial:A",
+              "agent_id": "A"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "hash": "9db07859141a29d1870b656c30000c42bc328829bf758b2785173d9acf94d5fc",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139730269230784,
+          "agent_object": 139730269489200,
+          "adapter_object": 139730269988304,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "id": "C",
+          "hash": "53dcee87d0069f3885697b4cb1024f8caf19d3d70227fda90db411e722e5079e",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139730260838080,
+          "agent_object": 139730269488192,
+          "adapter_object": 139730269983504,
+          "user": "trial:C",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        }
+      ],
+      "replies_by_id": {
+        "A": {
+          "id": "A",
+          "hash": "b574b65130765701c0867327bf24a9f8206c2da3f2417aed5e172abe0aeb4ec7",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139730288113344,
+          "agent_object": 139730288967760,
+          "adapter_object": 139730288554880,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "seed | late-background-fact",
+              "created_at": "2026-10-16T16:36:57",
+              "updated_at": "2026-10-16T16:36:58",
+              "input": "offline automatic",
+              "user_id": "trial:A",
+              "agent_id": "A"
+            }
+          ]
+        },
+        "B": {
+          "id": "B",
+          "hash": "9db07859141a29d1870b656c30000c42bc328829bf758b2785173d9acf94d5fc",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139730269230784,
+          "agent_object": 139730269489200,
+          "adapter_object": 139730269988304,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        "C": {
+          "id": "C",
+          "hash": "53dcee87d0069f3885697b4cb1024f8caf19d3d70227fda90db411e722e5079e",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139730260838080,
+          "agent_object": 139730269488192,
+          "adapter_object": 139730269983504,
+          "user": "trial:C",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        }
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "A",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b574b65130765701c0867327bf24a9f8206c2da3f2417aed5e172abe0aeb4ec7",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "A",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 7,
+          "id": "C",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "53dcee87d0069f3885697b4cb1024f8caf19d3d70227fda90db411e722e5079e",
+            "profile": "memory-free",
+            "user": "trial:C"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "B",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "9db07859141a29d1870b656c30000c42bc328829bf758b2785173d9acf94d5fc",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "A",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "B",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "A",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "A",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 139730288554880,
+            "agent_object": 139730288967760,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "b574b65130765701c0867327bf24a9f8206c2da3f2417aed5e172abe0aeb4ec7",
+            "id": "A",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "agent_id": "A",
+                "created_at": "2026-10-16T16:36:57",
+                "input": "offline automatic",
+                "memory": "seed | late-background-fact",
+                "memory_id": "seed",
+                "updated_at": "2026-10-16T16:36:58",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 1,
+            "owner": 139730288113344,
+            "profile": "automatic",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "B",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "C",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 25,
+          "id": "C",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 26,
+          "id": "B",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 139730269988304,
+            "agent_object": 139730269489200,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "9db07859141a29d1870b656c30000c42bc328829bf758b2785173d9acf94d5fc",
+            "id": "B",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 139730269230784,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 27,
+          "id": "C",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 28,
+          "id": "C",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 29,
+          "id": "C",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 139730269983504,
+            "agent_object": 139730269488192,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "53dcee87d0069f3885697b4cb1024f8caf19d3d70227fda90db411e722e5079e",
+            "id": "C",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 139730260838080,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:C"
+          }
+        }
+      ],
+      "scopes": {
+        "trial:A": [
+          {
+            "memory_id": "seed",
+            "memory": "seed | late-background-fact",
+            "created_at": "2026-10-16T16:36:57",
+            "updated_at": "2026-10-16T16:36:58",
+            "input": "offline automatic",
+            "user_id": "trial:A",
+            "agent_id": "A"
+          }
+        ],
+        "trial:B": [],
+        "trial:C": [],
+        "A": [
+          {
+            "memory_id": "agent-seed",
+            "memory": "seed",
+            "created_at": "2026-10-16T16:36:57",
+            "updated_at": "2026-10-16T16:36:57",
+            "user_id": "A"
+          }
+        ],
+        "B": [],
+        "C": []
+      },
+      "exitcode": 0,
+      "live_files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal"
+      ],
+      "pragmas_inspection_connection": {
+        "journal_mode": [
+          [
+            "wal"
+          ]
+        ],
+        "synchronous": [
+          [
+            2
+          ]
+        ],
+        "integrity_check": [
+          [
+            "ok"
+          ]
+        ]
+      }
+    }
+  },
+  "limits": [
+    "No Provider client, credentials, network call or production code path.",
+    "Scripted model responses; real Agno execution and real SQLite.",
+    "Controller and worker are offline prototype processes, not the production coordinator or a deployment supervisor.",
+    "Local drain/exit is not remote termination; unresolved remote work still blocks the next independent trial.",
+    "Containment reuses the existing prototype kill/join fixture; it does not establish the deployment ticket's descendant containment contract."
+  ],
+  "checks": {
+    "proposed:latch_armed_at_write": true,
+    "proposed:no_start_after_failure": true,
+    "proposed:queued_refused_at_dispatch": true,
+    "proposed:late_refused_at_admission": true,
+    "proposed:latch_before_terminal": true,
+    "no-dispatch:queued_runs_after_failure": true,
+    "arm-timing:write_refuses_late": true,
+    "arm-timing:finalize_admits_late": true,
+    "concurrent:two_executing_at_failure": true,
+    "concurrent:no_start_after_failure": true,
+    "concurrent:late_refused": true,
+    "concurrent:sibling_drained_not_actionable": true,
+    "classes:upsert_user_memory:raise:latched": true,
+    "classes:upsert_user_memory:raise:no_start_after": true,
+    "classes:upsert_user_memory:raise:late_refused": true,
+    "classes:upsert_user_memory:missing:latched": true,
+    "classes:upsert_user_memory:missing:no_start_after": true,
+    "classes:upsert_user_memory:missing:late_refused": true,
+    "classes:upsert_session:raise:latched": true,
+    "classes:upsert_session:raise:no_start_after": true,
+    "classes:upsert_session:raise:late_refused": true,
+    "classes:upsert_session:missing:latched": true,
+    "classes:upsert_session:missing:no_start_after": true,
+    "classes:upsert_session:missing:late_refused": true,
+    "classes:upsert_run:raise:latched": true,
+    "classes:upsert_run:raise:no_start_after": true,
+    "classes:upsert_run:raise:late_refused": true,
+    "classes:upsert_run:missing:latched": true,
+    "classes:upsert_run:missing:no_start_after": true,
+    "classes:upsert_run:missing:late_refused": true,
+    "classes:memory-free:upsert_session:raise:latched": true,
+    "classes:memory-free:upsert_session:raise:no_start_after": true,
+    "classes:memory-free:upsert_session:raise:late_refused": true,
+    "evidence:db-error:latched": true,
+    "evidence:db-error:no_start_after": true,
+    "evidence:terminal:latched": true,
+    "evidence:terminal:no_start_after": true,
+    "evidence:db-error:cause_evidence_missing": true,
+    "quiescence:verified": true,
+    "quiescence:gate_released": true,
+    "quiescence:late_still_refused": true,
+    "containment:declared": true,
+    "containment:gate_retained": true,
+    "containment:local_contained": true,
+    "healthy:no_latch": true,
+    "healthy:all_success": true,
+    "healthy:independent_owners": true
+  }
+}
