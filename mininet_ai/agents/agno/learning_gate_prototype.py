@@ -343,12 +343,12 @@ def prepare(root):
         conn.execute("CREATE TABLE prototype_events(seq INTEGER PRIMARY KEY, op TEXT, kind TEXT, payload TEXT)")
 
 
-def probe(root, commands):
+def probe(root, commands, worker_target=worker, worker_options=()):
     prepare(root)
     path = root / "PROTOTYPE-wipe-me.sqlite3"
     ctx = mp.get_context("spawn")
     parent, child = ctx.Pipe()
-    process = ctx.Process(target=worker, args=(str(root), child))
+    process = ctx.Process(target=worker_target, args=(str(root), child, *worker_options))
     process.start()
     child.close()
     results, sidecars, background_gate = [], [], None
@@ -391,6 +391,8 @@ def probe(root, commands):
                             return "denied while background active"
                     with ThreadPoolExecutor(max_workers=1) as pool:
                         background_gate = {"controller": contend(), "thread": pool.submit(contend).result()}
+                    if value.get("requires_release"):
+                        parent.send({"release_background": value["background_entered"]})
                     value = receive()
                 results.append(value)
             sidecars.append(sorted(p.name for p in root.iterdir()))

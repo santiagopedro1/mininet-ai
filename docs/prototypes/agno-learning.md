@@ -2,6 +2,10 @@
 
 **Partial evidence, NOT architecture acceptance. Do not merge this branch.**
 
+Follow-up: [integrated stable-Agent evidence](agno-learning.integrated.md) exercises
+mixed routes through fixed cached Agents; the original route-specific evidence
+below remains historical and pinned at commit `17dc399`.
+
 For [Validate complete learning-gate and strict persistence coverage](https://github.com/santiagopedro1/mininet-ai/issues/58),
 under [Plan clearer output and simplified run storage](https://github.com/santiagopedro1/mininet-ai/issues/38).
 Extends the session-only [integrated worker probe](agno-integrated.md); no production
