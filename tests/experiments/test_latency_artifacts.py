@@ -770,13 +770,13 @@ def resequence(records):
 
 
 def with_reasoning():
-    records = artifact_records()
+    records = recovered_artifact()
     start = operation_event()
-    start.update(record_id="reasoning-start", tick_ns="1")
+    start.update(record_id="reasoning-start", tick_ns="11")
     end = deepcopy(start)
-    end.update(record_id="reasoning-end", type="operation_failed", tick_ns="2")
+    end.update(record_id="reasoning-end", type="operation_failed", tick_ns="12")
     end["data"]["outcome"] = "provider_error"
-    records["events.jsonl"][1:1] = [start, end]
+    records["events.jsonl"][3:3] = [start, end]
     agent = records["agents.jsonl"][0]
     agent["invocation_ids"] = ["invocation-1"]
     duration = {
@@ -799,11 +799,15 @@ def with_reasoning():
             "evidence_ids": ["reasoning-start", "reasoning-end"],
         }
     ]
-    row = records["summary.json"]["distributions"][2]
+    row = next(
+        row
+        for row in records["summary.json"]["distributions"]
+        if row["metric"] == "reasoning"
+    )
     row.update(
         available=1,
-        not_applicable=9,
-        not_applicable_reasons={"no_confirmed_fault": 9},
+        unavailable=9,
+        unavailable_reasons={"phase_not_started": 9},
         included=1,
         count=1,
         mean_seconds=1e-9,
@@ -820,7 +824,13 @@ def test_failed_operation_elapsed_time_is_valid_and_collector_order_is_not_time_
 ):
     records = with_reasoning()
     # A delayed start record may be delivered after its terminal transition.
-    records["events.jsonl"][1:3] = reversed(records["events.jsonl"][1:3])
+    events = records["events.jsonl"]
+    start_index = next(
+        i for i, event in enumerate(events) if event["record_id"] == "reasoning-start"
+    )
+    events[start_index : start_index + 2] = reversed(
+        events[start_index : start_index + 2]
+    )
     resequence(records)
     result = validate_artifact(write_artifact(tmp_path, records))
     assert result.issues == ()
@@ -841,7 +851,16 @@ def test_failed_operation_elapsed_time_is_valid_and_collector_order_is_not_time_
 )
 def test_phase_evidence_and_projections_must_reconcile(tmp_path, case, code):
     records = with_reasoning()
-    start, end = records["events.jsonl"][1:3]
+    start = next(
+        event
+        for event in records["events.jsonl"]
+        if event["record_id"] == "reasoning-start"
+    )
+    end = next(
+        event
+        for event in records["events.jsonl"]
+        if event["record_id"] == "reasoning-end"
+    )
     operation = records["agents.jsonl"][0]["operations"][0]
     if case == "orphan_terminal":
         records["events.jsonl"].remove(start)
@@ -1251,6 +1270,70 @@ def test_torn_utf8_tail_preserves_complete_preceding_records(tmp_path):
     assert result.integrity == "valid", result.issues
     assert result.state == "incomplete"
     assert len(result.records) == 17
+
+
+@pytest.mark.parametrize("kind", ["trial_ended", "cleanup_completed", "run_finished"])
+def test_lifecycle_evidence_cannot_precede_its_required_predecessor(tmp_path, kind):
+    records = artifact_records()
+    next(e for e in records["events.jsonl"] if e["type"] == kind)["tick_ns"] = "0"
+    result = validate_artifact(write_artifact(tmp_path, records))
+    assert result.integrity == "invalid"
+    assert "lifecycle" in {i.code for i in result.issues}
+
+
+@pytest.mark.parametrize("confirmed_fault", [False, True])
+def test_detection_cannot_use_arbitrary_equal_tick_evidence(tmp_path, confirmed_fault):
+    records = recovered_artifact() if confirmed_fault else artifact_records()
+    duration = records["agents.jsonl"][0]["measurements"]["detection"]
+    duration.update(
+        availability="available",
+        value_seconds=0,
+        reason=None,
+        start_record_id="trial-start",
+        end_record_id="trial-start",
+    )
+    result = validate_artifact(write_artifact(tmp_path, records))
+    assert result.integrity == "invalid"
+    assert "measurement" in {i.code for i in result.issues}
+
+
+@pytest.mark.parametrize(
+    "case", ["restored_outside_selected_rounds", "missed_slot_backfilled"]
+)
+def test_recovery_cannot_ignore_contradictory_raw_evidence(tmp_path, case):
+    records = recovered_artifact()
+    if case == "restored_outside_selected_rounds":
+        disruption = next(
+            e for e in records["events.jsonl"] if e["record_id"] == "disruption"
+        )
+        disruption["data"].update(link_before=["up", "up"], link_after=["up", "up"])
+    else:
+        records["events.jsonl"].append(
+            envelope("missed-probe-2", 0, "2000000000")
+            | {
+                "type": "slot_missed",
+                "trial_id": "trial-1",
+                "fault_id": "fault-1",
+                "data": {
+                    "schedule": "probe",
+                    "slot": 2,
+                    "scheduled_ns": "2000000000",
+                    "reason": "overrun",
+                },
+            }
+        )
+        resequence(records)
+    result = validate_artifact(write_artifact(tmp_path, records))
+    assert result.integrity == "invalid"
+    assert "recovery" in {i.code for i in result.issues}
+
+
+def test_finalized_agent_cannot_silently_drop_raw_phase_operations(tmp_path):
+    records = with_reasoning()
+    records["agents.jsonl"][0]["operations"] = []
+    result = validate_artifact(write_artifact(tmp_path, records))
+    assert result.integrity == "invalid"
+    assert "projection" in {i.code for i in result.issues}
     record = summary_record()
     del record["counts"]["measured"]["unknown"]
     assert validate_record("summary", record)

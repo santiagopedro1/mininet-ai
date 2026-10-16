@@ -159,16 +159,12 @@ def validate_artifact(directory: Path | str) -> ArtifactValidation:
                 families[family].append(record)
 
     events = families["event"]
-    terminals = [r for r in events if r["type"] in {"run_finished", "run_aborted"}]
+    terminals = _terminal_records(events)
     if not terminals:
         incomplete.append("missing:terminal_event")
     if families["run"]:
         _ArtifactChecks(families, issues, incomplete).check()
-    state = (
-        "incomplete"
-        if incomplete
-        else ("aborted" if terminals[-1]["type"] == "run_aborted" else "completed")
-    )
+    state = _artifact_state(terminals, incomplete)
     return ArtifactValidation(
         state,
         "invalid" if any(i.severity == "error" for i in issues) else "valid",
@@ -176,6 +172,16 @@ def validate_artifact(directory: Path | str) -> ArtifactValidation:
         tuple(incomplete),
         tuple(sorted(records, key=lambda r: r["collector_seq"])),
     )
+
+
+def _terminal_records(events):
+    return [r for r in events if r["type"] in {"run_finished", "run_aborted"}]
+
+
+def _artifact_state(terminals, incomplete):
+    if incomplete or not terminals:
+        return "incomplete"
+    return "aborted" if terminals[-1]["type"] == "run_aborted" else "completed"
 
 
 def _unique_object(pairs):
@@ -202,6 +208,7 @@ class _ArtifactChecks:
         self.records = [r for rows in families.values() for r in rows]
         self.by_id = {r["record_id"]: r for r in self.records}
         self.events = families["event"]
+        self.terminals = _terminal_records(self.events)
         self.starts = {
             r["trial_id"]: r for r in self.events if r["type"] == "trial_started"
         }
@@ -222,6 +229,7 @@ class _ArtifactChecks:
         self.projections()
         self.operations()
         self.durations()
+        self.measurements()
         self.lifecycle()
         self.recovery()
         self.counts()
@@ -286,12 +294,9 @@ class _ArtifactChecks:
                 self.error(
                     "trial_identity", self.manifest, f"duplicate {kind} for a trial"
                 )
-        terminals = [
-            r for r in self.events if r["type"] in {"run_finished", "run_aborted"}
-        ]
-        if len(terminals) > 1:
+        if len(self.terminals) > 1:
             self.error(
-                "terminal", terminals[-1], "a run has at most one terminal event"
+                "terminal", self.terminals[-1], "a run has at most one terminal event"
             )
         if len(self.trials) != len(self.families["trial"]):
             self.error(
@@ -421,20 +426,7 @@ class _ArtifactChecks:
                         summary,
                         f"{kind} outcome counts disagree with frozen outcomes",
                     )
-                terminals = [
-                    r
-                    for r in self.events
-                    if r["type"] in {"run_finished", "run_aborted"}
-                ]
-                state = (
-                    "incomplete"
-                    if self.incomplete
-                    else (
-                        "aborted"
-                        if terminals and terminals[-1]["type"] == "run_aborted"
-                        else "completed"
-                    )
-                )
+                state = _artifact_state(self.terminals, self.incomplete)
                 # An incomplete prefix may retain the summary written before a torn append.
                 if not self.incomplete and summary["state"] != state:
                     self.error(
@@ -472,6 +464,20 @@ class _ArtifactChecks:
                 if int(end["tick_ns"]) < int(start["tick_ns"]):
                     self.error("timing", end, "operation terminates before its start")
         for agent in self.families["agent"]:
+            raw_ids = {
+                e["data"]["operation_id"]
+                for e in self.events
+                if e["trial_id"] == agent["trial_id"]
+                and e["type"].startswith("operation_")
+                and e["data"]["agent_id"] == agent["agent_id"]
+            }
+            projected_ids = {op["operation_id"] for op in agent["operations"]}
+            if not raw_ids <= projected_ids:
+                self.error(
+                    "projection",
+                    agent,
+                    "finalized agent projection omits recorded phase operations",
+                )
             seen = set()
             for operation in agent["operations"]:
                 identity = operation["operation_id"]
@@ -562,6 +568,32 @@ class _ArtifactChecks:
                     )
 
     def lifecycle(self):
+        for trial_id, start in self.starts.items():
+            end = self.ends.get(trial_id)
+            cleanup = self.cleanups.get(trial_id)
+            if end and int(end["tick_ns"]) < int(start["tick_ns"]):
+                self.error("lifecycle", end, "trial ended before it started")
+            if cleanup and (not end or int(cleanup["tick_ns"]) < int(end["tick_ns"])):
+                self.error(
+                    "lifecycle",
+                    cleanup,
+                    "cleanup completion requires an earlier frozen trial end",
+                )
+        for terminal in self.events:
+            if terminal["type"] in {"run_finished", "run_aborted"}:
+                predecessors = [
+                    *self.starts.values(),
+                    *self.ends.values(),
+                    *self.cleanups.values(),
+                ]
+                if any(
+                    int(r["tick_ns"]) > int(terminal["tick_ns"]) for r in predecessors
+                ):
+                    self.error(
+                        "lifecycle",
+                        terminal,
+                        "run terminal event precedes retained trial lifecycle evidence",
+                    )
         requests = {}
         completed = {}
         for event in sorted(
@@ -676,17 +708,84 @@ class _ArtifactChecks:
                     self.error(
                         "terminal", event, "run finished without all requested attempts"
                     )
-        terminals = [
-            e for e in self.events if e["type"] in {"run_finished", "run_aborted"}
-        ]
         for summary in self.families["summary"]:
             if (
-                terminals
-                and summary["terminal_reason"] != terminals[-1]["data"]["reason"]
+                self.terminals
+                and summary["terminal_reason"] != self.terminals[-1]["data"]["reason"]
             ):
                 self.error(
                     "terminal", summary, "terminal reason disagrees with raw evidence"
                 )
+
+    def measurements(self):
+        for agent in self.families["agent"]:
+            trial = self.trials.get(agent["trial_id"])
+            if not trial:
+                continue
+            for metric, duration in agent["measurements"].items():
+                if trial["fault_record_id"] is None:
+                    if duration["availability"] != "not_applicable":
+                        self.error(
+                            "measurement",
+                            agent,
+                            "fault-response measurements require a confirmed fault",
+                        )
+                    continue
+                if duration["availability"] != "available":
+                    continue
+                start = self.by_id.get(duration["start_record_id"])
+                end = self.by_id.get(duration["end_record_id"])
+                if not start or not end:
+                    continue
+                relevant = [
+                    e
+                    for e in self.events
+                    if e["trial_id"] == agent["trial_id"]
+                    and e["data"].get("agent_id") == agent["agent_id"]
+                ]
+                if metric == "detection":
+                    recognitions = [e for e in relevant if e["type"] == "recognition"]
+                    first = min(
+                        recognitions, key=lambda r: int(r["tick_ns"]), default=None
+                    )
+                    valid = (
+                        start["record_id"] == trial["fault_record_id"]
+                        and first is not None
+                        and end["record_id"] == first["record_id"]
+                    )
+                elif metric == "reasoning":
+                    valid = (
+                        start.get("type") == "operation_started"
+                        and start["data"].get("phase") == "reasoning"
+                        and end.get("type")
+                        in {
+                            "operation_completed",
+                            "operation_failed",
+                            "operation_cancelled",
+                        }
+                        and start["data"]["operation_id"] == end["data"]["operation_id"]
+                        and end["data"].get("phase") == "reasoning"
+                        and start["data"].get("agent_id") == agent["agent_id"]
+                    )
+                else:
+                    attempts = [
+                        e
+                        for e in relevant
+                        if e["type"] == "operation_started"
+                        and e["data"]["phase"] == "action_attempt"
+                    ]
+                    first = min(attempts, key=lambda r: int(r["tick_ns"]), default=None)
+                    valid = (
+                        first is not None
+                        and start["record_id"] == first["record_id"]
+                        and end["record_id"] == trial["recovery_record_id"]
+                    )
+                if not valid:
+                    self.error(
+                        "measurement",
+                        agent,
+                        f"{metric} references do not match its defined phase boundaries",
+                    )
 
     def recovery(self):
         for event in self.events:
@@ -763,6 +862,40 @@ class _ArtifactChecks:
                 )
                 continue
             rounds = [r for r in rounds if r is not None]
+            trial_end = self.ends.get(trial["trial_id"])
+            for raw in self.events:
+                if raw["trial_id"] != trial["trial_id"]:
+                    continue
+                data = raw["data"]
+                if (
+                    raw["type"] == "slot_missed"
+                    and data["schedule"] == "probe"
+                    and any(
+                        data["slot"] == probe["data"]["slot"]
+                        and data["scheduled_ns"] == probe["data"]["scheduled_ns"]
+                        for probe in rounds
+                    )
+                ):
+                    self.error(
+                        "recovery",
+                        recovery,
+                        "a missed scheduled slot cannot be backfilled by later probe evidence",
+                    )
+                if trial_end and int(fault["tick_ns"]) <= int(raw["tick_ns"]) <= int(
+                    trial_end["tick_ns"]
+                ):
+                    states = (
+                        data.get("endpoint_states")
+                        if raw["type"] == "observation"
+                        else (data.get("link_before", []) or [])
+                        + (data.get("link_after", []) or [])
+                    )
+                    if states and "up" in states:
+                        self.error(
+                            "recovery",
+                            recovery,
+                            "observed failed-link restoration invalidates recovered outcome",
+                        )
             previous = None
             designated = {
                 (t["source"], t["destination"])
