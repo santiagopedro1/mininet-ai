@@ -101,6 +101,10 @@ response/cleanup budgets of 120/10/120/30 seconds. Failure sampling defaults to
 slots break streaks; late rounds cannot backfill them. Baseline and recovery each
 require three timely all-success rounds. Response begins at fresh confirmation
 of both failed-link endpoints down, independently of disruption probing.
+If a configured response budget expires before injection confirmation finishes,
+the gate closes response work immediately while the independent injection window
+continues to classify disruption. No failed probe in that window means
+`no_observed_disruption`; it is not counted as a disrupted response timeout.
 
 The result retains separate immutable trial outcomes and cleanup outcomes,
 scheduled slots, actual worker start/end ticks, incomplete/late jobs, and the

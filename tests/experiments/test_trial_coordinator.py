@@ -49,7 +49,7 @@ class FakeRuntime:
 
     def wait_until(self, tick):
         pending = [j.due for j in self.jobs if j.ended_ns is None and j.due > self.now]
-        self.now = min([tick, *pending])
+        self.now = max(self.now, min([tick, *pending]))
         for job in tuple(self.jobs):
             if job.ended_ns is None and job.due <= self.now:
                 assert job.done
@@ -192,9 +192,15 @@ def test_slow_probe_misses_slots_and_cannot_backdate_recovery():
 
 
 def test_late_probe_is_retained_without_revising_frozen_outcome():
-    result, _runtime, *_ = coordinate(
-        runtime=FakeRuntime(probe=5_000_000_000), response_seconds=2
-    )
+    class LateRecovery(FakeRuntime):
+        def start(self, name, fn):
+            if name == "probe":
+                self.delays[name] = (
+                    5_000_000_000 if any(j.name == "probe" for j in self.jobs) else 0
+                )
+            return super().start(name, fn)
+
+    result, _runtime, *_ = coordinate(runtime=LateRecovery(), response_seconds=2)
     assert result.outcome.status == "timeout"
     assert result.outcome.ended_ns == result.outcome.response_deadline_ns
     assert any(
@@ -763,3 +769,28 @@ def test_all_pending_workers_share_one_cleanup_budget_and_block_next_trial():
     assert not attempt.cleanup.workers_stopped
     assert attempt.cleanup.ended_ns - attempt.outcome.ended_ns == 3_000_000_000
     assert run.counts("measured").cleanup_completed == 0
+
+
+def test_response_deadline_is_published_before_early_agent_admission():
+    runtime = FakeRuntime()
+    admissions = []
+
+    class Early(Session):
+        def respond(self, gate, observation_id):
+            runtime.now += 200_000_000
+            admissions.append(gate.invocation("a"))
+
+    result, *_ = coordinate(Early(), runtime, response_seconds=0.1)
+    assert admissions == [False]
+    assert result.outcome.status == "timeout"
+
+
+def test_short_response_budget_does_not_shrink_injection_disruption_window():
+    class Undisrupted(Session):
+        def probe(self):
+            return (True, True)
+
+    result, *_ = coordinate(Undisrupted(), response_seconds=2, injection_seconds=10)
+    assert result.outcome.status == "no_observed_disruption"
+    assert result.outcome.response_deadline_ns == 4_000_000_000
+    assert result.outcome.ended_ns == 12_000_000_000

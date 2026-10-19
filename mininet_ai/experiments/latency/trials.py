@@ -572,7 +572,6 @@ class TrialCoordinator:
                     if baseline_ok:
                         injection = runtime.clock()
                         inject_deadline = injection + ns(config.injection_seconds)
-                        gate.deadline(inject_deadline)
                         inject_job = launch(
                             "injection", Phase.INJECTION, session.inject
                         )
@@ -590,6 +589,11 @@ class TrialCoordinator:
                                 with recognition_lock:
                                     if not responded and not gate.closed:
                                         responded = True
+                                        # Response workers may run before sample delivery.
+                                        # Publish the authoritative limit before admission.
+                                        gate.deadline(
+                                            completed + ns(config.response_seconds)
+                                        )
                                         with Operation(Phase.DETECTOR) as recognition:
                                             recognition.finish(
                                                 "relevant_failure_recognized"
@@ -625,6 +629,15 @@ class TrialCoordinator:
                             )
 
                         streak = 0
+                        response_closed = False
+
+                        def evidence_deadline():
+                            return (
+                                inject_deadline
+                                if not disrupted or response_deadline is None
+                                else response_deadline
+                            )
+
                         status, reason = "injection_failed", "link-down not confirmed"
                         while True:
                             now = runtime.clock()
@@ -633,8 +646,9 @@ class TrialCoordinator:
                                 break
                             if sampler.job is not None and sampler.job.done:
                                 assert sampler.job.ended_ns is not None
-                                if sampler.job.error and sampler.job.ended_ns < (
-                                    response_deadline or inject_deadline
+                                if (
+                                    sampler.job.error
+                                    and sampler.job.ended_ns < evidence_deadline()
                                 ):
                                     status, reason = "invalid", "fault observer failed"
                                     break
@@ -642,8 +656,8 @@ class TrialCoordinator:
                                     sampler.job = None
                                     continue
                                 observation: FaultObservation = sampler.job.value
-                                timely_sample = observation.completed_ns < (
-                                    response_deadline or inject_deadline
+                                timely_sample = (
+                                    observation.completed_ns < evidence_deadline()
                                 )
                                 if (
                                     observation.endpoints == (True, True)
@@ -663,8 +677,7 @@ class TrialCoordinator:
                                 assert probe_stream.job.ended_ns is not None
                                 if (
                                     probe_stream.job.error
-                                    and probe_stream.job.ended_ns
-                                    < (response_deadline or inject_deadline)
+                                    and probe_stream.job.ended_ns < evidence_deadline()
                                 ):
                                     status, reason = "invalid", "probe observer failed"
                                     break
@@ -674,9 +687,7 @@ class TrialCoordinator:
                                     probe_stream.job = None
                                     continue
                                 round = probe_stream.job.value
-                                timely_probe = (
-                                    response_deadline is None or end < response_deadline
-                                )
+                                timely_probe = end < evidence_deadline()
                                 if (
                                     onset is not None
                                     and timely_probe
@@ -725,8 +736,20 @@ class TrialCoordinator:
                                 response_deadline is not None
                                 and now >= response_deadline
                             ):
-                                status, reason = "timeout", "response deadline"
-                                break
+                                if not response_closed:
+                                    gate.close()
+                                    response_closed = True
+                                    with (
+                                        recording_scope(binding),
+                                        Operation(Phase.STOPPING) as closure,
+                                    ):
+                                        closure.finish("response_admission_closed")
+                                if disrupted:
+                                    status, reason = "timeout", "response deadline"
+                                    break
+                                # Injection confirmation retains its own window even
+                                # after response admission closes. Without disruption
+                                # the population is no_observed_disruption, not timeout.
                             if now >= inject_deadline and (
                                 onset is None or not disrupted
                             ):
@@ -741,7 +764,9 @@ class TrialCoordinator:
                             if probe_stream.admit(now, launch_observation, slots):
                                 streak = 0
                             pending_deadline = (
-                                min(
+                                inject_deadline
+                                if response_closed
+                                else min(
                                     inject_deadline,
                                     response_deadline or inject_deadline,
                                 )
