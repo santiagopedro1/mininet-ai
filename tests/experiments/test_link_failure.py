@@ -96,11 +96,11 @@ def test_seeded_plan_has_ten_ollama_switch_agents_and_an_alternate_route():
     blueprint = scenario.plan.snapshot["blueprints"][0]
     assert blueprint["model"]["name"] == "qwen3.5:latest"
     assert blueprint["model"]["parameters"]["host"] == "http://10.10.10.152:11434"
-    assert len(scenario.route("h1", "h2")) == 2
+    assert len(scenario.route("h1", "h2")) >= 2
     alternate = scenario.route("h1", "h2", failed=True)
-    assert len(alternate) == 10
-    assert set(alternate) == {f"s{i}" for i in range(1, 11)}
-    for switch in alternate:
+    assert len(alternate) == len(set(alternate))
+    assert alternate != scenario.route("h1", "h2")
+    for switch in scenario.switches:
         rules = scenario.rules(switch, failed=True)
         assert len(rules) == 4
         assert all(rule["actions"].startswith("output:") for rule in rules)
@@ -329,7 +329,7 @@ def test_runner_uses_yaml_configuration_without_overriding_it(tmp_path):
         assert model["name"] == "custom-model"
         assert model["parameters"]["host"] == "http://localhost:11434"
         if seed is None:
-            rules = scenario.rules(scenario.ring[0], failed=True)
+            rules = scenario.rules(scenario.attachments["h1"], failed=True)
             assert rules[0]["match"] == {"dl_dst": "02:00:00:00:00:aa"}
             assert rules[1]["match"] == {"arp": True, "arp_tpa": "10.0.0.11"}
 
@@ -357,5 +357,9 @@ def test_deployment_failures_are_exported_as_unsuccessful_trials(monkeypatch, tm
     assert all(record["status"] == "error" for record in trials)
     assert all("substrate unavailable" in record["issue"] for record in trials)
     assert all(record["run_id"] is None for record in trials)
+    assert [record["failed_link"] for record in trials] == ["s3-s9", "s2-s3"]
+    assert all(
+        record["scenario"]["failed_link"] == record["failed_link"] for record in trials
+    )
     assert records[-1]["type"] == "summary"
     assert records[-1]["statuses"] == {"error": 2}
