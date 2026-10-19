@@ -16,6 +16,12 @@ from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.outcomes import MutationEffects
 from mininet_ai.plugins.registry import ProviderRegistry
+from mininet_ai.runtime.instrumentation import (
+    Operation,
+    Phase,
+    current_binding,
+    recording_scope,
+)
 from mininet_ai.sdk.catalog import AgentExecutionDefinition, ExecutionCatalog
 from mininet_ai.sdk.contracts import (
     ActionProposal,
@@ -71,14 +77,27 @@ class CapabilityEngine:
         context: AgentContext,
         proposal: ActionProposal,
     ) -> ActionResult:
+        with recording_scope(
+            current_binding(),
+            agent_id=context.agent_id,
+            invocation_id=context.invocation_id,
+            proposal_id=proposal.id,
+        ):
+            return self._execute(context, proposal)
+
+    def _execute(self, context: AgentContext, proposal: ActionProposal) -> ActionResult:
         """Return a normalized result without leaking provider exceptions."""
 
         try:
-            definition, capability, proposal = self._admit(context, proposal)
+            with Operation(Phase.ADMISSION):
+                definition, capability, proposal = self._admit(context, proposal)
             if capability.provider is None:
                 raise AssertionError("admitted capability has no provider")
             provider = self._providers.create(capability.provider, capability)
-            raw_outcome = provider.execute(context, proposal)
+            with Operation(Phase.EXECUTION) as execution:
+                raw_outcome = provider.execute(context, proposal)
+                status = getattr(raw_outcome, "status", ActionStatus.SUCCEEDED)
+                execution.finish(str(status), failed=status != ActionStatus.SUCCEEDED)
             provider_result = self._provider_result(context, proposal, raw_outcome)
             if (
                 provider_result is not None
@@ -170,6 +189,25 @@ class CapabilityEngine:
         self,
         context: AgentContext,
         proposal: ActionProposal,
+    ) -> ActionResult | None:
+        with (
+            recording_scope(
+                current_binding(),
+                agent_id=context.agent_id,
+                invocation_id=context.invocation_id,
+                proposal_id=proposal.id,
+            ),
+            Operation(Phase.ADMISSION) as admission,
+        ):
+            result = self._validate(context, proposal)
+            admission.finish(
+                "accepted" if result is None else str(result.status),
+                failed=result is not None,
+            )
+            return result
+
+    def _validate(
+        self, context: AgentContext, proposal: ActionProposal
     ) -> ActionResult | None:
         """Return a normalized admission failure, or ``None`` when admissible."""
 

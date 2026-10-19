@@ -8,6 +8,7 @@ import os
 from collections import Counter, deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from ipaddress import ip_interface
@@ -33,6 +34,12 @@ from mininet_ai.experiments.scenarios import (
     generate_topology,
 )
 from mininet_ai.plugins import ProviderRegistries
+from mininet_ai.runtime.instrumentation import (
+    Operation,
+    Phase,
+    current_binding,
+    recording_scope,
+)
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification import load_experiment
 from mininet_ai.specification.models import Experiment, StrictModel
@@ -677,16 +684,30 @@ def run_trial(
                 measured.invocation_started(
                     agent_id, invocation_id=prepared.context.invocation_id
                 )
-                expected = sorted(json.dumps(rule, sort_keys=True) for rule in rules)
-                supplied = sorted(
-                    json.dumps(proposal.arguments, sort_keys=True)
-                    for proposal in prepared.response.proposals
-                )
-                admitted = expected == supplied and all(
-                    proposal.target == switch
-                    and proposal.capability == "openflow.flow.install"
-                    for proposal in prepared.response.proposals
-                )
+                with (
+                    recording_scope(
+                        current_binding(),
+                        agent_id=agent_id,
+                        invocation_id=prepared.context.invocation_id,
+                    ),
+                    Operation(Phase.ADMISSION) as acceptance,
+                ):
+                    expected = sorted(
+                        json.dumps(rule, sort_keys=True) for rule in rules
+                    )
+                    supplied = sorted(
+                        json.dumps(proposal.arguments, sort_keys=True)
+                        for proposal in prepared.response.proposals
+                    )
+                    admitted = expected == supplied and all(
+                        proposal.target == switch
+                        and proposal.capability == "openflow.flow.install"
+                        for proposal in prepared.response.proposals
+                    )
+                    acceptance.finish(
+                        "policy_accepted" if admitted else "policy_rejected",
+                        failed=not admitted,
+                    )
                 outcomes = []
                 for proposal in prepared.response.proposals:
                     if not admitted or stopped.is_set() or clock() >= deadline:
@@ -738,7 +759,9 @@ def run_trial(
             max_workers=len(identities), thread_name_prefix="link-failure"
         ) as workers:
             for agent in scenario.plan.agents:
-                workers.submit(react, agent.id, agent.attachment.targets[0])
+                workers.submit(
+                    copy_context().run, react, agent.id, agent.attachment.targets[0]
+                )
             try:
                 while clock() < deadline:
                     if reachable():

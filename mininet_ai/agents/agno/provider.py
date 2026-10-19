@@ -30,9 +30,11 @@ from mininet_ai.agents.agno.contracts import (
 )
 from mininet_ai.agents.agno.models import DeterministicAgnoModel
 from mininet_ai.agents.agno.ollama_model import create_ollama_model
+from mininet_ai.agents.agno.request_tracking import TrackedOllama
 from mininet_ai.agents.agno.storage import create_agno_database
 from mininet_ai.dependency_logging import invocation_diagnostics
 from mininet_ai.durations import duration_seconds
+from mininet_ai.runtime.instrumentation import current_binding
 from mininet_ai.sdk.catalog import AgentExecutionDefinition
 from mininet_ai.sdk.contracts import (
     AGENT_RUNTIME_CONTRACT_VERSION,
@@ -104,7 +106,7 @@ def _default_model_resolver(configuration: ModelConfiguration) -> Model | str:
             configuration.parameters["response"],
             usage=usage,
         )
-    if configuration.provider == "ollama" and configuration.parameters:
+    if configuration.provider == "ollama":
         return create_ollama_model(configuration)
     if configuration.parameters:
         raise AgentProviderError(
@@ -501,6 +503,13 @@ class AgnoAgentProvider:
     def _run(self, context: AgentContext) -> AgnoExecutionResult:
 
         _validate_context(self._definition, context)
+        if current_binding() is not None and not isinstance(
+            self._agent.model, (TrackedOllama, DeterministicAgnoModel)
+        ):
+            raise AgentProviderError(
+                "phase recording requires a request-aware model adapter; supported: Ollama, deterministic",
+                code="agent.instrumentation.unsupported-adapter",
+            )
         session_id = f"{context.run_id}:{context.agent_id}"
         learned = self._definition.blueprint.memory.learned
         user_id = None
