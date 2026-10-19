@@ -867,6 +867,8 @@ class _ArtifactChecks:
                 if raw["trial_id"] != trial["trial_id"]:
                     continue
                 data = raw["data"]
+                if raw["type"] == "probe_round" and data["purpose"] == "baseline":
+                    continue
                 if (
                     raw["type"] == "slot_missed"
                     and data["schedule"] == "probe"
@@ -981,6 +983,20 @@ class _ArtifactChecks:
         }
 
         def matches(group, trial, agent=None, operation=None):
+            if (
+                operation is None
+                and agent is not None
+                and group["operation_outcome"] is not None
+            ):
+                operation = next(
+                    (
+                        p
+                        for p in agent["operations"]
+                        if p["phase"] == "reasoning"
+                        and p["duration"] == agent["measurements"]["reasoning"]
+                    ),
+                    None,
+                )
             actual = {
                 "agent_id": agent["agent_id"] if agent else None,
                 "failed_link": trial["failed_link"],

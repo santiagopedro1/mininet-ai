@@ -263,7 +263,7 @@ class FixedSlots:
     kind: str
     next_ns: int
     period_ns: int
-    collect: Callable[[str], Any]
+    collect: Callable[[str, int], Any]
     job: Job | None = None
     slot: Slot | None = None
 
@@ -281,7 +281,9 @@ class FixedSlots:
                 missed = True
             else:
                 self.job = launch(
-                    self.kind, lambda ident=ident: self.collect(ident), ident
+                    self.kind,
+                    lambda ident=ident, tick=self.next_ns: self.collect(ident, tick),
+                    ident,
                 )
                 self.slot = Slot(self.kind, self.next_ns, self.job, ident)
                 slots.append(self.slot)
@@ -411,13 +413,25 @@ def ns(seconds: float) -> int:
 
 
 class TrialCoordinator:
-    def __init__(self, runtime: Runtime, recorder: PhaseRecorder, config: TrialConfig):
+    def __init__(
+        self,
+        runtime: Runtime,
+        recorder: PhaseRecorder,
+        config: TrialConfig,
+        *,
+        evidence: Callable[..., Any] | None = None,
+        finalized: Callable[[RunAttempt, Any], None] | None = None,
+    ):
         self.runtime, self.recorder, self.config = runtime, recorder, config
+        self.evidence = evidence or (lambda *args: None)
+        self.finalized = finalized
+        self.agent_ids: tuple[str, ...] = ()
 
     def run(
         self, scenario: Any, factory: Callable[[Any, str], TrialSession], *, run_id: str
     ) -> TrialRun:
         attempts: list[RunAttempt] = []
+        self.agent_ids = tuple(a.id for a in scenario.plan.agents)
         populations: tuple[tuple[Literal["warmup", "measured"], int], ...] = (
             ("warmup", self.config.warmup),
             ("measured", self.config.measured),
@@ -432,6 +446,23 @@ class TrialCoordinator:
                 context = ExecutionContext(
                     run_id, trial_id, f"{trial_id}:{selected.failed_link}"
                 )
+                self.evidence(
+                    context,
+                    "trial_started",
+                    {
+                        "trial_kind": kind,
+                        "ordinal": ordinal,
+                        "scenario_id": scenario.plan.digest,
+                        "failed_link": list(
+                            next(
+                                p
+                                for p, name in selected.link_names.items()
+                                if name == selected.failed_link
+                            )
+                        ),
+                    },
+                    self.runtime.clock(),
+                )
                 execution = self.trial(
                     DeferredSession(
                         lambda selected=selected, trial_id=trial_id: factory(
@@ -443,6 +474,8 @@ class TrialCoordinator:
                 attempts.append(
                     RunAttempt(kind, ordinal, trial_id, selected.failed_link, execution)
                 )
+                if self.finalized is not None:
+                    self.finalized(attempts[-1], selected)
                 reason = None
                 if execution.cleanup.status != "verified":
                     reason = "prior attempt containment/cleanup unverified"
@@ -470,6 +503,7 @@ class TrialCoordinator:
         injection = onset = response_deadline = first_success = recovery = None
         status: TrialStatus = "error"
         reason = "unexpected coordinator failure"
+        probe_records = []
 
         def launch(
             name: str, phase: Phase | None, fn: Callable[[], Any], **identities: str
@@ -490,7 +524,7 @@ class TrialCoordinator:
                 runtime.wait_until(deadline)
             return job.done and job.ended_ns is not None and job.ended_ns < deadline
 
-        def round_probe(baseline=False):
+        def round_probe(baseline=False, ident=None, scheduled=None):
             round_started = runtime.clock()
             before = session.endpoints_down()
             before_ns = runtime.clock()
@@ -500,7 +534,7 @@ class TrialCoordinator:
             after = session.endpoints_down()
             after_ns = runtime.clock()
             expected = (False, False) if baseline else (True, True)
-            return ProbeRound(
+            result = ProbeRound(
                 before,
                 probes,
                 after,
@@ -511,6 +545,44 @@ class TrialCoordinator:
                 after_ns,
                 round_started,
             )
+            scheduled = round_started if scheduled is None else scheduled
+            raw = self.evidence(
+                context,
+                "probe_round",
+                {
+                    "probe_round_id": ident or str(uuid4()),
+                    "purpose": "baseline"
+                    if baseline
+                    else ("recovery" if result.all_success else "disruption"),
+                    "slot": max(
+                        0,
+                        (scheduled - (started if baseline else injection or 0))
+                        // ns(config.probe_seconds),
+                    ),
+                    "scheduled_ns": str(scheduled),
+                    "started_ns": str(round_started),
+                    "completed_ns": str(after_ns),
+                    "directions": [
+                        {
+                            "source": source,
+                            "destination": destination,
+                            "success": success,
+                            "observation_id": f"{ident}:{source}",
+                        }
+                        for (source, destination), success in zip(
+                            (("h1", "h2"), ("h2", "h1")), probes
+                        )
+                    ],
+                    "link_before": ["down" if v else "up" for v in before],
+                    "link_after": ["down" if v else "up" for v in after],
+                    "late": after_ns >= scheduled + ns(config.probe_seconds)
+                    or (gate.closed and not baseline),
+                },
+                after_ns,
+            )
+            if raw is not None:
+                probe_records.append(raw)
+            return result
 
         try:
             setup_deadline = started + ns(config.setup_seconds)
@@ -528,6 +600,13 @@ class TrialCoordinator:
                 elif ready.value is not True:
                     status, reason = "setup_failed", "observation path not ready"
                 else:
+                    for agent_id in self.agent_ids:
+                        self.evidence(
+                            context,
+                            "observation_ready",
+                            {"source": "global_harness", "agent_id": agent_id},
+                            runtime.clock(),
+                        )
                     status, reason = "invalid", "unhealthy baseline"
                     baseline_ok = False
                     baseline_streak = 0
@@ -544,7 +623,9 @@ class TrialCoordinator:
                         job = launch(
                             "baseline",
                             Phase.OBSERVATION,
-                            lambda: round_probe(True),
+                            lambda ident=ident, scheduled=next_probe: round_probe(
+                                True, ident, scheduled
+                            ),
                             observation_id=ident,
                         )
                         slots.append(Slot("baseline", next_probe, job, ident))
@@ -578,10 +659,26 @@ class TrialCoordinator:
                         responded = disrupted = False
                         recognition_lock = RLock()
 
-                        def sample(ident: str):
+                        def sample(ident: str, scheduled: int):
                             nonlocal responded
+                            collection_started = runtime.clock()
                             endpoints = session.endpoints_down()
                             completed = runtime.clock()
+                            observed = self.evidence(
+                                context,
+                                "observation",
+                                {
+                                    "observation_id": ident,
+                                    "source": "global_harness",
+                                    "scheduled_ns": str(scheduled),
+                                    "started_ns": str(collection_started),
+                                    "completed_ns": str(completed),
+                                    "endpoint_states": [
+                                        "down" if v else "up" for v in endpoints
+                                    ],
+                                },
+                                completed,
+                            )
                             if (
                                 endpoints == (True, True)
                                 and completed < inject_deadline
@@ -593,6 +690,18 @@ class TrialCoordinator:
                                         # Publish the authoritative limit before admission.
                                         gate.deadline(
                                             completed + ns(config.response_seconds)
+                                        )
+                                        self.evidence(
+                                            context,
+                                            "fault_confirmed",
+                                            {
+                                                "observation_record_id": observed[
+                                                    "record_id"
+                                                ]
+                                                if observed
+                                                else ident
+                                            },
+                                            completed,
                                         )
                                         with Operation(Phase.DETECTOR) as recognition:
                                             recognition.finish(
@@ -614,7 +723,9 @@ class TrialCoordinator:
                             "probe",
                             injection,
                             ns(config.probe_seconds),
-                            lambda _: round_probe(),
+                            lambda ident, scheduled: round_probe(
+                                False, ident, scheduled
+                            ),
                         )
 
                         def launch_observation(
@@ -722,6 +833,22 @@ class TrialCoordinator:
                                             "recovered",
                                             "three confirmed recovery rounds",
                                         )
+                                        confirmed = probe_records[-3:]
+                                        if len(confirmed) == 3:
+                                            self.evidence(
+                                                context,
+                                                "recovery_confirmed",
+                                                {
+                                                    "probe_record_ids": [
+                                                        r["record_id"]
+                                                        for r in confirmed
+                                                    ],
+                                                    "first_success_record_id": confirmed[
+                                                        0
+                                                    ]["record_id"],
+                                                },
+                                                recovery,
+                                            )
                                         break
                                 else:
                                     streak = 0
@@ -760,9 +887,31 @@ class TrialCoordinator:
                                 )
                                 reason = "injection confirmation deadline"
                                 break
+                            prior_slots = len(slots)
                             sampler.admit(now, launch_observation, slots)
                             if probe_stream.admit(now, launch_observation, slots):
                                 streak = 0
+                            for missed in slots[prior_slots:]:
+                                if missed.job is None:
+                                    period = (
+                                        config.probe_seconds
+                                        if missed.kind == "probe"
+                                        else config.sample_seconds
+                                    )
+                                    self.evidence(
+                                        context,
+                                        "slot_missed",
+                                        {
+                                            "schedule": "probe"
+                                            if missed.kind == "probe"
+                                            else "observation",
+                                            "slot": (missed.scheduled_ns - injection)
+                                            // ns(period),
+                                            "scheduled_ns": str(missed.scheduled_ns),
+                                            "reason": "overrun",
+                                        },
+                                        now,
+                                    )
                             pending_deadline = (
                                 inject_deadline
                                 if response_closed
@@ -811,6 +960,13 @@ class TrialCoordinator:
                 else "response"
             ),
         )
+        self.evidence(
+            context,
+            "trial_ended",
+            {"outcome": status, "stage": outcome.stage, "reason": reason},
+            ended,
+        )
+        self.evidence(context, "admission_closed", {"reason": reason}, ended)
         with recording_scope(binding), Operation(Phase.STOPPING) as stopping:
             stopping.finish("admission_closed")
         cleanup_deadline = ended + ns(config.cleanup_seconds)
@@ -841,6 +997,20 @@ class TrialCoordinator:
             contained,
             runtime.clock(),
             cleanup_deadline,
+        )
+        self.evidence(
+            context,
+            "cleanup_completed",
+            {
+                "outcome": cleanup.status,
+                "network_absent": network.verified,
+                "workers_stopped": workers_stopped,
+                "provider_contained": contained,
+                "reason": "containment verified"
+                if cleanup.status == "verified"
+                else "containment unverified",
+            },
+            cleanup.ended_ns,
         )
         return TrialExecution(
             outcome,

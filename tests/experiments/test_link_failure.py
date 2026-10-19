@@ -350,7 +350,7 @@ def test_deployment_failures_are_exported_as_unsuccessful_trials(monkeypatch, tm
     monkeypatch.setattr(
         sys, "argv", ["experiment", "--trials", "2", "--output", str(output)]
     )
-    link_failure.main()
+    link_failure.legacy_main()
     records = [json.loads(line) for line in output.read_text().splitlines()]
     trials = [record for record in records if record["type"] == "trial"]
     assert len(trials) == 2
