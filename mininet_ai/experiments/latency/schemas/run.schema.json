@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mininet-ai.org/schemas/link-failure-latency/v2/run.schema.json",
+  "allOf": [{"$ref": "common.schema.json#/$defs/envelope"}],
+  "type": "object", "unevaluatedProperties": false,
+  "required": ["created_at_utc", "generator_version", "seed", "scenario_id", "agents", "configuration", "scenario", "provenance"],
+  "properties": {
+    "created_at_utc": {"type": "string", "format": "date-time"},
+    "generator_version": {"const": "sha256-counter-v1"},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "scenario_id": {"$ref": "common.schema.json#/$defs/id"},
+    "agents": {"type": "array", "minItems": 10, "maxItems": 10, "uniqueItems": true, "items": {
+      "type": "object", "additionalProperties": false, "required": ["agent_id", "switch_id"],
+      "properties": {"agent_id": {"$ref": "common.schema.json#/$defs/id"}, "switch_id": {"$ref": "common.schema.json#/$defs/id"}}
+    }},
+    "configuration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["measured_attempts", "warmup_attempts", "budgets_seconds", "sampling_period_seconds", "probe_period_seconds"],
+      "properties": {
+        "measured_attempts": {"type": "integer", "minimum": 1},
+        "warmup_attempts": {"type": "integer", "minimum": 0},
+        "budgets_seconds": {"type": "object", "additionalProperties": false, "required": ["setup", "injection", "response", "cleanup"], "properties": {
+          "setup": {"type": "number", "exclusiveMinimum": 0}, "injection": {"type": "number", "exclusiveMinimum": 0}, "response": {"type": "number", "exclusiveMinimum": 0}, "cleanup": {"type": "number", "exclusiveMinimum": 0}
+        }},
+        "sampling_period_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "probe_period_seconds": {"const": 1}
+      }
+    },
+    "scenario": {
+      "type": "object", "additionalProperties": false,
+      "required": ["graph", "ports_by_switch", "host_attachments", "host_addresses", "designated_traffic", "eligible_failure_links", "failure_order", "healthy_paths", "policies", "network"],
+      "properties": {
+        "graph": {"type": "array", "minItems": 11, "maxItems": 15, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/link"}},
+        "ports_by_switch": {"type": "object", "minProperties": 10, "maxProperties": 10, "additionalProperties": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["neighbor", "port"], "properties": {"neighbor": {"$ref": "common.schema.json#/$defs/id"}, "port": {"type": "integer", "minimum": 1}}}}},
+        "host_attachments": {"type": "object", "additionalProperties": false, "required": ["h1", "h2"], "properties": {"h1": {"$ref": "common.schema.json#/$defs/id"}, "h2": {"$ref": "common.schema.json#/$defs/id"}}},
+        "host_addresses": {"type": "object", "additionalProperties": false, "required": ["h1", "h2"], "properties": {
+          "h1": {"const": {"ipv4": "10.0.0.1/24", "mac": "02:00:00:00:00:01"}},
+          "h2": {"const": {"ipv4": "10.0.0.2/24", "mac": "02:00:00:00:00:02"}}
+        }},
+        "designated_traffic": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/traffic"}},
+        "eligible_failure_links": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/link"}},
+        "failure_order": {"type": "object", "additionalProperties": false, "required": ["warmup", "measured"], "properties": {
+          "warmup": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/link"}},
+          "measured": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/link"}}
+        }},
+        "healthy_paths": {"$ref": "common.schema.json#/$defs/paths"},
+        "policies": {"type": "object", "additionalProperties": false, "required": ["healthy", "recovery"], "properties": {
+          "healthy": {"type": "array", "items": {"$ref": "#/$defs/rule"}},
+          "recovery": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["failed_link", "paths", "rules"], "properties": {
+            "failed_link": {"$ref": "common.schema.json#/$defs/link"}, "paths": {"$ref": "common.schema.json#/$defs/paths"}, "rules": {"type": "array", "items": {"$ref": "#/$defs/rule"}}
+          }}}
+        }},
+        "network": {"const": {"bandwidth_mbps": 100, "delay_ms": 1, "loss_percent": 0, "openflow": "OpenFlow13", "fail_mode": "secure", "controller": null}}
+      }
+    },
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code_revision", "provider", "model", "provider_configuration", "resolved_model_identity", "environment"],
+      "properties": {
+        "code_revision": {"$ref": "common.schema.json#/$defs/id"}, "provider": {"$ref": "common.schema.json#/$defs/id"}, "model": {"$ref": "common.schema.json#/$defs/id"},
+        "provider_configuration": {"type": "object"}, "resolved_model_identity": {"$ref": "common.schema.json#/$defs/nullable_id"}, "environment": {"type": "object", "minProperties": 1}
+      }
+    }
+  },
+  "$defs": {
+    "rule": {"type": "object", "additionalProperties": false, "required": ["switch_id", "destination", "eth_type", "output_port"], "properties": {
+      "switch_id": {"$ref": "common.schema.json#/$defs/id"}, "destination": {"enum": ["h1", "h2"]}, "eth_type": {"enum": ["arp", "ipv4"]}, "output_port": {"type": "integer", "minimum": 1}
+    }}
+  }
+}

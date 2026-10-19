@@ -1,0 +1,62 @@
+{
+  "complete-setup-failure": {
+    "state": "completed",
+    "integrity": "valid",
+    "code": null
+  },
+  "complete-recovery": {
+    "state": "completed",
+    "integrity": "valid",
+    "code": null
+  },
+  "failed-phase": {
+    "state": "completed",
+    "integrity": "valid",
+    "code": null
+  },
+  "provider-terminal-response": {
+    "state": "completed",
+    "integrity": "valid",
+    "code": null
+  },
+  "provider-unknown-abort": {
+    "state": "aborted",
+    "integrity": "valid",
+    "code": null
+  },
+  "interrupted-started-trial": {
+    "state": "incomplete",
+    "integrity": "valid",
+    "code": null
+  },
+  "invalid-reference": {
+    "state": "completed",
+    "integrity": "invalid",
+    "code": "reference"
+  },
+  "invalid-duplicate": {
+    "state": "completed",
+    "integrity": "invalid",
+    "code": "duplicate_id"
+  },
+  "invalid-counts": {
+    "state": "completed",
+    "integrity": "invalid",
+    "code": "counts"
+  },
+  "invalid-local-cancellation-proof": {
+    "state": "aborted",
+    "integrity": "invalid",
+    "code": "containment"
+  },
+  "warmup-failure-abort": {
+    "state": "aborted",
+    "integrity": "valid",
+    "code": null
+  },
+  "truncated-tail": {
+    "state": "incomplete",
+    "integrity": "valid",
+    "code": "truncated_tail"
+  }
+}

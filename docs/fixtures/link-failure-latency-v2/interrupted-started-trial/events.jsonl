@@ -1,0 +1,1 @@
+{"schema": "mininet-ai/link-failure-latency/v2", "record_id": "trial-start", "collector_seq": 1, "run_id": "run-1", "clock_domain_id": "clock-1", "tick_ns": "1", "evidence_ids": [], "trial_id": "trial-1", "fault_id": "fault-1", "type": "trial_started", "data": {"trial_kind": "measured", "ordinal": 1, "scenario_id": "scenario-0", "failed_link": ["s3", "s9"]}}
