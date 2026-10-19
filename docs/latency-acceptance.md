@@ -16,14 +16,23 @@ directories, validation diagnostics and actual results. **Live remains unverifie
 | Normal Provider terminal proof versus local interruption/cancel, unknown containment abort | Provider adapter tests in `tests/agents/`, recorder/coordinator/runner tests |
 | Durable v2 layout, full agent/capability seams, storage loss, interruption, summaries and explicit live skip | `tests/experiments/test_latency_runner.py` |
 
-Required checks (repository root):
+Project checks (repository root):
 
 ```bash
 uv run ruff check .
-uv run ruff format --check .
 uv run pyright
 uv run pytest -q
 ```
+
+Check formatting for changed Python files with `uv run ruff format --check
+<paths>`. A whole-repository format audit also reports unrelated pre-existing
+drift; do not silently reformat unrelated code in this integration slice.
+
+Implementation validation (2026-10-19): **822 tests passed, 4 skipped, 179
+subtests passed**; Ruff passed; Pyright reported zero errors; formatting passed
+for all 14 touched Python files. The skipped tests are not live acceptance.
+Both review axes against `main` completed, with concrete contract findings fixed;
+one nonblocking policy-serialization coupling heuristic was deferred.
 
 ## Opt-in live recovery and teardown
 
