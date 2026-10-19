@@ -821,7 +821,7 @@ def summarize_trials(trials: tuple[TrialResult, ...]) -> dict[str, Any]:
     }
 
 
-def main() -> None:
+def legacy_main() -> None:
     parser = argparse.ArgumentParser(
         description="Measure agent-driven link-failure recovery (no model sweep)."
     )
@@ -988,6 +988,13 @@ def main() -> None:
             summary = summarize_trials(tuple(results))
             write({"type": "summary", **summary})
     print(json.dumps(summary, indent=2))
+
+
+def main() -> None:
+    """The supported CLI writes v2; legacy helpers remain for v1 readers/tests."""
+    from mininet_ai.experiments.latency.cli import run_cli
+
+    run_cli(build_scenario, EXAMPLE_SPECIFICATION)
 
 
 if __name__ == "__main__":

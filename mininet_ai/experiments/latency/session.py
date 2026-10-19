@@ -69,8 +69,17 @@ class SubstrateTrialSession:
             raise
         registries = ProviderRegistries()
         register_builtin_providers(registries, self.substrate)
+
+        def invocation_id():
+            binding = current_binding()
+            return (binding.context.invocation_id if binding else None) or str(uuid4())
+
         self.agents = self.agents_factory(
-            self.scenario.plan, self.substrate, registries, agent_factory=self.factory
+            self.scenario.plan,
+            self.substrate,
+            registries,
+            agent_factory=self.factory,
+            invocation_id_factory=invocation_id,
         )
         self._action("link.enable", self.scenario.failed_link)
         for switch in self.scenario.switches:
@@ -174,13 +183,16 @@ class SubstrateTrialSession:
                 substrate_run_id=self.run_id,
                 observation_id=observation_id,
                 observation_source="global_harness",
+                invocation_id=str(uuid4()),
             ):
                 with Operation(Phase.DETECTOR) as recognition:
                     recognition.finish("relevant_failure_recognized")
                 with Operation(Phase.ADMISSION) as admission:
                     accepted = gate.invocation(agent_id)
                     admission.finish(
-                        "invocation_admitted" if accepted else "invocation_closed",
+                        "trial_invocation_admitted"
+                        if accepted
+                        else "trial_invocation_closed",
                         failed=not accepted,
                     )
                 if not accepted:
@@ -237,16 +249,20 @@ class SubstrateTrialSession:
                             invocation_id=prepared.context.invocation_id,
                             proposal_id=proposal.id,
                         ),
-                        Operation(Phase.ACTION_ATTEMPT),
                         Operation(Phase.ADMISSION) as admission,
                     ):
                         admitted = gate.action(agent_id, proposal.id)
                         admission.finish(
-                            "action_admitted" if admitted else "action_closed",
+                            "trial_action_admitted"
+                            if admitted
+                            else "trial_action_closed",
                             failed=not admitted,
                         )
                     if admitted:
                         try:
+                            # OneShotAgentRuntime owns the actual attempt transition.
+                            # The trial gate above records admission, not a second
+                            # action attempt around that public runtime call.
                             outcomes.append(self.agents.execute(prepared, proposal))
                         except Exception as error:
                             self.agent_errors.append((agent_id, str(error)))
