@@ -253,6 +253,9 @@ def test_run_aborts_after_failed_warmup_and_never_starts_measured_attempts():
         0,
         1,
     )
+    assert run.counts("measured").requested == 10
+    assert run.counts("measured").outcome_finalized == 0
+    assert run.counts("warmup").cleanup_completed == 1
 
 
 def test_agents_can_recognize_before_onset_and_act_before_disruption_probe_finishes():
@@ -523,3 +526,240 @@ def test_lost_required_evidence_prevents_injection_and_never_claims_cleanup_proo
 def test_configuration_rejects_out_of_contract_bounds(field, value):
     with pytest.raises(ValueError):
         TrialConfig(**{field: value})
+
+
+def test_real_agent_runtime_keeps_experiment_and_deployment_identities_correlated():
+    from copy import deepcopy
+    from dataclasses import replace
+
+    from mininet_ai.experiments.latency.session import SubstrateTrialSession
+    from mininet_ai.runtime.instrumentation import (
+        Phase,
+        RecordingBinding,
+        recording_scope,
+    )
+    from mininet_ai.substrates import FakeSubstrateRuntime
+    from tests.experiments import example
+
+    class Substrate(FakeSubstrateRuntime):
+        name = "mininet-ovs"
+
+    scenario = example.build_scenario(seed=7)
+    snapshot = deepcopy(scenario.plan.snapshot)
+    snapshot["blueprints"][0]["implementation"]["entrypoint"] = (
+        "tests.experiments.factories:create_recovery_agent"
+    )
+    scenario = replace(
+        scenario, plan=scenario.plan.model_copy(update={"snapshot": snapshot})
+    )
+    session = SubstrateTrialSession(scenario, "trial", Substrate())
+    recorder = PhaseRecorder("test", clock=lambda: 100)
+    context = ExecutionContext("experiment-run", "trial", "fault")
+    with recording_scope(RecordingBinding(recorder, context)):
+        session.setup()
+        session.respond(AdmissionGate(), "observation-1")
+    assert not session.agent_errors
+    assert len(session.agent_results) == 10
+    assert all(result.status.value == "succeeded" for result in session.agent_results)
+    recognized = [
+        r
+        for r in recorder.records
+        if r.phase == Phase.DETECTOR and r.outcome == "relevant_failure_recognized"
+    ]
+    assert {r.context.agent_id for r in recognized} == {
+        a.id for a in scenario.plan.agents
+    }
+    assert all(r.context.run_id == "experiment-run" for r in recorder.records)
+    assert all(r.context.substrate_run_id == session.run_id for r in recognized)
+    assert session.cleanup().verified
+
+
+def test_readiness_observer_failure_is_invalid_not_operational_setup_failure():
+    class BrokenReadiness(Session):
+        def ready(self):
+            raise RuntimeError("observer is broken")
+
+    result, *_ = coordinate(BrokenReadiness())
+    assert result.outcome.status == "invalid"
+
+
+def test_probe_round_straddling_fault_onset_is_not_link_restoration():
+    from mininet_ai.experiments.latency.trials import ProbeRound
+
+    class Straddled(FakeRuntime):
+        def start(self, name, fn):
+            if name == "probe" and not any(j.name == "probe" for j in self.jobs):
+
+                def straddle():
+                    return ProbeRound(
+                        (False, False),
+                        (False, False),
+                        (True, True),
+                        (True, True),
+                        self.now - 500_000_000,
+                        self.now - 500_000_000,
+                        self.now,
+                        self.now,
+                        self.now - 500_000_000,
+                    )
+
+                self.delays[name] = 500_000_000
+                return super().start(name, straddle)
+            if name == "probe":
+                self.delays[name] = 0
+            return super().start(name, fn)
+
+    result, *_ = coordinate(runtime=Straddled(injection=200_000_000))
+    assert result.outcome.status == "recovered"
+
+
+def test_real_agent_runtime_and_public_substrate_seams_complete_a_bounded_trial():
+    from copy import deepcopy
+    from dataclasses import replace
+
+    from mininet_ai.experiments.latency.session import SubstrateTrialSession
+    from mininet_ai.substrates import FakeSubstrateRuntime
+    from tests.experiments import example
+
+    class Substrate(FakeSubstrateRuntime):
+        name = "mininet-ovs"
+
+        def __init__(self):
+            super().__init__()
+            self.down = False
+            self.rules = 0
+
+        def execute(self, run_id, request):
+            result = super().execute(run_id, request)
+            if request.name == "link.disable":
+                self.down = True
+                self.rules = 0
+            elif request.name == "openflow.flow.install":
+                self.rules += 1
+            return result
+
+        def observe(self, run_id, query):
+            observed = super().observe(run_id, query)
+            if query.name == "topology.resources":
+                values = {
+                    target: {
+                        "state": "down" if self.down else "up",
+                        "attributes": {"operState": "DOWN" if self.down else "UP"},
+                    }
+                    for target in query.targets
+                }
+            elif query.name == "host.reachability":
+                source = query.targets[0]
+                destination = query.parameters["destinations"][0]
+                values = {
+                    source: {
+                        "probes": [
+                            {
+                                "source": source,
+                                "destination": destination,
+                                "reachable": not self.down or self.rules == 40,
+                            }
+                        ]
+                    }
+                }
+            else:
+                return observed
+            return observed.model_copy(update={"values": values})
+
+    scenario = example.build_scenario(seed=7)
+    snapshot = deepcopy(scenario.plan.snapshot)
+    snapshot["blueprints"][0]["implementation"]["entrypoint"] = (
+        "tests.experiments.factories:create_recovery_agent"
+    )
+    scenario = replace(
+        scenario, plan=scenario.plan.model_copy(update={"snapshot": snapshot})
+    )
+    session = SubstrateTrialSession(scenario, "trial", Substrate())
+    result, _, _, recorder = coordinate(session, FakeRuntime(response=200_000_000))
+    assert result.outcome.status == "recovered"
+    assert result.cleanup.status == "verified"
+    assert result.context.run_id == "run"
+    assert result.clock_domain_id == recorder.clock_domain_id
+    assert len(session.agent_results) == 10
+    assert not session.agent_errors
+
+
+def test_response_budget_starts_on_fresh_observation_not_command_submission():
+    result, *_ = coordinate(runtime=FakeRuntime(injection=3_000_000_000))
+    assert result.outcome.injection_ns == 2_000_000_000
+    assert result.outcome.onset_ns == 5_000_000_000
+    assert result.outcome.response_deadline_ns == 125_000_000_000
+
+
+def test_verified_public_deployment_rollback_permits_the_next_measured_attempt():
+    from mininet_ai.errors import RuntimeOperationError
+    from mininet_ai.experiments.latency.session import SubstrateTrialSession
+    from mininet_ai.substrates import FakeSubstrateRuntime
+    from tests.experiments import example
+
+    class RolledBack(FakeSubstrateRuntime):
+        def deploy(self, plan):
+            raise RuntimeOperationError(
+                "deploy failed; rollback verified",
+                code="runtime.deploy.failed",
+                cleanup=CleanupOutcome(
+                    status=CleanupStatus.VERIFIED,
+                    evidence=("owned resources absent",),
+                    evidence_gaps=(),
+                ),
+            )
+
+    runtime = FakeRuntime()
+    run = TrialCoordinator(
+        runtime,
+        PhaseRecorder("test", clock=runtime.clock),
+        TrialConfig(warmup=0, measured=2),
+    ).run(
+        example.build_scenario(seed=0),
+        lambda scenario, trial_id: SubstrateTrialSession(
+            scenario, trial_id, RolledBack()
+        ),
+        run_id="run",
+    )
+    assert run.status == "completed"
+    assert run.counts("measured").cleanup_completed == 2
+    assert all(a.execution.outcome.status == "setup_failed" for a in run.attempts)
+
+
+@pytest.mark.parametrize(
+    "response_seconds,expected", [(3, "timeout"), (3.1, "recovered")]
+)
+def test_third_round_must_complete_strictly_before_response_deadline(
+    response_seconds, expected
+):
+    result, *_ = coordinate(response_seconds=response_seconds)
+    assert result.outcome.status == expected
+    assert result.outcome.first_success_ns == 3_000_000_000
+    assert result.outcome.recovery_ns == (
+        5_000_000_000 if expected == "recovered" else None
+    )
+
+
+def test_all_pending_workers_share_one_cleanup_budget_and_block_next_trial():
+    from tests.experiments import example
+
+    runtime = FakeRuntime(response=100_000_000_000)
+    created = []
+
+    def factory(*args):
+        created.append(args)
+        return Session()
+
+    run = TrialCoordinator(
+        runtime,
+        PhaseRecorder("test", clock=runtime.clock),
+        TrialConfig(warmup=0, measured=2, cleanup_seconds=3),
+    ).run(example.build_scenario(seed=0), factory, run_id="run")
+    assert len(created) == 1
+    assert run.status == "aborted"
+    attempt = run.attempts[0].execution
+    assert attempt.outcome.status == "recovered"
+    assert attempt.cleanup.status == "unknown"
+    assert not attempt.cleanup.workers_stopped
+    assert attempt.cleanup.ended_ns - attempt.outcome.ended_ns == 3_000_000_000
+    assert run.counts("measured").cleanup_completed == 0

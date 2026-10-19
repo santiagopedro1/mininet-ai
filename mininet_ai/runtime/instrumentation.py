@@ -59,6 +59,7 @@ class ExecutionContext:
     correlation_id: str | None = None
     causation_id: str | None = None
     scheduling_operation_id: str | None = None
+    substrate_run_id: str | None = None
 
     def __post_init__(self) -> None:
         if not all(

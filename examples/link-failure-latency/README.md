@@ -107,6 +107,9 @@ scheduled slots, actual worker start/end ticks, incomplete/late jobs, and the
 recorder's correlated phase/Provider evidence. In-memory ticks are integers;
 the output integration must encode persisted ticks as decimal strings per v2.
 No persistence or summary format is introduced by this API.
+`run.counts("warmup" | "measured")` keeps requested, started, outcome-finalized,
+and cleanup-completed counts separate. Correlation retains the experiment run ID
+and a distinct `substrate_run_id` for each fresh deployment.
 
 Every attempt constructs a new session and deployment. Failed measured attempts
 consume their selection; failed warm-up aborts. Another attempt requires public

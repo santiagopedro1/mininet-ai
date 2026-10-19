@@ -1,5 +1,7 @@
 """Bounded ADR-0001/0004 trial orchestration (persistence is a separate seam)."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from contextvars import copy_context
 from dataclasses import dataclass
@@ -128,6 +130,7 @@ class AdmissionGate:
 
 
 class Job(Protocol):
+    name: str
     started_ns: int | None
     ended_ns: int | None
     value: Any
@@ -144,7 +147,8 @@ class Runtime(Protocol):
 
 
 class ThreadJob:
-    def __init__(self, fn: Callable[[], Any], clock: Callable[[], int]):
+    def __init__(self, name: str, fn: Callable[[], Any], clock: Callable[[], int]):
+        self.name = name
         self.started_ns: int | None = None
         self.ended_ns: int | None = None
         self.value: Any = None
@@ -175,7 +179,7 @@ class ThreadRuntime:
         return monotonic_ns()
 
     def start(self, name: str, fn: Callable[[], Any]) -> Job:
-        return ThreadJob(fn, self.clock)
+        return ThreadJob(name, fn, self.clock)
 
     def wait_until(self, tick: int) -> None:
         sleep(max(0, min((tick - self.clock()) / 1e9, 0.001)))
@@ -209,6 +213,7 @@ class TrialOutcome:
     response_deadline_ns: int | None = None
     first_success_ns: int | None = None
     recovery_ns: int | None = None
+    stage: Literal["setup", "injection", "response"] = "setup"
 
 
 @dataclass(frozen=True)
@@ -235,6 +240,53 @@ class ProbeRound:
     probes_started_ns: int
     probes_ended_ns: int
     after_ns: int
+    started_ns: int
+
+    @property
+    def all_success(self) -> bool:
+        return self.probes == (True, True)
+
+    @property
+    def endpoints_match(self) -> bool:
+        return self.before == self.after == self.expected
+
+    def restored_after(self, onset: int) -> bool:
+        return (self.before != self.expected and self.started_ns >= onset) or (
+            self.after != self.expected and self.probes_ended_ns >= onset
+        )
+
+
+@dataclass
+class FixedSlots:
+    """One non-overlapping collection stream; missed slots are never backfilled."""
+
+    kind: str
+    next_ns: int
+    period_ns: int
+    collect: Callable[[str], Any]
+    job: Job | None = None
+    slot: Slot | None = None
+
+    def admit(
+        self,
+        now: int,
+        launch: Callable[[str, Callable[[], Any], str], Job],
+        slots: list[Slot],
+    ) -> bool:
+        missed = False
+        while self.next_ns <= now:
+            ident = str(uuid4())
+            if self.job is not None or self.next_ns + self.period_ns <= now:
+                slots.append(Slot(self.kind, self.next_ns, None, ident))
+                missed = True
+            else:
+                self.job = launch(
+                    self.kind, lambda ident=ident: self.collect(ident), ident
+                )
+                self.slot = Slot(self.kind, self.next_ns, self.job, ident)
+                slots.append(self.slot)
+            self.next_ns += self.period_ns
+        return missed
 
 
 @dataclass(frozen=True)
@@ -244,6 +296,7 @@ class TrialCleanup:
     workers_stopped: bool
     providers_contained: bool
     ended_ns: int
+    deadline_ns: int
 
 
 @dataclass(frozen=True)
@@ -252,6 +305,8 @@ class TrialExecution:
     cleanup: TrialCleanup
     slots: tuple[Slot, ...]
     jobs: tuple[Job, ...]
+    context: ExecutionContext
+    clock_domain_id: str
 
 
 @dataclass(frozen=True)
@@ -278,6 +333,33 @@ class TrialRun:
     @property
     def started_warmup(self) -> int:
         return sum(a.kind == "warmup" for a in self.attempts)
+
+    def counts(self, kind: Literal["warmup", "measured"]) -> AttemptCounts:
+        attempts = [a for a in self.attempts if a.kind == kind]
+        cleanup_completed = sum(
+            any(
+                j.name == "cleanup"
+                and j.done
+                and j.ended_ns is not None
+                and j.ended_ns < a.execution.cleanup.deadline_ns
+                for j in a.execution.jobs
+            )
+            for a in attempts
+        )
+        return AttemptCounts(
+            self.requested_warmup if kind == "warmup" else self.requested_measured,
+            len(attempts),
+            len(attempts),
+            cleanup_completed,
+        )
+
+
+@dataclass(frozen=True)
+class AttemptCounts:
+    requested: int
+    started: int
+    outcome_finalized: int
+    cleanup_completed: int
 
 
 class DeferredSession:
@@ -390,11 +472,14 @@ class TrialCoordinator:
         reason = "unexpected coordinator failure"
 
         def launch(
-            name: str, phase: Phase, fn: Callable[[], Any], **identities: str
+            name: str, phase: Phase | None, fn: Callable[[], Any], **identities: str
         ) -> Job:
             def recorded():
-                with recording_scope(binding, **identities), Operation(phase):
-                    return fn()
+                with recording_scope(binding, **identities):
+                    if phase is None:
+                        return fn()
+                    with Operation(phase):
+                        return fn()
 
             job = runtime.start(name, recorded)
             jobs.append(job)
@@ -406,6 +491,7 @@ class TrialCoordinator:
             return job.done and job.ended_ns is not None and job.ended_ns < deadline
 
         def round_probe(baseline=False):
+            round_started = runtime.clock()
             before = session.endpoints_down()
             before_ns = runtime.clock()
             probes_started = runtime.clock()
@@ -423,6 +509,7 @@ class TrialCoordinator:
                 probes_started,
                 probes_ended,
                 after_ns,
+                round_started,
             )
 
         try:
@@ -436,7 +523,9 @@ class TrialCoordinator:
                 ready = launch("ready", Phase.OBSERVATION, session.ready)
                 if not await_job(ready, setup_deadline):
                     status, reason = "setup_failed", "readiness deadline"
-                elif ready.error or ready.value is not True:
+                elif ready.error:
+                    status, reason = "invalid", "readiness observer failed"
+                elif ready.value is not True:
                     status, reason = "setup_failed", "observation path not ready"
                 else:
                     status, reason = "invalid", "unhealthy baseline"
@@ -463,17 +552,7 @@ class TrialCoordinator:
                             baseline_ok = False
                             break
                         round: ProbeRound = job.value
-                        before, probes, after, expected = (
-                            round.before,
-                            round.probes,
-                            round.after,
-                            round.expected,
-                        )
-                        if (
-                            before != expected
-                            or after != expected
-                            or probes != (True, True)
-                        ):
+                        if not round.endpoints_match or not round.all_success:
                             baseline_ok = False
                             break
                         next_probe += ns(config.probe_seconds)
@@ -497,9 +576,6 @@ class TrialCoordinator:
                         inject_job = launch(
                             "injection", Phase.INJECTION, session.inject
                         )
-                        next_sample = next_probe = injection
-                        sample_job = probe_job = None
-                        probe_slot = None
                         responded = disrupted = False
                         recognition_lock = RLock()
 
@@ -514,14 +590,39 @@ class TrialCoordinator:
                                 with recognition_lock:
                                     if not responded and not gate.closed:
                                         responded = True
+                                        with Operation(Phase.DETECTOR) as recognition:
+                                            recognition.finish(
+                                                "relevant_failure_recognized"
+                                            )
                                         launch(
                                             "response",
-                                            Phase.DETECTOR,
+                                            None,
                                             lambda: session.respond(gate, ident),
                                             observation_id=ident,
                                             observation_source="global_harness",
                                         )
                             return FaultObservation(endpoints, completed)
+
+                        sampler = FixedSlots(
+                            "sample", injection, ns(config.sample_seconds), sample
+                        )
+                        probe_stream = FixedSlots(
+                            "probe",
+                            injection,
+                            ns(config.probe_seconds),
+                            lambda _: round_probe(),
+                        )
+
+                        def launch_observation(
+                            kind: str, collect: Callable[[], Any], ident: str
+                        ):
+                            return launch(
+                                kind,
+                                Phase.OBSERVATION,
+                                collect,
+                                observation_id=ident,
+                                observation_source="global_harness",
+                            )
 
                         streak = 0
                         status, reason = "injection_failed", "link-down not confirmed"
@@ -530,19 +631,17 @@ class TrialCoordinator:
                             if not self.recorder.trustworthy(context):
                                 status, reason = "invalid", "required evidence lost"
                                 break
-                            if sample_job is not None and sample_job.done:
-                                assert sample_job.ended_ns is not None
-                                if sample_job.error and sample_job.ended_ns < (
+                            if sampler.job is not None and sampler.job.done:
+                                assert sampler.job.ended_ns is not None
+                                if sampler.job.error and sampler.job.ended_ns < (
                                     response_deadline or inject_deadline
                                 ):
                                     status, reason = "invalid", "fault observer failed"
                                     break
-                                observation: FaultObservation = (
-                                    sample_job.value
-                                    or FaultObservation(
-                                        (False, False), sample_job.ended_ns
-                                    )
-                                )
+                                if sampler.job.error:
+                                    sampler.job = None
+                                    continue
+                                observation: FaultObservation = sampler.job.value
                                 timely_sample = observation.completed_ns < (
                                     response_deadline or inject_deadline
                                 )
@@ -559,49 +658,48 @@ class TrialCoordinator:
                                 elif onset is not None and timely_sample:
                                     status, reason = "invalid", "failed link restored"
                                     break
-                                sample_job = None
-                            if probe_job is not None and probe_job.done:
-                                assert probe_job.ended_ns is not None
-                                if probe_job.error and probe_job.ended_ns < (
-                                    response_deadline or inject_deadline
+                                sampler.job = None
+                            if probe_stream.job is not None and probe_stream.job.done:
+                                assert probe_stream.job.ended_ns is not None
+                                if (
+                                    probe_stream.job.error
+                                    and probe_stream.job.ended_ns
+                                    < (response_deadline or inject_deadline)
                                 ):
                                     status, reason = "invalid", "probe observer failed"
                                     break
-                                end = probe_job.ended_ns
+                                end = probe_stream.job.ended_ns
                                 assert end is not None
-                                if probe_job.error:
-                                    probe_job = None
+                                if probe_stream.job.error:
+                                    probe_stream.job = None
                                     continue
-                                round = probe_job.value
-                                before, probes, after, expected = (
-                                    round.before,
-                                    round.probes,
-                                    round.after,
-                                    round.expected,
-                                )
+                                round = probe_stream.job.value
                                 timely_probe = (
                                     response_deadline is None or end < response_deadline
                                 )
                                 if (
                                     onset is not None
                                     and timely_probe
-                                    and (before != expected or after != expected)
+                                    and round.restored_after(onset)
                                 ):
                                     status, reason = "invalid", "failed link restored"
                                     break
-                                if end < inject_deadline and probes != (True, True):
+                                if end < inject_deadline and not round.all_success:
                                     disrupted = True
-                                assert probe_slot is not None
+                                assert probe_stream.slot is not None
                                 timely = (
                                     response_deadline is not None
                                     and end < response_deadline
                                     and end
-                                    < probe_slot.scheduled_ns + ns(config.probe_seconds)
+                                    < probe_stream.slot.scheduled_ns
+                                    + ns(config.probe_seconds)
+                                    and onset is not None
+                                    and round.started_ns >= onset
                                 )
                                 if (
                                     disrupted
-                                    and probes == (True, True)
-                                    and before == after == expected
+                                    and round.all_success
+                                    and round.endpoints_match
                                     and timely
                                 ):
                                     streak += 1
@@ -616,7 +714,7 @@ class TrialCoordinator:
                                         break
                                 else:
                                     streak = 0
-                                probe_job = None
+                                probe_stream.job = None
                             if inject_job.done and inject_job.error:
                                 status, reason = (
                                     "injection_failed",
@@ -639,48 +737,9 @@ class TrialCoordinator:
                                 )
                                 reason = "injection confirmation deadline"
                                 break
-                            # Independent fixed slots: never overlap a collection or backfill.
-                            for kind, period in (
-                                ("sample", ns(config.sample_seconds)),
-                                ("probe", ns(config.probe_seconds)),
-                            ):
-                                due = next_sample if kind == "sample" else next_probe
-                                active = sample_job if kind == "sample" else probe_job
-                                while due <= now:
-                                    ident = str(uuid4())
-                                    if active is not None or due + period <= now:
-                                        slots.append(Slot(kind, due, None, ident))
-                                        if kind == "probe":
-                                            streak = 0
-                                    else:
-                                        active = (
-                                            launch(
-                                                kind,
-                                                Phase.OBSERVATION,
-                                                lambda ident=ident: sample(ident),
-                                                observation_id=ident,
-                                                observation_source="global_harness",
-                                            )
-                                            if kind == "sample"
-                                            else launch(
-                                                kind,
-                                                Phase.OBSERVATION,
-                                                round_probe,
-                                                observation_id=ident,
-                                                observation_source="global_harness",
-                                            )
-                                        )
-                                        slot = Slot(kind, due, active, ident)
-                                        slots.append(slot)
-                                        if kind == "sample":
-                                            sample_job = active
-                                        else:
-                                            probe_job, probe_slot = active, slot
-                                    due += period
-                                if kind == "sample":
-                                    next_sample = due
-                                else:
-                                    next_probe = due
+                            sampler.admit(now, launch_observation, slots)
+                            if probe_stream.admit(now, launch_observation, slots):
+                                streak = 0
                             pending_deadline = (
                                 min(
                                     inject_deadline,
@@ -691,12 +750,16 @@ class TrialCoordinator:
                             )
                             if any(
                                 j is not None and j.done
-                                for j in (sample_job, probe_job)
+                                for j in (sampler.job, probe_stream.job)
                             ):
                                 continue
                             assert pending_deadline is not None
                             runtime.wait_until(
-                                min(next_sample, next_probe, pending_deadline)
+                                min(
+                                    sampler.next_ns,
+                                    probe_stream.next_ns,
+                                    pending_deadline,
+                                )
                             )
         except Exception as error:
             status, reason = "error", str(error)
@@ -715,6 +778,13 @@ class TrialCoordinator:
             response_deadline,
             first_success,
             recovery,
+            "setup"
+            if injection is None
+            else (
+                "injection"
+                if onset is None or status == "no_observed_disruption"
+                else "response"
+            ),
         )
         with recording_scope(binding), Operation(Phase.STOPPING) as stopping:
             stopping.finish("admission_closed")
@@ -740,6 +810,18 @@ class TrialCoordinator:
         if network.remaining_resources:
             cleanup_status = "failed"
         cleanup = TrialCleanup(
-            cleanup_status, network, workers_stopped, contained, runtime.clock()
+            cleanup_status,
+            network,
+            workers_stopped,
+            contained,
+            runtime.clock(),
+            cleanup_deadline,
         )
-        return TrialExecution(outcome, cleanup, tuple(slots), tuple(jobs))
+        return TrialExecution(
+            outcome,
+            cleanup,
+            tuple(slots),
+            tuple(jobs),
+            context,
+            self.recorder.clock_domain_id,
+        )

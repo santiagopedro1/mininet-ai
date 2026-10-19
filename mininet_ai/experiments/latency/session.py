@@ -171,9 +171,12 @@ class SubstrateTrialSession:
             with recording_scope(
                 current_binding(),
                 agent_id=agent_id,
+                substrate_run_id=self.run_id,
                 observation_id=observation_id,
                 observation_source="global_harness",
             ):
+                with Operation(Phase.DETECTOR) as recognition:
+                    recognition.finish("relevant_failure_recognized")
                 with Operation(Phase.ADMISSION) as admission:
                     accepted = gate.invocation(agent_id)
                     admission.finish(
