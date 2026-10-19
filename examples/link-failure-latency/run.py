@@ -8,11 +8,12 @@ import os
 from collections import Counter, deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, replace
 from ipaddress import ip_interface
+from itertools import pairwise
 from math import ceil
 from pathlib import Path
-from random import Random
 from statistics import mean, median
 from threading import Event, Lock
 from time import monotonic, sleep
@@ -24,6 +25,13 @@ from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
 from mininet_ai.agents.agno import AgnoAgentFactory
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.compiler.models import PlannedLink, PlannedPort
+from mininet_ai.experiments.scenarios import (
+    GENERATOR_VERSION,
+    CounterStream,
+    FailurePasses,
+    canonical_pair,
+    generate_topology,
+)
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification import load_experiment
@@ -217,21 +225,129 @@ class TrialMeasurements:
 class LinkFailureScenario:
     plan: DeploymentPlan
     seed: int
-    ring: tuple[str, ...]
+    switches: tuple[str, ...]
     failed_link: str
     ports: dict[tuple[str, str], int]
+    edges: tuple[tuple[str, str], ...]
+    attachments: dict[str, str]
+    link_names: dict[tuple[str, str], str]
+    generator_version: str
+    _replay: dict[str, Any] | None = None
+
+    def to_record(self) -> dict[str, Any]:
+        """Retain actual inputs and supplied policies, independent of future generators."""
+        if self._replay is not None:
+            return deepcopy(self._replay)
+        return {
+            "generator_version": self.generator_version,
+            "seed": self.seed,
+            # Distribution parameters, not a claim about overrides in saved YAML.
+            # The retained experiment is authoritative for actual network settings.
+            "generator_configuration": {
+                "switch_count": 10,
+                "chord_count_range": [1, 5],
+                "bandwidth_mbps": 100,
+                "delay": "1ms",
+                "loss_percent": 0,
+                "controllers": [],
+                "fail_mode": "secure",
+                "protocols": ["OpenFlow13"],
+            },
+            "experiment": deepcopy(self.plan.snapshot),
+            "edges": [list(pair) for pair in self.edges],
+            "host_attachments": dict(self.attachments),
+            "ports": [
+                {"switch": switch, "neighbor": neighbor, "port": port}
+                for (switch, neighbor), port in sorted(self.ports.items())
+                if switch in self.switches
+            ],
+            "designated_traffic": [["h1", "h2"], ["h2", "h1"]],
+            "failed_link": self.failed_link,
+            "eligible_failures": [list(pair) for pair in self.eligible_failures],
+            "paths": {
+                state: {
+                    f"{source}_to_{destination}": list(
+                        self.route(source, destination, failed=failed)
+                    )
+                    for source, destination in (("h1", "h2"), ("h2", "h1"))
+                }
+                for state, failed in (("healthy", False), ("recovery", True))
+            },
+            "policies": {
+                state: {
+                    switch: list(self.rules(switch, failed=failed))
+                    for switch in self.switches
+                }
+                for state, failed in (("healthy", False), ("recovery", True))
+            },
+        }
+
+    @classmethod
+    def from_record(cls, record: dict[str, Any]) -> LinkFailureScenario:
+        """Replay recorded graph/ports and exact supplied paths/policies, not the seed."""
+        plan = compile_experiment(Experiment.model_validate(record["experiment"]))
+        scenario = _scenario_from_plan(plan, selected_fault=record["failed_link"])
+        return replace(
+            scenario,
+            generator_version=record["generator_version"],
+            _replay=deepcopy(record),
+        )
+
+    @property
+    def eligible_failures(self) -> tuple[tuple[str, str], ...]:
+        if self._replay is not None:
+            return tuple(tuple(pair) for pair in self._replay["eligible_failures"])
+        used = set()
+        for source, destination in (("h1", "h2"), ("h2", "h1")):
+            path = self.route(source, destination)
+            used.update(canonical_pair(a, b) for a, b in pairwise(path))
+        eligible = []
+        for pair in sorted(used):
+            candidate = replace(self, failed_link=self.link_names[pair])
+            try:
+                candidate.route("h1", "h2", failed=True)
+                candidate.route("h2", "h1", failed=True)
+            except ValueError:
+                continue
+            eligible.append(pair)
+        return tuple(eligible)
+
+    def select_failure(self, pair: tuple[str, str]) -> LinkFailureScenario:
+        pair = canonical_pair(*pair)
+        if pair not in self.eligible_failures:
+            raise ValueError("selected link is not an eligible failure")
+        if self._replay is not None:
+            if self.link_names[pair] != self.failed_link:
+                raise ValueError("recorded policies cover only the recorded fault")
+            return self
+        return replace(self, failed_link=self.link_names[pair], _replay=None)
 
     def route(
         self, source: str, destination: str, *, failed: bool = False
     ) -> tuple[str, ...]:
         """Return the switch path between the two experiment hosts."""
-        hosts = {"h1": self.ring[0], "h2": self.ring[1]}
-        return self._path(hosts[source], hosts[destination], failed=failed)
+        if self._replay is not None:
+            return tuple(
+                self._replay["paths"]["recovery" if failed else "healthy"][
+                    f"{source}_to_{destination}"
+                ]
+            )
+        return self._path(
+            self.attachments[source], self.attachments[destination], failed=failed
+        )
 
     def rules(self, switch: str, *, failed: bool = False) -> tuple[dict[str, Any], ...]:
         """Explicit unicast and directed ARP rules; no learning or failover."""
+        if self._replay is not None:
+            return tuple(
+                deepcopy(
+                    self._replay["policies"]["recovery" if failed else "healthy"][
+                        switch
+                    ]
+                )
+            )
         rules = []
-        for host, attachment in (("h1", self.ring[0]), ("h2", self.ring[1])):
+        for host, attachment in sorted(self.attachments.items()):
             interface = next(
                 resource
                 for resource in self.plan.resources
@@ -262,24 +378,35 @@ class LinkFailureScenario:
         return tuple(rules)
 
     def _path(self, source: str, destination: str, *, failed: bool) -> tuple[str, ...]:
-        queue: deque[tuple[str, ...]] = deque([(source,)])
-        visited = {source}
+        adjacency: dict[str, list[str]] = {switch: [] for switch in self.switches}
+        for left, right in self.edges:
+            if failed and self.link_names[left, right] == self.failed_link:
+                continue
+            adjacency[left].append(right)
+            adjacency[right].append(left)
+        # Root distances at the destination, then choose the smallest next hop
+        # one level closer at every switch (not a source-rooted tree).
+        queue = deque([destination])
+        distances = {destination: 0}
         while queue:
-            path = queue.popleft()
+            node = queue.popleft()
+            for neighbor in adjacency[node]:
+                if neighbor not in distances:
+                    distances[neighbor] = distances[node] + 1
+                    queue.append(neighbor)
+        if source not in distances:
+            raise ValueError("no alternate route")
+        path = [source]
+        while path[-1] != destination:
             node = path[-1]
-            if node == destination:
-                return path
-            index = self.ring.index(node)
-            for neighbor in (
-                self.ring[(index + 1) % len(self.ring)],
-                self.ring[(index - 1) % len(self.ring)],
-            ):
-                if failed and {node, neighbor} == set(self.ring[:2]):
-                    continue
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append((*path, neighbor))
-        raise ValueError("no alternate route")
+            path.append(
+                min(
+                    neighbor
+                    for neighbor in adjacency[node]
+                    if distances.get(neighbor) == distances[node] - 1
+                )
+            )
+        return tuple(path)
 
 
 def build_scenario(
@@ -289,7 +416,7 @@ def build_scenario(
     ollama_host: str | None = None,
     specification: Path = EXAMPLE_SPECIFICATION,
 ) -> LinkFailureScenario:
-    """Load the example YAML, optionally regenerating its ring with a seed."""
+    """Load the actual recorded graph, or generate version 1 with an explicit seed."""
     snapshot = compile_experiment(load_experiment(specification)).snapshot
     configuration = snapshot["blueprints"][0]["model"]
     if model is not None:
@@ -299,11 +426,9 @@ def build_scenario(
     if seed is None:
         plan = compile_experiment(Experiment.model_validate(snapshot))
         return _scenario_from_plan(plan)
-    switches = [f"s{i}" for i in range(1, 11)]
-    Random(seed).shuffle(switches)
+    topology = generate_topology(seed)
+    switches = topology.switches
     resources: list[dict[str, Any]] = [{"name": "network", "kind": "network"}]
-    nodes = {}
-    ports: dict[tuple[str, str], int] = {}
     for switch in switches:
         node = {
             "name": switch,
@@ -312,19 +437,20 @@ def build_scenario(
             "controllers": [],
             "failMode": "secure",
             "protocols": ["OpenFlow13"],
-            "ports": [],
+            "ports": [
+                {"name": f"{switch}-eth{number}", "number": number}
+                for (owner, _), number in topology.ports.items()
+                if owner == switch
+            ],
         }
         resources.append(node)
-        nodes[switch] = node
     links = []
 
     def endpoint(node: str, neighbor: str) -> dict[str, str]:
         if node.startswith("h"):
             return {"node": node, "adapter": f"{node}-eth0"}
-        number = len(nodes[node]["ports"]) + 1
+        number = topology.ports[node, neighbor]
         name = f"{node}-eth{number}"
-        nodes[node]["ports"].append({"name": name, "number": number})
-        ports[node, neighbor] = number
         return {"node": node, "adapter": name}
 
     def link(left: str, right: str) -> None:
@@ -334,11 +460,12 @@ def build_scenario(
                 "endpoints": [endpoint(left, right), endpoint(right, left)],
                 "bandwidth": 100,
                 "delay": "1ms",
+                "loss": 0,
             }
         )
 
-    for index, switch in enumerate(switches):
-        link(switch, switches[(index + 1) % len(switches)])
+    for left, right in topology.edges:
+        link(left, right)
     for index in range(2):
         host = f"h{index + 1}"
         resources.append(
@@ -355,20 +482,17 @@ def build_scenario(
                 ],
             }
         )
-        link(host, switches[index])
+        link(host, topology.attachments[host])
     snapshot["metadata"]["labels"]["seed"] = str(seed)
+    snapshot["metadata"]["labels"]["generator-version"] = GENERATOR_VERSION
     snapshot["substrate"]["topology"] = {"resources": resources, "links": links}
     experiment = Experiment.model_validate(snapshot)
-    return LinkFailureScenario(
-        plan=compile_experiment(experiment),
-        seed=seed,
-        ring=tuple(switches),
-        failed_link=f"{switches[0]}-{switches[1]}",
-        ports=ports,
-    )
+    return _scenario_from_plan(compile_experiment(experiment))
 
 
-def _scenario_from_plan(plan: DeploymentPlan) -> LinkFailureScenario:
+def _scenario_from_plan(
+    plan: DeploymentPlan, *, selected_fault: str | None = None
+) -> LinkFailureScenario:
     """Read actual attachments, link names, and port numbers from the YAML plan."""
     adapters = {r.name: r for r in plan.resources if isinstance(r, PlannedPort)}
     adjacency: dict[str, list[str]] = {}
@@ -385,28 +509,48 @@ def _scenario_from_plan(plan: DeploymentPlan) -> LinkFailureScenario:
         ports[left.parent, right.parent] = left.number
         ports[right.parent, left.parent] = right.number
         link_names[frozenset((left.parent, right.parent))] = resource.name
-    first, second = adjacency["h1"][0], adjacency["h2"][0]
-    ring = [first, second]
-    while len(ring) < 10:
-        candidates = [
-            neighbor
-            for neighbor in adjacency[ring[-1]]
-            if neighbor.startswith("s") and neighbor != ring[-2]
-        ]
-        if len(candidates) != 1 or candidates[0] in ring:
-            raise ValueError(
-                "the latency example requires a ten-switch ring with adjacent host attachments"
-            )
-        ring.append(candidates[0])
-    if first not in adjacency[ring[-1]] or second not in adjacency[first]:
-        raise ValueError("the latency example requires a closed ring")
-    return LinkFailureScenario(
-        plan=plan,
-        seed=int(plan.metadata.labels.get("seed", "0")),
-        ring=tuple(ring),
-        failed_link=link_names[frozenset((first, second))],
-        ports=ports,
+    switches = tuple(
+        sorted(
+            resource.name for resource in plan.resources if resource.kind == "switch"
+        )
     )
+    if len(switches) != 10 or any(
+        len(adjacency.get(host, [])) != 1 for host in ("h1", "h2")
+    ):
+        raise ValueError(
+            "the latency example requires ten switches and two attached hosts"
+        )
+    attachments = {host: adjacency[host][0] for host in ("h1", "h2")}
+    if len(set(attachments.values())) != 2 or not set(attachments.values()) <= set(
+        switches
+    ):
+        raise ValueError("hosts require distinct switch attachments")
+    edges = tuple(
+        sorted(
+            canonical_pair(*pair) for pair in link_names if set(pair) <= set(switches)
+        )
+    )
+    seed = int(plan.metadata.labels["seed"])
+    CounterStream(seed, "topology")
+    scenario = LinkFailureScenario(
+        plan=plan,
+        seed=seed,
+        switches=switches,
+        failed_link="",
+        ports=ports,
+        edges=edges,
+        attachments=attachments,
+        link_names={pair: link_names[frozenset(pair)] for pair in edges},
+        generator_version=plan.metadata.labels.get(
+            "generator-version", "legacy-recorded"
+        ),
+    )
+    if selected_fault is not None:
+        if selected_fault not in scenario.link_names.values():
+            raise ValueError("recorded fault must identify a switch link")
+        return replace(scenario, failed_link=selected_fault)
+    selected = next(FailurePasses(seed, scenario.eligible_failures, kind="measured"))
+    return scenario.select_failure(selected)
 
 
 def run_trial(
@@ -476,7 +620,7 @@ def run_trial(
     baseline_start = clock()
     try:
         action("link.enable", scenario.failed_link)
-        for switch in scenario.ring:
+        for switch in scenario.switches:
             for rule in scenario.rules(switch):
                 action("openflow.flow.install", switch, rule)
         if link_is_down() or not reachable():
@@ -664,7 +808,7 @@ def main() -> None:
     parser.add_argument(
         "--seed",
         type=int,
-        help="Regenerate only the topology; otherwise use the checked-in YAML.",
+        help="Generate version 1 with an unsigned 64-bit seed; otherwise replay the YAML graph.",
     )
     parser.add_argument("--trials", type=int, default=5)
     parser.add_argument(
@@ -733,10 +877,15 @@ def main() -> None:
                 "requested_trials": arguments.trials,
                 "plan_digest": scenario.plan.digest,
                 "experiment": scenario.plan.snapshot,
+                "scenario": scenario.to_record(),
             }
         )
         try:
+            failures = FailurePasses(
+                scenario.seed, scenario.eligible_failures, kind="measured"
+            )
             for index in range(arguments.trials):
+                scenario = scenario.select_failure(next(failures))
                 substrate = None
                 factory = None
                 run = None
@@ -778,6 +927,7 @@ def main() -> None:
                     write(
                         {
                             "type": "trial",
+                            "scenario": scenario.to_record(),
                             "run_id": run.id if run is not None else None,
                             **result.model_dump(mode="json"),
                         }
