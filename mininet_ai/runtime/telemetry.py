@@ -29,6 +29,12 @@ from mininet_ai.runtime.contracts import (
     TelemetryPipelineIssue,
     TelemetryPipelineReport,
 )
+from mininet_ai.runtime.instrumentation import (
+    Operation,
+    Phase,
+    current_binding,
+    recording_scope,
+)
 from mininet_ai.specification.models import (
     AnomalyDetector,
     ObservationPolicy,
@@ -100,6 +106,7 @@ class TelemetryPipeline:
         self._publisher = publisher
         self._clock = clock
         self._event_id_factory = event_id_factory
+        self._recording = current_binding()
         self._bindings = tuple(
             _PolicyBinding(
                 identity=f"{agent.id}:{index}:{policy.observation}",
@@ -240,11 +247,22 @@ class TelemetryPipeline:
                 return
 
     def _sample(self, binding: _PolicyBinding) -> tuple[RuntimeEvent, ...]:
+        observation_id = f"observation-{uuid4()}"
+        with recording_scope(
+            self._recording,
+            agent_id=binding.agent.id,
+            observation_id=observation_id,
+            observation_source="global:telemetry",
+        ):
+            return self._sample_scoped(binding)
+
+    def _sample_scoped(self, binding: _PolicyBinding) -> tuple[RuntimeEvent, ...]:
         query = ObservationQuery(
             name=binding.policy.observation,
             targets=binding.agent.attachment.targets,
         )
-        result = self._substrate.observe(self._run_id, query)
+        with Operation(Phase.OBSERVATION):
+            result = self._substrate.observe(self._run_id, query)
         if result.run_id != self._run_id or result.query != query:
             raise TelemetryPipelineError(
                 "substrate returned mismatched observation identity",
@@ -322,6 +340,7 @@ class TelemetryPipeline:
             windowStartedAt=started_at,
             windowEndedAt=ended_at,
         )
+        recording = current_binding()
         observation_event = RuntimeEvent(
             eventId=observation_id,
             runId=self._run_id,
@@ -332,13 +351,12 @@ class TelemetryPipeline:
             observedAt=observed_at,
             sequence=self._next_sequence(),
             payload=payload.model_dump(mode="json", by_alias=True),
+            execution_context=recording.context if recording is not None else None,
         )
-        detector_events = self._detector_events(
-            binding,
-            samples,
-            aggregated,
-            observation_event,
-        )
+        with Operation(Phase.DETECTOR):
+            detector_events = self._detector_events(
+                binding, samples, aggregated, observation_event
+            )
         return (observation_event, *detector_events)
 
     def _detector_events(
@@ -395,6 +413,20 @@ class TelemetryPipeline:
                 if last is not None and (ended_at - last).total_seconds() < cooldown:
                     continue
                 self._last_emitted[cooldown_key] = ended_at
+                event_id = self._event_id_factory()
+                with recording_scope(
+                    current_binding(),
+                    event_id=event_id,
+                    correlation_id=observation_event.event_id,
+                    causation_id=observation_event.event_id,
+                ):
+                    # Acceptance is stamped here, before payload construction/bus delivery.
+                    recognition = Operation(Phase.DETECTOR)
+                    recognition.finish("recognized")
+                    recording = current_binding()
+                    execution_context = (
+                        recording.context if recording is not None else None
+                    )
                 detector_payload = DetectorEventPayload(
                     agentId=binding.agent.id,
                     observation=binding.policy.observation,
@@ -415,7 +447,7 @@ class TelemetryPipeline:
                 )
                 events.append(
                     RuntimeEvent(
-                        eventId=self._event_id_factory(),
+                        eventId=event_id,
                         runId=self._run_id,
                         type=detector.event,
                         source="telemetry",
@@ -423,6 +455,7 @@ class TelemetryPipeline:
                         occurredAt=ended_at,
                         observedAt=max(self._clock(), ended_at),
                         sequence=self._next_sequence(),
+                        execution_context=execution_context,
                         correlationId=observation_event.event_id,
                         causationId=observation_event.event_id,
                         payload=detector_payload.model_dump(

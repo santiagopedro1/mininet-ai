@@ -9,6 +9,7 @@ from typing import Protocol, runtime_checkable
 
 from mininet_ai.errors import MininetAIError
 from mininet_ai.runtime.contracts import RuntimeEvent
+from mininet_ai.runtime.instrumentation import current_binding
 
 
 class EventBusError(MininetAIError):
@@ -79,6 +80,11 @@ class InMemoryRuntimeEventBus:
             return len(self._events)
 
     def publish(self, event: RuntimeEvent) -> None:
+        binding = current_binding()
+        if event.execution_context is None and binding is not None:
+            if binding.context.run_id != event.run_id:
+                raise ValueError("recording context belongs to another run")
+            event = event.model_copy(update={"execution_context": binding.context})
         with self._condition:
             if self._closed:
                 raise EventBusError(

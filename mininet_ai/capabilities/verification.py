@@ -7,10 +7,17 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
+from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter
 
 from mininet_ai.durations import duration_seconds
+from mininet_ai.runtime.instrumentation import (
+    Operation,
+    Phase,
+    current_binding,
+    recording_scope,
+)
 from mininet_ai.sdk import ActionProposal, AgentContext
 from mininet_ai.specification.models import PostconditionDefinition
 from mininet_ai.substrates.runtime import (
@@ -71,6 +78,28 @@ class PostconditionVerifier:
         proposal: ActionProposal,
         postconditions: tuple[PostconditionDefinition, ...],
     ) -> VerificationReport:
+        with (
+            recording_scope(
+                current_binding(),
+                agent_id=context.agent_id,
+                invocation_id=context.invocation_id,
+                proposal_id=proposal.id,
+            ),
+            Operation(Phase.VERIFICATION) as verification,
+        ):
+            report = self._verify(context, proposal, postconditions)
+            verification.finish(
+                "satisfied" if report.satisfied else "unsatisfied",
+                failed=not report.satisfied,
+            )
+            return report
+
+    def _verify(
+        self,
+        context: AgentContext,
+        proposal: ActionProposal,
+        postconditions: tuple[PostconditionDefinition, ...],
+    ) -> VerificationReport:
         started = self._monotonic()
         checks = tuple(
             self._verify_one(context, proposal, postcondition)
@@ -100,10 +129,15 @@ class PostconditionVerifier:
                     name=postcondition.observation,
                     targets=(proposal.target,),
                 )
-                result = self._observer.observe(
-                    context.run_id,
-                    query,
-                )
+                with (
+                    recording_scope(
+                        current_binding(),
+                        observation_id=f"observation-{uuid4()}",
+                        observation_source="postcondition_verifier",
+                    ),
+                    Operation(Phase.OBSERVATION),
+                ):
+                    result = self._observer.observe(context.run_id, query)
                 if result.run_id != context.run_id or result.query != query:
                     raise ValueError(
                         "postcondition observation changed request identity"
