@@ -701,6 +701,11 @@ class MininetOVSObservations:
                         ),
                         node=node,
                     )
+                    if result.returncode not in (0, 1):
+                        raise ObservationCollectionError(
+                            f"reachability observer failed for {source.name!r}: {result.stderr}",
+                            code="runtime.observation.failed",
+                        )
                     match = re.search(r"time[=<]([0-9.]+)\s*ms", result.stdout)
                     probes.append(
                         {
