@@ -5,11 +5,11 @@ agent per switch and two independently seeded, distinct host attachments.
 Recovery uses supplied minimum-hop forwarding policies while a used switch link
 remains down. There is no model comparison.
 
-**Scope:** scenario generation implements ADR-0003 version 1. The live collector
-below is still the legacy v1 collector; it does **not** implement the sustained
-bidirectional recovery, timing, warm-up, bounded lifecycle, Provider containment,
-or v2 evidence contracts in ADRs 0001–0006. Do not treat its results as acceptance
-of those contracts. Live recovery acceptance is outside this implementation.
+**Scope:** scenario generation implements ADR-0003 version 1. The public bounded
+coordinator and Substrate adapter now implement the trial lifecycle (see below).
+The CLI collector below remains legacy v1: wiring it to the coordinator and v2
+Run Evidence belongs to [#78](https://github.com/santiagopedro1/mininet-ai/issues/78).
+Do not treat legacy output or deterministic tests as live ADR acceptance.
 
 *Primary goal: both — a reproducible latency scenario and a demonstration of
 agent-driven explicit forwarding with network-level effect measurement.*
@@ -62,7 +62,67 @@ attempts still consume their selections.
 
 The rootless `FailurePasses(seed, eligible, kind="warmup" | "measured")` iterator in
 `mininet_ai.experiments.scenarios` provides independent per-pass streams for the
-future lifecycle coordinator. It does not execute warm-up trials.
+lifecycle coordinator, which executes warm-up separately from measured attempts.
+
+## Bounded lifecycle API
+
+`mininet_ai.experiments.latency.trials` exposes `TrialConfig`, `TrialCoordinator`,
+`ThreadRuntime`, and the injectable `Runtime`/`TrialSession` public seams.
+`mininet_ai.experiments.latency.session.SubstrateTrialSession` adapts a selected
+`LinkFailureScenario` to the existing Substrate and one-shot agent APIs.
+
+Given a scenario built by this example, the integration is:
+
+```python
+from uuid import uuid4
+from mininet_ai.experiments.latency.session import SubstrateTrialSession
+from mininet_ai.experiments.latency.trials import (
+    ThreadRuntime, TrialConfig, TrialCoordinator,
+)
+from mininet_ai.runtime.instrumentation import PhaseRecorder
+from mininet_ai.substrates import MininetOVSRuntime
+
+runtime = ThreadRuntime()
+recorder = PhaseRecorder(str(uuid4()), clock=runtime.clock)
+coordinator = TrialCoordinator(runtime, recorder, TrialConfig())
+run = coordinator.run(
+    scenario,
+    lambda selected, trial_id: SubstrateTrialSession(
+        selected, trial_id, MininetOVSRuntime(),
+    ),
+    run_id=str(uuid4()),
+)
+```
+
+Always supply the **same monotonic nanosecond clock** to runtime and recorder.
+Defaults are ten measured attempts, one warm-up, and separate setup/injection/
+response/cleanup budgets of 120/10/120/30 seconds. Failure sampling defaults to
+100 ms; designated bidirectional probe slots are fixed at one second. Missing
+slots break streaks; late rounds cannot backfill them. Baseline and recovery each
+require three timely all-success rounds. Response begins at fresh confirmation
+of both failed-link endpoints down, independently of disruption probing.
+If a configured response budget expires before injection confirmation finishes,
+the gate closes response work immediately while the independent injection window
+continues to classify disruption. No failed probe in that window means
+`no_observed_disruption`; it is not counted as a disrupted response timeout.
+
+The result retains separate immutable trial outcomes and cleanup outcomes,
+scheduled slots, actual worker start/end ticks, incomplete/late jobs, and the
+recorder's correlated phase/Provider evidence. In-memory ticks are integers;
+the output integration must encode persisted ticks as decimal strings per v2.
+No persistence or summary format is introduced by this API.
+`run.counts("warmup" | "measured")` keeps requested, started, outcome-finalized,
+and cleanup-completed counts separate. Correlation retains the experiment run ID
+and a distinct `substrate_run_id` for each fresh deployment.
+
+Every attempt constructs a new session and deployment. Failed measured attempts
+consume their selection; failed warm-up aborts. Another attempt requires public
+Substrate resource-absence evidence, stopped workers, and authoritative Provider
+terminal evidence. Local cancellation is not proof. The current legacy Mininet
+adapter may return **unknown** cleanup: this safely aborts rather than claiming
+isolation, even after recovery. No privileged helper or remote cancellation
+protocol is added here. Endpoint checks provide sampled, not continuous,
+failed-link evidence. Privileged live recovery/cleanup remains **unverified**.
 
 For exact replay, the runner's `LinkFailureScenario.to_record()` retains the actual
 graph, ports, attachments, selected fault, both directional paths, and every
