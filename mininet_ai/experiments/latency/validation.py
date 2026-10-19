@@ -218,6 +218,28 @@ class _ArtifactChecks:
         self.cleanups = {
             r["trial_id"]: r for r in self.events if r["type"] == "cleanup_completed"
         }
+        # A bounded cleanup assessment is not necessarily a completed teardown.
+        # Accept explicit resource absence (also usable for verified rollback),
+        # or a cleanup operation terminal within the shared budget.
+        self.completed_cleanups = {
+            trial_id: r
+            for trial_id, r in self.cleanups.items()
+            if r["data"]["network_absent"] is True
+            or any(
+                e["trial_id"] == trial_id
+                and e["type"]
+                in {"operation_completed", "operation_failed", "operation_cancelled"}
+                and e["data"]["phase"] == "cleanup"
+                and trial_id in self.ends
+                and int(e["tick_ns"])
+                < int(self.ends[trial_id]["tick_ns"])
+                + int(
+                    self.manifest["configuration"]["budgets_seconds"]["cleanup"]
+                    * 1_000_000_000
+                )
+                for e in self.events
+            )
+        }
         self.trials = {r["trial_id"]: r for r in families["trial"]}
 
     def error(self, code, record, message):
@@ -407,7 +429,7 @@ class _ArtifactChecks:
                     "requested": requested,
                     "started": len(starts),
                     "finalized": len(ended),
-                    "cleanup_completed": len(ids & self.cleanups.keys()),
+                    "cleanup_completed": len(ids & self.completed_cleanups.keys()),
                     "unknown": len(starts) - len(ended),
                     "unstarted": requested - len(starts),
                 }
@@ -1181,6 +1203,9 @@ class _ArtifactChecks:
                         participated = any(
                             e["trial_id"] == trial["trial_id"]
                             and e["data"].get("agent_id") == agent["agent_id"]
+                            and trial["trial_id"] in self.ends
+                            and int(e["tick_ns"])
+                            <= int(self.ends[trial["trial_id"]]["tick_ns"])
                             and (
                                 e["type"] == "recognition"
                                 if metric == "detection_participation"

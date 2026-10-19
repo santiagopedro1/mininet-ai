@@ -29,6 +29,27 @@ def derive_summary(records):
     starts = {r["trial_id"]: r for r in events if r["type"] == "trial_started"}
     ends = {r["trial_id"]: r for r in events if r["type"] == "trial_ended"}
     cleanups = {r["trial_id"]: r for r in events if r["type"] == "cleanup_completed"}
+    # The event assesses bounded cleanup even when teardown never ran. Resource
+    # absence (including verified rollback) or a timely teardown terminal proves
+    # completion; merely stopping workers at the deadline does not.
+    completed_cleanups = {
+        trial_id
+        for trial_id, record in cleanups.items()
+        if record["data"]["network_absent"] is True
+        or any(
+            e["trial_id"] == trial_id
+            and e["type"]
+            in {"operation_completed", "operation_failed", "operation_cancelled"}
+            and e["data"]["phase"] == "cleanup"
+            and trial_id in ends
+            and int(e["tick_ns"])
+            < int(ends[trial_id]["tick_ns"])
+            + int(
+                manifest["configuration"]["budgets_seconds"]["cleanup"] * 1_000_000_000
+            )
+            for e in events
+        )
+    }
     trials = [r for r in records if "cleanup_outcome" in r]
     agents = [r for r in records if "switch_id" in r]
     by_id = {r["record_id"]: r for r in records}
@@ -54,7 +75,7 @@ def derive_summary(records):
             "requested": requested,
             "started": len(ids),
             "finalized": len(ids & ends.keys()),
-            "cleanup_completed": len(ids & cleanups.keys()),
+            "cleanup_completed": len(ids & completed_cleanups),
             "unknown": len(ids - ends.keys()),
             "unstarted": requested - len(ids),
             "outcomes": {key: outcomes[key] for key in OUTCOMES},
@@ -199,6 +220,7 @@ def derive_summary(records):
         ]
         if metric.endswith("participation"):
             gs.extend(group(agent_id=a["agent_id"]) for a in manifest["agents"])
+            gs.extend(group(trial_outcome=outcome) for outcome in OUTCOMES)
         for g in gs:
             eligible = [t for t in measured if matches(g, t)]
             numerator = sum(t["outcome"] == "recovered" for t in eligible)
@@ -228,6 +250,8 @@ def derive_summary(records):
                     any(
                         e["trial_id"] == t["trial_id"]
                         and e["data"].get("agent_id") == a["agent_id"]
+                        and t["trial_id"] in ends
+                        and int(e["tick_ns"]) <= int(ends[t["trial_id"]]["tick_ns"])
                         and (
                             e["type"] == "recognition"
                             if metric == "detection_participation"

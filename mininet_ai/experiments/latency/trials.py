@@ -584,6 +584,19 @@ class TrialCoordinator:
                 probe_records.append(raw)
             return result
 
+        def missed_probe_slot(scheduled: int, now: int) -> None:
+            self.evidence(
+                context,
+                "slot_missed",
+                {
+                    "schedule": "probe",
+                    "slot": max(0, (scheduled - started) // ns(config.probe_seconds)),
+                    "scheduled_ns": str(scheduled),
+                    "reason": "overrun",
+                },
+                now,
+            )
+
         try:
             setup_deadline = started + ns(config.setup_seconds)
             setup = launch("setup", Phase.SETUP, session.setup)
@@ -629,21 +642,32 @@ class TrialCoordinator:
                             observation_id=ident,
                         )
                         slots.append(Slot("baseline", next_probe, job, ident))
-                        if not await_job(job, setup_deadline) or job.error:
+                        timely_baseline = await_job(job, setup_deadline)
+                        if not timely_baseline:
+                            missed_probe_slot(next_probe, runtime.clock())
+                        next_probe += ns(config.probe_seconds)
+                        skipped_baseline_slot = False
+                        # Retain all elapsed slots, even if the in-flight round
+                        # never returns or ends in a failed/negative observation.
+                        while (
+                            next_probe <= runtime.clock()
+                            and next_probe < setup_deadline
+                        ):
+                            slots.append(
+                                Slot("baseline", next_probe, None, str(uuid4()))
+                            )
+                            missed_probe_slot(next_probe, runtime.clock())
+                            next_probe += ns(config.probe_seconds)
+                            skipped_baseline_slot = True
+                        if not timely_baseline or job.error:
                             baseline_ok = False
                             break
                         round: ProbeRound = job.value
                         if not round.endpoints_match or not round.all_success:
                             baseline_ok = False
                             break
-                        next_probe += ns(config.probe_seconds)
-                        if runtime.clock() >= next_probe:
+                        if skipped_baseline_slot:
                             baseline_streak = 0
-                            while next_probe <= runtime.clock():
-                                slots.append(
-                                    Slot("baseline", next_probe, None, str(uuid4()))
-                                )
-                                next_probe += ns(config.probe_seconds)
                         else:
                             baseline_streak += 1
                         if baseline_streak == 3:

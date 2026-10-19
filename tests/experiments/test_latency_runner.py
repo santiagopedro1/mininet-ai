@@ -168,6 +168,14 @@ def test_runner_uses_real_agent_capability_and_provider_adapter_seams(tmp_path):
     )
     assert total("reasoning")["count"] == 10
     assert total("execution")["count"] == 40
+    assert (
+        sum(
+            r.get("type") == "operation_started"
+            and r["data"].get("phase") == "action_attempt"
+            for r in validation.records
+        )
+        == 40
+    )
 
 
 def test_storage_failure_still_cleans_up_and_never_fabricates_completion(tmp_path):
@@ -367,3 +375,94 @@ def test_actual_run_artifacts_expose_corrupted_truncated_and_incomplete_evidence
     result = validate_artifact(directory)
     assert result.integrity == ("invalid" if damage == "corruption" else "valid")
     assert result.state == ("completed" if damage == "corruption" else "incomplete")
+
+
+@pytest.mark.parametrize("response_delay", [100_000_000_000, 4_000_000_000])
+def test_stalled_workers_do_not_count_unstarted_teardown_as_completed(
+    tmp_path, response_delay
+):
+    summary = run_experiment(
+        example.build_scenario(seed=0),
+        tmp_path / "run",
+        config=TrialConfig(measured=2, warmup=0, cleanup_seconds=1),
+        runtime=FakeRuntime(response=response_delay),
+        session_factory=lambda *_: Session(),
+    )
+    assert summary["state"] == "aborted"
+    assert summary["counts"]["measured"]["cleanup_completed"] == 0
+
+
+def test_baseline_overrun_retains_missed_slots(tmp_path):
+    run_experiment(
+        example.build_scenario(seed=0),
+        tmp_path / "run",
+        config=TrialConfig(measured=1, warmup=0, setup_seconds=5),
+        runtime=FakeRuntime(baseline=1_500_000_000),
+        session_factory=lambda *_: Session(),
+    )
+    result = validate_artifact(tmp_path / "run")
+    assert any(r.get("type") == "slot_missed" for r in result.records)
+
+
+def test_incomplete_baseline_retains_every_elapsed_slot_without_backfill(tmp_path):
+    run_experiment(
+        example.build_scenario(seed=0),
+        tmp_path / "run",
+        config=TrialConfig(measured=1, warmup=0, setup_seconds=5, cleanup_seconds=1),
+        runtime=FakeRuntime(baseline=100_000_000_000),
+        session_factory=lambda *_: Session(),
+    )
+    result = validate_artifact(tmp_path / "run")
+    assert [
+        r["data"]["scheduled_ns"]
+        for r in result.records
+        if r.get("type") == "slot_missed"
+    ] == [
+        "0",
+        "1000000000",
+        "2000000000",
+        "3000000000",
+        "4000000000",
+    ]
+
+
+def test_late_recognition_is_retained_but_excluded_from_participation(tmp_path):
+    from mininet_ai.runtime.instrumentation import (
+        Operation,
+        Phase,
+        current_binding,
+        recording_scope,
+    )
+
+    class LateRecognition(Session):
+        def respond(self, gate, observation_id):
+            with (
+                recording_scope(current_binding(), agent_id="switch-router@s1"),
+                Operation(Phase.DETECTOR) as operation,
+            ):
+                operation.finish("relevant_failure_recognized")
+            assert gate.closed
+
+    summary = run_experiment(
+        example.build_scenario(seed=0),
+        tmp_path / "run",
+        config=TrialConfig(measured=1, warmup=0),
+        runtime=FakeRuntime(response=4_000_000_000),
+        session_factory=lambda *_: LateRecognition(),
+    )
+    rate = next(
+        r
+        for r in summary["rates"]
+        if r["metric"] == "detection_participation" and not any(r["group"].values())
+    )
+    assert (rate["numerator"], rate["denominator"]) == (0, 10)
+    detection = next(
+        r
+        for r in summary["distributions"]
+        if r["metric"] == "detection" and not any(r["group"].values())
+    )
+    assert (detection["available"], detection["count"], detection["late_excluded"]) == (
+        1,
+        0,
+        1,
+    )

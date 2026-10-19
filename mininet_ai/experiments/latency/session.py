@@ -260,15 +260,10 @@ class SubstrateTrialSession:
                         )
                     if admitted:
                         try:
-                            with (
-                                recording_scope(
-                                    current_binding(),
-                                    invocation_id=prepared.context.invocation_id,
-                                    proposal_id=proposal.id,
-                                ),
-                                Operation(Phase.ACTION_ATTEMPT),
-                            ):
-                                outcomes.append(self.agents.execute(prepared, proposal))
+                            # OneShotAgentRuntime owns the actual attempt transition.
+                            # The trial gate above records admission, not a second
+                            # action attempt around that public runtime call.
+                            outcomes.append(self.agents.execute(prepared, proposal))
                         except Exception as error:
                             self.agent_errors.append((agent_id, str(error)))
                             outcomes.append(

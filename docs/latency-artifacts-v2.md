@@ -1,9 +1,10 @@
 # Link-failure latency v2 artifact contract
 
 This is the concrete serialization and offline validation contract for ADRs
-0001–0006. It does **not** switch the maintained runner to v2, implement a trial
-scheduler, certify live recovery, or implement a Provider termination protocol.
-The existing v1 single-JSONL output is not v2 input.
+0001–0006. The [maintained runner](../examples/link-failure-latency/README.md)
+now writes this layout through the bounded trial coordinator. Neither offline
+validation nor rootless tests certify live recovery or a Provider termination
+protocol. Historical v1 single-JSONL output is not v2 input.
 
 ## Public boundaries
 
@@ -138,8 +139,12 @@ meanings; `native` data is supplementary and never authoritative clock evidence.
 ## Summary: `summary.json`
 
 `counts` separates `warmup` and `measured`, each with requested, started, frozen
-outcome-finalized, cleanup-stage-completed, unknown, unstarted, and every closed
-trial-outcome count. Cleanup-stage completion does not imply verified cleanup.
+outcome-finalized, cleanup-completed, unknown, unstarted, and every closed
+trial-outcome count. A `cleanup_completed` event retains the bounded cleanup
+assessment even if teardown could not run. The **count** requires resource-absence
+proof (including verified deployment rollback) or a teardown-operation terminal
+before cleanup expiry; stopped workers alone do not prove teardown completed.
+Completed teardown does not imply verified network/worker/Provider containment.
 `state` and `terminal_reason` retain run completion independently of trial outcomes.
 
 `distributions` name metric, observational population (`trial`, `agent_trial`, or
