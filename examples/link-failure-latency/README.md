@@ -106,6 +106,7 @@ callbacks arriving after projection finalization cannot rewrite saved outcomes.
 
 ```python
 from mininet_ai.experiments.latency import validate_artifact
+
 result = validate_artifact("latency-run-001")
 print(result.state, result.integrity, result.issues, result.incomplete_reasons)
 ```
