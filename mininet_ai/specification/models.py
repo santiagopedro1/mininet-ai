@@ -20,6 +20,7 @@ from pydantic import (
     HttpUrl,
     JsonValue,
     TypeAdapter,
+    ValidationError,
     ValidationInfo,
     ValidatorFunctionWrapHandler,
     field_validator,
@@ -339,11 +340,28 @@ class ModelConfiguration(StrictModel):
     name: str = Field(min_length=1)
     parameters: dict[str, Any] = Field(default_factory=dict)
 
-    @model_validator(mode="after")
-    def ollama_host_is_valid(self) -> ModelConfiguration:
-        if self.provider == "ollama" and "host" in self.parameters:
-            validate_ollama_host(self.parameters["host"])
-        return self
+    @field_validator("parameters")
+    @classmethod
+    def ollama_host_is_valid(
+        cls, parameters: dict[str, Any], info: ValidationInfo
+    ) -> dict[str, Any]:
+        if info.data.get("provider") == "ollama" and "host" in parameters:
+            try:
+                validate_ollama_host(parameters["host"])
+            except ValueError as error:
+                # Keep the offending field in nested/union validation locations.
+                raise ValidationError.from_exception_data(
+                    cls.__name__,
+                    [
+                        {
+                            "type": "value_error",
+                            "loc": ("host",),
+                            "input": None,
+                            "ctx": {"error": error},
+                        }
+                    ],
+                ) from error
+        return parameters
 
 
 @with_config(ConfigDict(extra="forbid"))

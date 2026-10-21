@@ -215,7 +215,7 @@ See [run storage and export](docs/run-logs.md) for coordination and format detai
 | Example | Description | Substrate | Provider |
 | --- | --- | --- | --- |
 | [Getting Started](examples/getting-started/README.md) | Minimal offline experiment | `fake` | `mock` |
-| [Autonomous Network Operation](examples/autonomous-operation/README.md) | Self-healing network with event triggers, detectors, rollback | `fake` | `mock` |
+| [Autonomous Network Operation](examples/autonomous-operation/README.md) | Shared model + shallow override, event triggers, detectors, rollback | `fake` | `mock` |
 | [Hierarchical Routing Coordination](examples/hierarchical-routing/README.md) | Three-tier routing with hierarchical coordination | `mininet-ovs` | `ollama` |
 | [iperf Throughput](examples/iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` |
 

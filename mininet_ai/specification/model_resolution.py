@@ -30,6 +30,9 @@ def resolve_models(
             else loaded.source
         )
         blueprint_context = f"{source}: blueprint {blueprint.metadata.name!r}"
+        source_fields = (
+            loaded.blueprint_locations[index] if loaded.blueprint_locations else {}
+        )
         model = blueprint.model
         if isinstance(model, ModelReference):
             path = (source.parent / model.file).resolve()
@@ -37,6 +40,8 @@ def resolve_models(
                 f"blueprint {blueprint.metadata.name!r} ({source}) model reference "
                 f"{path}, entry {model.entry!r}"
             )
+            if "model" in source_fields:
+                context += f" ({source_fields['model']})"
             try:
                 if path not in files:
                     files[path] = read_model_configurations(path)
@@ -51,7 +56,21 @@ def resolve_models(
                     base,
                     blueprint.implementation,
                     context=f"models.{model.entry} base{location}",
+                    locations=files[path].field_locations[model.entry],
                 )
+                effective_fields = dict(files[path].field_locations[model.entry])
+                # Programmatic overrides have no YAML mark. Do not misattribute
+                # their values to the base field's source position.
+                overridden_fields = [
+                    f"parameters.{key}" for key in model.overrides.get("parameters", {})
+                ]
+                if "name" in model.overrides:
+                    overridden_fields.append("name")
+                for field in overridden_fields:
+                    origin = f"model.overrides.{field}"
+                    effective_fields[f"model.{field}"] = source_fields.get(
+                        origin, origin
+                    )
                 effective = base.model_copy(deep=True)
                 if "name" in model.overrides:
                     effective.name = model.overrides["name"]
@@ -63,19 +82,20 @@ def resolve_models(
                         effective.model_dump()
                     )
                 except ValidationError as error:
+                    details = []
+                    for issue in error.errors(include_url=False, include_input=False):
+                        field = "model." + ".".join(map(str, issue["loc"]))
+                        position = effective_fields.get(field, field)
+                        details.append(f"{position}: {issue['msg']}")
                     raise SpecificationError(
                         f"models.{model.entry} effective{location}: "
-                        + "; ".join(
-                            f"model.{'.'.join(map(str, issue['loc'])) or 'parameters'}: {issue['msg']}"
-                            for issue in error.errors(
-                                include_url=False, include_input=False
-                            )
-                        )
+                        + "; ".join(details)
                     ) from error
                 validate_model_configuration(
                     effective,
                     blueprint.implementation,
                     context=f"models.{model.entry} effective{location}",
+                    locations=effective_fields,
                 )
             except SpecificationError as error:
                 raise SpecificationError(f"{context}: {error}") from error
@@ -88,7 +108,10 @@ def resolve_models(
             blueprint = blueprint.model_copy(update={"model": effective})
         else:
             validate_model_configuration(
-                model, blueprint.implementation, context=blueprint_context
+                model,
+                blueprint.implementation,
+                context=blueprint_context,
+                locations=source_fields,
             )
         blueprints.append(blueprint)
     return replace(loaded, blueprints=tuple(blueprints)), provenance

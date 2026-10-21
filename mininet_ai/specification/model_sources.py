@@ -19,6 +19,7 @@ from mininet_ai.specification.models import ModelConfiguration, ModelConfigurati
 class ModelConfigurationSource:
     models: dict[str, ModelConfiguration]
     entry_locations: dict[str, str]
+    field_locations: dict[str, dict[str, str]]
 
 
 def _position(mark: Any) -> str:
@@ -122,11 +123,19 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
         ) from error
 
     locations = {}
+    fields = {}
     for name, configuration in configurations.models.items():
         mark = marks.get(("models", name))
         position = f" at {_position(mark)}" if mark is not None else ""
         locations[name] = position
+        fields[name] = {}
+        for field, field_mark in marks.items():
+            if field[:2] == ("models", name) and len(field) > 2:
+                suffix = ".".join(map(str, field[2:]))
+                fields[name][f"model.{suffix}"] = (
+                    f"models.{name}.{suffix} at {_position(field_mark)}"
+                )
         validate_shared_model_configuration(
-            configuration, context=f"models.{name}{position}"
+            configuration, context=f"models.{name}{position}", locations=fields[name]
         )
-    return ModelConfigurationSource(configurations.models, locations)
+    return ModelConfigurationSource(configurations.models, locations, fields)

@@ -79,7 +79,13 @@ def test_invalid_unused_entry_is_rejected_with_safe_source_location(
     with pytest.raises(SpecificationError) as caught:
         compile_experiment(path)
     message = str(caught.value)
-    for context in ("local-router", "models.yaml", "shared", "models.unused", "line 3"):
+    for context in (
+        "local-router",
+        "models.yaml",
+        "shared",
+        "models.unused.parameters.host",
+        "line 6",
+    ):
         assert context in message
     assert "SECRET_SENTINEL" not in message
 
@@ -391,12 +397,14 @@ def test_saved_models_execute_offline_after_sources_move(
     serialized = plan.model_dump_json(by_alias=True)
     (tmp_path / "models.yaml").rename(tmp_path / "moved.yaml")
 
-    def forbidden(*args, **kwargs):
-        pytest.fail("saved execution attempted to load model sources")
+    original_open = Path.open
 
-    monkeypatch.setattr(
-        "mininet_ai.specification.model_sources.read_model_configurations", forbidden
-    )
+    def forbidden(file, *args, **kwargs):
+        if file in {path, tmp_path / "models.yaml", tmp_path / "moved.yaml"}:
+            pytest.fail("saved execution attempted to open model sources")
+        return original_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", forbidden)
     catalog = ExecutionCatalog(DeploymentPlan.model_validate_json(serialized))
     definition = catalog.resolve("switch-router@s1")
     attachment = definition.instance.attachment
