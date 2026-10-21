@@ -1,4 +1,4 @@
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: AgentBlueprint
 metadata:
   name: host-traffic
@@ -6,16 +6,16 @@ metadata:
 implementation:
   type: declarative
 model:
-  provider: mock
-  name: deterministic
-  parameters:
-    response:
-      message: "Traffic generation complete."
-      proposals: []
-      delegations: []
-      sharedStateUpdates: []
-      metadata: {}
-    usage: {}
+  file: ../model-configurations.yaml
+  entry: shared-operation
+  overrides:
+    parameters:
+      response:
+        message: "Traffic generation complete."
+        proposals: []
+        delegations: []
+        sharedStateUpdates: []
+        metadata: {}
 reasoning:
   instructions: |-
     Generate test traffic to verify network reachability. Report the

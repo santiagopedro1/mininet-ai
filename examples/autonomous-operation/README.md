@@ -22,6 +22,7 @@ substrate.*
 - Shared state (preferred path)
 - Multi-layer placement (data + host)
 - Declarative blueprints with mock provider
+- Shared model configuration with a shallow per-blueprint response override
 
 ## Validate and plan (works anywhere)
 
@@ -33,6 +34,44 @@ uv run mininet-ai run examples/autonomous-operation/experiment.yaml --dry-run
 
 Expect 4 instances: `switch-monitor@s1`, `switch-monitor@s2`,
 `host-traffic@h1`, `host-traffic@h2`.
+
+## Shared model and shallow response override
+
+Both blueprints select `shared-operation` from
+[`model-configurations.yaml`](model-configurations.yaml), using paths relative
+to their own `agent-blueprints/` directory:
+
+```yaml
+model:
+  file: ../model-configurations.yaml
+  entry: shared-operation
+```
+
+The switch monitor inherits the complete deterministic model. The host traffic
+blueprint additionally supplies:
+
+```yaml
+  overrides:
+    parameters:
+      response:
+        message: "Traffic generation complete."
+        proposals: []
+        delegations: []
+        sharedStateUpdates: []
+        metadata: {}
+```
+
+This replaces the **entire** `response` value, not its nested fields, so hosts do
+not inherit the switch's flow proposal. Both retain `provider: mock`, model ID
+`deterministic`, and inherited `usage: {}`. Responses, topology, agent IDs, and
+runtime prerequisites are unchanged. The shared file has no version envelope;
+the experiment, blueprint, and capability documents use `mininet-ai/v1alpha4`.
+The saved plan holds effective inline models plus informational provenance and
+does not reread this file during execution. See the
+[authoring reference](../../docs/yaml-authoring-reference.md#shared-model-configurations)
+for model-ID overrides, fixed Provider, paths, validation, and credential handling.
+For the simplest inline configuration, use
+[Getting Started](../getting-started/README.md).
 
 ## Run
 

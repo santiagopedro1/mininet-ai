@@ -494,6 +494,16 @@ does not introduce project-specific credential-selector syntax or change Agno's
 environment lookup (including `OLLAMA_API_KEY` and omitted-host behavior).
 Compilation neither reads credential values nor contacts Providers.
 
+For a complete offline workflow, see the existing
+[Autonomous Network Operation Maintained Example](../examples/autonomous-operation/README.md#shared-model-and-shallow-response-override).
+Its two blueprints share one entry and replace one complete response object;
+[Getting Started](../examples/getting-started/README.md) retains the inline form.
+For source warnings, header migration, and unchanged original saved-plan loading,
+see [compatibility](compatibility.md#public-specification-v1alpha3-to-v1alpha4).
+The agreed decisions are [authoring](https://github.com/santiagopedro1/mininet-ai/issues/86#issuecomment-6317570099),
+[resolution and ownership](https://github.com/santiagopedro1/mininet-ai/issues/87#issuecomment-6317782217),
+and [compatibility and acceptance](https://github.com/santiagopedro1/mininet-ai/issues/88#issuecomment-6317993870).
+
 ### Runtime construction and ownership
 
 On the active Agno runtime, an entrypoint uses `module:attribute` syntax and

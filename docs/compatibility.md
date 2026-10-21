@@ -132,7 +132,7 @@ The bounded `v1alpha3` compatibility policy below applies to the current release
 
 The current authoring and deployment-plan contract is `mininet-ai/v1alpha4`,
 with schema ID `urn:mininet-ai:schema:v1alpha4:deployment-plan`. The version
-reserves the combined reusable-model-configuration changes, including plan
+includes the combined reusable-model-configuration changes, including plan
 provenance and earlier construction validation. Inline model syntax and Python
 factory model optionality are unchanged. Substrate, substrate-runtime,
 runtime-state, and agent-runtime contracts are **not** bumped.
@@ -207,6 +207,15 @@ definitions, without consulting experiment or model configuration files. Runtime
 environment selectors and installed Python factory code remain runtime
 dependencies; source independence is not environment independence. This reader
 also permits unchanged `v1alpha3` plans inside existing runtime-state envelopes.
+
+The existing [Autonomous Network Operation Maintained Example](../examples/autonomous-operation/README.md)
+demonstrates sharing and a shallow response override without changing the scenario's
+effective models. [Getting Started](../examples/getting-started/README.md) remains
+inline. Decisions and rationale: [authoring](https://github.com/santiagopedro1/mininet-ai/issues/86#issuecomment-6317570099),
+[resolution/validation ownership](https://github.com/santiagopedro1/mininet-ai/issues/87#issuecomment-6317782217),
+and [bounded compatibility/acceptance](https://github.com/santiagopedro1/mininet-ai/issues/88#issuecomment-6317993870).
+The [implementation handoff](implementation/shared-model-configurations.md)
+records the integrated acceptance evidence and complete golden-diff rationale.
 
 ### Agent runtime v1alpha1 to v1alpha2
 
@@ -407,9 +416,9 @@ Failed-deployment cleanup is carried by typed runtime errors; the former optiona
 boolean receipt is not verification evidence. Adapters without evidence fail
 closed for finalization, with no new required protocol methods.
 
-Ollama endpoint configuration uses the existing `model.parameters.host` key,
+Historically, Ollama endpoint configuration used the existing `model.parameters.host` key,
 without adding serialized fields or changing omitted-host plans, snapshots,
-digests, or schemas. The public contract stays at `mininet-ai/v1alpha3`.
+digests, or schemas. That change kept the public contract at `mininet-ai/v1alpha3`.
 Explicit host values are validated as HTTP/HTTPS URLs without credentials and
 are now honored by declarative agents and the bundled prompt-parsed factory.
 The runtime does not mutate environment variables; other Python factories
@@ -418,8 +427,10 @@ continue to interpret their own provider-specific options.
 Optional boolean `model.parameters.think` is passed through to Ollama by both
 declarative agents and the bundled prompt-parsed factory. Omission preserves
 the provider default and existing plans; explicit non-boolean values fail at
-agent construction rather than being silently coerced. This uses the existing
-provider-parameters map and does not change the public contract version.
+agent construction rather than being silently coerced. That historical change used
+the existing provider-parameters map without a version bump. Current `v1alpha4`
+source compilation moves these locally verifiable failures earlier, as described above;
+the original `v1alpha3` saved-plan reader preserves the historical runtime boundary.
 
 A change may keep the current contract version when it does not alter the
 accepted meaning or serialized result of an existing valid document. Examples
