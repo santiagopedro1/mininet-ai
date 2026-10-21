@@ -382,6 +382,11 @@ class AgnoAgentFactory:
                 f"declarative blueprint {blueprint.metadata.name!r} has no model",
                 code="agent.configuration.model-missing",
             )
+        if not isinstance(model_configuration, ModelConfiguration):
+            raise AgentProviderError(
+                "declarative model configuration contains an unresolved reference",
+                code="agent.configuration.model-unresolved",
+            )
         try:
             model = self._model_resolver(model_configuration)
             return Agent(

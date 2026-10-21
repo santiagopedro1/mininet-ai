@@ -11,10 +11,10 @@ capabilities execute them.
 
 ## Current capabilities
 
-The current specification contract is `mininet-ai/v1alpha3`. When upgrading
-from `v1alpha2`, update `apiVersion` on the experiment and every agent blueprint
-and capability, then recompile saved deployment plans. See the
-[migration guide](docs/compatibility.md#public-specification-v1alpha2-to-v1alpha3).
+The current specification contract is `mininet-ai/v1alpha4`. Compatible
+`v1alpha3` source documents warn and normalize to the new version; original
+`v1alpha3` saved plans retain their snapshots and digests when loaded. See the
+[migration guide](docs/compatibility.md#public-specification-v1alpha3-to-v1alpha4).
 
 - YAML and Python specifications, with inline definitions or external YAML files.
 - Deterministic deployment plans, scoped placement, target selectors, and
@@ -215,7 +215,7 @@ See [run storage and export](docs/run-logs.md) for coordination and format detai
 | Example | Description | Substrate | Provider |
 | --- | --- | --- | --- |
 | [Getting Started](examples/getting-started/README.md) | Minimal offline experiment | `fake` | `mock` |
-| [Autonomous Network Operation](examples/autonomous-operation/README.md) | Self-healing network with event triggers, detectors, rollback | `fake` | `mock` |
+| [Autonomous Network Operation](examples/autonomous-operation/README.md) | Shared model + shallow override, event triggers, detectors, rollback | `fake` | `mock` |
 | [Hierarchical Routing Coordination](examples/hierarchical-routing/README.md) | Three-tier routing with hierarchical coordination | `mininet-ovs` | `ollama` |
 | [iperf Throughput](examples/iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` |
 

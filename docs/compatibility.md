@@ -9,10 +9,10 @@ driver contract.
 
 The project currently defines ten contract families:
 
-- `mininet-ai/v1alpha3` covers `Experiment`, `AgentBlueprint`, and `Capability`
+- `mininet-ai/v1alpha4` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
   plan JSON Schema uses the matching identifier
-  `urn:mininet-ai:schema:v1alpha3:deployment-plan`.
+  `urn:mininet-ai:schema:v1alpha4:deployment-plan`.
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
@@ -125,11 +125,97 @@ To migrate:
    ledger history remains stored, but interpreting archived plans requires their
    original schema; no automatic migration of stored records is provided.
 
-`Experiment`, `AgentBlueprint`, `Capability`, and `DeploymentPlan` accept only
-`mininet-ai/v1alpha3`; `v1alpha1` and `v1alpha2` documents are rejected, not
-silently upgraded. The package version and independently versioned substrate,
-runtime-state, agent-runtime, audit, event, coordination, and ledger contracts
-are unchanged.
+That historical migration did not support `v1alpha1` or `v1alpha2` documents.
+The bounded `v1alpha3` compatibility policy below applies to the current release.
+
+### Public specification v1alpha3 to v1alpha4
+
+The current authoring and deployment-plan contract is `mininet-ai/v1alpha4`,
+with schema ID `urn:mininet-ai:schema:v1alpha4:deployment-plan`. The version
+includes the combined reusable-model-configuration changes, including plan
+provenance and earlier construction validation. Inline model syntax and Python
+factory model optionality are unchanged. Substrate, substrate-runtime,
+runtime-state, and agent-runtime contracts are **not** bumped.
+
+Source documents and saved plans have deliberately different compatibility rules:
+
+Current source compilation rejects locally invalid parameters before emitting a
+plan: Ollama accepts only `host` and boolean `think` on declarative and both
+bundled factory paths; deterministic `mock` requires a valid response and optional
+valid metrics object. Other declarative Providers retain Agno-delegated resolution
+with empty parameters, without a Provider allowlist. Custom factories keep optional
+models, arbitrary owned parameters, and construction ownership; compilation does
+not import or invoke them. These checks apply only at the source compiler boundary,
+not structural model parsing or SDK saved-plan reconstruction. Consequently an
+original `v1alpha3` plan with formerly accepted invalid parameters still loads
+unchanged and fails at its original runtime construction boundary.
+
+No credential-selector syntax is added: Agno performs existing environment lookup
+at runtime. In particular, blank `OLLAMA_API_KEY` remains valid for local Ollama,
+omitted hosts retain environment/default/cloud behavior, and explicit hosts take
+precedence. Do not copy credential values into YAML or plans. Supported paths reject
+unsupported literal credential fields before persistence; arbitrary custom-factory
+data is not heuristically scanned. Offline validation reads no credential values
+and cannot verify service availability or authentication.
+
+Referenced models may override only `name` and top-level `parameters` keys; the
+Provider stays fixed. Omission inherits, nested values replace rather than merge,
+and null never deletes a key. Both the complete selected base and effective model
+must pass current ownership-aware source checks, so overrides cannot repair an
+invalid base. Saved snapshots contain only the effective inline settings, while
+supplied overrides are informational plan provenance outside executable identity.
+Equivalent inline, reference, and override expressions in otherwise identical
+`v1alpha4` experiments have equal snapshots and digests. See the
+[authoring rules](yaml-authoring-reference.md#shared-model-configurations).
+
+| Input | Policy |
+| --- | --- |
+| Native `v1alpha4` source | Validate against current rules and compile a `v1alpha4` plan. |
+| `v1alpha3` source | Emit a visible deprecation warning, validate against all current rules, and normalize accepted documents to `v1alpha4`. |
+| Original `v1alpha3` saved plan | Validate its original plan/snapshot structure and recorded SHA-256 snapshot digest, then reconstruct directly for execution. Preserve the snapshot, version fields, and digest unchanged. |
+| `v1alpha1`, `v1alpha2`, or unknown versions | Reject; no general historical conversion is provided. |
+
+Source acceptance covers experiments, embedded definitions, external blueprint
+and capability files, and Python-created documents. Supported source versions
+may be mixed. Unknown fields and invalid values are errors, never discarded or
+interpreted using older semantics. Subsequent compile-time construction checks
+apply to compatible old source too; selecting an old source version cannot
+bypass current rules. Applicable failures can therefore move from agent
+construction to validation/planning as those checks are introduced.
+
+To migrate source, change the header on the experiment and each blueprint and
+capability (topology files remain unversioned):
+
+```yaml
+# Previously accepted source (deprecated):
+apiVersion: mininet-ai/v1alpha3
+# Use this header instead:
+apiVersion: mininet-ai/v1alpha4
+```
+
+Run `validate` and `plan`, correct any current-rule errors, and review the newly
+compiled plan and digest. New compilations emit only `v1alpha4`; even unchanged
+inline experiments acquire new version fields and therefore a new digest. No
+cross-version digest equality is promised.
+
+**Do not edit an archived plan's header or recompile it merely to load it.**
+The bounded saved-plan reader does not apply source normalization, recover source
+files, or impose new source-time parameter restrictions. A structurally accepted
+legacy parameter that failed at runtime still fails at runtime. Invalid original
+shape or a digest mismatch fails loading. The SDK consumes the embedded resolved
+definitions, without consulting experiment or model configuration files. Runtime
+environment selectors and installed Python factory code remain runtime
+dependencies; source independence is not environment independence. This reader
+also permits unchanged `v1alpha3` plans inside existing runtime-state envelopes.
+
+The existing [Autonomous Network Operation Maintained Example](../examples/autonomous-operation/README.md)
+demonstrates sharing and a shallow response override without changing the scenario's
+effective models. [Getting Started](../examples/getting-started/README.md) remains
+inline. Decisions and rationale: [authoring](https://github.com/santiagopedro1/mininet-ai/issues/86#issuecomment-6317570099),
+[resolution/validation ownership](https://github.com/santiagopedro1/mininet-ai/issues/87#issuecomment-6317782217),
+and [bounded compatibility/acceptance](https://github.com/santiagopedro1/mininet-ai/issues/88#issuecomment-6317993870).
+The [implementation handoff](implementation/shared-model-configurations.md)
+records the integrated acceptance evidence and complete golden-diff rationale.
 
 ### Agent runtime v1alpha1 to v1alpha2
 
@@ -330,9 +416,9 @@ Failed-deployment cleanup is carried by typed runtime errors; the former optiona
 boolean receipt is not verification evidence. Adapters without evidence fail
 closed for finalization, with no new required protocol methods.
 
-Ollama endpoint configuration uses the existing `model.parameters.host` key,
+Historically, Ollama endpoint configuration used the existing `model.parameters.host` key,
 without adding serialized fields or changing omitted-host plans, snapshots,
-digests, or schemas. The public contract stays at `mininet-ai/v1alpha3`.
+digests, or schemas. That change kept the public contract at `mininet-ai/v1alpha3`.
 Explicit host values are validated as HTTP/HTTPS URLs without credentials and
 are now honored by declarative agents and the bundled prompt-parsed factory.
 The runtime does not mutate environment variables; other Python factories
@@ -341,8 +427,10 @@ continue to interpret their own provider-specific options.
 Optional boolean `model.parameters.think` is passed through to Ollama by both
 declarative agents and the bundled prompt-parsed factory. Omission preserves
 the provider default and existing plans; explicit non-boolean values fail at
-agent construction rather than being silently coerced. This uses the existing
-provider-parameters map and does not change the public contract version.
+agent construction rather than being silently coerced. That historical change used
+the existing provider-parameters map without a version bump. Current `v1alpha4`
+source compilation moves these locally verifiable failures earlier, as described above;
+the original `v1alpha3` saved-plan reader preserves the historical runtime boundary.
 
 A change may keep the current contract version when it does not alter the
 accepted meaning or serialized result of an existing valid document. Examples

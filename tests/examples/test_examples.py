@@ -15,7 +15,11 @@ from mininet_ai.capabilities.verification import PostconditionVerifier
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.sdk import ActionProposal, AgentContext, ExecutionCatalog
 from mininet_ai.specification import load_experiment
-from mininet_ai.specification.models import AttachmentLayer, ResourceKind
+from mininet_ai.specification.models import (
+    AttachmentLayer,
+    ModelConfiguration,
+    ResourceKind,
+)
 from mininet_ai.substrates.mininet_ovs.observations import MininetOVSObservations
 from mininet_ai.substrates.runtime import ObservationQuery, ObservationResult
 
@@ -65,6 +69,61 @@ def test_autonomous_operation_has_four_agents() -> None:
     experiment = load_experiment(experiment_path)
     plan = compile_experiment(experiment)
     assert len(plan.agents) == 4
+
+
+def test_autonomous_operation_shares_a_model_without_changing_responses() -> None:
+    plan = compile_experiment(EXAMPLES_DIR / "autonomous-operation/experiment.yaml")
+    assert {agent.id for agent in plan.agents} == {
+        "switch-monitor@s1",
+        "switch-monitor@s2",
+        "host-traffic@h1",
+        "host-traffic@h2",
+    }
+    assert set(plan.model_provenance) == {"switch-monitor", "host-traffic"}
+    assert {source.entry for source in plan.model_provenance.values()} == {
+        "shared-operation"
+    }
+    assert len({source.file for source in plan.model_provenance.values()}) == 1
+    catalog = ExecutionCatalog(plan)
+    for agent_id in catalog.agent_ids:
+        model = catalog.resolve(agent_id).blueprint.model
+        assert isinstance(model, ModelConfiguration)
+        assert model.provider == "mock"
+        assert model.name == "deterministic"
+        assert model.parameters["usage"] == {}
+        response = model.parameters["response"]
+        if agent_id.startswith("switch-monitor"):
+            assert response == {
+                "message": "Congestion detected. Proposing flow installation to reroute traffic.",
+                "proposals": [
+                    {
+                        "id": "reroute-flow",
+                        "capability": "openflow.flow.install",
+                        "target": "s1",
+                        "arguments": {
+                            "match": {"ip": True, "nw_dst": "10.0.0.13"},
+                            "actions": ["output:3"],
+                        },
+                        "reason": "Reroute traffic to alternate path via s1-eth3.",
+                        "timeoutSeconds": 30,
+                    }
+                ],
+                "delegations": [],
+                "sharedStateUpdates": [],
+                "metadata": {},
+            }
+        else:
+            assert response == {
+                "message": "Traffic generation complete.",
+                "proposals": [],
+                "delegations": [],
+                "sharedStateUpdates": [],
+                "metadata": {},
+            }
+    assert plan.model_provenance["switch-monitor"].overrides == {}
+    assert set(plan.model_provenance["host-traffic"].overrides["parameters"]) == {
+        "response"
+    }
 
 
 def test_hierarchical_routing_has_six_agents() -> None:
@@ -183,7 +242,9 @@ def test_hierarchical_routing_uses_requested_ollama_configuration() -> None:
             "mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent"
         )
         model = blueprint.model
-        assert model is not None
+        from mininet_ai.specification.models import ModelConfiguration
+
+        assert isinstance(model, ModelConfiguration)
         assert model.provider == "ollama"
         assert model.name == "qwen3.5:latest"
         assert model.parameters["host"] == "http://10.10.10.201:11434"

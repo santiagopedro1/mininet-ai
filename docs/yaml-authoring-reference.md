@@ -1,7 +1,15 @@
 # YAML authoring reference
 
 Use this reference when generating Mininet AI experiment YAML. The public
-contract is `mininet-ai/v1alpha3`; unknown fields are rejected.
+contract is `mininet-ai/v1alpha4`; unknown fields are rejected.
+
+Compatible `v1alpha3` source documents emit deprecation warnings and normalize
+to `v1alpha4` only under current validation rules. This applies to experiments
+and embedded/external blueprints and capabilities, including mixed supported
+versions. New plans always use `v1alpha4`. Original `v1alpha3` saved plans are
+instead validated and reconstructed without rewriting their snapshots or digests
+or reloading source files. Do not change archived plan headers. See
+[compatibility and migration](compatibility.md#public-specification-v1alpha3-to-v1alpha4).
 
 The authoritative definitions are the Pydantic models in
 `mininet_ai/specification/models.py`. Before returning generated files, always
@@ -51,7 +59,7 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 
 ## Common rules
 
-- Use `apiVersion: mininet-ai/v1alpha3` exactly.
+- Use `apiVersion: mininet-ai/v1alpha4` for newly authored documents.
 - Names start with a letter, contain only letters, digits, `_`, `.`, or `-`, and
   are at most 128 characters.
 - Metadata supports `name`, optional `description`, and optional string
@@ -76,7 +84,7 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 Minimal shape:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: Experiment
 metadata:
   name: example
@@ -331,7 +339,7 @@ Coordination names refer to agent deployment names, not expanded instance IDs.
 Declarative Agno agent:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: AgentBlueprint
 metadata:
   name: operator
@@ -364,7 +372,7 @@ loop:
 Python-authored Agno agent or factory:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: AgentBlueprint
 metadata: {name: operator}
 implementation:
@@ -377,15 +385,137 @@ reasoning:
   timeout: 120s
 ```
 
+### Shared model configurations
+
+Instead of repeating inline model settings, multiple blueprints can select the
+same named entry from a local YAML file. For example, `models.yaml`:
+
+```yaml
+models:
+  local-reasoner:
+    provider: ollama
+    name: qwen3.5:latest
+    parameters:
+      host: http://ollama.example:11434
+      think: false
+```
+
+In each blueprint:
+
+```yaml
+model:
+  file: ./models.yaml
+  entry: local-reasoner
+```
+
+The file is a plain object with only a root `models` mapping: no `apiVersion`,
+`kind`, or `metadata` envelope. Every entry is a complete inline configuration
+(`provider`, `name`, optional `parameters`). Configuration names such as
+`local-reasoner` are 1–128 characters, begin with an ASCII letter, and continue
+with ASCII letters, digits, underscore, dot, or hyphen. They are aliases, not
+Provider model IDs: `name` still accepts IDs such as `qwen3.5:latest`.
+
+Inline and reference forms are mutually exclusive. Both `file` and `entry` are
+required for a reference. A reference may supply `overrides` containing only
+`name` (the Provider model ID) and/or `parameters`:
+
+```yaml
+model:
+  file: ./models.yaml
+  entry: local-reasoner
+  overrides:
+    name: qwen3.5:9b
+    parameters:
+      think: true
+```
+
+This blueprint inherits `provider: ollama` and `host`, but uses the supplied model
+ID and thinking mode. Omitted override fields and omitted parameter keys inherit;
+`overrides: {}` and `parameters: {}` do not clear anything. Parameter replacement
+is **shallow**: a supplied top-level key replaces its entire value, not individual
+nested fields. For factory-owned parameters, replacing `options: {a: 1, b: 2}`
+with `options: {a: 3}` yields only `{a: 3}`. Nested options are not newly supported
+on declarative Providers merely because overrides support shallow replacement.
+
+Provider overrides, unknown override fields, overrides on inline configurations,
+entry-to-entry references, and inheritance chains are unsupported. To change
+Provider, select another complete entry. There are no deletion markers: explicit
+null is a value, never deletion. Null `overrides`, `name`, or `parameters` is
+invalid; null parameter values must satisfy their existing owner-specific rules
+(for example, Ollama `think` and `host` reject null, while a custom factory may
+accept null for its own parameters). Complete bases are validated **before**
+overrides, then effective configurations are validated: an override cannot repair
+an invalid base, including an invalid model ID, endpoint, or parameter.
+
+A Python factory can still omit `model` when it owns all model setup; references
+do not change that ownership.
+
+Paths are relative to the **document containing the blueprint**: an external
+blueprint's directory, or the experiment's directory for an embedded blueprint.
+Absolute local paths and parent traversal (`../models.yaml`) are allowed. URLs,
+tilde/environment expansion, discovery, and machine-wide registries are not.
+Experiment-to-blueprint paths retain their existing experiment-relative meaning.
+For Python-created experiments, pass an explicit source location with
+`compile_experiment(resolve_experiment(experiment, source="project/experiment.py"))`
+(`resolve_experiment` is in `mininet_ai.specification.loader`). Without an explicit
+source, compilation uses the current directory's `experiment.py` fallback.
+
+`validate` and `plan` read each resolved model file once per compilation, validate
+the **whole file**, including unused entries, and reject duplicate YAML mapping
+keys at every depth. Invalid entries cannot hide behind a selected valid entry.
+Errors identify the referring blueprint, target file, entry, and field where
+applicable, with numeric YAML locations rather than configuration-value dumps.
+Later compilations read updated files; an already loaded experiment is not a
+process-global configuration cache.
+
+All entries undergo shared structural and credential-field checks. Construction-
+specific restrictions apply to the selected complete base and its effective
+configuration on the referring blueprint's ownership path. An unused entry has
+no construction owner: a shared file may contain settings intended for custom
+factories alongside settings intended for declarative agents or bundled factories.
+
+Executable snapshots contain only effective `provider`/`name`/`parameters`, never
+`file`/`entry`/`overrides`. Optional plan-level `modelProvenance` records the
+blueprint source, resolved file, configuration name, and only the supplied
+overrides separately from the snapshot digest. Provenance is informational, not
+input to saved execution.
+Equivalent inline/reference/override settings in otherwise identical `v1alpha4`
+experiments therefore have equal snapshots and digests. Saved plans reconstruct
+and execute without rereading shared files, even after those files move or are
+deleted. They still depend on runtime environment and installed Python factory
+code. Consuming factories receive the resolved model configuration and remain
+responsible for constructing their models; compilation never calls factories.
+
+Keep credentials in the Provider's runtime environment, not shared files, inline
+configuration, URLs, or provenance. Literal credential parameters (`api_key`,
+`api-key`, `token`, `password`, `secret`, `credentials`) are unsupported, including
+for custom factories; unrelated factory-owned parameters remain allowed. This
+does not introduce project-specific credential-selector syntax or change Agno's
+environment lookup (including `OLLAMA_API_KEY` and omitted-host behavior).
+Compilation neither reads credential values nor contacts Providers.
+
+For a complete offline workflow, see the existing
+[Autonomous Network Operation Maintained Example](../examples/autonomous-operation/README.md#shared-model-and-shallow-response-override).
+Its two blueprints share one entry and replace one complete response object;
+[Getting Started](../examples/getting-started/README.md) retains the inline form.
+For source warnings, header migration, and unchanged original saved-plan loading,
+see [compatibility](compatibility.md#public-specification-v1alpha3-to-v1alpha4).
+The agreed decisions are [authoring](https://github.com/santiagopedro1/mininet-ai/issues/86#issuecomment-6317570099),
+[resolution and ownership](https://github.com/santiagopedro1/mininet-ai/issues/87#issuecomment-6317782217),
+and [compatibility and acceptance](https://github.com/santiagopedro1/mininet-ai/issues/88#issuecomment-6317993870).
+
+### Runtime construction and ownership
+
 On the active Agno runtime, an entrypoint uses `module:attribute` syntax and
 must resolve to an Agno `Agent` or a factory returning one. Use a Python factory
 for provider-specific options not supported declaratively. Declarative agents require
 `model`. `reasoning.output-schema` is an optional legacy string identifier; the
 active Agno path always requests the structured `AgentResponse` contract.
 
-Ollama declarative agents and the bundled
-`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` factory support
-an optional endpoint:
+Ollama declarative agents and both bundled factories
+(`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` and
+`create_deterministic_prompt_parsed_agent` in that module) support an optional
+endpoint and boolean thinking mode:
 
 ```yaml
 model:
@@ -393,6 +523,7 @@ model:
   name: qwen3.5:latest
   parameters:
     host: http://ollama.example:11434
+    think: false
 ```
 
 `host` must be a non-empty HTTP/HTTPS URL with a hostname and no embedded
@@ -401,12 +532,29 @@ a network or contacting Ollama. Explicit configuration overrides `OLLAMA_HOST`;
 omitting the host preserves Agno/Ollama's environment and default behavior,
 including its cloud endpoint behavior when an API key is configured. Each
 blueprint can use a different endpoint; the runtime does not modify process
-environment variables. Only `host` is supported for these Ollama construction
-paths; other parameters are rejected at agent construction. Custom Python
-factories remain responsible for consuming their own configuration. Keep
-credentials in environment variables, not YAML or URL user-info.
+environment variables. Only `host` and `think` are supported for these Ollama
+construction paths. `think` must be a boolean (not a string, number, or null);
+omission leaves request parameters unset and explicit `false` is preserved.
+Unsupported parameters and invalid values now fail during `validate` and `plan`.
+Both bundled factories require an Ollama model; declarative agents require a model.
+Custom Python factories may omit the model and retain their own parameter and
+model-construction semantics. Compilation never imports or calls their entrypoints
+or replaces factory-owned models. Shared structural checks, including explicit
+Ollama host validation, still apply.
+
+Keep credentials in the runtime environment, not YAML or URL user-info. There
+are no project-defined credential-selector fields. Agno/Ollama performs its
+existing `OLLAMA_API_KEY` lookup at runtime; a blank key remains valid for an
+unauthenticated local endpoint. A nonempty key can select the cloud endpoint
+even when `OLLAMA_HOST` is set; an explicit `host` takes precedence. Unsupported
+literal credential fields (for example, `api_key`) are rejected by shared source
+checks before plan persistence, including for custom factories. Custom
+factory parameters are not recursively scanned or subject to declarative parameter
+allowlists; factory authors must keep secrets out of their serialized parameters.
 
 Other ordinary declarative providers still reject non-empty `model.parameters`.
+These restrictions are checked during source compilation. Providers with empty
+parameters remain delegated to Agno, without a compile-time Provider allowlist.
 The deterministic `mock` provider accepts its existing response and usage
 parameters and is useful for offline generated experiments (see
 [Getting Started](../examples/getting-started/README.md) for a complete
@@ -426,6 +574,19 @@ model:
       metadata: {}
     usage: {}
 ```
+
+`mock` requires a valid `AgentResponse` in `response`, including an outcome
+(message, proposal, delegation, or shared-state update). Optional `usage` must
+be an object with the runtime metrics schema's nonnegative counts/cost, known
+fields, and totals covering input plus output (including audio). Existing metric
+coercion is preserved; validation does not normalize stored parameter values.
+These checks use the same response/metrics schemas as runtime construction.
+
+Compilation is offline: it does not construct Provider models or clients, contact
+Providers, or read credential values. A successful plan does not establish remote
+model availability, credentials, connectivity, or inference success. Saved plans
+retain effective settings, not environment-derived values; execution still depends
+on the runtime environment and installed factory code.
 
 Memory rules:
 
@@ -478,7 +639,7 @@ observations are not promised a transactionally consistent network snapshot.
 ## Capability
 
 ```yaml
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: Capability
 metadata:
   name: openflow.flow.install

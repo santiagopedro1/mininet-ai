@@ -1,0 +1,20 @@
+models:
+  shared-operation:
+    provider: mock
+    name: deterministic
+    parameters:
+      response:
+        message: "Congestion detected. Proposing flow installation to reroute traffic."
+        proposals:
+          - id: reroute-flow
+            capability: openflow.flow.install
+            target: s1
+            arguments:
+              match: {ip: true, nw_dst: 10.0.0.13}
+              actions: ["output:3"]
+            reason: "Reroute traffic to alternate path via s1-eth3."
+            timeoutSeconds: 30
+        delegations: []
+        sharedStateUpdates: []
+        metadata: {}
+      usage: {}

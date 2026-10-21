@@ -22,6 +22,7 @@ from mininet_ai.sdk.contracts import (
     ModelRequest,
     ModelRole,
 )
+from mininet_ai.specification.models import ModelConfiguration
 
 _ENTRYPOINT_PATTERN = re.compile(
     r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$"
@@ -140,8 +141,8 @@ class DeclarativeAgentProvider:
         _validate_context(self._definition, context)
         blueprint = self._definition.blueprint
         model = blueprint.model
-        if model is None:  # Guarded during construction; keeps type narrowing local.
-            raise AssertionError("declarative model configuration disappeared")
+        if not isinstance(model, ModelConfiguration):
+            raise TypeError("declarative model configuration is not resolved")
         instructions = blueprint.reasoning.instructions or (
             "Inspect the supplied scoped context and return a safe response."
         )

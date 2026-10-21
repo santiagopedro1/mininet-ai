@@ -4,8 +4,15 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import (
+    ConfigDict,
+    Field,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+    model_validator,
+)
 
+from mininet_ai.compiler.legacy import LEGACY_API_VERSION, validate_legacy_plan
 from mininet_ai.specification.models import (
     AttachmentLayer,
     ControllerProtocol,
@@ -26,7 +33,7 @@ from mininet_ai.specification.models import (
     Trigger,
 )
 
-DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha3:deployment-plan"
+DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha4:deployment-plan"
 
 
 class PlannedResourceBase(StrictModel):
@@ -149,6 +156,13 @@ class CoordinationPlan(StrictModel):
     edges: tuple[CoordinationEdge, ...] = ()
 
 
+class ModelReferenceProvenance(StrictModel):
+    source: str
+    file: str
+    entry: str
+    overrides: dict[str, Any] = Field(default_factory=dict)
+
+
 class DeploymentPlan(StrictModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -159,7 +173,7 @@ class DeploymentPlan(StrictModel):
         },
     )
 
-    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha4"] = Field(alias="apiVersion")
     kind: Literal["DeploymentPlan"] = "DeploymentPlan"
     metadata: Metadata
     source: str = Field(min_length=1)
@@ -174,3 +188,27 @@ class DeploymentPlan(StrictModel):
         alias="resourceLimits",
     )
     snapshot: dict[str, Any]
+    model_provenance: dict[str, ModelReferenceProvenance] = Field(
+        default_factory=dict,
+        alias="modelProvenance",
+        exclude_if=lambda value: not value,
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def original_saved_contract(cls, value: Any) -> Any:
+        if (
+            isinstance(value, dict)
+            and value.get("apiVersion", value.get("api_version")) == LEGACY_API_VERSION
+        ):
+            validate_legacy_plan(value)
+        return value
+
+    @field_validator("api_version", mode="wrap")
+    @classmethod
+    def supported_saved_version(
+        cls, value: Any, handler: ValidatorFunctionWrapHandler
+    ) -> str:
+        if value == LEGACY_API_VERSION:
+            return value
+        return handler(value)

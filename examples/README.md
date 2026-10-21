@@ -13,7 +13,7 @@ Start with the simplest example and work your way up:
    experiment. One agent, one capability, no external services.
 2. **[Autonomous Network Operation](autonomous-operation/README.md)** — a
    self-healing network with event triggers, detectors, rollback, and shared
-   state.
+   state, plus shared model configuration and shallow response overrides.
 3. **[Hierarchical Routing Coordination](hierarchical-routing/README.md)** —
    a three-tier routing system with multi-layer placement and hierarchical
    coordination.
@@ -25,7 +25,7 @@ Start with the simplest example and work your way up:
 | Example | Description | Substrate | Provider | Primary Goal | Key Features |
 | --- | --- | --- | --- | --- | --- |
 | [Getting Started](getting-started/README.md) | Minimal offline experiment | `fake` | `mock` | Feature demonstration | Basic workflow, one agent, one capability |
-| [Autonomous Network Operation](autonomous-operation/README.md) | Self-healing network | `fake` | `mock` | Feature demonstration | Event/interval triggers, threshold detector, rollback, postconditions, shared state, multi-layer placement |
+| [Autonomous Network Operation](autonomous-operation/README.md) | Self-healing network | `fake` | `mock` | Feature demonstration | Shared model + shallow override, event/interval triggers, threshold detector, rollback, postconditions, shared state, multi-layer placement |
 | [Hierarchical Routing Coordination](hierarchical-routing/README.md) | Three-tier routing system | `mininet-ovs` | `ollama` | Both | Multi-layer placement, hierarchical coordination, declarative + Python factory blueprints, postconditions, shared state |
 | [iperf Throughput](iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` | Realistic scenario | Host placement, Python factory blueprints, cross-terminal `invoke`, serialized startup intents |
 
@@ -48,6 +48,7 @@ Start with the simplest example and work your way up:
 | Hierarchical coordination | | | ✓ | |
 | Declarative blueprint | ✓ | ✓ | ✓ | |
 | Python factory blueprint | | | ✓ | ✓ |
+| Shared model + shallow override | | ✓ | | |
 
 ## Running the examples
 

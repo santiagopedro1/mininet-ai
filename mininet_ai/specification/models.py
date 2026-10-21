@@ -1,4 +1,4 @@
-"""The ``mininet-ai/v1alpha3`` public schema.
+"""The ``mininet-ai/v1alpha4`` public schema.
 
 The models intentionally describe logical placement. Process isolation and real
 network attachment are substrate/runtime concerns introduced in later phases.
@@ -7,9 +7,10 @@ network attachment are substrate/runtime concerns introduced in later phases.
 from __future__ import annotations
 
 import re
+import warnings
 from enum import StrEnum
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypedDict
 from urllib.parse import urlsplit
 
 from pydantic import (
@@ -19,18 +20,53 @@ from pydantic import (
     HttpUrl,
     JsonValue,
     TypeAdapter,
+    ValidationError,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
     field_validator,
     model_validator,
+    with_config,
 )
 
 from mininet_ai.durations import duration_seconds
 
-API_VERSION: Literal["mininet-ai/v1alpha3"] = "mininet-ai/v1alpha3"
+API_VERSION: Literal["mininet-ai/v1alpha4"] = "mininet-ai/v1alpha4"
 NAME_PATTERN = r"^[a-zA-Z][a-zA-Z0-9_.-]*$"
 
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class SpecificationDeprecationWarning(FutureWarning):
+    """Visible warning for bounded acceptance of old source documents."""
+
+
+class VersionedDocument(StrictModel):
+    api_version: Literal["mininet-ai/v1alpha4"] = Field(alias="apiVersion")
+
+    @field_validator("api_version", mode="wrap")
+    @classmethod
+    def supported_version(
+        cls, value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> str:
+        if value == "mininet-ai/v1alpha3":
+            # Saved snapshots are executable inputs, never source migrations.
+            if info.context and "legacy_saved_plan" in info.context:
+                return value if info.context["legacy_saved_plan"] else handler(value)
+            source = (
+                info.context.get("source", "Python input")
+                if info.context
+                else "Python input"
+            )
+            warnings.warn(
+                f"{source}: {cls.__name__} mininet-ai/v1alpha3 is deprecated; "
+                "validate against current rules and migrate to mininet-ai/v1alpha4",
+                SpecificationDeprecationWarning,
+                stacklevel=3,
+            )
+            value = API_VERSION
+        return handler(value)
 
 
 Name = Annotated[str, Field(pattern=NAME_PATTERN, min_length=1, max_length=128)]
@@ -304,11 +340,60 @@ class ModelConfiguration(StrictModel):
     name: str = Field(min_length=1)
     parameters: dict[str, Any] = Field(default_factory=dict)
 
-    @model_validator(mode="after")
-    def ollama_host_is_valid(self) -> ModelConfiguration:
-        if self.provider == "ollama" and "host" in self.parameters:
-            validate_ollama_host(self.parameters["host"])
-        return self
+    @field_validator("parameters")
+    @classmethod
+    def ollama_host_is_valid(
+        cls, parameters: dict[str, Any], info: ValidationInfo
+    ) -> dict[str, Any]:
+        if info.data.get("provider") == "ollama" and "host" in parameters:
+            try:
+                validate_ollama_host(parameters["host"])
+            except ValueError as error:
+                # Keep the offending field in nested/union validation locations.
+                raise ValidationError.from_exception_data(
+                    cls.__name__,
+                    [
+                        {
+                            "type": "value_error",
+                            "loc": ("host",),
+                            "input": None,
+                            "ctx": {"error": error},
+                        }
+                    ],
+                ) from error
+        return parameters
+
+
+@with_config(ConfigDict(extra="forbid"))
+class ModelOverrides(TypedDict, total=False):
+    """Only supplied keys exist: omission inherits, explicit null is not omission."""
+
+    name: Annotated[str, Field(min_length=1)]
+    parameters: dict[str, Any]
+
+
+class ModelReference(StrictModel):
+    file: str = Field(min_length=1)
+    entry: Name
+    overrides: ModelOverrides = Field(default_factory=lambda: ModelOverrides())
+
+    @field_validator("file")
+    @classmethod
+    def local_file_only(cls, value: str) -> str:
+        if (
+            "://" in value
+            or value.startswith("~")
+            or "$" in value
+            or any(ord(char) < 32 for char in value)
+        ):
+            raise ValueError(
+                "model.file must be a local path; URLs and path expansion are unsupported"
+            )
+        return value
+
+
+class ModelConfigurations(StrictModel):
+    models: dict[Name, ModelConfiguration]
 
 
 class ReasoningConfiguration(StrictModel):
@@ -364,12 +449,11 @@ class MemoryConfiguration(StrictModel):
     shared: SharedMemoryConfiguration | None = None
 
 
-class AgentBlueprint(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
+class AgentBlueprint(VersionedDocument):
     kind: Literal["AgentBlueprint"]
     metadata: Metadata
     implementation: Implementation = Field(default_factory=Implementation)
-    model: ModelConfiguration | None = None
+    model: ModelConfiguration | ModelReference | None = None
     reasoning: ReasoningConfiguration = Field(default_factory=ReasoningConfiguration)
     memory: MemoryConfiguration = Field(default_factory=MemoryConfiguration)
     loop: LoopConfiguration = Field(default_factory=LoopConfiguration)
@@ -405,8 +489,7 @@ class CapabilityRollbackConfiguration(StrictModel):
         return value
 
 
-class CapabilityDefinition(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
+class CapabilityDefinition(VersionedDocument):
     kind: Literal["Capability"]
     metadata: Metadata
     targets: list[ResourceKind] = Field(min_length=1)
@@ -670,8 +753,7 @@ class ResourceLimits(StrictModel):
     )
 
 
-class Experiment(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
+class Experiment(VersionedDocument):
     kind: Literal["Experiment"]
     metadata: Metadata
     substrate: Substrate
