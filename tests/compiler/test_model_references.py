@@ -220,10 +220,9 @@ def test_unsupported_path_forms_are_rejected_safely(tmp_path, file):
             "provider": "ollama",
             "name": "mixed",
         },
-        {"file": "models.yaml", "entry": "shared", "overrides": {}},
     ],
 )
-def test_incomplete_mixed_and_override_forms_are_rejected(tmp_path, model):
+def test_incomplete_and_mixed_forms_are_rejected(tmp_path, model):
     path, snapshot = project(tmp_path)
     snapshot["blueprints"][0]["model"] = model
     path.write_text(yaml.safe_dump(snapshot))
@@ -263,6 +262,34 @@ def test_whole_file_structure_is_strict_and_safe(tmp_path, text, field):
     assert field in str(caught.value)
     assert "line" in str(caught.value)
     assert "SECRET_SENTINEL" not in str(caught.value)
+
+
+def test_reference_overrides_inherit_and_persist_only_effective_settings(tmp_path):
+    path, snapshot = project(tmp_path)
+    snapshot["blueprints"][1]["model"]["overrides"] = {
+        "name": "different:model",
+        "parameters": {"think": True},
+    }
+    path.write_text(yaml.safe_dump(snapshot))
+    (tmp_path / "models.yaml").write_text(
+        "models: {shared: {provider: ollama, name: base, parameters: "
+        "{host: 'http://localhost:11434', think: false}}}"
+    )
+    plan = compile_experiment(path)
+    expected = {
+        "provider": "ollama",
+        "name": "different:model",
+        "parameters": {"host": "http://localhost:11434", "think": True},
+    }
+    assert plan.snapshot["blueprints"][0]["model"]["name"] == "base"
+    assert plan.snapshot["blueprints"][0]["model"]["parameters"]["think"] is False
+    assert plan.snapshot["blueprints"][1]["model"] == expected
+    saved = DeploymentPlan.model_validate_json(plan.model_dump_json(by_alias=True))
+    assert saved.model_provenance["second-router"].overrides == {
+        "name": "different:model",
+        "parameters": {"think": True},
+    }
+    assert ExecutionCatalog(saved).resolve("switch-router@s1").blueprint.model
 
 
 @pytest.mark.parametrize(

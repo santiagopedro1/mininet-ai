@@ -10,7 +10,7 @@ import re
 import warnings
 from enum import StrEnum
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypedDict
 from urllib.parse import urlsplit
 
 from pydantic import (
@@ -24,6 +24,7 @@ from pydantic import (
     ValidatorFunctionWrapHandler,
     field_validator,
     model_validator,
+    with_config,
 )
 
 from mininet_ai.durations import duration_seconds
@@ -345,9 +346,18 @@ class ModelConfiguration(StrictModel):
         return self
 
 
+@with_config(ConfigDict(extra="forbid"))
+class ModelOverrides(TypedDict, total=False):
+    """Only supplied keys exist: omission inherits, explicit null is not omission."""
+
+    name: Annotated[str, Field(min_length=1)]
+    parameters: dict[str, Any]
+
+
 class ModelReference(StrictModel):
     file: str = Field(min_length=1)
     entry: Name
+    overrides: ModelOverrides = Field(default_factory=lambda: ModelOverrides())
 
     @field_validator("file")
     @classmethod

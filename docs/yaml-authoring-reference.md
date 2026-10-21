@@ -416,9 +416,39 @@ with ASCII letters, digits, underscore, dot, or hyphen. They are aliases, not
 Provider model IDs: `name` still accepts IDs such as `qwen3.5:latest`.
 
 Inline and reference forms are mutually exclusive. Both `file` and `entry` are
-required for a reference. Entry-to-entry references, inheritance, and overrides
-are not supported by this reference-only slice. A Python factory can still omit
-`model` when it owns all model setup; references do not change that ownership.
+required for a reference. A reference may supply `overrides` containing only
+`name` (the Provider model ID) and/or `parameters`:
+
+```yaml
+model:
+  file: ./models.yaml
+  entry: local-reasoner
+  overrides:
+    name: qwen3.5:9b
+    parameters:
+      think: true
+```
+
+This blueprint inherits `provider: ollama` and `host`, but uses the supplied model
+ID and thinking mode. Omitted override fields and omitted parameter keys inherit;
+`overrides: {}` and `parameters: {}` do not clear anything. Parameter replacement
+is **shallow**: a supplied top-level key replaces its entire value, not individual
+nested fields. For factory-owned parameters, replacing `options: {a: 1, b: 2}`
+with `options: {a: 3}` yields only `{a: 3}`. Nested options are not newly supported
+on declarative Providers merely because overrides support shallow replacement.
+
+Provider overrides, unknown override fields, overrides on inline configurations,
+entry-to-entry references, and inheritance chains are unsupported. To change
+Provider, select another complete entry. There are no deletion markers: explicit
+null is a value, never deletion. Null `overrides`, `name`, or `parameters` is
+invalid; null parameter values must satisfy their existing owner-specific rules
+(for example, Ollama `think` and `host` reject null, while a custom factory may
+accept null for its own parameters). Complete bases are validated **before**
+overrides, then effective configurations are validated: an override cannot repair
+an invalid base, including an invalid model ID, endpoint, or parameter.
+
+A Python factory can still omit `model` when it owns all model setup; references
+do not change that ownership.
 
 Paths are relative to the **document containing the blueprint**: an external
 blueprint's directory, or the experiment's directory for an embedded blueprint.
@@ -445,9 +475,11 @@ no construction owner: a shared file may contain settings intended for custom
 factories alongside settings intended for declarative agents or bundled factories.
 
 Executable snapshots contain only effective `provider`/`name`/`parameters`, never
-`file`/`entry`. Optional plan-level `modelProvenance` records the blueprint source,
-resolved file, and configuration name separately from the snapshot digest.
-Equivalent inline/reference settings in otherwise identical `v1alpha4`
+`file`/`entry`/`overrides`. Optional plan-level `modelProvenance` records the
+blueprint source, resolved file, configuration name, and only the supplied
+overrides separately from the snapshot digest. Provenance is informational, not
+input to saved execution.
+Equivalent inline/reference/override settings in otherwise identical `v1alpha4`
 experiments therefore have equal snapshots and digests. Saved plans reconstruct
 and execute without rereading shared files, even after those files move or are
 deleted. They still depend on runtime environment and installed Python factory

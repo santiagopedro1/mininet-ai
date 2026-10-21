@@ -158,6 +158,16 @@ unsupported literal credential fields before persistence; arbitrary custom-facto
 data is not heuristically scanned. Offline validation reads no credential values
 and cannot verify service availability or authentication.
 
+Referenced models may override only `name` and top-level `parameters` keys; the
+Provider stays fixed. Omission inherits, nested values replace rather than merge,
+and null never deletes a key. Both the complete selected base and effective model
+must pass current ownership-aware source checks, so overrides cannot repair an
+invalid base. Saved snapshots contain only the effective inline settings, while
+supplied overrides are informational plan provenance outside executable identity.
+Equivalent inline, reference, and override expressions in otherwise identical
+`v1alpha4` experiments have equal snapshots and digests. See the
+[authoring rules](yaml-authoring-reference.md#shared-model-configurations).
+
 | Input | Policy |
 | --- | --- |
 | Native `v1alpha4` source | Validate against current rules and compile a `v1alpha4` plan. |

@@ -160,6 +160,7 @@ class ModelReferenceProvenance(StrictModel):
     source: str
     file: str
     entry: str
+    overrides: dict[str, Any] = Field(default_factory=dict)
 
 
 class DeploymentPlan(StrictModel):
