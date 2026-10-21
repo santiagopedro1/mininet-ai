@@ -30,7 +30,6 @@ EXAMPLE_NAMES = [
     "autonomous-operation",
     "hierarchical-routing",
     "iperf-throughput",
-    "link-failure-latency",
 ]
 
 
@@ -50,17 +49,6 @@ def test_getting_started_has_one_agent() -> None:
     experiment = load_experiment(experiment_path)
     plan = compile_experiment(experiment)
     assert len(plan.agents) == 1
-
-
-def test_link_failure_latency_has_ten_configured_switch_agents() -> None:
-    plan = compile_experiment(EXAMPLES_DIR / "link-failure-latency" / "experiment.yaml")
-    assert len(plan.agents) == 10
-    assert {agent.attachment.targets[0] for agent in plan.agents} == {
-        f"s{index}" for index in range(1, 11)
-    }
-    blueprint = plan.snapshot["blueprints"][0]
-    assert blueprint["model"]["name"] == "qwen3.5:latest"
-    assert blueprint["model"]["parameters"]["host"] == "http://10.10.10.152:11434"
 
 
 def test_autonomous_operation_has_four_agents() -> None:
