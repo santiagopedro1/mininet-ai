@@ -345,6 +345,29 @@ class ModelConfiguration(StrictModel):
         return self
 
 
+class ModelReference(StrictModel):
+    file: str = Field(min_length=1)
+    entry: Name
+
+    @field_validator("file")
+    @classmethod
+    def local_file_only(cls, value: str) -> str:
+        if (
+            "://" in value
+            or value.startswith("~")
+            or "$" in value
+            or any(ord(char) < 32 for char in value)
+        ):
+            raise ValueError(
+                "model.file must be a local path; URLs and path expansion are unsupported"
+            )
+        return value
+
+
+class ModelConfigurations(StrictModel):
+    models: dict[Name, ModelConfiguration]
+
+
 class ReasoningConfiguration(StrictModel):
     instructions: str | None = None
     output_schema: str | None = Field(default=None, alias="output-schema")
@@ -402,7 +425,7 @@ class AgentBlueprint(VersionedDocument):
     kind: Literal["AgentBlueprint"]
     metadata: Metadata
     implementation: Implementation = Field(default_factory=Implementation)
-    model: ModelConfiguration | None = None
+    model: ModelConfiguration | ModelReference | None = None
     reasoning: ReasoningConfiguration = Field(default_factory=ReasoningConfiguration)
     memory: MemoryConfiguration = Field(default_factory=MemoryConfiguration)
     loop: LoopConfiguration = Field(default_factory=LoopConfiguration)

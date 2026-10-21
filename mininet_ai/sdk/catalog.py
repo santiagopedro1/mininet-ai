@@ -15,6 +15,7 @@ from mininet_ai.specification.models import (
     AgentBlueprint,
     CapabilityDefinition,
     Experiment,
+    ModelReference,
     Policy,
 )
 
@@ -43,8 +44,16 @@ class ExecutionCatalog:
                 plan.snapshot, context={"legacy_saved_plan": legacy}
             )
         except (ValidationError, ValueError) as error:
+            reason = (
+                "; ".join(
+                    f"{'.'.join(map(str, issue['loc']))}: {issue['msg']}"
+                    for issue in error.errors(include_url=False)
+                )
+                if isinstance(error, ValidationError)
+                else str(error)
+            )
             raise AgentRuntimeError(
-                f"deployment plan snapshot is not executable: {error}",
+                f"deployment plan snapshot is not executable: {reason}",
                 code="agent.catalog.invalid-snapshot",
             ) from error
 
@@ -53,6 +62,13 @@ class ExecutionCatalog:
             AgentBlueprint,
             kind="blueprint",
         )
+        for blueprint in blueprint_definitions:
+            if isinstance(blueprint.model, ModelReference):
+                raise AgentRuntimeError(
+                    f"deployment plan blueprint {blueprint.metadata.name!r} "
+                    "contains an unresolved model reference",
+                    code="agent.catalog.unresolved-reference",
+                )
         capability_definitions = self._resolved_definitions(
             experiment.capability_definitions,
             CapabilityDefinition,

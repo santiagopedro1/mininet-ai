@@ -183,7 +183,9 @@ def test_hierarchical_routing_uses_requested_ollama_configuration() -> None:
             "mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent"
         )
         model = blueprint.model
-        assert model is not None
+        from mininet_ai.specification.models import ModelConfiguration
+
+        assert isinstance(model, ModelConfiguration)
         assert model.provider == "ollama"
         assert model.name == "qwen3.5:latest"
         assert model.parameters["host"] == "http://10.10.10.201:11434"

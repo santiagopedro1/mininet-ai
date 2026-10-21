@@ -25,6 +25,7 @@ class LoadedExperiment:
     topology: Topology
     blueprints: tuple[AgentBlueprint, ...]
     capabilities: tuple[CapabilityDefinition, ...]
+    blueprint_sources: tuple[Path, ...] = ()
 
 
 def _read_yaml(path: Path) -> Any:
@@ -102,5 +103,9 @@ def resolve_experiment(
         blueprints=_load_references(experiment.blueprints, AgentBlueprint, base),
         capabilities=_load_references(
             experiment.capability_definitions, CapabilityDefinition, base
+        ),
+        blueprint_sources=tuple(
+            _resolve(value, base) if isinstance(value, str) else source
+            for value in experiment.blueprints
         ),
     )

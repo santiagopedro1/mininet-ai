@@ -24,7 +24,7 @@ class ProviderRegistryTests(unittest.TestCase):
         self.capability_definition = self.agent_definition.capabilities[0]
         model_configuration = self.agent_definition.blueprint.model
         self.assertIsNotNone(model_configuration)
-        assert model_configuration is not None
+        assert isinstance(model_configuration, ModelConfiguration)
         self.model_configuration: ModelConfiguration = model_configuration
         self.registries = ProviderRegistries()
 

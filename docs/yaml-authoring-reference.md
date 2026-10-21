@@ -385,6 +385,79 @@ reasoning:
   timeout: 120s
 ```
 
+### Shared model configurations
+
+Instead of repeating inline model settings, multiple blueprints can select the
+same named entry from a local YAML file. For example, `models.yaml`:
+
+```yaml
+models:
+  local-reasoner:
+    provider: ollama
+    name: qwen3.5:latest
+    parameters:
+      host: http://ollama.example:11434
+      think: false
+```
+
+In each blueprint:
+
+```yaml
+model:
+  file: ./models.yaml
+  entry: local-reasoner
+```
+
+The file is a plain object with only a root `models` mapping: no `apiVersion`,
+`kind`, or `metadata` envelope. Every entry is a complete inline configuration
+(`provider`, `name`, optional `parameters`). Configuration names such as
+`local-reasoner` are 1–128 characters, begin with an ASCII letter, and continue
+with ASCII letters, digits, underscore, dot, or hyphen. They are aliases, not
+Provider model IDs: `name` still accepts IDs such as `qwen3.5:latest`.
+
+Inline and reference forms are mutually exclusive. Both `file` and `entry` are
+required for a reference. Entry-to-entry references, inheritance, and overrides
+are not supported by this reference-only slice. A Python factory can still omit
+`model` when it owns all model setup; references do not change that ownership.
+
+Paths are relative to the **document containing the blueprint**: an external
+blueprint's directory, or the experiment's directory for an embedded blueprint.
+Absolute local paths and parent traversal (`../models.yaml`) are allowed. URLs,
+tilde/environment expansion, discovery, and machine-wide registries are not.
+Experiment-to-blueprint paths retain their existing experiment-relative meaning.
+For Python-created experiments, pass an explicit source location with
+`compile_experiment(resolve_experiment(experiment, source="project/experiment.py"))`
+(`resolve_experiment` is in `mininet_ai.specification.loader`). Without an explicit
+source, compilation uses the current directory's `experiment.py` fallback.
+
+`validate` and `plan` read each resolved model file once per compilation, validate
+the **whole file**, including unused entries, and reject duplicate YAML mapping
+keys at every depth. Invalid entries cannot hide behind a selected valid entry.
+Errors identify the referring blueprint, target file, entry, and field where
+applicable, with numeric YAML locations rather than configuration-value dumps.
+Later compilations read updated files; an already loaded experiment is not a
+process-global configuration cache.
+
+Executable snapshots contain only effective `provider`/`name`/`parameters`, never
+`file`/`entry`. Optional plan-level `modelProvenance` records the blueprint source,
+resolved file, and configuration name separately from the snapshot digest.
+Equivalent inline/reference settings in otherwise identical `v1alpha4`
+experiments therefore have equal snapshots and digests. Saved plans reconstruct
+and execute without rereading shared files, even after those files move or are
+deleted. They still depend on runtime environment and installed Python factory
+code. Consuming factories receive the resolved model configuration and remain
+responsible for constructing their models; compilation never calls factories.
+
+Keep credentials in the Provider's runtime environment, not shared files, inline
+configuration, URLs, or provenance. Literal credential parameters (`api_key`,
+`api-key`, `token`, `password`, `secret`, `credentials`) are unsupported, including
+for custom factories; unrelated factory-owned parameters remain allowed. This
+does not introduce project-specific credential-selector syntax or change Agno's
+environment lookup (including `OLLAMA_API_KEY` and omitted-host behavior).
+Compilation neither reads credential values nor contacts Providers.
+
+### Runtime construction and ownership
+
 On the active Agno runtime, an entrypoint uses `module:attribute` syntax and
 must resolve to an Agno `Agent` or a factory returning one. Use a Python factory
 for provider-specific options not supported declaratively. Declarative agents require

@@ -156,6 +156,12 @@ class CoordinationPlan(StrictModel):
     edges: tuple[CoordinationEdge, ...] = ()
 
 
+class ModelReferenceProvenance(StrictModel):
+    source: str
+    file: str
+    entry: str
+
+
 class DeploymentPlan(StrictModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -181,6 +187,11 @@ class DeploymentPlan(StrictModel):
         alias="resourceLimits",
     )
     snapshot: dict[str, Any]
+    model_provenance: dict[str, ModelReferenceProvenance] = Field(
+        default_factory=dict,
+        alias="modelProvenance",
+        exclude_if=lambda value: not value,
+    )
 
     @model_validator(mode="before")
     @classmethod

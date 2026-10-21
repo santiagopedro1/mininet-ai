@@ -7,6 +7,7 @@ from agno.models.ollama import Ollama
 
 from mininet_ai.agents.agno.ollama_model import create_ollama_model
 from mininet_ai.sdk import AgentContext, AgentExecutionDefinition, AgentResponse
+from mininet_ai.specification.models import ModelConfiguration
 
 _SAFE_OUTPUT_INSTRUCTIONS = (
     "Return a response matching the required schema. Action proposals must use "
@@ -21,7 +22,10 @@ def create_prompt_parsed_agent(definition: AgentExecutionDefinition) -> Agent:
     """Create an Ollama agent without its native recursive JSON schema mode."""
 
     configuration = definition.blueprint.model
-    if configuration is None or configuration.provider != "ollama":
+    if (
+        not isinstance(configuration, ModelConfiguration)
+        or configuration.provider != "ollama"
+    ):
         raise ValueError("the prompt-parsed Ollama factory requires an Ollama model")
     instance = definition.instance
     return Agent(

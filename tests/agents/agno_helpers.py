@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -65,6 +66,14 @@ def agent_factory(definition: Any) -> Agent:
         output_schema=AgentResponse,
         telemetry=False,
     )
+
+
+def consuming_model_factory(definition: Any) -> Agent:
+    """Consume saved settings while retaining ownership of model construction."""
+    configuration = definition.blueprint.model
+    model = StaticModel(json.dumps({"message": configuration.parameters["message"]}))
+    model.id = configuration.name
+    return Agent(model=model, output_schema=AgentResponse, telemetry=False)
 
 
 direct_agent = Agent(

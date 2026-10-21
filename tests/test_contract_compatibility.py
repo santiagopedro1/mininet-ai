@@ -49,7 +49,9 @@ def test_native_inline_source_compiles_serializes_and_reconstructs(tmp_path):
     assert restored.api_version == "mininet-ai/v1alpha4"
     assert restored.snapshot == snapshot
     model = ExecutionCatalog(restored).resolve("switch-router@s1").blueprint.model
-    assert model is not None
+    from mininet_ai.specification.models import ModelConfiguration
+
+    assert isinstance(model, ModelConfiguration)
     assert model.name == "llama3.1:8b"
 
 
@@ -154,7 +156,9 @@ def test_legacy_parameter_construction_failures_stay_runtime_failures():
 
     plan = DeploymentPlan.model_validate(original)
     definition = ExecutionCatalog(plan).resolve("switch-router@s1")
-    assert definition.blueprint.model is not None
+    from mininet_ai.specification.models import ModelConfiguration
+
+    assert isinstance(definition.blueprint.model, ModelConfiguration)
     assert definition.blueprint.model.parameters == {"think": "invalid"}
     with pytest.raises(AgentProviderError, match="think"):
         AgnoAgentFactory().create(definition)

@@ -823,6 +823,9 @@ def compile_experiment(
         loaded = resolve_experiment(source)
     else:
         loaded = load_experiment(source)
+    from mininet_ai.specification.model_resolution import resolve_models
+
+    loaded, model_provenance = resolve_models(loaded)
     try:
         driver = create_substrate_driver(
             loaded.experiment.substrate.driver,
@@ -869,4 +872,5 @@ def compile_experiment(
         policies=loaded.experiment.policies,
         resourceLimits=loaded.experiment.resource_limits,
         snapshot=snapshot,
+        modelProvenance=model_provenance,
     )
