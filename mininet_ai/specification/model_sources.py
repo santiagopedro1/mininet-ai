@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from mininet_ai.errors import SpecificationError
+from mininet_ai.specification._yaml_loader import SourceSafeLoader, string_mapping_key
 from mininet_ai.specification._yaml_locations import (
     field_location,
     nearest_location,
@@ -36,25 +37,14 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
     marks: dict[tuple[Any, ...], Any] = {}
     try:
         with path.open(encoding="utf-8") as stream:
-            loader = yaml.SafeLoader(stream)
+            loader = SourceSafeLoader(stream)
             try:
                 root = loader.get_single_node()
 
                 def construct_scalar(node: Node, location: tuple[Any, ...]) -> Any:
-                    # PyYAML's built-in scalar constructors do not consistently
-                    # raise YAMLError for invalid explicit tags. Keep conversion
-                    # catches local to the constructors known to raise them,
-                    # rather than hiding errors in our traversal/validation code.
-                    failures: dict[str, tuple[type[Exception], ...]] = {
-                        "bool": (KeyError,),
-                        "int": (ValueError, IndexError),
-                        "float": (ValueError, OverflowError, IndexError),
-                        "timestamp": (ValueError, OverflowError, AttributeError),
-                    }
-                    tag = node.tag.removeprefix("tag:yaml.org,2002:")
                     try:
                         return loader.construct_object(node, deep=True)
-                    except (yaml.YAMLError, *failures.get(tag, ())):
+                    except yaml.YAMLError:
                         mark = marks.get(location, node.start_mark)
                         field = ".".join(map(str, location)) or "root"
                         raise SpecificationError(
@@ -88,13 +78,8 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
                         loader.flatten_mapping(node)
                         seen: dict[Any, Any] = {}
                         for key_node, value_node in node.value:
-                            key = construct_scalar(key_node, location)
-                            try:
-                                previous = seen.get(key)
-                            except TypeError:
-                                raise SpecificationError(
-                                    f"invalid mapping key at {yaml_position(key_node.start_mark)}"
-                                ) from None
+                            key = string_mapping_key(key_node, path, location)
+                            previous = seen.get(key)
                             field = location + (key,)
                             if previous is not None:
                                 name = ".".join(map(str, field))

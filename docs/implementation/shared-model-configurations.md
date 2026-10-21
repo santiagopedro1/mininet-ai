@@ -235,3 +235,52 @@ or editable-install changes:
 
 No tickets were closed; review/integration and authorized merge remain with the
 driving session.
+
+### Follow-up P2: recursive YAML construction and complex keys
+
+Follow-up review found that the initial constructor fix above was incomplete:
+constructing a sequence/mapping key could recursively fail on a tagged scalar,
+while exception selection still used only the outer container's tag. Work
+continued on the same `fix/89-review-findings` branch from `d762f9f`; merging
+`feat/89-reusable-model-configurations` reported **Already up to date**.
+
+The TDD skill was reloaded and the previously confirmed CLI seams reused:
+
+- **48 failing regressions first:** validate/plan, boolean/integer tags inside
+  sequence keys, mapping keys containing sequences, and scalar keys; at the file
+  root, models mapping, unused-entry parameters and a mapping nested in a list.
+  The complex-key cases reproduced uncaught `KeyError`/`ValueError`, including
+  transformed secret text. All now pass with safe string-key diagnostics,
+  enclosing field/key position, referring blueprint/source, target and selected
+  entry; no sentinel, traceback or executable snapshot is emitted.
+- **Eight additional failures first:** external blueprint documents with complex
+  keys or tagged scalar values nested in containers. These now produce safe
+  source/position diagnostics rather than leaking constructor errors.
+
+Both readers now use private `SourceSafeLoader` instances. Known scalar conversion
+failures are normalized **at the actual scalar constructor boundary**, including
+recursive calls from containers; the outer container's tag no longer determines
+which child exceptions are caught. Exception handling remains limited to the
+known built-in scalar conversions, not surrounding traversal/validation code.
+The shared `string_mapping_key` helper rejects non-string keys from their YAML
+nodes **before constructing any offending children**, without rendering key
+values. This applies recursively in both source readers. Existing YAML merge/value
+syntax is retained; global PyYAML constructors are not modified. Central-file
+whole-file checks, cycle rejection and duplicate diagnostics with both positions
+remain intact and covered by the existing regressions.
+
+Final rerun (2026-10-21), same interpreter/PYTHONPATH and gate commands as above:
+
+- Focused: **473 passed, 84 subtests passed, 110 warnings** (16.05s).
+- Full: **1170 passed, 179 subtests passed, 4 skipped, 277 warnings** (63.13s).
+- Ruff, changed-file Ruff formatting, Pyright and `git diff --check`: **clean**.
+- All five Maintained Examples passed validate/plan; explicit iperf CLI
+  compilation passed: **11 successful commands**, all v4 plans, unchanged agent
+  counts 1/4/6/2/10 and 2 for explicit iperf. CLI output retained in
+  `/tmp/opencode/mininet-ai-89/complex-key-gates/`.
+- Skips remain opt-in live Mininet/OVS checks; warnings remain expected source
+  deprecations. No golden/schema/legacy-fixture changes against `d762f9f`;
+  executable identity is unchanged, so no regeneration was appropriate.
+
+Integration/`main` were not modified, no issues were closed, and final authorized
+integration/merge remains with the driving session.

@@ -19,6 +19,96 @@ from tests.compiler.test_model_references import project
 
 
 @pytest.mark.parametrize("command", ["validate", "plan"])
+@pytest.mark.parametrize("tag", ["bool", "int"])
+@pytest.mark.parametrize("key", ["[{scalar}]", "{{nested: [{scalar}]}}", "{scalar}"])
+@pytest.mark.parametrize(
+    "prefix,indent,field",
+    [
+        ("", "", "root"),
+        ("models:\n", "  ", "models"),
+        (
+            (
+                "models:\n  shared: {provider: ollama, name: valid}\n"
+                "  unused:\n    provider: custom\n    name: other\n    parameters:\n"
+            ),
+            "      ",
+            "models.unused.parameters",
+        ),
+        (
+            (
+                "models:\n  shared: {provider: ollama, name: valid}\n"
+                "  unused:\n    provider: custom\n    name: other\n"
+                "    parameters:\n      options:\n        -\n"
+            ),
+            "          ",
+            "models.unused.parameters.options.0",
+        ),
+    ],
+)
+def test_cli_rejects_nonstring_shared_keys_before_constructing_children(
+    tmp_path, command, tag, key, prefix, indent, field
+):
+    path, _ = project(tmp_path)
+    scalar = f"!!{tag} SECRET_SENTINEL"
+    path.with_name("models.yaml").write_text(
+        prefix + f"{indent}? {key.format(scalar=scalar)}\n{indent}: ignored\n"
+    )
+    result = CliRunner().invoke(app, [command, str(path)])
+    assert result.exit_code == 1, result.output
+    assert isinstance(result.exception, SystemExit)
+    output = " ".join(result.output.split())
+    for context in (
+        "local-router",
+        str(path),
+        "models.yaml",
+        "shared",
+        field,
+        "string mapping key",
+    ):
+        assert context in output
+    assert re.search(r"line [1-9]\d*, column [1-9]\d*", output)
+    assert "sentinel" not in output.lower()
+    assert "Traceback" not in output
+    assert '"snapshot"' not in output
+
+
+@pytest.mark.parametrize("command", ["validate", "plan"])
+@pytest.mark.parametrize("tag", ["bool", "int"])
+@pytest.mark.parametrize("complex_key", [False, True])
+def test_blueprint_yaml_construction_errors_are_safe_recursively(
+    tmp_path, command, tag, complex_key
+):
+    path, snapshot = project(tmp_path)
+    snapshot["blueprints"][0] = "agent.yaml"
+    path.write_text(yaml.safe_dump(snapshot))
+    source = tmp_path / "agent.yaml"
+    scalar = f"!!{tag} SECRET_SENTINEL"
+    content = (
+        "apiVersion: mininet-ai/v1alpha4\nkind: AgentBlueprint\n"
+        "metadata: {name: local-router}\nmodel:\n"
+        "  provider: custom\n  name: other\n  parameters:\n"
+    )
+    if complex_key:
+        content += f"    ? [{scalar}]\n    : ignored\n"
+    else:
+        content += f"    option: [{{nested: [{scalar}]}}]\n"
+    source.write_text(content)
+    result = CliRunner().invoke(app, [command, str(path)])
+    assert result.exit_code == 1, result.output
+    assert isinstance(result.exception, SystemExit)
+    output = " ".join(result.output.split())
+    assert "agent.yaml" in output
+    assert "invalid YAML" in output
+    assert "line 8, column" in output
+    if complex_key:
+        assert "model.parameters" in output
+        assert "string mapping key" in output
+    assert "sentinel" not in output.lower()
+    assert "Traceback" not in output
+    assert '"snapshot"' not in output
+
+
+@pytest.mark.parametrize("command", ["validate", "plan"])
 @pytest.mark.parametrize(
     "tag,value",
     [

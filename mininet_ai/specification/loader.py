@@ -11,6 +11,7 @@ from pydantic import BaseModel, ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from mininet_ai.errors import SpecificationError
+from mininet_ai.specification._yaml_loader import SourceSafeLoader, string_mapping_key
 from mininet_ai.specification._yaml_locations import (
     field_location,
     nearest_location,
@@ -68,7 +69,7 @@ class _YamlDocument:
 def _read_yaml(path: Path) -> _YamlDocument:
     try:
         with path.open(encoding="utf-8") as stream:
-            loader = yaml.SafeLoader(stream)
+            loader = SourceSafeLoader(stream)
             try:
                 root = loader.get_single_node()
                 positions = {}
@@ -85,10 +86,10 @@ def _read_yaml(path: Path) -> _YamlDocument:
                     )
                     if isinstance(node, MappingNode):
                         for key, value in node.value:
-                            if isinstance(key, yaml.ScalarNode):
-                                field = location + (key.value,)
-                                positions[field] = yaml_position(key.start_mark)
-                                locate(value, field, active)
+                            name = string_mapping_key(key, path, location)
+                            field = location + (name,)
+                            positions[field] = yaml_position(key.start_mark)
+                            locate(value, field, active)
                     elif isinstance(node, SequenceNode):
                         for index, child in enumerate(node.value):
                             locate(child, location + (index,), active)
