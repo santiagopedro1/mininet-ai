@@ -1,15 +1,10 @@
 # Link-Failure Latency
 
-Generate reproducible ten-switch ring-plus-chords scenarios, with one logical
-agent per switch and two independently seeded, distinct host attachments.
-Recovery uses supplied minimum-hop forwarding policies while a used switch link
-remains down. There is no model comparison.
-
-**Scope:** scenario generation implements ADR-0003 version 1. The live collector
-below is still the legacy v1 collector; it does **not** implement the sustained
-bidirectional recovery, timing, warm-up, bounded lifecycle, Provider containment,
-or v2 evidence contracts in ADRs 0001–0006. Do not treat its results as acceptance
-of those contracts. Live recovery acceptance is outside this implementation.
+Measure an agent response cycle after a link failure on a seeded random
+10-switch ring, with one logical agent per switch. The two hosts initially use
+the direct link between their attachment switches. Recovery must restore ICMP
+connectivity through the other nine links while the injected failed link remains
+down. There is no model comparison.
 
 *Primary goal: both — a reproducible latency scenario and a demonstration of
 agent-driven explicit forwarding with network-level effect measurement.*
@@ -35,7 +30,7 @@ From the repository root:
 .venv/bin/mininet-ai run examples/link-failure-latency/experiment.yaml --dry-run
 ```
 
-The checked-in topology matches the ADR-0003 seed-0 conformance vector. To generate
+The checked-in topology is one random ring generated with seed 0. To generate
 another reproducible topology while retaining the YAML agent configuration:
 
 ```bash
@@ -44,35 +39,10 @@ another reproducible topology while retaining the YAML agent configuration:
 .venv/bin/mininet-ai validate link-failure.yaml
 ```
 
-The generated JSON specification is also valid YAML. Generation requires an
-explicit integer seed in `[0, 2^64 - 1]`; the `generator-version` label is
-`sha256-counter-v1`. SHA-256 counter streams independently determine the cycle,
-1–5 distinct non-cycle chords, host placement, and failure-pass ordering. This is
-a **ring-plus-chords distribution**, not uniform sampling of connected graphs.
-Ports follow UTF-8 neighbor ordering, with host ports last. All links use
-100 Mbps, 1 ms delay, and zero configured loss; switches are controller-free,
-secure OpenFlow13, with no learning, flooding, NORMAL, or automatic failover.
-
-Healthy and recovery policies are destination-rooted minimum-hop trees, choosing
-the smallest UTF-8 next-hop ID among equally short alternatives. They include
-explicit host-traffic and directed ARP rules. Only healthy-path switch links with
-both directional recovery routes are eligible faults. The measured scheduler
-consumes the entire shuffled eligible set before starting a fresh pass; unsuccessful
-attempts still consume their selections.
-
-The rootless `FailurePasses(seed, eligible, kind="warmup" | "measured")` iterator in
-`mininet_ai.experiments.scenarios` provides independent per-pass streams for the
-future lifecycle coordinator. It does not execute warm-up trials.
-
-For exact replay, the runner's `LinkFailureScenario.to_record()` retains the actual
-graph, ports, attachments, selected fault, both directional paths, and every
-switch's healthy/recovery policies, together with the compiled specification and
-generator configuration. `generator_configuration` describes the version-1
-distribution; the retained `experiment` is authoritative for actual network
-settings, including saved-YAML overrides. `LinkFailureScenario.from_record(record)` uses those saved
-inputs and policies, not regenerated seed output. Manifest and trial JSONL records
-include this data under `scenario`. Replay records are trusted experiment inputs,
-not an interface for accepting untrusted action policies.
+The generated JSON specification is also valid YAML. A seed fixes the ring's
+switch order, host attachments, port numbers, and failed link. This is random
+**ring generation**, not sampling arbitrary graph shapes. Rings guarantee an
+alternate route without introducing automatic spanning-tree or fast failover.
 
 ## Run locally
 
@@ -90,9 +60,9 @@ Without `--seed`, the runner uses the checked-in topology as written. Edit the
 blueprint YAML to change the single configured Provider, or use `--ollama-host`
 and `--model` for temporary overrides. Pass a specification path as the first
 argument to run a saved generated specification. With `--seed`, only the
-topology and generator labels are regenerated; other YAML settings are retained.
+topology and seed label are regenerated; other YAML settings are retained.
 The runner is specific to this scenario: two hosts named `h1` and `h2`, attached
-to distinct switches in a ten-switch general graph.
+to adjacent switches in a ten-switch ring with `s`-prefixed switch names.
 Without regeneration, forwarding policies use the addresses and port numbers
 from the YAML plan.
 Ten agents can reason concurrently; Ollama's own request queueing is included
@@ -117,6 +87,7 @@ are not subtracted from monotonic timestamps.
 | --- | --- |
 | `detection_seconds` | Failure-command submission to a worker observing the failed link DOWN in global topology state. Includes administrative fault application, confirmation of traffic disruption, worker scheduling, and polling. This is not local switch detector latency. |
 | `reasoning_seconds` | Existing runtime duration of Provider construction and invocation, including model/server queueing and response parsing. Context construction is outside this field. |
+<<<<<<< HEAD
 | `action_execution_seconds` | Sum of monotonic wall durations of attempted capability executions, including attempts that raise errors. |
 | `action_effect_seconds` | First attempted recovery action by that agent to the shared successful host-to-host connectivity observation, provided the failed link is still DOWN. Includes execution and recovery polling, not just postcondition verification. |
 | `recovery_seconds` | Failure-command submission to the successful connectivity observation at trial level. |
@@ -163,7 +134,6 @@ have trial records but no final summary.
 
 ```bash
 .venv/bin/python -m pytest tests/experiments/test_link_failure.py -q
-.venv/bin/python -m pytest tests/experiments/test_seeded_scenarios.py -q
 sudo env MININET_AI_LIVE_TESTS=1 "$PWD/.venv/bin/python" -m pytest \
   tests/integration/test_link_failure.py -q
 ```
