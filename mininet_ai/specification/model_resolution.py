@@ -23,16 +23,11 @@ def resolve_models(
     files: dict[Path, ModelConfigurationSource] = {}
     blueprints = []
     provenance = {}
-    for index, blueprint in enumerate(loaded.blueprints):
-        source = (
-            loaded.blueprint_sources[index]
-            if loaded.blueprint_sources
-            else loaded.source
-        )
+    for document in loaded._blueprint_documents:
+        blueprint = document.blueprint
+        source = document.source
         blueprint_context = f"{source}: blueprint {blueprint.metadata.name!r}"
-        source_fields = (
-            loaded.blueprint_locations[index] if loaded.blueprint_locations else {}
-        )
+        source_fields = document.locations
         model = blueprint.model
         if isinstance(model, ModelReference):
             path = (source.parent / model.file).resolve()

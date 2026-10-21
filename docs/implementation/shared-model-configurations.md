@@ -162,3 +162,76 @@ review and authorized integration/merge/issue-tracker completion remain with the
 driving session. Runtime still depends on its environment, installed factory code
 and remote services when those are used; offline compilation establishes none
 of their availability or inference correctness.
+
+## Final parent-review fixes (#89)
+
+Implemented on `fix/89-review-findings`, based exactly on integration
+`c1f47813f6181aaedc7be92815cea876457f250e`. Before final validation,
+`git merge --no-edit feat/89-reusable-model-configurations` reported
+**Already up to date**. Integration and `main` were not modified.
+
+### Findings resolved
+
+- **P2 / YAML constructor failures:** the strict shared-file traversal now
+  constructs scalar values with narrowly scoped, type-specific conversion-error
+  handling. Invalid explicit boolean, integer, float, timestamp and binary tags
+  become safe `SpecificationError`s, including malformed unused entries. Empty
+  tagged integers/floats are covered too. Diagnostics retain referring blueprint,
+  source document, target file, selected entry, offending field and YAML position;
+  neither constructor exception text nor source values are rendered. The former
+  file-wide `ValueError` catch was removed rather than broadening it to hide
+  unrelated traversal/validation bugs. Whole-file validation, strict duplicates
+  with both positions, private loader instances and cycle checks remain intact.
+- **P3 / non-object models:** scalar/list model input now gets a blueprint/source
+  diagnostic at the `model` YAML position, explaining the expected mapping and
+  inline/reference fields without Pydantic union branches or input values.
+  Embedded and external documents are covered. Python-created specifications
+  already pass through Pydantic before `resolve_experiment`; this change does not
+  bypass that public validation or invent YAML positions for Python objects.
+- **Data clumps:** loading and resolution use a private `_LoadedBlueprint` record
+  bundling blueprint, source and field locations. All repository call sites were
+  inspected: loader produces source metadata and model resolution consumes it.
+  The existing `LoadedExperiment` positional/keyword constructor fields remain a
+  compatibility adapter; removing those public tuples would break callers.
+  Their fallback/alignment is centralized in one record-producing property, not
+  repeated in resolution. Records are not cached, preserving `dataclasses.replace`
+  behavior without stale blueprints/metadata. A compiler-seam characterization
+  covers legacy default metadata and replacement, alongside existing path tests.
+- **Duplicated locations:** `_yaml_locations.py` privately shares nearest-ancestor
+  lookup, mark rendering and field-position rendering between source readers.
+  Model resolution consumes those rendered locations but deliberately retains
+  exact override lookup: nearest-base fallback would falsely attribute a
+  programmatic override to its base file. Context/reasons remain caller-owned;
+  the readers' distinct parsing policies are not abstracted together.
+
+### Regression-first evidence and final gates (2026-10-21)
+
+The required TDD skill was loaded and #89's human-confirmed public seams reused.
+Before implementation, ten CLI constructor cases failed (including uncaught
+`KeyError`/`AttributeError`), then passed. Eight embedded/external scalar/list
+CLI cases failed for missing context, then passed. A follow-up empty-number
+matrix produced four uncaught `IndexError` failures before the specific fix.
+Legacy-construction/replacement characterization passed before the refactor.
+
+Using the same main-checkout interpreter, `PYTHONPATH="$PWD"`, and exact focused,
+full, Ruff and Pyright commands documented above, with no dependency installation
+or editable-install changes:
+
+- Focused: **417 passed, 84 subtests passed, 110 warnings** (14.27s).
+- Full: **1114 passed, 179 subtests passed, 4 skipped, 277 warnings** (61.43s).
+- Ruff: **All checks passed**. Pyright: **0 errors, 0 warnings**.
+- All five Maintained Examples passed CLI validate and JSON plan; explicit
+  iperf CLI compilation also passed (**11 commands**, all v4 plans). Agent counts
+  remain 1/4/6/2/10 respectively, and 2 for explicit iperf.
+- CLI stdout/stderr retained at
+  `/tmp/opencode/mininet-ai-89/review-fixes-gates/`.
+- The four skips still require opt-in live Mininet/OVS prerequisites; warnings
+  remain the expected v3 source deprecations.
+- No golden, schema, snapshot, contract-version or legacy-fixture changes were
+  needed: these fixes affect invalid-input diagnostics and internal bookkeeping,
+  not executable identity. The existing golden rationale above is unchanged.
+- `git diff --check` and Ruff format checks on all five changed Python files
+  passed; the full golden/schema/legacy-fixture diff against `c1f4781` is empty.
+
+No tickets were closed; review/integration and authorized merge remain with the
+driving session.

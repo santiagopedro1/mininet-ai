@@ -11,6 +11,11 @@ from pydantic import BaseModel, ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from mininet_ai.errors import SpecificationError
+from mininet_ai.specification._yaml_locations import (
+    field_location,
+    nearest_location,
+    yaml_position,
+)
 from mininet_ai.specification.models import (
     AgentBlueprint,
     CapabilityDefinition,
@@ -22,6 +27,13 @@ from mininet_ai.specification.models import (
 
 
 @dataclass(frozen=True)
+class _LoadedBlueprint:
+    blueprint: AgentBlueprint
+    source: Path
+    locations: dict[str, str]
+
+
+@dataclass(frozen=True)
 class LoadedExperiment:
     source: Path
     experiment: Experiment
@@ -30,6 +42,21 @@ class LoadedExperiment:
     capabilities: tuple[CapabilityDefinition, ...]
     blueprint_sources: tuple[Path, ...] = ()
     blueprint_locations: tuple[dict[str, str], ...] = ()
+
+    @property
+    def _blueprint_documents(self) -> tuple[_LoadedBlueprint, ...]:
+        # Keep the existing public constructor and dataclasses.replace contract.
+        # Adapt its legacy parallel tuples here, not in downstream consumers.
+        return tuple(
+            _LoadedBlueprint(
+                blueprint,
+                self.blueprint_sources[index]
+                if self.blueprint_sources
+                else self.source,
+                self.blueprint_locations[index] if self.blueprint_locations else {},
+            )
+            for index, blueprint in enumerate(self.blueprints)
+        )
 
 
 @dataclass(frozen=True)
@@ -54,15 +81,13 @@ def _read_yaml(path: Path) -> _YamlDocument:
                     active = active | {id(node)}
                     positions.setdefault(
                         location,
-                        f"line {node.start_mark.line + 1}, column {node.start_mark.column + 1}",
+                        yaml_position(node.start_mark),
                     )
                     if isinstance(node, MappingNode):
                         for key, value in node.value:
                             if isinstance(key, yaml.ScalarNode):
                                 field = location + (key.value,)
-                                positions[field] = (
-                                    f"line {key.start_mark.line + 1}, column {key.start_mark.column + 1}"
-                                )
+                                positions[field] = yaml_position(key.start_mark)
                                 locate(value, field, active)
                     elif isinstance(node, SequenceNode):
                         for index, child in enumerate(node.value):
@@ -102,8 +127,21 @@ def _model_errors(document: _YamlDocument, path: Path) -> list[str]:
     for origin, blueprint in blueprints:
         if not isinstance(blueprint, dict):
             continue
+        metadata = blueprint.get("metadata")
+        name = (
+            metadata.get("name", "<unnamed>")
+            if isinstance(metadata, dict)
+            else "<unnamed>"
+        )
+        context = f"blueprint {name!r} ({path}) model"
         model = blueprint.get("model")
         if not isinstance(model, dict):
+            if model is not None:
+                position = nearest_location(document.positions, origin + ("model",))
+                details.append(
+                    f"{context}: {field_location('model', position)}"
+                    + ": expected a mapping with provider/name or file/entry fields"
+                )
             continue
         reference = bool({"file", "entry"} & model.keys()) or (
             "overrides" in model and not ({"provider", "name"} & model.keys())
@@ -112,13 +150,6 @@ def _model_errors(document: _YamlDocument, path: Path) -> list[str]:
             schema = ModelReference if reference else ModelConfiguration
             schema.model_validate(model)
         except ValidationError as error:
-            metadata = blueprint.get("metadata")
-            name = (
-                metadata.get("name", "<unnamed>")
-                if isinstance(metadata, dict)
-                else "<unnamed>"
-            )
-            context = f"blueprint {name!r} ({path}) model"
             if reference:
                 context += " reference"
             # Only include a known target when it satisfies the local-path rules.
@@ -135,13 +166,9 @@ def _model_errors(document: _YamlDocument, path: Path) -> list[str]:
                 context += f" entry {entry!r}"
             for issue in error.errors(include_url=False, include_input=False):
                 field = ("model",) + tuple(issue["loc"])
-                nearest = origin + field
-                while nearest not in document.positions and nearest:
-                    nearest = nearest[:-1]
-                position = document.positions.get(nearest)
+                position = nearest_location(document.positions, origin + field)
                 details.append(
-                    f"{context}: {'.'.join(map(str, field))}"
-                    + (f" at {position}" if position else "")
+                    f"{context}: {field_location('.'.join(map(str, field)), position)}"
                     + f": {issue['msg']}"
                 )
     return details
@@ -216,15 +243,15 @@ def _resolve_experiment(
         topology = topology_value
 
     blueprints = []
-    blueprint_locations = []
     for index, value in enumerate(experiment.blueprints):
         if isinstance(value, str):
             path = _resolve(value, base)
             document = _read_yaml(path)
-            blueprints.append(_parse(AgentBlueprint, document, path))
+            blueprint = _parse(AgentBlueprint, document, path)
             fields = document.positions
         else:
-            blueprints.append(value)
+            path = source
+            blueprint = value
             fields = {
                 location[2:]: position
                 for location, position in positions.items()
@@ -234,20 +261,17 @@ def _resolve_experiment(
         for location, position in fields.items():
             if location and location[0] == "model":
                 field = ".".join(map(str, location))
-                model_locations[field] = f"{field} at {position}"
-        blueprint_locations.append(model_locations)
+                model_locations[field] = field_location(field, position)
+        blueprints.append(_LoadedBlueprint(blueprint, path, model_locations))
 
     return LoadedExperiment(
         source=source,
         experiment=experiment,
         topology=topology,
-        blueprints=tuple(blueprints),
+        blueprints=tuple(item.blueprint for item in blueprints),
         capabilities=_load_references(
             experiment.capability_definitions, CapabilityDefinition, base
         ),
-        blueprint_sources=tuple(
-            _resolve(value, base) if isinstance(value, str) else source
-            for value in experiment.blueprints
-        ),
-        blueprint_locations=tuple(blueprint_locations),
+        blueprint_sources=tuple(item.source for item in blueprints),
+        blueprint_locations=tuple(item.locations for item in blueprints),
     )

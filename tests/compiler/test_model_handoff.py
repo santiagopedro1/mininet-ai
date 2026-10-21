@@ -1,6 +1,7 @@
 """Cross-feature acceptance at the existing compiler, CLI and SDK seams."""
 
 import re
+from dataclasses import replace
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +16,47 @@ from mininet_ai.sdk.catalog import ExecutionCatalog
 from mininet_ai.specification.loader import load_experiment, resolve_experiment
 from mininet_ai.specification.models import Experiment, SpecificationDeprecationWarning
 from tests.compiler.test_model_references import project
+
+
+@pytest.mark.parametrize("command", ["validate", "plan"])
+@pytest.mark.parametrize(
+    "tag,value",
+    [
+        ("bool", "SECRET_SENTINEL"),
+        ("int", "SECRET_SENTINEL"),
+        ("float", "SECRET_SENTINEL"),
+        ("timestamp", "SECRET_SENTINEL"),
+        ("binary", "SECRET_SENTINEL"),
+        ("int", "''"),
+        ("float", "''"),
+    ],
+)
+def test_cli_rejects_invalid_yaml_scalars_in_unused_entries(
+    tmp_path, command, tag, value
+):
+    path, _ = project(tmp_path)
+    path.with_name("models.yaml").write_text(
+        "models:\n  shared: {provider: ollama, name: valid}\n"
+        "  unused:\n    provider: custom\n    name: other\n"
+        f"    parameters:\n      option: !!{tag} {value}\n"
+    )
+    result = CliRunner().invoke(app, [command, str(path)])
+    assert result.exit_code == 1, result.output
+    assert isinstance(result.exception, SystemExit)
+    output = " ".join(result.output.split())
+    for context in (
+        "local-router",
+        str(path),
+        "models.yaml",
+        "shared",
+        "models.unused.parameters.option",
+        "line 7, column 7",
+        "invalid YAML",
+    ):
+        assert context in output
+    assert "secret_sentinel" not in output.lower()
+    assert "Traceback" not in output
+    assert '"snapshot"' not in output
 
 
 @pytest.mark.parametrize("selected", [False, True])
@@ -88,6 +130,57 @@ def test_programmatic_override_errors_do_not_claim_the_base_field_position(tmp_p
     assert "model.overrides.parameters.think: must be a boolean" in str(caught.value)
     assert "parameters.think at line 6" not in str(caught.value)
     assert "SECRET_SENTINEL" not in str(caught.value)
+
+
+def test_loaded_experiment_legacy_defaults_and_replacement_preserve_resolution(
+    tmp_path,
+):
+    path, _ = project(tmp_path)
+    loaded = load_experiment(path)
+    expected = compile_experiment(loaded)
+    # Existing public construction can omit all per-blueprint source metadata.
+    legacy = type(loaded)(
+        loaded.source,
+        loaded.experiment,
+        loaded.topology,
+        loaded.blueprints,
+        loaded.capabilities,
+    )
+    assert compile_experiment(legacy).snapshot == expected.snapshot
+    # dataclasses.replace remains supported and must not retain stale records.
+    changed = loaded.blueprints[0].model_copy(update={"model": None})
+    custom = changed.implementation.model_copy(
+        update={"type": "python", "entrypoint": "not_installed:factory"}
+    )
+    changed = changed.model_copy(update={"implementation": custom})
+    replaced = replace(legacy, blueprints=(changed, *legacy.blueprints[1:]))
+    assert compile_experiment(replaced).snapshot["blueprints"][0]["model"] is None
+
+
+@pytest.mark.parametrize("external", [False, True])
+@pytest.mark.parametrize("command", ["validate", "plan"])
+@pytest.mark.parametrize("model", ["SECRET_SENTINEL", ["SECRET_SENTINEL"]])
+def test_nonobject_models_have_safe_source_context(tmp_path, external, command, model):
+    path, snapshot = project(tmp_path)
+    blueprint = snapshot["blueprints"][0]
+    blueprint["model"] = model
+    source = path
+    if external:
+        source = tmp_path / "agent.yaml"
+        source.write_text(yaml.safe_dump(blueprint))
+        snapshot["blueprints"][0] = "agent.yaml"
+    path.write_text(yaml.safe_dump(snapshot))
+    result = CliRunner().invoke(app, [command, str(path)])
+    assert result.exit_code == 1, result.output
+    assert isinstance(result.exception, SystemExit)
+    output = " ".join(result.output.split())
+    for context in ("local-router", source.name, "model", "mapping"):
+        assert context in output
+    assert re.search(r"model at line [1-9]\d*, column [1-9]\d*", output)
+    assert "SECRET_SENTINEL" not in output
+    assert "ModelConfiguration" not in output
+    assert "ModelReference" not in output
+    assert '"snapshot"' not in output
 
 
 @pytest.mark.parametrize("external", [False, True])

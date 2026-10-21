@@ -9,6 +9,11 @@ from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from mininet_ai.errors import SpecificationError
+from mininet_ai.specification._yaml_locations import (
+    field_location,
+    nearest_location,
+    yaml_position,
+)
 from mininet_ai.specification.model_validation import (
     validate_shared_model_configuration,
 )
@@ -20,10 +25,6 @@ class ModelConfigurationSource:
     models: dict[str, ModelConfiguration]
     entry_locations: dict[str, str]
     field_locations: dict[str, dict[str, str]]
-
-
-def _position(mark: Any) -> str:
-    return f"line {mark.line + 1}, column {mark.column + 1}"
 
 
 def read_model_configurations(path: Path) -> ModelConfigurationSource:
@@ -39,10 +40,32 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
             try:
                 root = loader.get_single_node()
 
+                def construct_scalar(node: Node, location: tuple[Any, ...]) -> Any:
+                    # PyYAML's built-in scalar constructors do not consistently
+                    # raise YAMLError for invalid explicit tags. Keep conversion
+                    # catches local to the constructors known to raise them,
+                    # rather than hiding errors in our traversal/validation code.
+                    failures: dict[str, tuple[type[Exception], ...]] = {
+                        "bool": (KeyError,),
+                        "int": (ValueError, IndexError),
+                        "float": (ValueError, OverflowError, IndexError),
+                        "timestamp": (ValueError, OverflowError, AttributeError),
+                    }
+                    tag = node.tag.removeprefix("tag:yaml.org,2002:")
+                    try:
+                        return loader.construct_object(node, deep=True)
+                    except (yaml.YAMLError, *failures.get(tag, ())):
+                        mark = marks.get(location, node.start_mark)
+                        field = ".".join(map(str, location)) or "root"
+                        raise SpecificationError(
+                            f"invalid YAML in {path}: {field_location(field, yaml_position(mark))}: "
+                            "invalid scalar value for YAML type"
+                        ) from None
+
                 def reject_cycles(node: Node, active: set[int]) -> None:
                     if id(node) in active:
                         raise SpecificationError(
-                            f"recursive YAML aliases are unsupported at {_position(node.start_mark)}"
+                            f"recursive YAML aliases are unsupported at {yaml_position(node.start_mark)}"
                         )
                     active = active | {id(node)}
                     if isinstance(node, MappingNode):
@@ -65,20 +88,20 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
                         loader.flatten_mapping(node)
                         seen: dict[Any, Any] = {}
                         for key_node, value_node in node.value:
-                            key = loader.construct_object(key_node, deep=True)
+                            key = construct_scalar(key_node, location)
                             try:
                                 previous = seen.get(key)
                             except TypeError:
                                 raise SpecificationError(
-                                    f"invalid mapping key at {_position(key_node.start_mark)}"
+                                    f"invalid mapping key at {yaml_position(key_node.start_mark)}"
                                 ) from None
                             field = location + (key,)
                             if previous is not None:
                                 name = ".".join(map(str, field))
                                 raise SpecificationError(
                                     f"duplicate mapping key {name} at "
-                                    f"{_position(key_node.start_mark)}; first defined at "
-                                    f"{_position(previous)}"
+                                    f"{yaml_position(key_node.start_mark)}; first defined at "
+                                    f"{yaml_position(previous)}"
                                 )
                             seen[key] = key_node.start_mark
                             marks[field] = key_node.start_mark
@@ -87,6 +110,8 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
                         for index, child in enumerate(node.value):
                             marks[location + (index,)] = child.start_mark
                             inspect(child, location + (index,), active)
+                    else:
+                        construct_scalar(node, location)
 
                 if root is None:
                     data = None
@@ -98,11 +123,11 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
                     data = loader.construct_document(root)
             finally:
                 loader.dispose()
-    except (OSError, UnicodeError, ValueError) as error:
+    except (OSError, UnicodeError) as error:
         raise SpecificationError(f"cannot read model file {path}") from error
     except yaml.YAMLError as error:
         mark = getattr(error, "problem_mark", None)
-        position = f" at {_position(mark)}" if mark is not None else ""
+        position = f" at {yaml_position(mark)}" if mark is not None else ""
         raise SpecificationError(f"invalid YAML in {path}{position}") from error
 
     try:
@@ -111,12 +136,10 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
         details = []
         for issue in error.errors(include_url=False):
             location = tuple(issue["loc"])
-            nearest = location
-            while nearest not in marks and nearest:
-                nearest = nearest[:-1]
-            position = f" at {_position(marks[nearest])}" if nearest in marks else ""
+            mark = nearest_location(marks, location)
+            position = yaml_position(mark) if mark is not None else None
             details.append(
-                f"{'.'.join(map(str, location)) or 'root'}{position}: {issue['msg']}"
+                f"{field_location('.'.join(map(str, location)) or 'root', position)}: {issue['msg']}"
             )
         raise SpecificationError(
             f"invalid {path}:\n  " + "\n  ".join(details)
@@ -126,14 +149,14 @@ def read_model_configurations(path: Path) -> ModelConfigurationSource:
     fields = {}
     for name, configuration in configurations.models.items():
         mark = marks.get(("models", name))
-        position = f" at {_position(mark)}" if mark is not None else ""
+        position = f" at {yaml_position(mark)}" if mark is not None else ""
         locations[name] = position
         fields[name] = {}
         for field, field_mark in marks.items():
             if field[:2] == ("models", name) and len(field) > 2:
                 suffix = ".".join(map(str, field[2:]))
-                fields[name][f"model.{suffix}"] = (
-                    f"models.{name}.{suffix} at {_position(field_mark)}"
+                fields[name][f"model.{suffix}"] = field_location(
+                    f"models.{name}.{suffix}", yaml_position(field_mark)
                 )
         validate_shared_model_configuration(
             configuration, context=f"models.{name}{position}", locations=fields[name]
