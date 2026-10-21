@@ -139,6 +139,25 @@ runtime-state, and agent-runtime contracts are **not** bumped.
 
 Source documents and saved plans have deliberately different compatibility rules:
 
+Current source compilation rejects locally invalid parameters before emitting a
+plan: Ollama accepts only `host` and boolean `think` on declarative and both
+bundled factory paths; deterministic `mock` requires a valid response and optional
+valid metrics object. Other declarative Providers retain Agno-delegated resolution
+with empty parameters, without a Provider allowlist. Custom factories keep optional
+models, arbitrary owned parameters, and construction ownership; compilation does
+not import or invoke them. These checks apply only at the source compiler boundary,
+not structural model parsing or SDK saved-plan reconstruction. Consequently an
+original `v1alpha3` plan with formerly accepted invalid parameters still loads
+unchanged and fails at its original runtime construction boundary.
+
+No credential-selector syntax is added: Agno performs existing environment lookup
+at runtime. In particular, blank `OLLAMA_API_KEY` remains valid for local Ollama,
+omitted hosts retain environment/default/cloud behavior, and explicit hosts take
+precedence. Do not copy credential values into YAML or plans. Supported paths reject
+unsupported literal credential fields before persistence; arbitrary custom-factory
+data is not heuristically scanned. Offline validation reads no credential values
+and cannot verify service availability or authentication.
+
 | Input | Policy |
 | --- | --- |
 | Native `v1alpha4` source | Validate against current rules and compile a `v1alpha4` plan. |

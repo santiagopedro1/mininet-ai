@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -62,6 +63,20 @@ def agent_factory(definition: Any) -> Agent:
     return Agent(
         id=definition.instance.id,
         model=StaticModel('{"message":"from Python Agno factory"}'),
+        output_schema=AgentResponse,
+        telemetry=False,
+    )
+
+
+def consuming_factory(definition: Any) -> Agent:
+    """Consume factory-owned parameters rather than the declarative resolver."""
+    return Agent(
+        id=definition.instance.id,
+        model=StaticModel(
+            json.dumps(
+                {"message": definition.blueprint.model.parameters["custom-response"]}
+            )
+        ),
         output_schema=AgentResponse,
         telemetry=False,
     )

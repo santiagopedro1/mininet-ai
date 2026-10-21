@@ -823,6 +823,14 @@ def compile_experiment(
         loaded = resolve_experiment(source)
     else:
         loaded = load_experiment(source)
+    from mininet_ai.specification.model_validation import validate_model_configuration
+
+    for blueprint in loaded.blueprints:
+        validate_model_configuration(
+            blueprint.model,
+            blueprint.implementation,
+            context=f"{loaded.source}: blueprint {blueprint.metadata.name!r}",
+        )
     try:
         driver = create_substrate_driver(
             loaded.experiment.substrate.driver,
