@@ -7,7 +7,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from threading import Condition, Event, Lock, Semaphore, Thread
@@ -39,13 +39,6 @@ from mininet_ai.runtime.contracts import (
     RuntimeEventType,
 )
 from mininet_ai.runtime.events import InMemoryRuntimeEventBus, RuntimeEventBus
-from mininet_ai.runtime.instrumentation import (
-    Operation,
-    Phase,
-    RecordingBinding,
-    current_binding,
-    recording_scope,
-)
 from mininet_ai.runtime.supervision import AgentSupervisor
 from mininet_ai.sdk import AgentInvocationResult, InvocationStatus
 from mininet_ai.specification.models import EventTrigger, IntervalTrigger
@@ -97,7 +90,6 @@ class _WorkItem:
     trigger: str
     intent: str
     coalesce_key: tuple[str, str | None]
-    scheduling: Operation | None = None
 
 
 @dataclass(frozen=True)
@@ -141,7 +133,6 @@ class ContinuousAgentRuntime:
         self._clock = clock
         self._event_id_factory = event_id_factory
         self._invocation_listener = invocation_listener
-        self._recording = current_binding()
         self._agents = {agent.id: agent for agent in plan.agents}
         self._coordination_graph = (
             CoordinationGraph(plan) if isinstance(invoker, Coordinator) else None
@@ -421,8 +412,6 @@ class ContinuousAgentRuntime:
                         while queue:
                             item = queue.popleft()
                             self._queued -= 1
-                            if item.scheduling is not None:
-                                item.scheduling.cancel("stopped")
                             self._issue(
                                 "runtime.queue.dropped-on-stop",
                                 "queued invocation dropped during stop",
@@ -560,9 +549,6 @@ class ContinuousAgentRuntime:
         return tuple(matches)
 
     def _enqueue(self, item: _WorkItem) -> None:
-        binding = self._item_binding(item)
-        if binding is not None:
-            item = replace(item, scheduling=Operation(Phase.SCHEDULING, binding))
         execution_agent_id = self._execution_agent_id(item.agent.id)
         execution = self._agents[execution_agent_id].execution
         with self._condition:
@@ -570,8 +556,6 @@ class ContinuousAgentRuntime:
             if execution.overflow == "coalesce":
                 for index, queued in enumerate(queue):
                     if queued.coalesce_key == item.coalesce_key:
-                        if queued.scheduling is not None:
-                            queued.scheduling.cancel("coalesced")
                         queue[index] = item
                         with self._report_lock:
                             self._counts["coalesced"] += 1
@@ -587,8 +571,6 @@ class ContinuousAgentRuntime:
                 if execution.overflow == "drop-oldest" and queue:
                     dropped = queue.popleft()
                     self._queued -= 1
-                    if dropped.scheduling is not None:
-                        dropped.scheduling.cancel("drop_oldest")
                     self._issue(
                         "runtime.queue.drop-oldest",
                         "oldest queued invocation was replaced",
@@ -598,8 +580,6 @@ class ContinuousAgentRuntime:
                         dropped=True,
                     )
                 else:
-                    if item.scheduling is not None:
-                        item.scheduling.finish("queue_full", failed=True)
                     self._issue(
                         "runtime.queue.full",
                         "agent invocation queue is full",
@@ -683,30 +663,6 @@ class ContinuousAgentRuntime:
     def _process_item(
         self, item: _WorkItem, lease: InvocationLease | None = None
     ) -> None:
-        with recording_scope(self._item_binding(item)):
-            self._process_scoped_item(item, lease)
-
-    def _item_binding(self, item: _WorkItem) -> RecordingBinding | None:
-        # Events without explicit trial context must not inherit the worker's trial.
-        if self._recording is None or item.event.execution_context is None:
-            return None
-        return RecordingBinding(
-            self._recording.recorder,
-            replace(
-                item.event.execution_context,
-                agent_id=item.agent.id,
-                event_id=item.event.event_id,
-                correlation_id=item.event.correlation_id,
-                causation_id=item.event.causation_id,
-                scheduling_operation_id=item.scheduling.id
-                if item.scheduling is not None
-                else None,
-            ),
-        )
-
-    def _process_scoped_item(
-        self, item: _WorkItem, lease: InvocationLease | None = None
-    ) -> None:
         agent_id = self._execution_agent_id(item.agent.id)
         try:
             completion = self._supervisor.execute(
@@ -715,8 +671,6 @@ class ContinuousAgentRuntime:
                 before_wait=lease.close if lease is not None else None,
             )
         except Exception as error:
-            if item.scheduling is not None:
-                item.scheduling.finish(type(error).__name__, failed=True)
             self._issue(
                 "runtime.invocation.failed",
                 str(error) or type(error).__name__,
@@ -764,8 +718,6 @@ class ContinuousAgentRuntime:
         self, item: _WorkItem, lease: InvocationLease | None = None
     ) -> _InvocationCompletion:
         if isinstance(self._invoker, Coordinator):
-            if item.scheduling is not None:
-                item.scheduling.finish("admitted")
             request = CoordinationRequest(
                 runId=self._run_id,
                 requestedAgentId=item.agent.id,
@@ -785,8 +737,6 @@ class ContinuousAgentRuntime:
                 coordination=outcome,
             )
         with self._global_slots:
-            if item.scheduling is not None:
-                item.scheduling.finish("admitted")
             return _InvocationCompletion(
                 result=self._invoker.invoke(
                     self._run_id,

@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import contextmanager
-from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Condition, Lock
@@ -472,9 +471,7 @@ class CoordinationRuntime:
         tuple[AgentInvocationResult, AgentResponse | None, ArbitrationReport | None]
     ]:
         try:
-            return self._executor.submit(
-                copy_context().run, self._invoke_message, message, history, lease
-            )
+            return self._executor.submit(self._invoke_message, message, history, lease)
         except BaseException:
             lease.close()
             raise
