@@ -399,7 +399,7 @@ def _compile_or_exit(path: Path) -> DeploymentPlan:
     try:
         return compile_experiment(path)
     except MininetAIError as error:
-        error_console.print(f"[bold red]Error:[/bold red] {error}")
+        error_console.print(f"[bold red]Error:[/bold red] {error}", soft_wrap=True)
         raise typer.Exit(code=1) from error
 
 
