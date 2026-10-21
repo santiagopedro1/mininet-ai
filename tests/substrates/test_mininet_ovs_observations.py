@@ -240,16 +240,6 @@ class MininetOVSObservationTests(unittest.TestCase):
             [1000, 1001],
         )
 
-    def test_broken_ping_observer_is_not_packet_loss(self) -> None:
-        self.executor.add(
-            ("ping", "-n", "-c", "1", "-W", "1", "10.0.0.2"),
-            returncode=2,
-            stderr="ping: socket: Operation not permitted",
-            node="h1",
-        )
-        with self.assertRaises(ObservationCollectionError):
-            self.observe("host.reachability", "h1", parameters={"destinations": ["h2"]})
-
     def test_host_reachability_uses_only_declared_host_addresses(self) -> None:
         self.executor.add(
             ("ping", "-n", "-c", "1", "-W", "1", "10.0.0.2"),

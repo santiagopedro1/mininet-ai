@@ -212,9 +212,7 @@ class OneShotAgentRuntime:
         started_tick = self._monotonic()
         invocation_id = self._invocation_id_factory()
         binding = current_binding()
-        if binding is not None and (
-            binding.context.substrate_run_id or binding.context.run_id
-        ) != run_id:
+        if binding is not None and binding.context.run_id != run_id:
             raise ValueError("recording context belongs to another run")
         with recording_scope(
             binding,
