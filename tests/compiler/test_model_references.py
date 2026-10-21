@@ -516,3 +516,80 @@ def test_cli_validates_and_serializes_resolved_references(tmp_path):
     plan = DeploymentPlan.model_validate_json(planned.stdout)
     assert plan.model_provenance
     assert all("file" not in b["model"] for b in plan.snapshot["blueprints"])
+
+
+@pytest.mark.parametrize(
+    "entrypoint",
+    [
+        None,
+        "mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent",
+        "mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent",
+    ],
+)
+def test_referenced_bases_use_source_only_construction_validation(tmp_path, entrypoint):
+    path, snapshot = project(tmp_path)
+    if entrypoint:
+        for blueprint in snapshot["blueprints"]:
+            blueprint["implementation"] = {"type": "python", "entrypoint": entrypoint}
+    path.write_text(yaml.safe_dump(snapshot))
+    (tmp_path / "models.yaml").write_text(
+        "models: {shared: {provider: ollama, name: model, parameters: {think: SECRET_SENTINEL}}}"
+    )
+    result = CliRunner().invoke(app, ["plan", str(path), "--format", "json"])
+    assert result.exit_code == 1, result.output
+    for context in (
+        "local-router",
+        "models.yaml",
+        "shared",
+        "base",
+        "parameters.think",
+    ):
+        assert context in result.output
+    assert "SECRET_SENTINEL" not in result.output
+    assert '"snapshot"' not in result.output
+
+
+def test_shared_file_preserves_distinct_construction_ownership(tmp_path):
+    path, snapshot = project(tmp_path)
+    # One file can organize multiple Providers and owners. A declarative consumer
+    # must not impose its parameter semantics on another factory's entry.
+    snapshot["blueprints"][1]["implementation"] = {
+        "type": "python",
+        "entrypoint": "not_imported:custom_factory",
+    }
+    snapshot["blueprints"][1]["model"]["entry"] = "factory-owned"
+    path.write_text(yaml.safe_dump(snapshot))
+    (tmp_path / "models.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "models": {
+                    "shared": {
+                        "provider": "ollama",
+                        "name": "shared",
+                        "parameters": {"think": False},
+                    },
+                    "factory-owned": {
+                        "provider": "custom",
+                        "name": "factory-model",
+                        "parameters": {"nested-option": {"any": None}},
+                    },
+                }
+            }
+        )
+    )
+    plan = compile_experiment(path)
+    factory_model = plan.snapshot["blueprints"][1]["model"]
+    assert factory_model["parameters"] == {"nested-option": {"any": None}}
+
+
+def test_invalid_unused_literal_credentials_are_rejected_before_selection(tmp_path):
+    path, _ = project(tmp_path)
+    (tmp_path / "models.yaml").write_text(
+        "models:\n  shared: {provider: ollama, name: model}\n"
+        "  unused: {provider: custom, name: other, parameters: {api_key: SECRET_SENTINEL}}\n"
+    )
+    with pytest.raises(SpecificationError) as caught:
+        compile_experiment(path)
+    for context in ("unused", "parameters.api_key", "line 3", "shared", "local-router"):
+        assert context in str(caught.value)
+    assert "SECRET_SENTINEL" not in str(caught.value)

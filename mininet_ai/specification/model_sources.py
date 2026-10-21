@@ -1,5 +1,6 @@
 """Strict, secret-safe YAML reading for shared model files."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -8,14 +9,23 @@ from pydantic import ValidationError
 from yaml.nodes import MappingNode, Node, SequenceNode
 
 from mininet_ai.errors import SpecificationError
-from mininet_ai.specification.models import ModelConfigurations
+from mininet_ai.specification.model_validation import (
+    validate_shared_model_configuration,
+)
+from mininet_ai.specification.models import ModelConfiguration, ModelConfigurations
+
+
+@dataclass(frozen=True)
+class ModelConfigurationSource:
+    models: dict[str, ModelConfiguration]
+    entry_locations: dict[str, str]
 
 
 def _position(mark: Any) -> str:
     return f"line {mark.line + 1}, column {mark.column + 1}"
 
 
-def read_model_configurations(path: Path) -> ModelConfigurations:
+def read_model_configurations(path: Path) -> ModelConfigurationSource:
     """Read and validate the whole file, rejecting duplicates at every depth.
 
     Use a private loader instance: no global YAML constructors are modified.
@@ -95,7 +105,7 @@ def read_model_configurations(path: Path) -> ModelConfigurations:
         raise SpecificationError(f"invalid YAML in {path}{position}") from error
 
     try:
-        return ModelConfigurations.model_validate(data)
+        configurations = ModelConfigurations.model_validate(data)
     except ValidationError as error:
         details = []
         for issue in error.errors(include_url=False):
@@ -110,3 +120,13 @@ def read_model_configurations(path: Path) -> ModelConfigurations:
         raise SpecificationError(
             f"invalid {path}:\n  " + "\n  ".join(details)
         ) from error
+
+    locations = {}
+    for name, configuration in configurations.models.items():
+        mark = marks.get(("models", name))
+        position = f" at {_position(mark)}" if mark is not None else ""
+        locations[name] = position
+        validate_shared_model_configuration(
+            configuration, context=f"models.{name}{position}"
+        )
+    return ModelConfigurationSource(configurations.models, locations)

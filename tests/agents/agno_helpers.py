@@ -76,6 +76,20 @@ def consuming_model_factory(definition: Any) -> Agent:
     return Agent(model=model, output_schema=AgentResponse, telemetry=False)
 
 
+def consuming_factory(definition: Any) -> Agent:
+    """Consume factory-owned parameters rather than the declarative resolver."""
+    return Agent(
+        id=definition.instance.id,
+        model=StaticModel(
+            json.dumps(
+                {"message": definition.blueprint.model.parameters["custom-response"]}
+            )
+        ),
+        output_schema=AgentResponse,
+        telemetry=False,
+    )
+
+
 direct_agent = Agent(
     id="direct-agent",
     model=StaticModel('{"message":"from direct Agno agent"}'),

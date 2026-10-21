@@ -438,6 +438,12 @@ applicable, with numeric YAML locations rather than configuration-value dumps.
 Later compilations read updated files; an already loaded experiment is not a
 process-global configuration cache.
 
+All entries undergo shared structural and credential-field checks. Construction-
+specific restrictions apply to the selected complete base and its effective
+configuration on the referring blueprint's ownership path. An unused entry has
+no construction owner: a shared file may contain settings intended for custom
+factories alongside settings intended for declarative agents or bundled factories.
+
 Executable snapshots contain only effective `provider`/`name`/`parameters`, never
 `file`/`entry`. Optional plan-level `modelProvenance` records the blueprint source,
 resolved file, and configuration name separately from the snapshot digest.
@@ -464,9 +470,10 @@ for provider-specific options not supported declaratively. Declarative agents re
 `model`. `reasoning.output-schema` is an optional legacy string identifier; the
 active Agno path always requests the structured `AgentResponse` contract.
 
-Ollama declarative agents and the bundled
-`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` factory support
-an optional endpoint:
+Ollama declarative agents and both bundled factories
+(`mininet_ai.agents.agno.ollama_factory:create_prompt_parsed_agent` and
+`create_deterministic_prompt_parsed_agent` in that module) support an optional
+endpoint and boolean thinking mode:
 
 ```yaml
 model:
@@ -474,6 +481,7 @@ model:
   name: qwen3.5:latest
   parameters:
     host: http://ollama.example:11434
+    think: false
 ```
 
 `host` must be a non-empty HTTP/HTTPS URL with a hostname and no embedded
@@ -482,12 +490,29 @@ a network or contacting Ollama. Explicit configuration overrides `OLLAMA_HOST`;
 omitting the host preserves Agno/Ollama's environment and default behavior,
 including its cloud endpoint behavior when an API key is configured. Each
 blueprint can use a different endpoint; the runtime does not modify process
-environment variables. Only `host` is supported for these Ollama construction
-paths; other parameters are rejected at agent construction. Custom Python
-factories remain responsible for consuming their own configuration. Keep
-credentials in environment variables, not YAML or URL user-info.
+environment variables. Only `host` and `think` are supported for these Ollama
+construction paths. `think` must be a boolean (not a string, number, or null);
+omission leaves request parameters unset and explicit `false` is preserved.
+Unsupported parameters and invalid values now fail during `validate` and `plan`.
+Both bundled factories require an Ollama model; declarative agents require a model.
+Custom Python factories may omit the model and retain their own parameter and
+model-construction semantics. Compilation never imports or calls their entrypoints
+or replaces factory-owned models. Shared structural checks, including explicit
+Ollama host validation, still apply.
+
+Keep credentials in the runtime environment, not YAML or URL user-info. There
+are no project-defined credential-selector fields. Agno/Ollama performs its
+existing `OLLAMA_API_KEY` lookup at runtime; a blank key remains valid for an
+unauthenticated local endpoint. A nonempty key can select the cloud endpoint
+even when `OLLAMA_HOST` is set; an explicit `host` takes precedence. Unsupported
+literal credential fields (for example, `api_key`) are rejected by shared source
+checks before plan persistence, including for custom factories. Custom
+factory parameters are not recursively scanned or subject to declarative parameter
+allowlists; factory authors must keep secrets out of their serialized parameters.
 
 Other ordinary declarative providers still reject non-empty `model.parameters`.
+These restrictions are checked during source compilation. Providers with empty
+parameters remain delegated to Agno, without a compile-time Provider allowlist.
 The deterministic `mock` provider accepts its existing response and usage
 parameters and is useful for offline generated experiments (see
 [Getting Started](../examples/getting-started/README.md) for a complete
@@ -507,6 +532,19 @@ model:
       metadata: {}
     usage: {}
 ```
+
+`mock` requires a valid `AgentResponse` in `response`, including an outcome
+(message, proposal, delegation, or shared-state update). Optional `usage` must
+be an object with the runtime metrics schema's nonnegative counts/cost, known
+fields, and totals covering input plus output (including audio). Existing metric
+coercion is preserved; validation does not normalize stored parameter values.
+These checks use the same response/metrics schemas as runtime construction.
+
+Compilation is offline: it does not construct Provider models or clients, contact
+Providers, or read credential values. A successful plan does not establish remote
+model availability, credentials, connectivity, or inference success. Saved plans
+retain effective settings, not environment-derived values; execution still depends
+on the runtime environment and installed factory code.
 
 Memory rules:
 

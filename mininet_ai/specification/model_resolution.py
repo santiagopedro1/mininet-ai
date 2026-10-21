@@ -6,15 +6,18 @@ from typing import Any
 
 from mininet_ai.errors import SpecificationError
 from mininet_ai.specification.loader import LoadedExperiment
-from mininet_ai.specification.model_sources import read_model_configurations
+from mininet_ai.specification.model_sources import (
+    ModelConfigurationSource,
+    read_model_configurations,
+)
 from mininet_ai.specification.model_validation import validate_model_configuration
-from mininet_ai.specification.models import ModelConfigurations, ModelReference
+from mininet_ai.specification.models import ModelReference
 
 
 def resolve_models(
     loaded: LoadedExperiment,
 ) -> tuple[LoadedExperiment, dict[str, Any]]:
-    files: dict[Path, ModelConfigurations] = {}
+    files: dict[Path, ModelConfigurationSource] = {}
     blueprints = []
     provenance = {}
     for index, blueprint in enumerate(loaded.blueprints):
@@ -23,6 +26,7 @@ def resolve_models(
             if loaded.blueprint_sources
             else loaded.source
         )
+        blueprint_context = f"{source}: blueprint {blueprint.metadata.name!r}"
         model = blueprint.model
         if isinstance(model, ModelReference):
             path = (source.parent / model.file).resolve()
@@ -34,17 +38,23 @@ def resolve_models(
                 if path not in files:
                     files[path] = read_model_configurations(path)
                 configurations = files[path].models
-                for name, base in configurations.items():
-                    try:
-                        validate_model_configuration(blueprint, base)
-                    except SpecificationError as error:
-                        raise SpecificationError(f"models.{name}: {error}") from error
                 if model.entry not in configurations:
                     raise SpecificationError(
                         "model.entry: selected entry does not exist"
                     )
-                effective = configurations[model.entry].model_copy(deep=True)
-                validate_model_configuration(blueprint, effective)
+                base = configurations[model.entry]
+                location = files[path].entry_locations[model.entry]
+                validate_model_configuration(
+                    base,
+                    blueprint.implementation,
+                    context=f"models.{model.entry} base{location}",
+                )
+                effective = base.model_copy(deep=True)
+                validate_model_configuration(
+                    effective,
+                    blueprint.implementation,
+                    context=f"models.{model.entry} effective{location}",
+                )
             except SpecificationError as error:
                 raise SpecificationError(f"{context}: {error}") from error
             provenance[blueprint.metadata.name] = {
@@ -53,7 +63,9 @@ def resolve_models(
                 "entry": model.entry,
             }
             blueprint = blueprint.model_copy(update={"model": effective})
-        elif model is not None:
-            validate_model_configuration(blueprint, model)
+        else:
+            validate_model_configuration(
+                model, blueprint.implementation, context=blueprint_context
+            )
         blueprints.append(blueprint)
     return replace(loaded, blueprints=tuple(blueprints)), provenance
