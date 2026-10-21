@@ -53,7 +53,4 @@ def create_deterministic_prompt_parsed_agent(
     model = agent.model
     assert isinstance(model, Ollama)
     model.options = {"temperature": 0, "seed": 0}
-    agent.retries = 0
-    model.retries = 0
-    model.retry_with_guidance = False
     return agent

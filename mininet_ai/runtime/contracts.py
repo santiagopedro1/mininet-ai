@@ -15,7 +15,6 @@ from pydantic import (
 )
 
 from mininet_ai.coordination import CoordinationOutcome
-from mininet_ai.runtime.instrumentation import ExecutionContext
 from mininet_ai.sdk import AgentInvocationResult
 from mininet_ai.specification.models import StrictModel
 
@@ -241,18 +240,11 @@ class RuntimeEvent(StrictModel):
         min_length=1,
     )
     payload: dict[str, JsonValue] = Field(default_factory=dict)
-    # Local measurement context travels with queued work, not a mutable fault pointer.
-    execution_context: ExecutionContext | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def timing_is_monotonic(self) -> RuntimeEvent:
         if self.observed_at < self.occurred_at:
             raise ValueError("observedAt cannot precede occurredAt")
-        if (
-            self.execution_context is not None
-            and self.execution_context.run_id != self.run_id
-        ):
-            raise ValueError("execution context belongs to another run")
         return self
 
     def payload_as(self, model: type[PayloadModel]) -> PayloadModel:

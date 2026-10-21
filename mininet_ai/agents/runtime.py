@@ -37,13 +37,6 @@ from mininet_ai.runtime import (
     SharedStateError,
     SharedStateStore,
 )
-from mininet_ai.runtime.instrumentation import (
-    Operation,
-    Phase,
-    RecordingBinding,
-    current_binding,
-    recording_scope,
-)
 from mininet_ai.sdk import (
     ActionProposal,
     AgentContext,
@@ -95,8 +88,6 @@ class _OneShotPreparation:
     model_queueing_seconds: float
     reasoning_seconds: float
     state_changes: tuple[SharedStateChange, ...]
-    recording: RecordingBinding | None = None
-    decision_delay: Operation | None = None
     action_total_seconds: float = 0
     action_timing_lock: Lock = field(default_factory=Lock)
 
@@ -211,130 +202,20 @@ class OneShotAgentRuntime:
         started_at = self._clock()
         started_tick = self._monotonic()
         invocation_id = self._invocation_id_factory()
-        binding = current_binding()
-        if binding is not None and (
-            binding.context.substrate_run_id or binding.context.run_id
-        ) != run_id:
-            raise ValueError("recording context belongs to another run")
-        with recording_scope(
-            binding,
-            agent_id=agent_id,
-            invocation_id=invocation_id,
-            proposal_id=None,
-        ):
-            with Operation(Phase.ADMISSION) as admission:
-                if not intent:
-                    raise AgentRuntimeError(
-                        "agent intent cannot be empty",
-                        code="agent.intent.invalid",
-                        agent_id=agent_id,
-                        invocation_id=invocation_id,
-                    )
-                if not invocation_id:
-                    raise AgentRuntimeError(
-                        "invocation id factory returned an empty value",
-                        code="agent.invocation.invalid-id",
-                        agent_id=agent_id,
-                    )
-                admission.finish("invocation_admitted")
-            return self._prepare(
-                run_id,
-                agent_id,
-                intent,
-                invocation_id,
-                coordination,
-                started_at,
-                started_tick,
+        if not intent:
+            raise AgentRuntimeError(
+                "agent intent cannot be empty",
+                code="agent.intent.invalid",
+                agent_id=agent_id,
+                invocation_id=invocation_id,
             )
-
-    def _prepare(
-        self,
-        run_id: str,
-        agent_id: str,
-        intent: str,
-        invocation_id: str,
-        coordination: AgentCoordinationContext | None,
-        started_at: datetime,
-        started_tick: float,
-    ) -> PreparedAgentInvocation | AgentInvocationResult:
+        if not invocation_id:
+            raise AgentRuntimeError(
+                "invocation id factory returned an empty value",
+                code="agent.invocation.invalid-id",
+                agent_id=agent_id,
+            )
         context_tick = self._monotonic()
-        with Operation(Phase.CONTEXT):
-            definition, context = self._build_context(
-                run_id,
-                agent_id,
-                intent,
-                invocation_id,
-                started_at,
-                coordination,
-            )
-        context_seconds = self._elapsed(context_tick)
-        if self._audit is not None:
-            self._audit.record(
-                AuditEventType.AGENT_STARTED,
-                context,
-                {"context": context.model_dump(mode="json", by_alias=True)},
-            )
-        reasoning_tick = self._monotonic()
-        try:
-            with Operation(Phase.REASONING):
-                provider = AgnoAgentProvider(definition, factory=self._agent_factory)
-                execution = provider.run(context)
-                response = execution.response
-        except Exception as error:
-            reasoning_seconds = self._elapsed(reasoning_tick)
-            if self._audit is not None:
-                self._audit.record(
-                    AuditEventType.AGENT_FAILED, context, self._error_data(error)
-                )
-            return self._failure(
-                context,
-                started_at,
-                error,
-                timings=self._timings(
-                    started_tick,
-                    context_seconds=context_seconds,
-                    reasoning_seconds=reasoning_seconds,
-                ),
-            )
-        reasoning_seconds = self._elapsed(reasoning_tick)
-        delay = Operation(Phase.DECISION_TO_ACTION) if response.proposals else None
-        if self._audit is not None:
-            execution_data = execution.model_dump(
-                mode="json", by_alias=True, exclude_none=True
-            )
-            execution_data.pop("response")
-            self._audit.record(
-                AuditEventType.AGENT_COMPLETED,
-                context,
-                {
-                    "response": response.model_dump(mode="json", by_alias=True),
-                    "runtime": {"name": "agno", **execution_data},
-                },
-            )
-        state = _OneShotPreparation(
-            context=context,
-            response=response,
-            provider=provider,
-            started_at=started_at,
-            started_tick=started_tick,
-            context_seconds=context_seconds,
-            model_queueing_seconds=execution.model_queueing_seconds,
-            reasoning_seconds=reasoning_seconds,
-            state_changes=(),
-            recording=current_binding(),
-            decision_delay=delay,
-        )
-        return PreparedAgentInvocation(context=context, response=response, token=state)
-
-    def _build_context(
-        self,
-        run_id: str,
-        agent_id: str,
-        intent: str,
-        invocation_id: str,
-        started_at: datetime,
-        coordination: AgentCoordinationContext | None,
-    ) -> tuple[AgentExecutionDefinition, AgentContext]:
         definition = self._catalog.resolve(agent_id)
         snapshot = self._substrate.inspect(run_id)
         if snapshot.run.id != run_id:
@@ -375,7 +256,72 @@ class OneShotAgentRuntime:
             shared_state=shared_state,
             coordination=coordination,
         )
-        return definition, context
+        context_seconds = self._elapsed(context_tick)
+        if self._audit is not None:
+            self._audit.record(
+                AuditEventType.AGENT_STARTED,
+                context,
+                {"context": context.model_dump(mode="json", by_alias=True)},
+            )
+        reasoning_tick = self._monotonic()
+        try:
+            provider = AgnoAgentProvider(
+                definition,
+                factory=self._agent_factory,
+            )
+            execution = provider.run(context)
+            response = execution.response
+        except Exception as error:
+            reasoning_seconds = self._elapsed(reasoning_tick)
+            if self._audit is not None:
+                self._audit.record(
+                    AuditEventType.AGENT_FAILED,
+                    context,
+                    self._error_data(error),
+                )
+            return self._failure(
+                context,
+                started_at,
+                error,
+                timings=self._timings(
+                    started_tick,
+                    context_seconds=context_seconds,
+                    reasoning_seconds=reasoning_seconds,
+                ),
+            )
+        reasoning_seconds = self._elapsed(reasoning_tick)
+        if self._audit is not None:
+            execution_data = execution.model_dump(
+                mode="json",
+                by_alias=True,
+                exclude_none=True,
+            )
+            execution_data.pop("response")
+            self._audit.record(
+                AuditEventType.AGENT_COMPLETED,
+                context,
+                {
+                    "response": response.model_dump(mode="json", by_alias=True),
+                    "runtime": {"name": "agno", **execution_data},
+                },
+            )
+
+        state = _OneShotPreparation(
+            context=context,
+            response=response,
+            provider=provider,
+            started_at=started_at,
+            started_tick=started_tick,
+            context_seconds=context_seconds,
+            model_queueing_seconds=execution.model_queueing_seconds,
+            reasoning_seconds=reasoning_seconds,
+            state_changes=(),
+        )
+        return PreparedAgentInvocation(
+            context=context,
+            response=response,
+            token=state,
+        )
 
     def execute(
         self,
@@ -386,14 +332,7 @@ class OneShotAgentRuntime:
 
         state = self._prepared_state(prepared)
         action_tick = self._monotonic()
-        with recording_scope(state.recording, proposal_id=proposal.id):
-            if state.decision_delay is not None:
-                state.decision_delay.finish()
-            with Operation(Phase.ACTION_ATTEMPT) as attempt:
-                result = self._capabilities.execute(prepared.context, proposal)
-                attempt.finish(
-                    str(result.status), failed=result.status != ActionStatus.SUCCEEDED
-                )
+        result = self._capabilities.execute(prepared.context, proposal)
         elapsed = self._elapsed(action_tick)
         with state.action_timing_lock:
             state.action_total_seconds += elapsed
@@ -406,15 +345,7 @@ class OneShotAgentRuntime:
     ) -> ActionResult | None:
         """Validate one proposal before it enters conflict arbitration."""
 
-        state = self._prepared_state(prepared)
-        with recording_scope(state.recording, proposal_id=proposal.id):
-            return self._validate(prepared, proposal)
-
-    def _validate(
-        self,
-        prepared: PreparedAgentInvocation,
-        proposal: ActionProposal,
-    ) -> ActionResult | None:
+        self._prepared_state(prepared)
         try:
             self._check_shared_state(prepared)
         except SharedStateError as error:
@@ -612,15 +543,10 @@ class OneShotAgentRuntime:
                 name=name,
                 targets=definition.instance.attachment.targets,
             )
-            with (
-                recording_scope(
-                    current_binding(),
-                    observation_id=f"observation-{uuid4()}",
-                    observation_source="global:agent_context",
-                ),
-                Operation(Phase.OBSERVATION),
-            ):
-                result = self._substrate.observe(run_id, query)
+            result = self._substrate.observe(
+                run_id,
+                query,
+            )
             if result.run_id != run_id or result.query != query:
                 raise AgentRuntimeError(
                     f"observation {name!r} returned mismatched identity",

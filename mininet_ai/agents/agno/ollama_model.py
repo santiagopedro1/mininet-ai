@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from agno.models.ollama import Ollama
 
-from mininet_ai.agents.agno.request_tracking import TrackedOllama
 from mininet_ai.sdk import AgentProviderError
 from mininet_ai.specification.models import ModelConfiguration, validate_ollama_host
 
@@ -35,7 +34,7 @@ def create_ollama_model(
                 code="agent.agno.ollama-think-invalid",
             )
         request_params = {"think": think}
-    return TrackedOllama(
+    return Ollama(
         id=configuration.name,
         host=host,
         request_params=request_params,
