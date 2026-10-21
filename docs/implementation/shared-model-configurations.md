@@ -94,7 +94,7 @@ environment's dependencies; explicitly choosing the interpreter fixed the toolin
 configuration. Intermediate Ruff import-order findings were corrected and the
 final check is clean. No unresolved test/lint/type-check failures remain.
 
-### CLI gates: all five Maintained Examples and explicit iperf compilation
+### CLI gates: all four Maintained Examples and explicit iperf compilation
 
 Exact commands (output retained outside the repo):
 
@@ -102,14 +102,14 @@ Exact commands (output retained outside the repo):
 mkdir -p /tmp/opencode/mininet-ai-89/94-gates
 export PYTHONPATH="$PWD"
 PY=/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python
-for name in getting-started autonomous-operation hierarchical-routing iperf-throughput link-failure-latency; do
+for name in getting-started autonomous-operation hierarchical-routing iperf-throughput; do
   "$PY" -m mininet_ai.cli validate "examples/$name/experiment.yaml" > "/tmp/opencode/mininet-ai-89/94-gates/$name.validate.txt" 2> "/tmp/opencode/mininet-ai-89/94-gates/$name.validate.stderr" || exit
   "$PY" -m mininet_ai.cli plan "examples/$name/experiment.yaml" --format json > "/tmp/opencode/mininet-ai-89/94-gates/$name.plan.json" 2> "/tmp/opencode/mininet-ai-89/94-gates/$name.plan.stderr" || exit
 done
 "$PY" -m mininet_ai.cli plan examples/iperf-throughput/experiment.yaml --format json > /tmp/opencode/mininet-ai-89/94-gates/iperf-explicit.plan.json 2> /tmp/opencode/mininet-ai-89/94-gates/iperf-explicit.stderr
 ```
 
-All eleven commands exited **0**, emitting only v4 plans:
+All nine commands exited **0**, emitting only v4 plans:
 
 | Maintained Example | Agents | Deprecation warnings per command |
 | --- | ---: | ---: |
@@ -117,7 +117,6 @@ All eleven commands exited **0**, emitting only v4 plans:
 | autonomous-operation | 4 | 0 |
 | hierarchical-routing | 6 | 7 |
 | iperf-throughput | 2 | 4 |
-| link-failure-latency | 10 | 3 |
 
 The additional explicit maintained iperf command also exited **0**, with
 `iperf-client@client` and `iperf-server@server` and four expected warnings.
