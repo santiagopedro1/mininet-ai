@@ -1,7 +1,15 @@
 # YAML authoring reference
 
 Use this reference when generating Mininet AI experiment YAML. The public
-contract is `mininet-ai/v1alpha3`; unknown fields are rejected.
+contract is `mininet-ai/v1alpha4`; unknown fields are rejected.
+
+Compatible `v1alpha3` source documents emit deprecation warnings and normalize
+to `v1alpha4` only under current validation rules. This applies to experiments
+and embedded/external blueprints and capabilities, including mixed supported
+versions. New plans always use `v1alpha4`. Original `v1alpha3` saved plans are
+instead validated and reconstructed without rewriting their snapshots or digests
+or reloading source files. Do not change archived plan headers. See
+[compatibility and migration](compatibility.md#public-specification-v1alpha3-to-v1alpha4).
 
 The authoritative definitions are the Pydantic models in
 `mininet_ai/specification/models.py`. Before returning generated files, always
@@ -51,7 +59,7 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 
 ## Common rules
 
-- Use `apiVersion: mininet-ai/v1alpha3` exactly.
+- Use `apiVersion: mininet-ai/v1alpha4` for newly authored documents.
 - Names start with a letter, contain only letters, digits, `_`, `.`, or `-`, and
   are at most 128 characters.
 - Metadata supports `name`, optional `description`, and optional string
@@ -76,7 +84,7 @@ Only the first three have `apiVersion`, `kind`, and `metadata`.
 Minimal shape:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: Experiment
 metadata:
   name: example
@@ -331,7 +339,7 @@ Coordination names refer to agent deployment names, not expanded instance IDs.
 Declarative Agno agent:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: AgentBlueprint
 metadata:
   name: operator
@@ -364,7 +372,7 @@ loop:
 Python-authored Agno agent or factory:
 
 ```yaml
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: AgentBlueprint
 metadata: {name: operator}
 implementation:
@@ -478,7 +486,7 @@ observations are not promised a transactionally consistent network snapshot.
 ## Capability
 
 ```yaml
-apiVersion: mininet-ai/v1alpha3
+apiVersion: mininet-ai/v1alpha4
 kind: Capability
 metadata:
   name: openflow.flow.install

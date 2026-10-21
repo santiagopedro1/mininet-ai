@@ -1,0 +1,1558 @@
+{
+  "$defs": {
+    "AgentInstance": {
+      "additionalProperties": false,
+      "properties": {
+        "attachment": {
+          "$ref": "#/$defs/Attachment"
+        },
+        "blueprint": {
+          "title": "Blueprint",
+          "type": "string"
+        },
+        "capabilities": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "deployment": {
+          "title": "Deployment",
+          "type": "string"
+        },
+        "execution": {
+          "$ref": "#/$defs/ExecutionConfiguration"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "memory": {
+          "$ref": "#/$defs/MemoryConfiguration"
+        },
+        "observationPolicies": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ObservationPolicy"
+          },
+          "title": "Observationpolicies",
+          "type": "array"
+        },
+        "observes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Observes",
+          "type": "array"
+        },
+        "priority": {
+          "default": 0,
+          "title": "Priority",
+          "type": "integer"
+        },
+        "privileges": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Privileges",
+          "type": "array"
+        },
+        "triggers": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "event": "#/$defs/EventTrigger",
+                "interval": "#/$defs/IntervalTrigger",
+                "manual": "#/$defs/ManualTrigger"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ManualTrigger"
+              },
+              {
+                "$ref": "#/$defs/IntervalTrigger"
+              },
+              {
+                "$ref": "#/$defs/EventTrigger"
+              }
+            ]
+          },
+          "title": "Triggers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "deployment",
+        "blueprint",
+        "attachment"
+      ],
+      "title": "AgentInstance",
+      "type": "object"
+    },
+    "AnomalyDetector": {
+      "additionalProperties": false,
+      "properties": {
+        "cooldown": {
+          "default": "0s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Cooldown",
+          "type": "string"
+        },
+        "event": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Event",
+          "type": "string"
+        },
+        "method": {
+          "const": "zscore",
+          "default": "zscore",
+          "title": "Method",
+          "type": "string"
+        },
+        "minSamples": {
+          "default": 10,
+          "minimum": 2,
+          "title": "Minsamples",
+          "type": "integer"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sensitivity": {
+          "default": 3,
+          "exclusiveMinimum": 0,
+          "title": "Sensitivity",
+          "type": "number"
+        },
+        "type": {
+          "const": "anomaly",
+          "default": "anomaly",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "event",
+        "path"
+      ],
+      "title": "AnomalyDetector",
+      "type": "object"
+    },
+    "Attachment": {
+      "additionalProperties": false,
+      "properties": {
+        "custom-layer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Custom-Layer"
+        },
+        "layer": {
+          "$ref": "#/$defs/AttachmentLayer"
+        },
+        "runtime": {
+          "title": "Runtime",
+          "type": "string"
+        },
+        "target-kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "targets": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Targets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer",
+        "targets",
+        "target-kind",
+        "runtime"
+      ],
+      "title": "Attachment",
+      "type": "object"
+    },
+    "AttachmentLayer": {
+      "enum": [
+        "global",
+        "management",
+        "control",
+        "data",
+        "host",
+        "observer",
+        "custom"
+      ],
+      "title": "AttachmentLayer",
+      "type": "string"
+    },
+    "ControllerProtocol": {
+      "enum": [
+        "tcp",
+        "ssl"
+      ],
+      "title": "ControllerProtocol",
+      "type": "string"
+    },
+    "ControllerType": {
+      "enum": [
+        "builtin",
+        "remote"
+      ],
+      "title": "ControllerType",
+      "type": "string"
+    },
+    "ConversationMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxMessages": {
+          "default": 50,
+          "minimum": 1,
+          "title": "Maxmessages",
+          "type": "integer"
+        },
+        "summaries": {
+          "default": false,
+          "title": "Summaries",
+          "type": "boolean"
+        }
+      },
+      "title": "ConversationMemoryConfiguration",
+      "type": "object"
+    },
+    "CoordinationEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "relationship": {
+          "enum": [
+            "coordinates",
+            "parent",
+            "peer"
+          ],
+          "title": "Relationship",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "relationship"
+      ],
+      "title": "CoordinationEdge",
+      "type": "object"
+    },
+    "CoordinationMode": {
+      "enum": [
+        "independent",
+        "centralized",
+        "hierarchical",
+        "distributed"
+      ],
+      "title": "CoordinationMode",
+      "type": "string"
+    },
+    "CoordinationPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CoordinationEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "mode": {
+          "$ref": "#/$defs/CoordinationMode"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "CoordinationPlan",
+      "type": "object"
+    },
+    "EventTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "cooldown": {
+          "default": "0s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Cooldown",
+          "type": "string"
+        },
+        "event": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Event",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject"
+        },
+        "type": {
+          "const": "event",
+          "default": "event",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "event"
+      ],
+      "title": "EventTrigger",
+      "type": "object"
+    },
+    "ExecutionConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "actionTimeout": {
+          "default": "30s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Actiontimeout",
+          "type": "string"
+        },
+        "maxConcurrency": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Maxconcurrency",
+          "type": "integer"
+        },
+        "overflow": {
+          "default": "reject",
+          "enum": [
+            "reject",
+            "drop-oldest",
+            "coalesce"
+          ],
+          "title": "Overflow",
+          "type": "string"
+        },
+        "queueCapacity": {
+          "default": 64,
+          "minimum": 1,
+          "title": "Queuecapacity",
+          "type": "integer"
+        },
+        "restart": {
+          "$ref": "#/$defs/RestartConfiguration"
+        }
+      },
+      "title": "ExecutionConfiguration",
+      "type": "object"
+    },
+    "IntervalTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "every": {
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Every",
+          "type": "string"
+        },
+        "initialDelay": {
+          "default": "0s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Initialdelay",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "interval",
+          "default": "interval",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "every"
+      ],
+      "title": "IntervalTrigger",
+      "type": "object"
+    },
+    "LearnedMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "automatic",
+          "enum": [
+            "automatic",
+            "agentic"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "scope": {
+          "default": "run",
+          "enum": [
+            "run",
+            "agent"
+          ],
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "title": "LearnedMemoryConfiguration",
+      "type": "object"
+    },
+    "LocalMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxEntries": {
+          "default": 1000,
+          "minimum": 1,
+          "title": "Maxentries",
+          "type": "integer"
+        }
+      },
+      "title": "LocalMemoryConfiguration",
+      "type": "object"
+    },
+    "ManualTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "default": "manual",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "manual",
+          "default": "manual",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "ManualTrigger",
+      "type": "object"
+    },
+    "MemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConversationMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "learned": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LearnedMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "local": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shared": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SharedMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "MemoryConfiguration",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "ObservationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregation": {
+          "default": "latest",
+          "enum": [
+            "latest",
+            "minimum",
+            "maximum",
+            "mean",
+            "sum"
+          ],
+          "title": "Aggregation",
+          "type": "string"
+        },
+        "detectors": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "anomaly": "#/$defs/AnomalyDetector",
+                "threshold": "#/$defs/ThresholdDetector"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ThresholdDetector"
+              },
+              {
+                "$ref": "#/$defs/AnomalyDetector"
+              }
+            ]
+          },
+          "title": "Detectors",
+          "type": "array"
+        },
+        "every": {
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Every",
+          "type": "string"
+        },
+        "observation": {
+          "minLength": 1,
+          "title": "Observation",
+          "type": "string"
+        },
+        "window": {
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Window",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation",
+        "every",
+        "window"
+      ],
+      "title": "ObservationPolicy",
+      "type": "object"
+    },
+    "OpenFlowProtocol": {
+      "enum": [
+        "OpenFlow10",
+        "OpenFlow11",
+        "OpenFlow12",
+        "OpenFlow13",
+        "OpenFlow14",
+        "OpenFlow15"
+      ],
+      "title": "OpenFlowProtocol",
+      "type": "string"
+    },
+    "PlannedController": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address"
+        },
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "kind": {
+          "const": "controller",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        },
+        "port": {
+          "title": "Port",
+          "type": "integer"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ControllerProtocol"
+        },
+        "type": {
+          "$ref": "#/$defs/ControllerType"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "type",
+        "protocol",
+        "port"
+      ],
+      "title": "PlannedController",
+      "type": "object"
+    },
+    "PlannedControllerDomain": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "controllers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Controllers",
+          "type": "array"
+        },
+        "kind": {
+          "const": "controller-domain",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "controllers"
+      ],
+      "title": "PlannedControllerDomain",
+      "type": "object"
+    },
+    "PlannedFlow": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "kind": {
+          "const": "flow",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "PlannedFlow",
+      "type": "object"
+    },
+    "PlannedHost": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "defaultRoute": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Defaultroute"
+        },
+        "kind": {
+          "const": "host",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "PlannedHost",
+      "type": "object"
+    },
+    "PlannedLink": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "bandwidth": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bandwidth"
+        },
+        "delay": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delay"
+        },
+        "endpoints": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Endpoints",
+          "type": "array"
+        },
+        "jitter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jitter"
+        },
+        "kind": {
+          "const": "link",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "loss": {
+          "default": 0,
+          "title": "Loss",
+          "type": "number"
+        },
+        "maxQueueSize": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxqueuesize"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "endpoints"
+      ],
+      "title": "PlannedLink",
+      "type": "object"
+    },
+    "PlannedNetwork": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "kind": {
+          "const": "network",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "PlannedNetwork",
+      "type": "object"
+    },
+    "PlannedPort": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "ipv4": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ipv4"
+        },
+        "kind": {
+          "const": "port",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "mac": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mac"
+        },
+        "mtu": {
+          "title": "Mtu",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        },
+        "role": {
+          "enum": [
+            "host-interface",
+            "switch-port"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "role",
+        "number",
+        "mtu"
+      ],
+      "title": "PlannedPort",
+      "type": "object"
+    },
+    "PlannedRegion": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "kind": {
+          "const": "region",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "PlannedRegion",
+      "type": "object"
+    },
+    "PlannedSwitch": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "controllers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Controllers",
+          "type": "array"
+        },
+        "datapath": {
+          "$ref": "#/$defs/SwitchDatapath"
+        },
+        "dpid": {
+          "title": "Dpid",
+          "type": "string"
+        },
+        "failMode": {
+          "$ref": "#/$defs/SwitchFailMode"
+        },
+        "kind": {
+          "const": "switch",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        },
+        "protocols": {
+          "items": {
+            "$ref": "#/$defs/OpenFlowProtocol"
+          },
+          "title": "Protocols",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "dpid",
+        "failMode",
+        "datapath",
+        "controllers",
+        "protocols"
+      ],
+      "title": "PlannedSwitch",
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "properties": {
+        "conflicting-actions": {
+          "default": "reject",
+          "enum": [
+            "reject",
+            "serialize",
+            "priority"
+          ],
+          "title": "Conflicting-Actions",
+          "type": "string"
+        },
+        "require-postcondition-check": {
+          "default": false,
+          "title": "Require-Postcondition-Check",
+          "type": "boolean"
+        }
+      },
+      "title": "Policy",
+      "type": "object"
+    },
+    "ResourceKind": {
+      "enum": [
+        "network",
+        "region",
+        "controller",
+        "controller-domain",
+        "switch",
+        "host",
+        "port",
+        "link",
+        "flow"
+      ],
+      "title": "ResourceKind",
+      "type": "string"
+    },
+    "ResourceLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max-concurrent-invocations": {
+          "default": 32,
+          "minimum": 1,
+          "title": "Max-Concurrent-Invocations",
+          "type": "integer"
+        },
+        "max-instances": {
+          "default": 256,
+          "minimum": 1,
+          "title": "Max-Instances",
+          "type": "integer"
+        },
+        "max-queued-events": {
+          "default": 4096,
+          "minimum": 1,
+          "title": "Max-Queued-Events",
+          "type": "integer"
+        }
+      },
+      "title": "ResourceLimits",
+      "type": "object"
+    },
+    "RestartConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "backoff": {
+          "default": "1s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Backoff",
+          "type": "string"
+        },
+        "maxAttempts": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Maxattempts",
+          "type": "integer"
+        },
+        "policy": {
+          "default": "never",
+          "enum": [
+            "never",
+            "on-failure"
+          ],
+          "title": "Policy",
+          "type": "string"
+        }
+      },
+      "title": "RestartConfiguration",
+      "type": "object"
+    },
+    "SharedMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxEntries": {
+          "default": 1000,
+          "minimum": 1,
+          "title": "Maxentries",
+          "type": "integer"
+        },
+        "scopes": {
+          "items": {
+            "enum": [
+              "deployment",
+              "run"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Scopes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scopes"
+      ],
+      "title": "SharedMemoryConfiguration",
+      "type": "object"
+    },
+    "SwitchDatapath": {
+      "enum": [
+        "kernel",
+        "userspace"
+      ],
+      "title": "SwitchDatapath",
+      "type": "string"
+    },
+    "SwitchFailMode": {
+      "enum": [
+        "standalone",
+        "secure"
+      ],
+      "title": "SwitchFailMode",
+      "type": "string"
+    },
+    "ThresholdDetector": {
+      "additionalProperties": false,
+      "properties": {
+        "cooldown": {
+          "default": "0s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Cooldown",
+          "type": "string"
+        },
+        "event": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Event",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "eq",
+            "ne"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "type": {
+          "const": "threshold",
+          "default": "threshold",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "event",
+        "path",
+        "operator",
+        "value"
+      ],
+      "title": "ThresholdDetector",
+      "type": "object"
+    }
+  },
+  "$id": "urn:mininet-ai:schema:v1alpha3:deployment-plan",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agents": {
+      "items": {
+        "$ref": "#/$defs/AgentInstance"
+      },
+      "title": "Agents",
+      "type": "array"
+    },
+    "apiVersion": {
+      "const": "mininet-ai/v1alpha3",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "coordination": {
+      "$ref": "#/$defs/CoordinationPlan"
+    },
+    "digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Digest",
+      "type": "string"
+    },
+    "kind": {
+      "const": "DeploymentPlan",
+      "default": "DeploymentPlan",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "policies": {
+      "$ref": "#/$defs/Policy"
+    },
+    "resourceLimits": {
+      "$ref": "#/$defs/ResourceLimits"
+    },
+    "resources": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "controller": "#/$defs/PlannedController",
+            "controller-domain": "#/$defs/PlannedControllerDomain",
+            "flow": "#/$defs/PlannedFlow",
+            "host": "#/$defs/PlannedHost",
+            "link": "#/$defs/PlannedLink",
+            "network": "#/$defs/PlannedNetwork",
+            "port": "#/$defs/PlannedPort",
+            "region": "#/$defs/PlannedRegion",
+            "switch": "#/$defs/PlannedSwitch"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/PlannedNetwork"
+          },
+          {
+            "$ref": "#/$defs/PlannedRegion"
+          },
+          {
+            "$ref": "#/$defs/PlannedController"
+          },
+          {
+            "$ref": "#/$defs/PlannedControllerDomain"
+          },
+          {
+            "$ref": "#/$defs/PlannedSwitch"
+          },
+          {
+            "$ref": "#/$defs/PlannedHost"
+          },
+          {
+            "$ref": "#/$defs/PlannedPort"
+          },
+          {
+            "$ref": "#/$defs/PlannedLink"
+          },
+          {
+            "$ref": "#/$defs/PlannedFlow"
+          }
+        ]
+      },
+      "title": "Resources",
+      "type": "array"
+    },
+    "snapshot": {
+      "additionalProperties": true,
+      "title": "Snapshot",
+      "type": "object"
+    },
+    "source": {
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "substrate": {
+      "minLength": 1,
+      "title": "Substrate",
+      "type": "string"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "metadata",
+    "source",
+    "digest",
+    "substrate",
+    "resources",
+    "agents",
+    "coordination",
+    "policies",
+    "snapshot"
+  ],
+  "title": "DeploymentPlan",
+  "type": "object"
+}

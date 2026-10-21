@@ -1,4 +1,4 @@
-"""The ``mininet-ai/v1alpha3`` public schema.
+"""The ``mininet-ai/v1alpha4`` public schema.
 
 The models intentionally describe logical placement. Process isolation and real
 network attachment are substrate/runtime concerns introduced in later phases.
@@ -7,6 +7,7 @@ network attachment are substrate/runtime concerns introduced in later phases.
 from __future__ import annotations
 
 import re
+import warnings
 from enum import StrEnum
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address
 from typing import Annotated, Any, Literal
@@ -19,18 +20,51 @@ from pydantic import (
     HttpUrl,
     JsonValue,
     TypeAdapter,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
     field_validator,
     model_validator,
 )
 
 from mininet_ai.durations import duration_seconds
 
-API_VERSION: Literal["mininet-ai/v1alpha3"] = "mininet-ai/v1alpha3"
+API_VERSION: Literal["mininet-ai/v1alpha4"] = "mininet-ai/v1alpha4"
 NAME_PATTERN = r"^[a-zA-Z][a-zA-Z0-9_.-]*$"
 
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class SpecificationDeprecationWarning(FutureWarning):
+    """Visible warning for bounded acceptance of old source documents."""
+
+
+class VersionedDocument(StrictModel):
+    api_version: Literal["mininet-ai/v1alpha4"] = Field(alias="apiVersion")
+
+    @field_validator("api_version", mode="wrap")
+    @classmethod
+    def supported_version(
+        cls, value: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> str:
+        if value == "mininet-ai/v1alpha3":
+            # Saved snapshots are executable inputs, never source migrations.
+            if info.context and "legacy_saved_plan" in info.context:
+                return value if info.context["legacy_saved_plan"] else handler(value)
+            source = (
+                info.context.get("source", "Python input")
+                if info.context
+                else "Python input"
+            )
+            warnings.warn(
+                f"{source}: {cls.__name__} mininet-ai/v1alpha3 is deprecated; "
+                "validate against current rules and migrate to mininet-ai/v1alpha4",
+                SpecificationDeprecationWarning,
+                stacklevel=3,
+            )
+            value = API_VERSION
+        return handler(value)
 
 
 Name = Annotated[str, Field(pattern=NAME_PATTERN, min_length=1, max_length=128)]
@@ -364,8 +398,7 @@ class MemoryConfiguration(StrictModel):
     shared: SharedMemoryConfiguration | None = None
 
 
-class AgentBlueprint(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
+class AgentBlueprint(VersionedDocument):
     kind: Literal["AgentBlueprint"]
     metadata: Metadata
     implementation: Implementation = Field(default_factory=Implementation)
@@ -405,8 +438,7 @@ class CapabilityRollbackConfiguration(StrictModel):
         return value
 
 
-class CapabilityDefinition(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
+class CapabilityDefinition(VersionedDocument):
     kind: Literal["Capability"]
     metadata: Metadata
     targets: list[ResourceKind] = Field(min_length=1)
@@ -670,8 +702,7 @@ class ResourceLimits(StrictModel):
     )
 
 
-class Experiment(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha3"] = Field(alias="apiVersion")
+class Experiment(VersionedDocument):
     kind: Literal["Experiment"]
     metadata: Metadata
     substrate: Substrate

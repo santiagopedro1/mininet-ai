@@ -242,12 +242,12 @@
       ]
     }
   ],
-  "apiVersion": "mininet-ai/v1alpha3",
+  "apiVersion": "mininet-ai/v1alpha4",
   "coordination": {
     "edges": [],
     "mode": "independent"
   },
-  "digest": "sha256:2d4cc0a6117c25b5f7dd31521d7bf4f05bdf0e654fb08b33fd98ef2674386f2b",
+  "digest": "sha256:fa573b29f587c958dd981ddb1e6f3968581912cdcb8f7dbd185d594cd4d8f752",
   "kind": "DeploymentPlan",
   "metadata": {
     "description": "Compiler fixture using one blueprint at four attachment layers.",
@@ -622,10 +622,10 @@
         ]
       }
     ],
-    "apiVersion": "mininet-ai/v1alpha3",
+    "apiVersion": "mininet-ai/v1alpha4",
     "blueprints": [
       {
-        "apiVersion": "mininet-ai/v1alpha3",
+        "apiVersion": "mininet-ai/v1alpha4",
         "implementation": {
           "entrypoint": null,
           "type": "declarative"
@@ -665,7 +665,7 @@
     ],
     "capabilityDefinitions": [
       {
-        "apiVersion": "mininet-ai/v1alpha3",
+        "apiVersion": "mininet-ai/v1alpha4",
         "effects": [
           "dataplane.write"
         ],

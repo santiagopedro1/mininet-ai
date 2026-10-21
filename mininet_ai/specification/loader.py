@@ -41,7 +41,7 @@ def _read_yaml(path: Path) -> Any:
 
 def _parse[T: BaseModel](model: type[T], data: Any, path: Path) -> T:
     try:
-        return model.model_validate(data)
+        return model.model_validate(data, context={"source": str(path)})
     except ValidationError as error:
         details = []
         for issue in error.errors(include_url=False):

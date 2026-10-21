@@ -8,6 +8,7 @@ from typing import TypeVar
 
 from pydantic import ValidationError
 
+from mininet_ai.compiler.legacy import LEGACY_API_VERSION, validate_legacy_plan
 from mininet_ai.compiler.models import AgentInstance, DeploymentPlan
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.specification.models import (
@@ -35,8 +36,13 @@ class ExecutionCatalog:
 
     def __init__(self, plan: DeploymentPlan) -> None:
         try:
-            experiment = Experiment.model_validate(plan.snapshot)
-        except ValidationError as error:
+            legacy = plan.api_version == LEGACY_API_VERSION
+            if legacy:
+                validate_legacy_plan(plan.model_dump(mode="json", by_alias=True))
+            experiment = Experiment.model_validate(
+                plan.snapshot, context={"legacy_saved_plan": legacy}
+            )
+        except (ValidationError, ValueError) as error:
             raise AgentRuntimeError(
                 f"deployment plan snapshot is not executable: {error}",
                 code="agent.catalog.invalid-snapshot",

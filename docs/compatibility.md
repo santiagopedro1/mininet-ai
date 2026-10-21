@@ -9,10 +9,10 @@ driver contract.
 
 The project currently defines ten contract families:
 
-- `mininet-ai/v1alpha3` covers `Experiment`, `AgentBlueprint`, and `Capability`
+- `mininet-ai/v1alpha4` covers `Experiment`, `AgentBlueprint`, and `Capability`
   documents, plus the `DeploymentPlan` produced by the compiler. The deployment
   plan JSON Schema uses the matching identifier
-  `urn:mininet-ai:schema:v1alpha3:deployment-plan`.
+  `urn:mininet-ai:schema:v1alpha4:deployment-plan`.
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
@@ -125,11 +125,59 @@ To migrate:
    ledger history remains stored, but interpreting archived plans requires their
    original schema; no automatic migration of stored records is provided.
 
-`Experiment`, `AgentBlueprint`, `Capability`, and `DeploymentPlan` accept only
-`mininet-ai/v1alpha3`; `v1alpha1` and `v1alpha2` documents are rejected, not
-silently upgraded. The package version and independently versioned substrate,
-runtime-state, agent-runtime, audit, event, coordination, and ledger contracts
-are unchanged.
+That historical migration did not support `v1alpha1` or `v1alpha2` documents.
+The bounded `v1alpha3` compatibility policy below applies to the current release.
+
+### Public specification v1alpha3 to v1alpha4
+
+The current authoring and deployment-plan contract is `mininet-ai/v1alpha4`,
+with schema ID `urn:mininet-ai:schema:v1alpha4:deployment-plan`. The version
+reserves the combined reusable-model-configuration changes, including plan
+provenance and earlier construction validation. Inline model syntax and Python
+factory model optionality are unchanged. Substrate, substrate-runtime,
+runtime-state, and agent-runtime contracts are **not** bumped.
+
+Source documents and saved plans have deliberately different compatibility rules:
+
+| Input | Policy |
+| --- | --- |
+| Native `v1alpha4` source | Validate against current rules and compile a `v1alpha4` plan. |
+| `v1alpha3` source | Emit a visible deprecation warning, validate against all current rules, and normalize accepted documents to `v1alpha4`. |
+| Original `v1alpha3` saved plan | Validate its original plan/snapshot structure and recorded SHA-256 snapshot digest, then reconstruct directly for execution. Preserve the snapshot, version fields, and digest unchanged. |
+| `v1alpha1`, `v1alpha2`, or unknown versions | Reject; no general historical conversion is provided. |
+
+Source acceptance covers experiments, embedded definitions, external blueprint
+and capability files, and Python-created documents. Supported source versions
+may be mixed. Unknown fields and invalid values are errors, never discarded or
+interpreted using older semantics. Subsequent compile-time construction checks
+apply to compatible old source too; selecting an old source version cannot
+bypass current rules. Applicable failures can therefore move from agent
+construction to validation/planning as those checks are introduced.
+
+To migrate source, change the header on the experiment and each blueprint and
+capability (topology files remain unversioned):
+
+```yaml
+# Previously accepted source (deprecated):
+apiVersion: mininet-ai/v1alpha3
+# Use this header instead:
+apiVersion: mininet-ai/v1alpha4
+```
+
+Run `validate` and `plan`, correct any current-rule errors, and review the newly
+compiled plan and digest. New compilations emit only `v1alpha4`; even unchanged
+inline experiments acquire new version fields and therefore a new digest. No
+cross-version digest equality is promised.
+
+**Do not edit an archived plan's header or recompile it merely to load it.**
+The bounded saved-plan reader does not apply source normalization, recover source
+files, or impose new source-time parameter restrictions. A structurally accepted
+legacy parameter that failed at runtime still fails at runtime. Invalid original
+shape or a digest mismatch fails loading. The SDK consumes the embedded resolved
+definitions, without consulting experiment or model configuration files. Runtime
+environment selectors and installed Python factory code remain runtime
+dependencies; source independence is not environment independence. This reader
+also permits unchanged `v1alpha3` plans inside existing runtime-state envelopes.
 
 ### Agent runtime v1alpha1 to v1alpha2
 

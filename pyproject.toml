@@ -53,4 +53,5 @@ typeCheckingMode = "basic"
 include = ["mininet_ai*"]
 
 [tool.setuptools.package-data]
+"mininet_ai.compiler" = ["schemas/*.json"]
 "mininet_ai.experiments.latency" = ["schemas/*.json"]
