@@ -1,121 +1,233 @@
 # Link-Failure Latency
 
-**Primary goal: both** — reproducible latency experiments and agent-controlled
-forwarding. Ten switch agents install exact supplied alternate-path policies;
-this is not autonomous route discovery or a model comparison.
+Generate reproducible ten-switch ring-plus-chords scenarios, with one logical
+agent per switch and two independently seeded, distinct host attachments.
+Recovery uses supplied minimum-hop forwarding policies while a used switch link
+remains down. There is no model comparison.
 
-## Supported invocation
+**Scope:** scenario generation implements ADR-0003 version 1. The public bounded
+coordinator and Substrate adapter now implement the trial lifecycle (see below).
+The CLI collector below remains legacy v1: wiring it to the coordinator and v2
+Run Evidence belongs to [#78](https://github.com/santiagopedro1/mininet-ai/issues/78).
+Do not treat legacy output or deterministic tests as live ADR acceptance.
 
-From the repository root, with Python 3.14 and project dependencies installed:
+*Primary goal: both — a reproducible latency scenario and a demonstration of
+agent-driven explicit forwarding with network-level effect measurement.*
+
+## Files
+
+- `experiment.yaml`: checked-in seed-0 topology, switch-agent placement, and policies.
+- `agent-blueprints/ollama-switch-router.yaml`: Ollama model, endpoint, and agent instructions.
+- `capabilities/openflow-flow-install.yaml`: allowed forwarding action contract.
+- `run.py`: example-local failure injection, measurements, and result collection.
+
+The YAML files are the source of configuration, like the other maintained
+examples. The runner loads them rather than defining agents and capabilities
+in the installed `mininet_ai` package.
+
+## Validate and inspect (no root or Ollama required)
+
+From the repository root:
 
 ```bash
-uv run python examples/link-failure-latency/run.py --seed 0 --plan
-uv run python examples/link-failure-latency/run.py --seed 7 --spec > link-failure.yaml
-uv run mininet-ai validate link-failure.yaml
+.venv/bin/mininet-ai validate examples/link-failure-latency/experiment.yaml
+.venv/bin/mininet-ai plan examples/link-failure-latency/experiment.yaml
+.venv/bin/mininet-ai run examples/link-failure-latency/experiment.yaml --dry-run
 ```
 
-Live runs require Linux, root, Mininet, running Open vSwitch, iproute2, `ping`,
-and the configured Ollama model/server. The default blueprint requests
-`qwen3.5:latest` at `http://10.10.10.152:11434`. No live execution was performed
-as part of rootless automated acceptance.
+The checked-in topology matches the ADR-0003 seed-0 conformance vector. To generate
+another reproducible topology while retaining the YAML agent configuration:
+
+```bash
+.venv/bin/python examples/link-failure-latency/run.py --seed 7 --plan
+.venv/bin/python examples/link-failure-latency/run.py --seed 7 --spec > link-failure.yaml
+.venv/bin/mininet-ai validate link-failure.yaml
+```
+
+The generated JSON specification is also valid YAML. Generation requires an
+explicit integer seed in `[0, 2^64 - 1]`; the `generator-version` label is
+`sha256-counter-v1`. SHA-256 counter streams independently determine the cycle,
+1–5 distinct non-cycle chords, host placement, and failure-pass ordering. This is
+a **ring-plus-chords distribution**, not uniform sampling of connected graphs.
+Ports follow UTF-8 neighbor ordering, with host ports last. All links use
+100 Mbps, 1 ms delay, and zero configured loss; switches are controller-free,
+secure OpenFlow13, with no learning, flooding, NORMAL, or automatic failover.
+
+Healthy and recovery policies are destination-rooted minimum-hop trees, choosing
+the smallest UTF-8 next-hop ID among equally short alternatives. They include
+explicit host-traffic and directed ARP rules. Only healthy-path switch links with
+both directional recovery routes are eligible faults. The measured scheduler
+consumes the entire shuffled eligible set before starting a fresh pass; unsuccessful
+attempts still consume their selections.
+
+The rootless `FailurePasses(seed, eligible, kind="warmup" | "measured")` iterator in
+`mininet_ai.experiments.scenarios` provides independent per-pass streams for the
+lifecycle coordinator, which executes warm-up separately from measured attempts.
+
+## Bounded lifecycle API
+
+`mininet_ai.experiments.latency.trials` exposes `TrialConfig`, `TrialCoordinator`,
+`ThreadRuntime`, and the injectable `Runtime`/`TrialSession` public seams.
+`mininet_ai.experiments.latency.session.SubstrateTrialSession` adapts a selected
+`LinkFailureScenario` to the existing Substrate and one-shot agent APIs.
+
+Given a scenario built by this example, the integration is:
+
+```python
+from uuid import uuid4
+from mininet_ai.experiments.latency.session import SubstrateTrialSession
+from mininet_ai.experiments.latency.trials import (
+    ThreadRuntime, TrialConfig, TrialCoordinator,
+)
+from mininet_ai.runtime.instrumentation import PhaseRecorder
+from mininet_ai.substrates import MininetOVSRuntime
+
+runtime = ThreadRuntime()
+recorder = PhaseRecorder(str(uuid4()), clock=runtime.clock)
+coordinator = TrialCoordinator(runtime, recorder, TrialConfig())
+run = coordinator.run(
+    scenario,
+    lambda selected, trial_id: SubstrateTrialSession(
+        selected, trial_id, MininetOVSRuntime(),
+    ),
+    run_id=str(uuid4()),
+)
+```
+
+Always supply the **same monotonic nanosecond clock** to runtime and recorder.
+Defaults are ten measured attempts, one warm-up, and separate setup/injection/
+response/cleanup budgets of 120/10/120/30 seconds. Failure sampling defaults to
+100 ms; designated bidirectional probe slots are fixed at one second. Missing
+slots break streaks; late rounds cannot backfill them. Baseline and recovery each
+require three timely all-success rounds. Response begins at fresh confirmation
+of both failed-link endpoints down, independently of disruption probing.
+If a configured response budget expires before injection confirmation finishes,
+the gate closes response work immediately while the independent injection window
+continues to classify disruption. No failed probe in that window means
+`no_observed_disruption`; it is not counted as a disrupted response timeout.
+
+The result retains separate immutable trial outcomes and cleanup outcomes,
+scheduled slots, actual worker start/end ticks, incomplete/late jobs, and the
+recorder's correlated phase/Provider evidence. In-memory ticks are integers;
+the output integration must encode persisted ticks as decimal strings per v2.
+No persistence or summary format is introduced by this API.
+`run.counts("warmup" | "measured")` keeps requested, started, outcome-finalized,
+and cleanup-completed counts separate. Correlation retains the experiment run ID
+and a distinct `substrate_run_id` for each fresh deployment.
+
+Every attempt constructs a new session and deployment. Failed measured attempts
+consume their selection; failed warm-up aborts. Another attempt requires public
+Substrate resource-absence evidence, stopped workers, and authoritative Provider
+terminal evidence. Local cancellation is not proof. The current legacy Mininet
+adapter may return **unknown** cleanup: this safely aborts rather than claiming
+isolation, even after recovery. No privileged helper or remote cancellation
+protocol is added here. Endpoint checks provide sampled, not continuous,
+failed-link evidence. Privileged live recovery/cleanup remains **unverified**.
+
+For exact replay, the runner's `LinkFailureScenario.to_record()` retains the actual
+graph, ports, attachments, selected fault, both directional paths, and every
+switch's healthy/recovery policies, together with the compiled specification and
+generator configuration. `generator_configuration` describes the version-1
+distribution; the retained `experiment` is authoritative for actual network
+settings, including saved-YAML overrides. `LinkFailureScenario.from_record(record)` uses those saved
+inputs and policies, not regenerated seed output. Manifest and trial JSONL records
+include this data under `scenario`. Replay records are trusted experiment inputs,
+not an interface for accepting untrusted action policies.
+
+## Run locally
+
+Requires Linux, root, Mininet, running Open vSwitch, iproute2, `ping`, and a
+reachable Ollama server with `qwen3.5:latest` installed. The default endpoint is
+`http://10.10.10.152:11434`; thinking is disabled and sampling is pinned.
 
 ```bash
 sudo "$PWD/.venv/bin/python" examples/link-failure-latency/run.py \
-  --seed 0 --generator-version sha256-counter-v1 \
-  --measured 10 --warmup 1 \
-  --setup-budget 120 --injection-budget 10 --response-budget 120 \
-  --cleanup-budget 30 --sample-period 0.1 --probe-period 1 \
-  --output "$PWD/latency-run-001"
+  --trials 5 --timeout 180 --poll-interval 0.1 \
+  --output "$PWD/link-failure-results.jsonl"
 ```
 
-`--seed` is mandatory (unsigned 64-bit). `--generator-version` currently accepts
-only `sha256-counter-v1`. `--output` must name a **new directory**. Budgets/periods
-must be finite and positive; designated probe slots remain fixed at one second.
-`--trials` is an alias for `--measured`. `--model` and `--ollama-host` override
-the blueprint. A positional specification retains agent configuration, but the
-explicit seed regenerates the topology. The old `--timeout`/`--poll-interval`
-options and single-file output are not the supported v2 CLI.
+Without `--seed`, the runner uses the checked-in topology as written. Edit the
+blueprint YAML to change the single configured Provider, or use `--ollama-host`
+and `--model` for temporary overrides. Pass a specification path as the first
+argument to run a saved generated specification. With `--seed`, only the
+topology and generator labels are regenerated; other YAML settings are retained.
+The runner is specific to this scenario: two hosts named `h1` and `h2`, attached
+to distinct switches in a ten-switch general graph.
+Without regeneration, forwarding policies use the addresses and port numbers
+from the YAML plan.
+Ten agents can reason concurrently; Ollama's own request queueing is included
+in reasoning time. Each trial gets a fresh topology and fresh agent sessions.
+The harness installs and checks baseline forwarding before injecting the fault.
+Baseline setup is outside the measured response cycle. Agent instructions
+request the precomputed alternate-path policy; this measures reasoning and
+policy installation, **not autonomous route discovery**. Proposals must exactly
+match that policy before any are executed. Agents cannot re-enable the link.
 
-The YAML blueprint/capability files remain configuration sources. The runner
-rejects nonconforming network/address settings rather than recording false v2
-provenance. The ordinary `mininet-ai run` command does not run this scheduler.
+Do not use the ordinary `mininet-ai run` command to collect these measurements:
+the specification alone does not contain the trial scheduler or
+network-recovery collector. Use the example-local `run.py` above.
 
-## Lifecycle and measurement
+## Measurement definitions
 
-SHA-256 streams produce the ADR-0003 ten-switch ring plus 1–5 chords, distinct
-host placements, canonical ports, and independent warm-up/measured failure
-passes. Healthy-path faults have alternate paths in both directions. Actual
-graph, paths, ports, policy rules, configuration, code revision/dirty state,
-Python/package/platform provenance are retained in `run.json`. The full compiled
-experiment and example replay record are retained under provenance environment;
-the normalized scenario covers recovery policies for every eligible fault.
-Resolved model identity is explicitly null when unknown: a tag is not an artifact ID.
+All experiment timestamps use the process monotonic clock and are exported as
+seconds relative to failure-command submission. Wall-clock event timestamps
+are not subtracted from monotonic timestamps.
 
-Each attempt owns a fresh deployment and agent sessions. Baseline requires three
-consecutive successful bidirectional rounds. After injection, both link endpoints
-must be freshly observed down, and a designated probe must fail within the
-injection window. Agents need not wait for that failed probe. No observed loss
-means `no_observed_disruption`, not recovery. Recovery requires three consecutive
-timely bidirectional all-success rounds, each bracketed by down checks.
-
-| Measurement | Boundaries |
+| Field | Definition |
 | --- | --- |
-| Detection | Confirmed link-down → first agent recognition of explicitly global/harness evidence |
-| Reasoning | Before Provider construction → decision/failure |
-| Agent action-effect | First attempted action → shared confirmed recovery |
-| Recovery | Confirmed link-down → third complete recovery round |
-| Execution / verification | Individual capability execution / postcondition phases |
+| `detection_seconds` | Failure-command submission to a worker observing the failed link DOWN in global topology state. Includes administrative fault application, confirmation of traffic disruption, worker scheduling, and polling. This is not local switch detector latency. |
+| `reasoning_seconds` | Existing runtime duration of Provider construction and invocation, including model/server queueing and response parsing. Context construction is outside this field. |
+| `action_execution_seconds` | Sum of monotonic wall durations of attempted capability executions, including attempts that raise errors. |
+| `action_effect_seconds` | First attempted recovery action by that agent to the shared successful host-to-host connectivity observation, provided the failed link is still DOWN. Includes execution and recovery polling, not just postcondition verification. |
+| `recovery_seconds` | Failure-command submission to the successful connectivity observation at trial level. |
+| `elapsed_seconds` | Failure-command submission to completion, including draining in-flight workers. Baseline/deployment-failed trials instead measure failed setup. |
 
-Raw ticks are exact monotonic nanosecond **strings**, not accuracy claims. Probe
-and observation overhead, fixed-slot misses, Provider queueing, and sampled
-non-atomic endpoint checks limit resolution. Shared recovery does not prove an
-individual agent caused it. Overlapping phase durations must not be summed.
-SDK `eventDetectionSeconds`, `reasoningSeconds`, and `actionEffectSeconds` retain
-their original meanings separately; SDK action-effect is verification timing.
+The action-effect endpoint is **shared network recovery**, not evidence that an
+individual agent caused recovery. A switch may not need to change its rules,
+and connectivity may return before every agent finishes. Actions that start
+after the recovery observation have no action-effect value. The three primary
+phase durations do not partition the full response cycle: context building,
+scheduling, and overlapping agent work prevent summing them meaningfully.
 
-## V2 Run Evidence
+The harness first proves baseline connectivity, then proves that the injection
+disrupted it before starting the agent workers. A single successful ICMP probe
+confirms bidirectional packet delivery; it is not a sustained traffic or
+throughput guarantee. Probe duration and the polling interval limit measurement
+resolution; failed ICMP probes can take approximately one second.
 
-* Immutable atomic `run.json`.
-* Append-only/fsynced `events.jsonl`: transitions, readiness, observations, probes,
-  admissions, Provider request proof, frozen trial end, cleanup, run terminal.
-* `trials.jsonl` and ten `agents.jsonl` projections per finalized attempt, written
-  after bounded cleanup. Trial outcome and cleanup outcome remain separate.
-* Atomic `summary.json`, reconciled by the artifact validator.
+## Results and unsuccessful trials
 
-Summaries exclude warm-up and late work from primary measured populations while
-retaining their evidence. Counts distinguish requested, started, finalized,
-cleanup-completed, unknown outcomes and unstarted remainder. Statistics are
-count/mean/median/min/max, null when empty; **no percentiles**. Availability,
-missing reasons and late exclusions accompany each grouping. Recovery rates use
-all started measured attempts and, separately, valid disrupted recovered/timeout
-attempts. Timing of recovery is **conditional on recovery**. Pooled agent values
-are **descriptive correlated observations**, not independent trial repetitions.
-Per-agent, failed-link, trial-outcome and phase-outcome breakdowns are labelled.
+The JSONL output contains a versioned manifest (including the full generated
+specification and plan digest), one record per trial, and a final summary. Each
+trial record is flushed to disk before teardown. Existing files are never
+overwritten. Raw agent records include invocation identifiers and statuses.
 
-A failed warm-up or uncertain cleanup/Provider containment aborts before another
-attempt. A recovered trial followed by cleanup failure remains recovered. The
-legacy Mininet adapter can report unknown removal evidence; that is a safe abort,
-not a passing teardown. Local cancellation/factory closure does not prove remote
-termination. Ollama supports normal-response proof, not remote cancellation proof.
+Missing phases remain `null`, never synthetic zeros. Trial statuses distinguish
+`recovered`, `timeout`, `baseline_failed`, `injection_failed`, and `error`.
+Deployment failures also produce `error` trial records with a null run ID.
+Cleanup failures produce a separate `cleanup_error` record and stop further
+trials rather than risk deploying over an incompletely released topology. The
+summary of completed trials is still written before the error is propagated.
+Summary distributions report measured count, missing count, mean, median, and
+nearest-rank p95. Recovery statistics contain observed recovery only; the
+status counts and missing counts retain unsuccessful trials. Agent-phase
+statistics contain all available measurements, including failed invocations.
 
-Storage/recorder failure is reported, never converted to success. Interruption or
-crash may leave only a prefix, without projections or summary. Never infer
-completion without terminal evidence; inspect residual resources before retrying.
-Collection is bounded at cleanup expiry: outstanding operations remain incomplete;
-callbacks arriving after projection finalization cannot rewrite saved outcomes.
+A trial timeout stops new actions; already-running reasoning/action calls are
+drained before teardown, so wall time can exceed `--timeout`. The configured
+reasoning timeout is 120 seconds. Results are not filtered for model warm-up;
+record any external Ollama warm-up procedure separately. Interrupted runs may
+have trial records but no final summary.
 
-```python
-from mininet_ai.experiments.latency import validate_artifact
+## Tests
 
-result = validate_artifact("latency-run-001")
-print(result.state, result.integrity, result.issues, result.incomplete_reasons)
+```bash
+.venv/bin/python -m pytest tests/experiments/test_link_failure.py -q
+.venv/bin/python -m pytest tests/experiments/test_seeded_scenarios.py -q
+sudo env MININET_AI_LIVE_TESTS=1 "$PWD/.venv/bin/python" -m pytest \
+  tests/integration/test_link_failure.py -q
 ```
 
-Historical v1 is one JSONL stream with embedded agents, command-submission timing
-and pooled p95. It is **not interchangeable** with v2. Legacy Python helpers are
-retained for compatibility tests, not evidence of ADR-0001–0006 acceptance.
-
-## Acceptance
-
-See [the automated/live acceptance checklist](../../docs/latency-acceptance.md).
-Rootless tests do not certify live recovery, teardown, or remote termination.
+The live acceptance test uses deterministic Agno responses, not Ollama, to
+isolate actual forwarding and measurement behavior. It is opt-in and skips
+without root or required tools. Open vSwitch must already be running.

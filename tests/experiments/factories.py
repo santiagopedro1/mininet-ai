@@ -8,16 +8,8 @@ from tests.experiments import example
 
 
 def create_recovery_agent(definition: AgentExecutionDefinition) -> Agent:
-    return recovery_agent(definition, example.build_scenario(seed=7))
-
-
-def create_seed_zero_recovery_agent(definition: AgentExecutionDefinition) -> Agent:
-    return recovery_agent(definition, example.build_scenario(seed=0))
-
-
-def recovery_agent(definition: AgentExecutionDefinition, scenario) -> Agent:
     switch = definition.instance.attachment.targets[0]
-    rules = scenario.rules(switch, failed=True)
+    rules = example.build_scenario(seed=7).rules(switch, failed=True)
     return Agent(
         model=DeterministicAgnoModel(
             {

@@ -171,8 +171,6 @@ class PhaseRecorder:
         *,
         clock: Callable[[], int] = monotonic_ns,
         sink: Callable[[PhaseRecord], None] | None = None,
-        request_sink: Callable[[ProviderRequest | None, ProviderRequest], None]
-        | None = None,
     ) -> None:
         if not isinstance(clock_domain_id, str) or not clock_domain_id:
             raise ValueError("clock domain cannot be empty")
@@ -183,7 +181,7 @@ class PhaseRecorder:
         self._clock_lock = Lock()
         self._records: list[PhaseRecord] = []
         self._losses: list[RecorderLoss] = []
-        self.requests = ProviderRequestLedger(self, request_sink)
+        self.requests = ProviderRequestLedger(self)
 
     def stamp(self, context: ExecutionContext) -> Stamp:
         try:
@@ -374,26 +372,17 @@ class ProviderRequest:
 class ProviderRequestLedger:
     """Local interruption never clears a request. Only adapters supply terminal proof."""
 
-    def __init__(self, recorder: PhaseRecorder, sink=None) -> None:
+    def __init__(self, recorder: PhaseRecorder) -> None:
         self._recorder = recorder
         self._lock = RLock()
         self._requests: dict[str, ProviderRequest] = {}
         self._history: list[ProviderRequest] = []
-        self._sink = sink
 
     def _retain(self, request: ProviderRequest) -> None:
         # Called under the ledger lock: retain repeated cancellations/failures,
         # not just the most recent state for each request.
-        previous = self._requests.get(request.request_id)
         self._requests[request.request_id] = request
         self._history.append(request)
-        if self._sink is not None:
-            try:
-                self._sink(previous, request)
-            except Exception as error:
-                self._recorder.report_loss(
-                    request.context, f"request_sink_failure: {error}"
-                )
 
     def start(
         self,
