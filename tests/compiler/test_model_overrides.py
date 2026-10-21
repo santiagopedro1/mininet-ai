@@ -3,6 +3,7 @@
 import os
 from copy import deepcopy
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
@@ -287,6 +288,19 @@ def test_equivalent_inline_reference_and_override_expressions_have_equal_identit
     assert reference.digest == overridden.digest == inline.digest
     assert reference.model_provenance != overridden.model_provenance
     assert not inline.model_provenance
+    # A different entry alias and path are informational, not executable identity.
+    for blueprint in snapshot["blueprints"]:
+        blueprint["model"] = {"file": "equivalent.yaml", "entry": "equivalent"}
+    path.write_text(yaml.safe_dump(snapshot))
+    path.with_name("equivalent.yaml").write_text(
+        yaml.safe_dump({"models": {"equivalent": effective}})
+    )
+    equivalent = compile_experiment(path)
+    rebuilt = compile_experiment(Experiment.model_validate(overridden.snapshot))
+    assert equivalent.snapshot == rebuilt.snapshot == inline.snapshot
+    assert equivalent.digest == rebuilt.digest == inline.digest
+    assert equivalent.agents == rebuilt.agents == inline.agents
+    assert equivalent.model_provenance != reference.model_provenance
 
 
 @pytest.mark.parametrize("python_factory", [False, True])
@@ -333,10 +347,14 @@ def test_two_overridden_models_execute_offline_after_source_edit_and_removal(
     )
     path.with_name("models.yaml").unlink()
     path.unlink()
-    with patch(
-        "mininet_ai.specification.model_sources.read_model_configurations",
-        side_effect=AssertionError("source read"),
-    ):
+    original_open = Path.open
+
+    def forbid_sources(file, *args, **kwargs):
+        if file in {path, path.with_name("models.yaml")}:
+            pytest.fail("saved execution attempted to open a source")
+        return original_open(file, *args, **kwargs)
+
+    with patch.object(Path, "open", forbid_sources):
         catalog = ExecutionCatalog(DeploymentPlan.model_validate_json(serialized))
         for agent_id, message, model_id in (
             ("switch-router@s1", "base response", "base"),

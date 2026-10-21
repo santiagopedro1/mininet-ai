@@ -19,7 +19,10 @@ _OLLAMA_FACTORIES = {
 
 
 def validate_shared_model_configuration(
-    configuration: ModelConfiguration, *, context: str
+    configuration: ModelConfiguration,
+    *,
+    context: str,
+    locations: Mapping[str, str] | None = None,
 ) -> None:
     """Source rules common to all owners, including unused central entries."""
     for field in configuration.parameters:
@@ -31,8 +34,11 @@ def validate_shared_model_configuration(
             "secret",
             "credentials",
         }:
+            location = (locations or {}).get(
+                f"model.parameters.{field}", f"model.parameters.{field}"
+            )
             raise SpecificationError(
-                f"{context}: model.parameters.{field}: literal credentials are unsupported; "
+                f"{context}: {location}: literal credentials are unsupported; "
                 "use the Provider runtime environment"
             )
 
@@ -42,10 +48,13 @@ def validate_model_configuration(
     implementation: Implementation,
     *,
     context: str,
+    locations: Mapping[str, str] | None = None,
 ) -> None:
     """Validate supported construction paths without runtime or environment I/O."""
     if configuration is not None:
-        validate_shared_model_configuration(configuration, context=context)
+        validate_shared_model_configuration(
+            configuration, context=context, locations=locations
+        )
     bundled = (
         implementation.type == "python"
         and implementation.entrypoint in _OLLAMA_FACTORIES
@@ -54,7 +63,8 @@ def validate_model_configuration(
         return
 
     def fail(field: str, reason: str) -> None:
-        raise SpecificationError(f"{context}: model{field}: {reason}")
+        location = (locations or {}).get(f"model{field}", f"model{field}")
+        raise SpecificationError(f"{context}: {location}: {reason}")
 
     if configuration is None:
         fail("", "a model configuration is required")
