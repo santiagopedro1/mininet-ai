@@ -153,7 +153,7 @@ Refresh resource observations before any separately authorized runtime phase.
 acquisition, not runtime/containment acceptance. Archive expansion remains unknown;
 it is unnecessary to unpack anything to validate acquired compressed-file hashes.
 
-### Proposed next authorization: acquisition only, not yet granted
+### Acquisition-only scope proposed, then separately granted
 
 - Create only a uniquely named acquisition subdirectory under the selected
   workspace-local `.prototype-gh99-artifacts/` root; keep artifact bytes untracked.
@@ -171,4 +171,67 @@ it is unnecessary to unpack anything to validate acquired compressed-file hashes
 - **No extraction, installation, executable launch, services, model loading,
   inference, actual-data changes or destructive cleanup.** Those require later
   distinct scopes, including archive expansion caps and the remaining networking/
-  ownership/containment evidence. This proposal does not authorize itself.
+  ownership/containment evidence. This proposal did not authorize itself; the human
+  subsequently explicitly approved this exact acquisition-only scope.
+
+## Authorized acquisition result: actual archive/model bytes verified
+
+The human approved the capped acquisition proposal. The
+[executed downloader](ollama_containment_acquire_prototype.py) fetched exactly
+seven objects into a fresh private directory, with no retry, resume, overwrite,
+unpack, acquired-code execution, Provider call, service or model loading:
+
+```sh
+env -i PATH=/usr/bin:/bin LANG=C /usr/bin/python3 -I -S \
+  docs/prototypes/ollama_containment_acquire_prototype.py
+```
+
+[Full acquisition receipt](ollama-containment-acquisition.observations.json)
+records exact filenames/descriptor hashes, response status/final public host,
+received/written bytes, observed hashes, source/input hashes and timings. Signed
+redirect queries and credentials are not retained. Source SHA-256:
+`7ffc49aac7194f51adf429d989f7d78fdbcaae4f94fe2dfb9286efc90239ba7b`.
+
+All seven objects matched their pinned sizes and SHA-256 values:
+manifest, config, weight, system, template, license, server archive. Total
+**1,903,041,835 response-body bytes**, including the 857-byte manifest, in
+**180.477 seconds**; below both the 2 GiB and 1,200-second limits. The exact
+downloaded archive now matches the publisher hash, not merely publisher metadata.
+This does not verify a signature, reproducible build or installed/loaded bytes.
+
+Local retained directory:
+`.prototype-gh99-artifacts/acquisition-883a415d8f5f48db9f1aa5f4815ac83a/`.
+It contains the append-only acquisition events, initial plan, final receipt and
+payload files. These artifacts stay **untracked**, outside pushed commits. The
+directory is mode 0700; payloads are non-executable regular files, mode 0600.
+File presence alone is not acquisition evidence; consult the exact verified receipt.
+No ignore rule or unrelated data was altered; no files were deleted.
+
+An independent post-download pass reopened and rehashed all seven actual files,
+checked exact sizes/types/permissions, source and input metadata hashes, local
+receipt equality, object cardinality and both reported budgets. All passed.
+Static source parsing passed. No production suite ran. Earlier metadata-only
+and feasibility observations remain historical snapshots, not retroactively
+rewritten permissions or measurements.
+
+**Still unperformed:** archive inventory/extraction, installed-library/helper
+inventory, GGUF/loader semantics, usable private loopback, distinct worker/Provider
+ownership and all real native-request/containment tests. Download origin at a
+public registry CDN is not evidence of runtime offload; no Provider ran here.
+
+### Next proposed scope: bounded archive inventory only
+
+The acquisition grant is now consumed. Before extraction, propose one local
+inventory pass over the verified archive: stream-decompress and parse headers,
+record paths/types/sizes/link targets and proposed CPU-only candidates. Enforce
+at most **12 GiB decompressed stream**, **10,000 members**, **10 minutes wall time**,
+**120 seconds CPU time**, and **512 MiB address space**. Stop on malformed,
+unsupported or over-budget input and retain negative evidence, not relaxed bounds.
+
+This would run only trusted host tooling/Python, never an acquired executable or
+library. **No archive files would be extracted**, links followed, permissions
+applied, installations performed, services started, model loaded, inference run
+or existing files deleted. Record paths as untrusted metadata; do not execute
+shell fragments or follow paths supplied by the archive. Exact extraction support
+and storage expansion caps follow the actual inventory under a later explicit
+scope. This inventory proposal still awaits separate human authorization.
