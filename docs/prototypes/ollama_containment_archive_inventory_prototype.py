@@ -26,11 +26,35 @@ MAX_CPU_SECONDS = 120
 MAX_ADDRESS_SPACE = 512 * 1024**2
 CHUNK_BYTES = 64 * 1024
 REPO = Path(__file__).resolve().parents[2]
-EVIDENCE = REPO / "docs/prototypes/ollama-containment-archive-inventory.observations.json"
+EVIDENCE = REPO / "docs/prototypes/ollama-containment-archive-inventory.witnessed.observations.json"
 
 
 def now():
     return datetime.datetime.now(datetime.UTC).isoformat()
+
+
+def memory_witness():
+    values = {}
+    for line in Path("/proc/self/status").read_text().splitlines():
+        key, _, value = line.partition(":")
+        if key in {"VmPeak", "VmSize", "VmHWM", "VmRSS"}:
+            values[key] = value.strip()
+    return {
+        "proc_self_status": values,
+        "rlimit_as": list(resource.getrlimit(resource.RLIMIT_AS)),
+        "ru_maxrss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+    }
+
+
+def direct_memory_within_limit(witness):
+    try:
+        for key in ("VmPeak", "VmSize", "VmHWM", "VmRSS"):
+            value, unit = witness["proc_self_status"][key].split()
+            if unit != "kB" or not 0 < int(value) * 1024 <= MAX_ADDRESS_SPACE:
+                return False
+    except (KeyError, ValueError, TypeError):
+        return False
+    return True
 
 
 class CompressedInput:
@@ -81,9 +105,13 @@ def main():
         "services_started": False, "model_loaded": False, "inference_performed": False,
         "complete_tar_inventory": False, "compressed_eof_verified": False,
         "parser_support": "ordinary ustar/GNU headers; extended/PAX/sparse metadata rejected",
+        "memory_before_applying_limit": memory_witness(),
+        "historical_rusage_is_not_current_image_peak": True,
     }
     resource.setrlimit(resource.RLIMIT_AS, (MAX_ADDRESS_SPACE, MAX_ADDRESS_SPACE))
     resource.setrlimit(resource.RLIMIT_CPU, (MAX_CPU_SECONDS, MAX_CPU_SECONDS + 1))
+    report["memory_after_applying_limit"] = memory_witness()
+    report["effective_cpu_limit"] = list(resource.getrlimit(resource.RLIMIT_CPU))
 
     def expired(signum, frame):
         raise TimeoutError("Authorized wall or CPU inventory budget reached")
@@ -194,6 +222,33 @@ def main():
         usage = resource.getrusage(resource.RUSAGE_SELF)
         report["cpu_seconds"] = usage.ru_utime + usage.ru_stime
         report["max_rss_kib"] = usage.ru_maxrss
+        report["parse_success"] = report.get("success", False)
+        try:
+            report["memory_after_inventory"] = memory_witness()
+        except Exception as error:
+            report["memory_witness_error"] = {"type": type(error).__name__}
+            report["memory_after_inventory"] = {}
+        report["checks"] = {
+            "complete_inventory_and_integrity": (
+                report["parse_success"] and report["complete_tar_inventory"]
+                and report["compressed_eof_verified"]),
+            "expanded_stream_within_limit": report["expanded_bytes_read"] <= MAX_EXPANDED,
+            "member_count_within_limit": report["headers_seen"] <= MAX_MEMBERS,
+            "wall_time_within_limit": report["elapsed_seconds"] <= MAX_SECONDS,
+            "cpu_time_within_limit": report["cpu_seconds"] <= MAX_CPU_SECONDS,
+            "effective_address_space_limits": all(
+                witness.get("rlimit_as") == [MAX_ADDRESS_SPACE, MAX_ADDRESS_SPACE]
+                for witness in (report["memory_after_applying_limit"], report["memory_after_inventory"])),
+            "effective_cpu_limit": report["effective_cpu_limit"] == [MAX_CPU_SECONDS, MAX_CPU_SECONDS + 1],
+            "startup_direct_memory_witness": direct_memory_within_limit(report["memory_before_applying_limit"]),
+            "post_limit_direct_memory_witness": direct_memory_within_limit(report["memory_after_applying_limit"]),
+            "completed_direct_memory_witness": direct_memory_within_limit(report["memory_after_inventory"]),
+        }
+        report["success"] = all(report["checks"].values())
+        if not report["success"] and "failure" not in report:
+            report["failure"] = {
+                "type": "BoundEvidenceFailure", "message": "A required resource or integrity witness failed",
+            }
         with EVIDENCE.open("x") as output:
             json.dump(report, output, indent=2)
             output.write("\n")
@@ -206,6 +261,7 @@ def main():
             "regular_file_bytes": report["declared_regular_file_bytes"],
             "elapsed_seconds": report["elapsed_seconds"],
             "cpu_seconds": report["cpu_seconds"], "max_rss_kib": report["max_rss_kib"],
+            "checks": report["checks"], "memory_after_inventory": report["memory_after_inventory"],
         }, indent=2))
     return 0 if report["success"] else 1
 

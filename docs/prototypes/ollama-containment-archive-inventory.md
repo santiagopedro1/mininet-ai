@@ -7,7 +7,7 @@ deletion was authorized or performed. No new download or second archive pass ran
 
 ## Pinned evidence
 
-- [Executed inventory tool](ollama_containment_archive_inventory_prototype.py),
+- [First executed inventory tool, pinned before witness changes](https://github.com/santiagopedro1/mininet-ai/blob/ff138be/docs/prototypes/ollama_containment_archive_inventory_prototype.py),
   SHA-256 `f1369d9cfa45c3dda426f2c3916b2f0b73831e6035ada009f9ad690a101ecf3a`.
 - [Full captured inventory and resource observations](ollama-containment-archive-inventory.observations.json).
 - [Prior acquired-object receipt](ollama-containment-acquisition.observations.json).
@@ -147,3 +147,75 @@ a negative/partial result, not permission to increase limits or retry again.
 No extraction, model or executable launch, services, large intentional allocation,
 new download or deletion. The earlier one-pass authorization is consumed; the
 diagnostic authorization does not authorize this repeat or any later extraction.
+
+## Separately authorized witnessed repeat: bounded inventory accepted by checks
+
+The human explicitly approved **one** inventory repeat with direct memory
+witnesses under the same ceilings. [Executed witnessed tool](ollama_containment_archive_inventory_prototype.py)
+SHA-256 `1c875734b8301a01c55f0303c03bb295cc119ab12fad73ae82d2f09a844082f2`;
+[full repeat observations](ollama-containment-archive-inventory.witnessed.observations.json).
+The first tool/report remain pinned and unchanged; this is new evidence, not a
+rewrite of the original missing witness.
+
+All **10 explicit inventory/resource checks passed** in the one repeat. Full
+ordered entries, link targets, file-size sums, expanded count and compressed
+archive identity match the first inventory exactly: 80 headers, 2,473,205,760
+expanded bytes and pinned compressed SHA-256. Wall time was **2.823 seconds**;
+reported process CPU **2.841 seconds**, both below their ceilings.
+
+| Direct current-image witness | Startup | After limit | After inventory |
+| --- | ---: | ---: | ---: |
+| VmHWM | 18,088 KiB | 18,092 KiB | 27,576 KiB |
+| VmPeak | 30,332 KiB | 30,332 KiB | 39,704 KiB |
+| Effective RLIMIT_AS soft/hard | unlimited | 512 MiB / 512 MiB | 512 MiB / 512 MiB |
+
+Completed VmRSS was 19,192 KiB; VmSize 30,932 KiB. Direct peak RSS was therefore
+~26.93 MiB and peak address space ~38.77 MiB, below 512 MiB. Required snapshots
+were present and parsed with units; missing/malformed/over-budget evidence would
+have failed the predicate. Effective CPU soft/hard limits were 120/121 seconds,
+with the 120-second soft-limit signal stopping inventory work; the observed
+reported CPU check separately enforces <=120 seconds.
+
+Historical `ru_maxrss` was **683000 KiB** both at startup and after inventory;
+it remains in the raw report, separately labeled rather than subtracted, erased
+or treated as current-image RSS. The repeat witnesses support this process-local
+inventory workload's memory verdict. They do not establish a cgroup-wide bound,
+account for all host page-cache/launcher memory, or certify a Provider footprint.
+The original pass remains partial on its own historical evidence; this new pass
+supplies the current-image peak witness for an independently repeated inventory.
+
+No extraction, executable/library loading, new download, service, model load,
+inference, large intentional allocation or deletion occurred. Static provenance,
+exact first/repeat inventory equality, direct memory checks and explicit retained
+no-execution flags are validated separately without another archive pass.
+
+### Next proposed authorization: full-layout extraction only
+
+Recommend staging the **full packaged file set and relative link layout**, rather
+than silently selecting a stripped CPU dependency closure. Actual CPU-only runtime
+eligibility still needs device/network/loaded-library observation; keeping CUDA/
+Vulkan files does not authorize loading or using those backends. No public
+compatibility or deployment profile is accepted merely by extraction.
+
+Proposed scope, **not yet authorized**:
+
+- One extraction pass into a fresh private subdirectory under selected
+  `.prototype-gh99-artifacts/`; never install into host `/usr` or touch old outputs.
+- Exact expected 80-member inventory and archive hash, with size/type/name/link
+  equality checks, no path traversal/absolute destinations/special nodes, no
+  overwriting existing files. Any mismatch stops and retains explicit failure.
+- At most **3 GiB additional regular-file payload**, **12 GiB decoded stream**,
+  **10,000 headers**, **10 minutes wall**, **120 seconds CPU**, **512 MiB process
+  address space**, with direct memory witnesses as in the repeat. Expected payload
+  is 2,473,144,274 bytes, but no higher cap is implied if it changes.
+- Regular files remain mode **0600**, directories **0700**. Do not apply archive
+  ownership, executable/setuid bits, timestamps or extended metadata. Hash each
+  staged file and retain exact byte provenance.
+- Create only inventoried **relative symbolic links**, after validating the whole
+  link graph terminates at inventoried in-root files (no cycles/escape/dangling
+  targets), and only after regular-file writing/full archive verification. Never
+  follow an archive link while writing or hashing a destination.
+- No new network/download, acquired-code execution, dynamic loading/`ldd`, global
+  installation, service creation, model-store loading, inference or deletion.
+  Partial outputs remain explicitly ineligible; do not repair, retry or weaken
+  the gate automatically. This inventory-repeat grant does not authorize extraction.

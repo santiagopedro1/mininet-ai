@@ -1,0 +1,1010 @@
+{
+  "throwaway": true,
+  "issue": 99,
+  "started_utc": "2026-10-22T19:29:17.085227+00:00",
+  "scope": "single bounded local archive inventory only",
+  "source_sha256": "1c875734b8301a01c55f0303c03bb295cc119ab12fad73ae82d2f09a844082f2",
+  "acquisition_receipt_sha256": "96fc2d983173ecc526805cdb56a68a330ca2039f6a6de37c4198e047dbf1c8de",
+  "archive_path": "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/acquisition-883a415d8f5f48db9f1aa5f4815ac83a/ollama-linux-amd64.tar.zst.payload",
+  "expected_archive_sha256": "0bb17cc19e9c1339ddbe0cba55148bf068f8f19dec8ec5fd531461aaa207282a",
+  "limits": {
+    "expanded_bytes": 12884901888,
+    "members": 10000,
+    "wall_seconds": 600,
+    "cpu_seconds": 120,
+    "address_space_bytes": 536870912,
+    "zstd_window_log_max": 27
+  },
+  "expanded_bytes_read": 2473205760,
+  "headers_seen": 80,
+  "entries": [
+    {
+      "name": "bin/ollama",
+      "type": "0",
+      "size": 30168944,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/CPP_HTTPLIB_LICENSE",
+      "type": "0",
+      "size": 1075,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/DLPACK_LICENSE",
+      "type": "0",
+      "size": 11345,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/FMT_LICENSE",
+      "type": "0",
+      "size": 1431,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/GO_LICENSE",
+      "type": "0",
+      "size": 122002,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/LLAMA_CPP_LICENSE",
+      "type": "0",
+      "size": 1078,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/LLAMA_CPP_VENDORS_LICENSE",
+      "type": "0",
+      "size": 7257,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/MLX_C_LICENSE",
+      "type": "0",
+      "size": 1067,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/MLX_LICENSE",
+      "type": "0",
+      "size": 1066,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/PICOJSON_LICENSE",
+      "type": "0",
+      "size": 1414,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/XGRAMMAR_LICENSE",
+      "type": "0",
+      "size": 11357,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/XGRAMMAR_NOTICE",
+      "type": "0",
+      "size": 54,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v12",
+      "type": "5",
+      "size": 0,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libggml-cuda.so",
+      "type": "0",
+      "size": 427114800,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libcublasLt.so.12.8.5.5",
+      "type": "0",
+      "size": 751775824,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libcublas.so.12.8.5.5",
+      "type": "0",
+      "size": 116388640,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libcudart.so.12.8.90",
+      "type": "0",
+      "size": 728800,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libcublas.so.12",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcublas.so.12.8.5.5"
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libcudart.so.12",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcudart.so.12.8.90"
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libcublasLt.so.12",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcublasLt.so.12.8.5.5"
+    },
+    {
+      "name": "lib/ollama/cuda_v13",
+      "type": "5",
+      "size": 0,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libggml-cuda.so",
+      "type": "0",
+      "size": 261042384,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvfatbin.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvfatbin.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublas.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "./libcublas.so.13.1.1.3"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvfatbin.so.13.0.85",
+      "type": "0",
+      "size": 2467432,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublasLt.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcublasLt.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc.so.13.0.88",
+      "type": "0",
+      "size": 109338064,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc-builtins.so.13.0.88",
+      "type": "0",
+      "size": 4380616,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcudart.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcudart.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublas.so.13.1.1.3",
+      "type": "0",
+      "size": 54177976,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvJitLink.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvJitLink.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvJitLink.so.13.0.88",
+      "type": "0",
+      "size": 98806736,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvrtc.so.13.0.88"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublas.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcublas.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc-builtins.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvrtc-builtins.so.13.0"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublasLt.so.13.1.1.3",
+      "type": "0",
+      "size": 541607888,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc-builtins.so.13.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvrtc-builtins.so.13.0.88"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcudart.so.13.0.96",
+      "type": "0",
+      "size": 704288,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvrtc.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcudart.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcudart.so.13.0.96"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvJitLink.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvJitLink.so.13.0.88"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublasLt.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "./libcublasLt.so.13.1.1.3"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvfatbin.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvfatbin.so.13.0.85"
+    },
+    {
+      "name": "lib/ollama/libggml-base.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libggml-base.so.0"
+    },
+    {
+      "name": "lib/ollama/libggml-base.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libggml-base.so.0.27.0"
+    },
+    {
+      "name": "lib/ollama/libggml-base.so.0.27.0",
+      "type": "0",
+      "size": 812880,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-alderlake.so",
+      "type": "0",
+      "size": 1284360,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-cannonlake.so",
+      "type": "0",
+      "size": 1460488,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-cascadelake.so",
+      "type": "0",
+      "size": 1472776,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-cooperlake.so",
+      "type": "0",
+      "size": 1472776,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-haswell.so",
+      "type": "0",
+      "size": 1288456,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-icelake.so",
+      "type": "0",
+      "size": 1472776,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-ivybridge.so",
+      "type": "0",
+      "size": 1214856,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-piledriver.so",
+      "type": "0",
+      "size": 1210760,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-sandybridge.so",
+      "type": "0",
+      "size": 1210760,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-sapphirerapids.so",
+      "type": "0",
+      "size": 1722944,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-skylakex.so",
+      "type": "0",
+      "size": 1460488,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-sse42.so",
+      "type": "0",
+      "size": 903592,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-x64.so",
+      "type": "0",
+      "size": 903592,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-zen4.so",
+      "type": "0",
+      "size": 1472776,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libggml.so.0"
+    },
+    {
+      "name": "lib/ollama/libggml.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libggml.so.0.27.0"
+    },
+    {
+      "name": "lib/ollama/libggml.so.0.27.0",
+      "type": "0",
+      "size": 220784,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libgomp.so.1",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libgomp.so.1.0.0"
+    },
+    {
+      "name": "lib/ollama/libgomp.so.1.0.0",
+      "type": "0",
+      "size": 235072,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libllama-common.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libllama-common.so.0"
+    },
+    {
+      "name": "lib/ollama/libllama-common.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libllama-common.so.0.7.0"
+    },
+    {
+      "name": "lib/ollama/libllama-common.so.0.7.0",
+      "type": "0",
+      "size": 4753520,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libllama-quantize-impl.so",
+      "type": "0",
+      "size": 72560,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libllama-server-impl.so",
+      "type": "0",
+      "size": 3046576,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libllama.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libllama.so.0"
+    },
+    {
+      "name": "lib/ollama/libllama.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libllama.so.0.7.0"
+    },
+    {
+      "name": "lib/ollama/libllama.so.0.7.0",
+      "type": "0",
+      "size": 4493968,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libmtmd.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libmtmd.so.0"
+    },
+    {
+      "name": "lib/ollama/libmtmd.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libmtmd.so.0.7.0"
+    },
+    {
+      "name": "lib/ollama/libmtmd.so.0.7.0",
+      "type": "0",
+      "size": 1781872,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/llama-quantize",
+      "type": "0",
+      "size": 15096,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/llama-server",
+      "type": "0",
+      "size": 15096,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/vulkan",
+      "type": "5",
+      "size": 0,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/vulkan/libggml-vulkan.so",
+      "type": "0",
+      "size": 40283912,
+      "mode": 493,
+      "link_target": ""
+    }
+  ],
+  "declared_regular_file_bytes": 2473144274,
+  "duplicate_names": [],
+  "cpu_role_candidates": [
+    {
+      "name": "bin/ollama",
+      "type": "0",
+      "size": 30168944,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-base.so.0.27.0",
+      "type": "0",
+      "size": 812880,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-alderlake.so",
+      "type": "0",
+      "size": 1284360,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-cannonlake.so",
+      "type": "0",
+      "size": 1460488,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-cascadelake.so",
+      "type": "0",
+      "size": 1472776,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-cooperlake.so",
+      "type": "0",
+      "size": 1472776,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-haswell.so",
+      "type": "0",
+      "size": 1288456,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-icelake.so",
+      "type": "0",
+      "size": 1472776,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-ivybridge.so",
+      "type": "0",
+      "size": 1214856,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-piledriver.so",
+      "type": "0",
+      "size": 1210760,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-sandybridge.so",
+      "type": "0",
+      "size": 1210760,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-sapphirerapids.so",
+      "type": "0",
+      "size": 1722944,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-skylakex.so",
+      "type": "0",
+      "size": 1460488,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-sse42.so",
+      "type": "0",
+      "size": 903592,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-x64.so",
+      "type": "0",
+      "size": 903592,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml-cpu-zen4.so",
+      "type": "0",
+      "size": 1472776,
+      "mode": 420,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libggml.so.0.27.0",
+      "type": "0",
+      "size": 220784,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libllama-common.so.0.7.0",
+      "type": "0",
+      "size": 4753520,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libllama-quantize-impl.so",
+      "type": "0",
+      "size": 72560,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libllama-server-impl.so",
+      "type": "0",
+      "size": 3046576,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/libllama.so.0.7.0",
+      "type": "0",
+      "size": 4493968,
+      "mode": 493,
+      "link_target": ""
+    },
+    {
+      "name": "lib/ollama/llama-server",
+      "type": "0",
+      "size": 15096,
+      "mode": 493,
+      "link_target": ""
+    }
+  ],
+  "unvalidated_links": [
+    {
+      "name": "lib/ollama/cuda_v12/libcublas.so.12",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcublas.so.12.8.5.5"
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libcudart.so.12",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcudart.so.12.8.90"
+    },
+    {
+      "name": "lib/ollama/cuda_v12/libcublasLt.so.12",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcublasLt.so.12.8.5.5"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvfatbin.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvfatbin.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublas.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "./libcublas.so.13.1.1.3"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublasLt.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcublasLt.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcudart.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcudart.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvJitLink.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvJitLink.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvrtc.so.13.0.88"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublas.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcublas.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc-builtins.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvrtc-builtins.so.13.0"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc-builtins.so.13.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvrtc-builtins.so.13.0.88"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvrtc.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvrtc.so.13"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcudart.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libcudart.so.13.0.96"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvJitLink.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvJitLink.so.13.0.88"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libcublasLt.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "./libcublasLt.so.13.1.1.3"
+    },
+    {
+      "name": "lib/ollama/cuda_v13/libnvfatbin.so.13",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libnvfatbin.so.13.0.85"
+    },
+    {
+      "name": "lib/ollama/libggml-base.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libggml-base.so.0"
+    },
+    {
+      "name": "lib/ollama/libggml-base.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libggml-base.so.0.27.0"
+    },
+    {
+      "name": "lib/ollama/libggml.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libggml.so.0"
+    },
+    {
+      "name": "lib/ollama/libggml.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libggml.so.0.27.0"
+    },
+    {
+      "name": "lib/ollama/libgomp.so.1",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libgomp.so.1.0.0"
+    },
+    {
+      "name": "lib/ollama/libllama-common.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libllama-common.so.0"
+    },
+    {
+      "name": "lib/ollama/libllama-common.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libllama-common.so.0.7.0"
+    },
+    {
+      "name": "lib/ollama/libllama.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libllama.so.0"
+    },
+    {
+      "name": "lib/ollama/libllama.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libllama.so.0.7.0"
+    },
+    {
+      "name": "lib/ollama/libmtmd.so",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libmtmd.so.0"
+    },
+    {
+      "name": "lib/ollama/libmtmd.so.0",
+      "type": "2",
+      "size": 0,
+      "mode": 511,
+      "link_target": "libmtmd.so.0.7.0"
+    }
+  ],
+  "archive_extracted": false,
+  "archive_members_executed": false,
+  "services_started": false,
+  "model_loaded": false,
+  "inference_performed": false,
+  "complete_tar_inventory": true,
+  "compressed_eof_verified": true,
+  "parser_support": "ordinary ustar/GNU headers; extended/PAX/sparse metadata rejected",
+  "memory_before_applying_limit": {
+    "proc_self_status": {
+      "VmPeak": "30332 kB",
+      "VmSize": "30332 kB",
+      "VmHWM": "18088 kB",
+      "VmRSS": "18088 kB"
+    },
+    "rlimit_as": [
+      -1,
+      -1
+    ],
+    "ru_maxrss_kib": 683000
+  },
+  "historical_rusage_is_not_current_image_peak": true,
+  "memory_after_applying_limit": {
+    "proc_self_status": {
+      "VmPeak": "30332 kB",
+      "VmSize": "30332 kB",
+      "VmHWM": "18092 kB",
+      "VmRSS": "18092 kB"
+    },
+    "rlimit_as": [
+      536870912,
+      536870912
+    ],
+    "ru_maxrss_kib": 683000
+  },
+  "effective_cpu_limit": [
+    120,
+    121
+  ],
+  "compressed_bytes_read": 1505219659,
+  "observed_archive_sha256": "0bb17cc19e9c1339ddbe0cba55148bf068f8f19dec8ec5fd531461aaa207282a",
+  "success": true,
+  "finished_utc": "2026-10-22T19:29:19.908320+00:00",
+  "elapsed_seconds": 2.823109521999868,
+  "cpu_seconds": 2.8409839999999997,
+  "max_rss_kib": 683000,
+  "parse_success": true,
+  "memory_after_inventory": {
+    "proc_self_status": {
+      "VmPeak": "39704 kB",
+      "VmSize": "30932 kB",
+      "VmHWM": "27576 kB",
+      "VmRSS": "19192 kB"
+    },
+    "rlimit_as": [
+      536870912,
+      536870912
+    ],
+    "ru_maxrss_kib": 683000
+  },
+  "checks": {
+    "complete_inventory_and_integrity": true,
+    "expanded_stream_within_limit": true,
+    "member_count_within_limit": true,
+    "wall_time_within_limit": true,
+    "cpu_time_within_limit": true,
+    "effective_address_space_limits": true,
+    "effective_cpu_limit": true,
+    "startup_direct_memory_witness": true,
+    "post_limit_direct_memory_witness": true,
+    "completed_direct_memory_witness": true
+  }
+}
