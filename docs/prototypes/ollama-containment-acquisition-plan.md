@@ -234,4 +234,8 @@ applied, installations performed, services started, model loaded, inference run
 or existing files deleted. Record paths as untrusted metadata; do not execute
 shell fragments or follow paths supplied by the archive. Exact extraction support
 and storage expansion caps follow the actual inventory under a later explicit
-scope. This inventory proposal still awaits separate human authorization.
+scope. The human subsequently approved this inventory-only scope. The
+[actual inventory result](ollama-containment-archive-inventory.md) reached all
+80 headers and verified archive integrity without extraction, but recorded an
+unresolved memory-telemetry anomaly. Its overall verdict remains partial; no
+extraction or runtime work is authorized by it.
