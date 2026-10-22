@@ -1,0 +1,2076 @@
+{
+  "prototype": true,
+  "cases": [
+    {
+      "scenario": "admission",
+      "checks": {
+        "real_seed_committed": true,
+        "gate_denied_while_active": true,
+        "active_and_sibling_no_terminal": true,
+        "queued_never_started": true,
+        "modeled_late_denied": true,
+        "modeled_independent_denied_until_exit": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "sqlite_integrity": true,
+        "gate_physically_available_after_exit": true,
+        "modeled_failed_run_no_replacement": true,
+        "modeled_verified_independent_eligibility": true
+      },
+      "unit": "mininet-ai-containment-prototype-e464dd185e68496694dec02878b132a0.service",
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "30s",
+        "MainPID": "25361",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-e464dd185e68496694dec02878b132a0.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "after": {
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "Type": "",
+        "TimeoutStopUSec": "1min 30s",
+        "RuntimeMaxUSec": "infinity",
+        "MainPID": "0",
+        "Result": "success",
+        "ControlGroup": "",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes",
+        "LoadStateObservation": "LoadState=not-found"
+      },
+      "pids": [
+        25361,
+        25362,
+        25363
+      ],
+      "requests": [
+        {
+          "id": "seed",
+          "route": "add",
+          "agent": "A",
+          "memory_id": "seed"
+        },
+        {
+          "id": "warm-session",
+          "route": "session",
+          "agent": "A",
+          "text": "establish session before outcome"
+        },
+        {
+          "id": "active",
+          "route": "automatic",
+          "agent": "A",
+          "background": "indefinite"
+        },
+        {
+          "id": "sibling",
+          "route": "session",
+          "agent": "B",
+          "text": "active sibling",
+          "finalize_hold": true
+        },
+        {
+          "id": "queued",
+          "route": "session",
+          "agent": "A",
+          "text": "queued on active owner"
+        },
+        {
+          "route": "gate-probe"
+        }
+      ],
+      "replies": [
+        {
+          "ready": true,
+          "config": {
+            "latch_mode": "write",
+            "dispatch_check": true
+          }
+        },
+        {
+          "worker_pid": 25363,
+          "supervisor_pid": 25361
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140634948105920,
+          "agent_object": 140634952337456,
+          "adapter_object": 140634951891808,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T10:47:09",
+              "updated_at": "2026-10-22T10:47:09",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm-session",
+          "hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140634948105920,
+          "agent_object": 140634951888448,
+          "adapter_object": 140634938804816,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        }
+      ],
+      "marker": {
+        "seq": 18,
+        "payload": {}
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140634951891808,
+            "agent_object": 140634952337456,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T10:47:09",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T10:47:09",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140634948105920,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm-session",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm-session",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm-session",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm-session",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm-session",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm-session",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140634938804816,
+            "agent_object": 140634951888448,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+            "id": "warm-session",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140634948105920,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "2c134665d083f67e5b9a5475b1a714e2dd55925ddef0c5b452eb24ce33e1d72b",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "active",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "40f306fd59c82cf586233a1250452382aaf3e5295929cbe11d68ec16877ab8a6",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        }
+      ],
+      "memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T10:47:09",
+          "updated_at": "2026-10-22T10:47:09",
+          "user_id": "trial:A"
+        }
+      ],
+      "session": {
+        "session_id": "trial:A",
+        "agent_id": "A",
+        "team_id": null,
+        "user_id": "trial:A",
+        "workflow_id": null,
+        "session_data": {
+          "session_state": {},
+          "session_metrics": {}
+        },
+        "metadata": null,
+        "agent_data": {
+          "agent_id": "A",
+          "model": {
+            "id": "PROTOTYPE-offline",
+            "provider": "scripted"
+          }
+        },
+        "runs": [
+          {
+            "run_id": "warm-session",
+            "agent_id": "A",
+            "session_id": "trial:A",
+            "user_id": "trial:A",
+            "content": "offline response",
+            "content_type": "str",
+            "model": "PROTOTYPE-offline",
+            "model_provider": "scripted",
+            "session_state": {},
+            "created_at": 1792676829,
+            "status": "COMPLETED",
+            "metrics": {
+              "time_to_first_token": 0.0004739149999295478,
+              "duration": 0.0005121199992572656
+            },
+            "events": [],
+            "messages": [
+              {
+                "id": "b03bcbb7-f0ce-42b4-b8a5-7dad74453745",
+                "content": "establish session before outcome",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "user",
+                "created_at": 1792676829
+              },
+              {
+                "id": "61ee56b8-36ab-4eb9-adef-71f6127ddaa2",
+                "content": "offline response",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "assistant",
+                "metrics": {
+                  "time_to_first_token": 5.1465000069583766e-05
+                },
+                "created_at": 1792676829
+              }
+            ],
+            "input": {
+              "input_content": "establish session before outcome"
+            }
+          }
+        ],
+        "summary": null,
+        "created_at": 1792676829,
+        "updated_at": 1792676829
+      },
+      "start": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-e464dd185e68496694dec02878b132a0.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=30s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/systemd_phase_prototype.py",
+          "supervisor",
+          "/tmp/opencode/systemd-phase-prototype-15hil4ca/admission",
+          "/tmp/opencode/systemd-phase-prototype-15hil4ca/pinned-helpers"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-e464dd185e68496694dec02878b132a0.service; invocation ID: 5374f9517a28453ca82b84f425e72fd8\n"
+      },
+      "stop": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-e464dd185e68496694dec02878b132a0.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "reasoning",
+      "checks": {
+        "real_seed_committed": true,
+        "gate_denied_while_active": true,
+        "active_and_sibling_no_terminal": true,
+        "queued_never_started": true,
+        "modeled_late_denied": true,
+        "modeled_independent_denied_until_exit": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "sqlite_integrity": true,
+        "gate_physically_available_after_exit": true,
+        "modeled_failed_run_no_replacement": true,
+        "modeled_verified_independent_eligibility": true
+      },
+      "unit": "mininet-ai-containment-prototype-2f30a2fc281c485199a0f046da2373cd.service",
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "30s",
+        "MainPID": "25375",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-2f30a2fc281c485199a0f046da2373cd.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "after": {
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "Type": "",
+        "TimeoutStopUSec": "1min 30s",
+        "RuntimeMaxUSec": "infinity",
+        "MainPID": "0",
+        "Result": "success",
+        "ControlGroup": "",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes",
+        "LoadStateObservation": "LoadState=not-found"
+      },
+      "pids": [
+        25375,
+        25377,
+        25378
+      ],
+      "requests": [
+        {
+          "id": "seed",
+          "route": "add",
+          "agent": "A",
+          "memory_id": "seed"
+        },
+        {
+          "id": "warm-session",
+          "route": "session",
+          "agent": "A",
+          "text": "establish session before outcome"
+        },
+        {
+          "id": "active",
+          "route": "automatic",
+          "agent": "A",
+          "background": "indefinite"
+        },
+        {
+          "id": "sibling",
+          "route": "session",
+          "agent": "B",
+          "text": "active sibling",
+          "finalize_hold": true
+        },
+        {
+          "id": "queued",
+          "route": "session",
+          "agent": "A",
+          "text": "queued on active owner"
+        },
+        {
+          "route": "gate-probe"
+        }
+      ],
+      "replies": [
+        {
+          "ready": true,
+          "config": {
+            "latch_mode": "write",
+            "dispatch_check": true
+          }
+        },
+        {
+          "worker_pid": 25378,
+          "supervisor_pid": 25375
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140133146818240,
+          "agent_object": 140133147674672,
+          "adapter_object": 140133147229024,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T10:47:10",
+              "updated_at": "2026-10-22T10:47:10",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm-session",
+          "hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140133146818240,
+          "agent_object": 140133147225664,
+          "adapter_object": 140133137467984,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        }
+      ],
+      "marker": {
+        "seq": 18,
+        "payload": {}
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140133147229024,
+            "agent_object": 140133147674672,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T10:47:10",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T10:47:10",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140133146818240,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm-session",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm-session",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm-session",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm-session",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm-session",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm-session",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140133137467984,
+            "agent_object": 140133147225664,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+            "id": "warm-session",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140133146818240,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "2c134665d083f67e5b9a5475b1a714e2dd55925ddef0c5b452eb24ce33e1d72b",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "active",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "40f306fd59c82cf586233a1250452382aaf3e5295929cbe11d68ec16877ab8a6",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        }
+      ],
+      "memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T10:47:10",
+          "updated_at": "2026-10-22T10:47:10",
+          "user_id": "trial:A"
+        }
+      ],
+      "session": {
+        "session_id": "trial:A",
+        "agent_id": "A",
+        "team_id": null,
+        "user_id": "trial:A",
+        "workflow_id": null,
+        "session_data": {
+          "session_state": {},
+          "session_metrics": {}
+        },
+        "metadata": null,
+        "agent_data": {
+          "agent_id": "A",
+          "model": {
+            "provider": "scripted",
+            "id": "PROTOTYPE-offline"
+          }
+        },
+        "runs": [
+          {
+            "run_id": "warm-session",
+            "agent_id": "A",
+            "session_id": "trial:A",
+            "user_id": "trial:A",
+            "content": "offline response",
+            "content_type": "str",
+            "model": "PROTOTYPE-offline",
+            "model_provider": "scripted",
+            "session_state": {},
+            "created_at": 1792676830,
+            "status": "COMPLETED",
+            "metrics": {
+              "time_to_first_token": 0.00047320100020442624,
+              "duration": 0.00051234399961686
+            },
+            "events": [],
+            "messages": [
+              {
+                "id": "dacaf934-0e8e-4952-942a-0fc6754b84c1",
+                "content": "establish session before outcome",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "user",
+                "created_at": 1792676830
+              },
+              {
+                "id": "bc6d455c-fe39-42e4-8db6-181df4f4c08c",
+                "content": "offline response",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "assistant",
+                "metrics": {
+                  "time_to_first_token": 5.224899996392196e-05
+                },
+                "created_at": 1792676830
+              }
+            ],
+            "input": {
+              "input_content": "establish session before outcome"
+            }
+          }
+        ],
+        "summary": null,
+        "created_at": 1792676830,
+        "updated_at": 1792676830
+      },
+      "start": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-2f30a2fc281c485199a0f046da2373cd.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=30s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/systemd_phase_prototype.py",
+          "supervisor",
+          "/tmp/opencode/systemd-phase-prototype-15hil4ca/reasoning",
+          "/tmp/opencode/systemd-phase-prototype-15hil4ca/pinned-helpers"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-2f30a2fc281c485199a0f046da2373cd.service; invocation ID: 1bd68a46a2454f199c3833c6e0c9b516\n"
+      },
+      "stop": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-2f30a2fc281c485199a0f046da2373cd.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "outcome",
+      "checks": {
+        "real_seed_committed": true,
+        "gate_denied_while_active": true,
+        "active_and_sibling_no_terminal": true,
+        "queued_never_started": true,
+        "modeled_late_denied": true,
+        "modeled_independent_denied_until_exit": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "sqlite_integrity": true,
+        "gate_physically_available_after_exit": true,
+        "modeled_failed_run_no_replacement": true,
+        "modeled_verified_independent_eligibility": true,
+        "committed_outcome_preserved": true
+      },
+      "unit": "mininet-ai-containment-prototype-32f28e3f84904680890e267942fdb875.service",
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "30s",
+        "MainPID": "25390",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-32f28e3f84904680890e267942fdb875.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "after": {
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "Type": "",
+        "TimeoutStopUSec": "1min 30s",
+        "RuntimeMaxUSec": "infinity",
+        "MainPID": "0",
+        "Result": "success",
+        "ControlGroup": "",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes",
+        "LoadStateObservation": "LoadState=not-found"
+      },
+      "pids": [
+        25390,
+        25391,
+        25392
+      ],
+      "requests": [
+        {
+          "id": "seed",
+          "route": "add",
+          "agent": "A",
+          "memory_id": "seed"
+        },
+        {
+          "id": "warm-session",
+          "route": "session",
+          "agent": "A",
+          "text": "establish session before outcome"
+        },
+        {
+          "id": "active",
+          "route": "outcome",
+          "agent": "A",
+          "state": {
+            "action_result": "known-installed"
+          },
+          "finalize_hold": true
+        },
+        {
+          "id": "sibling",
+          "route": "session",
+          "agent": "B",
+          "text": "active sibling",
+          "finalize_hold": true
+        },
+        {
+          "id": "queued",
+          "route": "session",
+          "agent": "A",
+          "text": "queued on active owner"
+        },
+        {
+          "route": "gate-probe"
+        }
+      ],
+      "replies": [
+        {
+          "ready": true,
+          "config": {
+            "latch_mode": "write",
+            "dispatch_check": true
+          }
+        },
+        {
+          "worker_pid": 25392,
+          "supervisor_pid": 25390
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140319495550656,
+          "agent_object": 140319496554544,
+          "adapter_object": 140319496108896,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T10:47:11",
+              "updated_at": "2026-10-22T10:47:11",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm-session",
+          "hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140319495550656,
+          "agent_object": 140319496105536,
+          "adapter_object": 140319486331472,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        }
+      ],
+      "marker": {
+        "seq": 16,
+        "payload": {
+          "op": "active"
+        }
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140319496108896,
+            "agent_object": 140319496554544,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T10:47:11",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T10:47:11",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140319495550656,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm-session",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm-session",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm-session",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm-session",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm-session",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm-session",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140319486331472,
+            "agent_object": 140319496105536,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+            "id": "warm-session",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140319495550656,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "2bcce0443804661e689601f877723469833b2f7eeeb61a2d713d2216fd6f6ffc",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "active"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "40f306fd59c82cf586233a1250452382aaf3e5295929cbe11d68ec16877ab8a6",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        }
+      ],
+      "memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T10:47:11",
+          "updated_at": "2026-10-22T10:47:11",
+          "user_id": "trial:A"
+        }
+      ],
+      "session": {
+        "session_id": "trial:A",
+        "agent_id": "A",
+        "team_id": null,
+        "user_id": "trial:A",
+        "workflow_id": null,
+        "session_data": {
+          "session_state": {
+            "action_result": "known-installed"
+          },
+          "session_metrics": {}
+        },
+        "metadata": null,
+        "agent_data": {
+          "agent_id": "A",
+          "model": {
+            "provider": "scripted",
+            "id": "PROTOTYPE-offline"
+          }
+        },
+        "runs": [
+          {
+            "run_id": "warm-session",
+            "agent_id": "A",
+            "session_id": "trial:A",
+            "user_id": "trial:A",
+            "content": "offline response",
+            "content_type": "str",
+            "model": "PROTOTYPE-offline",
+            "model_provider": "scripted",
+            "session_state": {},
+            "created_at": 1792676831,
+            "status": "COMPLETED",
+            "metrics": {
+              "time_to_first_token": 0.0004764830000567599,
+              "duration": 0.0005153749998498824
+            },
+            "events": [],
+            "messages": [
+              {
+                "id": "0a127915-9e62-45e7-9f60-22b9058afad5",
+                "content": "establish session before outcome",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "user",
+                "created_at": 1792676831
+              },
+              {
+                "id": "8b4531f9-9919-4dfd-8891-aecfc02b3f27",
+                "content": "offline response",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "assistant",
+                "metrics": {
+                  "time_to_first_token": 5.8087999605049845e-05
+                },
+                "created_at": 1792676831
+              }
+            ],
+            "input": {
+              "input_content": "establish session before outcome"
+            }
+          }
+        ],
+        "summary": null,
+        "created_at": 1792676831,
+        "updated_at": 1792676831
+      },
+      "start": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-32f28e3f84904680890e267942fdb875.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=30s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/systemd_phase_prototype.py",
+          "supervisor",
+          "/tmp/opencode/systemd-phase-prototype-15hil4ca/outcome",
+          "/tmp/opencode/systemd-phase-prototype-15hil4ca/pinned-helpers"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-32f28e3f84904680890e267942fdb875.service; invocation ID: d9a18aae350c4c2889c42d2ae5e2514a\n"
+      },
+      "stop": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-32f28e3f84904680890e267942fdb875.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "unverified",
+      "checks": {
+        "real_seed_committed": true,
+        "gate_denied_while_active": true,
+        "active_and_sibling_no_terminal": true,
+        "queued_never_started": true,
+        "modeled_late_denied": true,
+        "modeled_independent_denied_until_exit": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "sqlite_integrity": true,
+        "gate_physically_available_after_exit": true,
+        "modeled_failed_run_no_replacement": true,
+        "modeled_unknown_exit_denial": true
+      },
+      "unit": "mininet-ai-containment-prototype-2d27d675925b49899f22ea2d1feecae4.service",
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "30s",
+        "MainPID": "25403",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-2d27d675925b49899f22ea2d1feecae4.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "after": {
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "Type": "",
+        "TimeoutStopUSec": "1min 30s",
+        "RuntimeMaxUSec": "infinity",
+        "MainPID": "0",
+        "Result": "success",
+        "ControlGroup": "",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes",
+        "LoadStateObservation": "LoadState=not-found"
+      },
+      "pids": [
+        25403,
+        25404,
+        25405
+      ],
+      "requests": [
+        {
+          "id": "seed",
+          "route": "add",
+          "agent": "A",
+          "memory_id": "seed"
+        },
+        {
+          "id": "warm-session",
+          "route": "session",
+          "agent": "A",
+          "text": "establish session before outcome"
+        },
+        {
+          "id": "active",
+          "route": "automatic",
+          "agent": "A",
+          "background": "indefinite"
+        },
+        {
+          "id": "sibling",
+          "route": "session",
+          "agent": "B",
+          "text": "active sibling",
+          "finalize_hold": true
+        },
+        {
+          "id": "queued",
+          "route": "session",
+          "agent": "A",
+          "text": "queued on active owner"
+        },
+        {
+          "route": "gate-probe"
+        }
+      ],
+      "replies": [
+        {
+          "ready": true,
+          "config": {
+            "latch_mode": "write",
+            "dispatch_check": true
+          }
+        },
+        {
+          "worker_pid": 25405,
+          "supervisor_pid": 25403
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140666708424384,
+          "agent_object": 140666709182512,
+          "adapter_object": 140666708753248,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T10:47:12",
+              "updated_at": "2026-10-22T10:47:12",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm-session",
+          "hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140666708424384,
+          "agent_object": 140666708749888,
+          "adapter_object": 140666709461584,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        }
+      ],
+      "marker": {
+        "seq": 18,
+        "payload": {}
+      },
+      "events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140666708753248,
+            "agent_object": 140666709182512,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T10:47:12",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T10:47:12",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140666708424384,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm-session",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm-session",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm-session",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm-session",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm-session",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm-session",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140666709461584,
+            "agent_object": 140666708749888,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "c2126fdcc896aa6d87e9674269ca9198529d4f0263198eaac1c80c298aeed455",
+            "id": "warm-session",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140666708424384,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "2c134665d083f67e5b9a5475b1a714e2dd55925ddef0c5b452eb24ce33e1d72b",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "active",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "40f306fd59c82cf586233a1250452382aaf3e5295929cbe11d68ec16877ab8a6",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        }
+      ],
+      "memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T10:47:12",
+          "updated_at": "2026-10-22T10:47:12",
+          "user_id": "trial:A"
+        }
+      ],
+      "session": {
+        "session_id": "trial:A",
+        "agent_id": "A",
+        "team_id": null,
+        "user_id": "trial:A",
+        "workflow_id": null,
+        "session_data": {
+          "session_state": {},
+          "session_metrics": {}
+        },
+        "metadata": null,
+        "agent_data": {
+          "agent_id": "A",
+          "model": {
+            "id": "PROTOTYPE-offline",
+            "provider": "scripted"
+          }
+        },
+        "runs": [
+          {
+            "run_id": "warm-session",
+            "agent_id": "A",
+            "session_id": "trial:A",
+            "user_id": "trial:A",
+            "content": "offline response",
+            "content_type": "str",
+            "model": "PROTOTYPE-offline",
+            "model_provider": "scripted",
+            "session_state": {},
+            "created_at": 1792676832,
+            "status": "COMPLETED",
+            "metrics": {
+              "time_to_first_token": 0.0005787319996670703,
+              "duration": 0.0006230869994396926
+            },
+            "events": [],
+            "messages": [
+              {
+                "id": "07f77e66-eed7-4479-a23c-3e3c099ccd4d",
+                "content": "establish session before outcome",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "user",
+                "created_at": 1792676832
+              },
+              {
+                "id": "cd6056f5-6fab-4e47-8484-32b3aa85319a",
+                "content": "offline response",
+                "from_history": false,
+                "stop_after_tool_call": false,
+                "role": "assistant",
+                "metrics": {
+                  "time_to_first_token": 6.109900004958035e-05
+                },
+                "created_at": 1792676832
+              }
+            ],
+            "input": {
+              "input_content": "establish session before outcome"
+            }
+          }
+        ],
+        "summary": null,
+        "created_at": 1792676832,
+        "updated_at": 1792676832
+      },
+      "start": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-2d27d675925b49899f22ea2d1feecae4.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=30s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/systemd_phase_prototype.py",
+          "supervisor",
+          "/tmp/opencode/systemd-phase-prototype-15hil4ca/unverified",
+          "/tmp/opencode/systemd-phase-prototype-15hil4ca/pinned-helpers"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-2d27d675925b49899f22ea2d1feecae4.service; invocation ID: b35707a6c6da4733aa1c87e41369a20f\n"
+      },
+      "stop": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-2d27d675925b49899f22ea2d1feecae4.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "replies.jsonl"
+      ]
+    }
+  ],
+  "helper_pin": "d96928ecd8cb608b69942e4fb08c957134621b28",
+  "helper_hashes": {
+    "storage_prototype.py": "e9bbd1c69c03499ed47d52e30ec52327edc6cdc0d9f5e6a605670c997c0b82a0",
+    "integrated_storage_prototype.py": "42cd9e9649cfd95f6bd11fba4f0f88dd1fd1d8319455aedbcfbb29486ea43db5",
+    "learning_gate_prototype.py": "8717c384c1f10acc6688165c3c1721ff91ad4ed603a1ccfd2fe6f1d03524bc64",
+    "admission_failure_prototype.py": "1d27110af789f9cda9b6926c99f5473fdd70c1bf10a99fae41b34296c60ca129"
+  },
+  "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+  "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+  "sqlite": "3.54.0",
+  "sqlite_source": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcalt1",
+  "packages": {
+    "agno": "3.0.11",
+    "sqlalchemy": "2.1.0"
+  },
+  "sources": {
+    "systemd_phase_prototype.py": "e91a9d22c91b36423d067a9925bdf59d6705ad1daf8f0deab9ea95c9c0d00fef",
+    "containment_prototype.py": "c8798c8d60f160fa865d0f142531f143260c04dac7608b1bf1408fea95acd4d6",
+    "systemd_containment_prototype.py": "9ead90570e650b4319d875c09ea6a1c110f405af6a9de153ed0d79f5d652473c"
+  },
+  "limits": "Real offline Agno/SQLite; modeled controller quarantine, no remote evidence"
+}
