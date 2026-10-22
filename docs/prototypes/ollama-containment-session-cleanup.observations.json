@@ -1,0 +1,157 @@
+{
+  "scope": "explicit human-requested session cleanup only",
+  "archive_commit_before_cleanup": "56d03832f653c4e8fa28fbe9eb1504f77829141d",
+  "started_utc": "2026-10-22T21:52:02.943639+00:00",
+  "units": [
+    {
+      "unit": "prototype-gh99-5b91d485efd44b588c17c2a005448973.service",
+      "expected_invocation": "8d1732efe44940d7bebfc89696b2c64f",
+      "before": {
+        "Id": "prototype-gh99-5b91d485efd44b588c17c2a005448973.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      },
+      "actions": [],
+      "after": {
+        "Id": "prototype-gh99-5b91d485efd44b588c17c2a005448973.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      }
+    },
+    {
+      "unit": "prototype-gh99-426c0fdf615d4d6bbc0c1c59bb9c25b8.service",
+      "expected_invocation": "9676317b99274056be44bc4989ed46b5",
+      "before": {
+        "Id": "prototype-gh99-426c0fdf615d4d6bbc0c1c59bb9c25b8.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      },
+      "actions": [],
+      "after": {
+        "Id": "prototype-gh99-426c0fdf615d4d6bbc0c1c59bb9c25b8.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      }
+    },
+    {
+      "unit": "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+      "expected_invocation": "bd68bd7604bf4d7c817d8bbdeecdfc75",
+      "before": {
+        "Id": "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "LoadState": "loaded",
+        "ActiveState": "failed",
+        "InvocationID": "bd68bd7604bf4d7c817d8bbdeecdfc75",
+        "MainPID": "0",
+        "ControlGroup": ""
+      },
+      "actions": [
+        "reset exact owned failed-unit record"
+      ],
+      "after": {
+        "Id": "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      }
+    },
+    {
+      "unit": "prototype-gh99-owner-provider-b5630736fdf7433b80d2c95727df9bb3.service",
+      "expected_invocation": "8f66924af7a84f31b5807e4b1a08fe0d",
+      "before": {
+        "Id": "prototype-gh99-owner-provider-b5630736fdf7433b80d2c95727df9bb3.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      },
+      "actions": [],
+      "after": {
+        "Id": "prototype-gh99-owner-provider-b5630736fdf7433b80d2c95727df9bb3.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      }
+    },
+    {
+      "unit": "prototype-gh99-owner-worker-485441fbf0b146b38fd5455a62d9b398.service",
+      "expected_invocation": "626b42c72aa34a8f87aae148c52937d8",
+      "before": {
+        "Id": "prototype-gh99-owner-worker-485441fbf0b146b38fd5455a62d9b398.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      },
+      "actions": [],
+      "after": {
+        "Id": "prototype-gh99-owner-worker-485441fbf0b146b38fd5455a62d9b398.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      }
+    },
+    {
+      "unit": "prototype-gh99-nsdiag-a51740cce1c549e0951755de854cb2a6.service",
+      "expected_invocation": "21ebe33d31664148a27613ae416adc0b",
+      "before": {
+        "Id": "prototype-gh99-nsdiag-a51740cce1c549e0951755de854cb2a6.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      },
+      "actions": [],
+      "after": {
+        "Id": "prototype-gh99-nsdiag-a51740cce1c549e0951755de854cb2a6.service",
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "InvocationID": "",
+        "MainPID": "0",
+        "ControlGroup": ""
+      }
+    }
+  ],
+  "removed_paths": [
+    "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/acquisition-883a415d8f5f48db9f1aa5f4815ac83a",
+    "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/extraction-23a304ee610249aebda73a51eaecca55",
+    "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/namespace-diagnostic-5296d96a8bec40e0a20f45fd04bd056d",
+    "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/owner-bootstrap-fixtures-3dd7e2a4e4b1433ab86a3ec7a71bff89",
+    "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/service-fixtures-0e2fb0dc20434db88048d65d9e78c45c",
+    "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/service-fixtures-29dc6602b5844fb59c72c66763a7a5ef",
+    "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts",
+    "/home/pedro/projects/mininet-ai/mininet-ai/docs/prototypes/ollama-containment-service-fixtures.corrected.observations.json",
+    "/tmp/opencode/PROTOTYPE-GH99/capability-73240199c0e149b2b4b8d6ba0fa28c3e",
+    "/tmp/opencode/PROTOTYPE-GH99"
+  ],
+  "already_missing_paths": [
+    "/tmp/opencode/PROTOTYPE-GH99/capability-bdb48766ba9a4445b54fac39f145f916"
+  ],
+  "logical_artifact_payload_bytes_removed": 4376186109,
+  "native_ollama_ever_run": false,
+  "inference_ever_performed": false,
+  "other_sessions_or_production_data_touched": false,
+  "remote_evidence_deleted": false,
+  "finished_utc": "2026-10-22T21:52:03.081766+00:00",
+  "success": true
+}

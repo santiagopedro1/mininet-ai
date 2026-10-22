@@ -101,3 +101,24 @@ witnesses and unchanged staged modes. No production tests or extra fixture run.
 #99 is deferred, not validated/accepted. #38's body and dependency graph should be
 reworked in the next session using the explicit user scope decision, not by
 continuing these prototypes or silently weakening independent-trial guarantees.
+
+## Cleanup completed under explicit human authorization
+
+[Cleanup receipt](ollama-containment-session-cleanup.observations.json) records
+the verified archive-before-disposal commit and exact removed paths/unit actions.
+All six previously created unit names were checked: none was running; the single
+remaining failed-unit record was reset only after its invocation ID matched.
+Every final unit state was inactive/not-found, MainPID0, no ControlGroup.
+
+Before removal, downloaded/staged files were rehashed against their receipts and
+directory inventories checked for unfamiliar entries. The session's six private
+artifact folders (about **4.38 GB logical payload**, not a measured filesystem
+space claim), remaining known temporary capability folder and now-empty dedicated
+parents were removed. The untracked private corrected-failure receipt was removed
+only after checking its original hash against the retained public/redacted record.
+The first temporary capability folder was already absent; no missing evidence was
+invented. No other session, existing run data, learned memory, software installation
+or unrelated service was touched. Remote evidence was retained, not merged.
+
+Future reproduction needs new explicit authorization and fresh acquisition; old
+scratch paths and historical runtime grants are not current resources/permission.
