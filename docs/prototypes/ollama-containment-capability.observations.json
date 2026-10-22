@@ -1,0 +1,62 @@
+{
+  "format": "manually transcribed relevant observations; not the full raw report",
+  "date": "2026-10-22",
+  "issue": 99,
+  "service_attempts": 1,
+  "passed": false,
+  "sandbox_ready": false,
+  "unit": "prototype-gh99-5b91d485efd44b588c17c2a005448973.service",
+  "invocation_id": "8d1732efe44940d7bebfc89696b2c64f",
+  "raw_directory": "/tmp/opencode/PROTOTYPE-GH99/capability-bdb48766ba9a4445b54fac39f145f916",
+  "raw_report_sha256": "f581c5a541f32f827b786416896b1083a94ccc1a7b083b532bdcf7a8d3c6dbdd",
+  "service_stderr_sha256": "439cf3d5f5dfb2f4a7325bee00f3038ea12b6a3dfba7eb53f12c55963f8af731",
+  "executed_source_sha256": "06ecf82625c80dcbd7fc5930cff34816eb615ada0ff30b4cb4854288ea03d90f",
+  "bubblewrap_version": "bubblewrap 0.13.1",
+  "service_stderr": "bwrap: --disable-userns requires --unshare-user\n",
+  "systemd_run_returncode": 0,
+  "initial_main_pid": 50036,
+  "limits_observed_in_manager": {
+    "RuntimeMaxUSec": "50s",
+    "TimeoutStopUSec": "3s",
+    "MemoryMax": "134217728",
+    "TasksMax": "16",
+    "NoNewPrivileges": "yes",
+    "KillMode": "control-group",
+    "SendSIGKILL": "yes",
+    "Restart": "no"
+  },
+  "controller_checks": {
+    "service_launch_command_succeeded": true,
+    "sandbox_and_child_ready": false
+  },
+  "controller_error": {
+    "type": "RuntimeError",
+    "message": "Missing or unexpected fixture cgroup; no cgroup inspection"
+  },
+  "explicit_stop_returncode": 0,
+  "final_manager_observation": {
+    "ActiveState": "failed",
+    "SubState": "failed",
+    "MainPID": "0",
+    "Result": "exit-code",
+    "ExecMainCode": "1",
+    "ExecMainStatus": "1",
+    "ControlGroup": ""
+  },
+  "elapsed_seconds": 8.057411252999373,
+  "not_reached": [
+    "sandbox readiness",
+    "child listener",
+    "network isolation probe",
+    "accelerator device visibility check",
+    "fixture process inventory",
+    "cgroup empty observation",
+    "kill escalation"
+  ],
+  "ollama_started": false,
+  "models_downloaded_or_loaded": false,
+  "inference_performed": false,
+  "host_isolation_support_verdict": "unvalidated",
+  "provider_containment_verdict": "unvalidated",
+  "next_launch_requires_new_authorization": true
+}
