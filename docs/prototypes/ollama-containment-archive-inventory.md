@@ -219,3 +219,9 @@ Proposed scope, **not yet authorized**:
   installation, service creation, model-store loading, inference or deletion.
   Partial outputs remain explicitly ineligible; do not repair, retry or weaken
   the gate automatically. This inventory-repeat grant does not authorize extraction.
+
+The human subsequently explicitly approved this extraction-only scope.
+[Full-layout staging observations](ollama-containment-extraction.md) record 15/15
+checks, hashes of all 49 non-executable staged files and 28 validated internal
+links. This advances byte/layout evidence only; no acquired code was executed,
+and static compatibility/runtime/containment gates remain open.
