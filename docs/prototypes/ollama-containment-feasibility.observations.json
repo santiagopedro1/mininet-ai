@@ -1,0 +1,77 @@
+{
+  "format": "transcribed read-only filesystem, aggregate memory and current-session cgroup observations",
+  "date": "2026-10-22",
+  "issue": 99,
+  "human_decisions": {
+    "model": "qwen2.5:0.5b-instruct-q4_K_M",
+    "manifest_sha256": "a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+    "storage_path": "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts",
+    "read_only_filesystem_and_aggregate_memory_checks_authorized": true,
+    "artifact_acquisition_authorized": false,
+    "extraction_authorized": false,
+    "service_or_inference_authorized": false
+  },
+  "filesystem": {
+    "selected_path": "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts",
+    "path_exists": false,
+    "statvfs_existing_ancestor": "/home/pedro/projects/mininet-ai/mininet-ai",
+    "backing_mount": {
+      "mountpoint": "/home",
+      "filesystem_type": "btrfs",
+      "mount_options": "rw,relatime"
+    },
+    "capacity": {
+      "total_bytes": 511033999360,
+      "available_bytes": 396868403200,
+      "available_inodes": 0
+    },
+    "available_inodes_interpretation": "Btrfs statvfs value alone does not establish inode exhaustion or an allocation guarantee"
+  },
+  "aggregate_memory_kib": {
+    "MemTotal": 16084804,
+    "MemAvailable": 10115572,
+    "SwapTotal": 4194300,
+    "SwapFree": 4194300,
+    "CommitLimit": 12236700,
+    "Committed_AS": 14257188
+  },
+  "current_session_ancestor_cgroups": [
+    {"path": "/sys/fs/cgroup"},
+    {
+      "path": "/sys/fs/cgroup/user.slice",
+      "memory.max": "max", "memory.high": "max", "memory.current": "11179114496",
+      "memory.swap.max": "max", "memory.swap.current": "0"
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice",
+      "memory.max": "max", "memory.high": "max", "memory.current": "10296549376",
+      "memory.swap.max": "max", "memory.swap.current": "0"
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+      "memory.max": "max", "memory.high": "max", "memory.current": "10292322304",
+      "memory.swap.max": "max", "memory.swap.current": "0"
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice",
+      "memory.max": "max", "memory.high": "max", "memory.current": "9145552896",
+      "memory.swap.max": "max", "memory.swap.current": "0"
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kitty-4492-0.scope",
+      "memory.max": "max", "memory.high": "max", "memory.current": "2909728768",
+      "memory.swap.max": "max", "memory.swap.current": "0"
+    }
+  ],
+  "limitations": [
+    "point-in-time read-only snapshot; no memory or storage reservation",
+    "missing memory.max at cgroup root is not a synthetic finite or infinite limit observation",
+    "ancestor memory.current values overlap and must not be added",
+    "Committed_AS exceeds CommitLimit; overcommit policy was not inspected",
+    "current-session limits do not validate future service limits or memory fit",
+    "no Btrfs quota, allocation or write probe was performed",
+    "no artifact directory was created; no archive or model weights acquired",
+    "archive expanded size and runtime compatibility remain unknown"
+  ],
+  "verdict": "sufficient sampled capacity to propose bounded disk-backed acquisition only; not runtime acceptance"
+}

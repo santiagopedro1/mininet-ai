@@ -1,8 +1,10 @@
 # Acquisition planning — THROWAWAY GH-99, NEVER MERGE
 
 Metadata-only continuation of [Validate dedicated Ollama Provider and runner containment](https://github.com/santiagopedro1/mininet-ai/issues/99).
-2026-10-22. No architecture acceptance, real deployment, download authorization,
-model selection by the human or inference authorization follows from this note.
+2026-10-22. No architecture acceptance, real deployment, download authorization
+or inference authorization follows from this note. The initial metadata snapshot
+predates model selection; the human subsequently explicitly selected the proposed
+exact model manifest and workspace storage path, as recorded below.
 The live human authorized public server/model metadata queries and free-space
 inspection under `/tmp/opencode`, explicitly without artifact acquisition or services.
 
@@ -102,12 +104,12 @@ Those remain gates before a live smoke test; service limits do not replace them.
 
 ## Next human decisions / authorization boundaries
 
-1. Human select or reject the exact proposed model manifest; pin descriptors,
-   not just the tag. No model is selected by this automated recommendation.
-2. Human select prospective disk-backed workspace artifact storage and authorize
-   read-only capacity/type checks there, plus aggregate `/proc/meminfo` and the
-   current session's ancestor cgroup memory limits for feasibility. No unrelated
-   process enumeration, credentials or existing daemon inspection is needed.
+1. **Settled:** human selected the proposed exact model manifest, not just the tag.
+   This accepts the artifact candidate, not its runtime behavior or compatibility.
+2. **Settled:** human selected prospective workspace `.prototype-gh99-artifacts/`
+   storage and authorized read-only capacity/type, aggregate `/proc/meminfo` and
+   current-session ancestor cgroup memory-limit checks. Observations below retain
+   their limits; no unrelated process, credentials or existing daemon was inspected.
 3. Only after feasibility, obtain separate bounded acquisition authorization.
    Download/hash verification, safe archive inspection/extraction, model-store
    construction and actual runtime execution are separate operations; none is
@@ -121,3 +123,52 @@ Static validation checks syntax, captured collector digest, exact raw manifest
 and config hashes, publisher size sums and JSON consistency. No production tests,
 Provider calls, service creation, model loading, archive/weight downloads,
 provisioning, cleanup deletion or ADR changes occurred. #99 stays open and claimed.
+
+## Authorized read-only feasibility snapshot after human selection
+
+[Exact transcribed observations](ollama-containment-feasibility.observations.json)
+record the selected model manifest/storage and the authorized read-only checks.
+The artifact directory did **not** exist and was not created. `statvfs` was run
+on the nearest existing ancestor (the workspace); `/proc/self/mountinfo` places
+the prospective path under the `/home` Btrfs mount. Available space was
+396,868,403,200 bytes (~397 GB decimal / 370 GiB), comfortably above the proposed
+download-only payload. This is not a quota or allocation/write test. Btrfs
+reported available inode count zero through statvfs; this alone does not prove
+exhaustion or guarantee future allocations.
+
+Aggregate `MemAvailable` was 10,115,572 KiB (~10.36 GB decimal / 9.65 GiB),
+`MemTotal` 16,084,804 KiB; swap total/free were both 4,194,300 KiB. Inspected
+non-root ancestors of this session reported `memory.max=max`, `memory.high=max`
+and `memory.swap.max=max`; the root exposed none of those files. No finite
+ancestor limit was observed. Ancestor usage overlaps; do not add the reported
+`memory.current` values. This neither reserves memory nor validates the proposed
+future services' effective limits.
+
+`Committed_AS` was 14,257,188 KiB, above `CommitLimit` 12,236,700 KiB. The
+overcommit policy was not inspected. Do not infer guaranteed allocations, an
+immediate failure or permission to raise limits from these aggregate values.
+Refresh resource observations before any separately authorized runtime phase.
+
+**Feasibility verdict:** sufficient sampled disk capacity to propose bounded
+acquisition, not runtime/containment acceptance. Archive expansion remains unknown;
+it is unnecessary to unpack anything to validate acquired compressed-file hashes.
+
+### Proposed next authorization: acquisition only, not yet granted
+
+- Create only a uniquely named acquisition subdirectory under the selected
+  workspace-local `.prototype-gh99-artifacts/` root; keep artifact bytes untracked.
+- Fetch the exact pinned server archive and model manifest/config/four layers
+  from public GitHub/Ollama registry and their HTTPS download CDNs, without
+  credentials inspection, inherited proxies, Provider APIs or an installed daemon.
+  Do not follow extra config references to download unapproved blobs.
+- Maximum **2 GiB combined response-body/file payload**, **20 minutes total**;
+  stream with bounded buffers, exact expected per-object size/hash checks and an
+  absolute deadline. No automatic retries/resume or overwriting existing files.
+  Exact publisher payload is 1,903,040,978 bytes plus the tiny manifest/receipts.
+- Stop on changed metadata, unexpected content/size/hash, write failure or budget
+  exhaustion; preserve partial files and failure evidence without deletion or
+  successful-acquisition claims. Do not relax pins or automatically switch models.
+- **No extraction, installation, executable launch, services, model loading,
+  inference, actual-data changes or destructive cleanup.** Those require later
+  distinct scopes, including archive expansion caps and the remaining networking/
+  ownership/containment evidence. This proposal does not authorize itself.
