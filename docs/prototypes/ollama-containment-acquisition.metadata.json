@@ -1,0 +1,154 @@
+{
+  "throwaway": true,
+  "observed_utc": "2026-10-22T18:47:11.044319+00:00",
+  "source_sha256": "195379b2db2a0e8d925d883e9f4edbcecca963db6f9f456eb277d38f99c3ead4",
+  "authorization": "public metadata and /tmp/opencode capacity only",
+  "release": {
+    "id": 419777982,
+    "tag_name": "v0.40.8",
+    "published_at": "2026-10-21T16:20:30Z",
+    "immutable": false
+  },
+  "archive": {
+    "name": "ollama-linux-amd64.tar.zst",
+    "id": 663838027,
+    "size": 1505219659,
+    "digest": "sha256:0bb17cc19e9c1339ddbe0cba55148bf068f8f19dec8ec5fd531461aaa207282a",
+    "browser_download_url": "https://github.com/ollama/ollama/releases/download/v0.40.8/ollama-linux-amd64.tar.zst"
+  },
+  "archive_bytes_downloaded": false,
+  "model_candidate": "qwen2.5:0.5b-instruct-q4_K_M",
+  "human_model_selection": false,
+  "manifest_sha256": "a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+  "manifest": {
+    "schemaVersion": 2,
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "config": {
+      "mediaType": "application/vnd.docker.container.image.v1+json",
+      "digest": "sha256:005f95c7475154a17e84b85cd497949d6dd2a4f9d77c096e3c66e4d9c32acaf5",
+      "size": 490
+    },
+    "layers": [
+      {
+        "mediaType": "application/vnd.ollama.image.model",
+        "digest": "sha256:c5396e06af294bd101b30dce59131a76d2b773e76950acc870eda801d3ab0515",
+        "size": 397807936
+      },
+      {
+        "mediaType": "application/vnd.ollama.image.system",
+        "digest": "sha256:66b9ea09bd5b7099cbb4fc820f31b575c0366fa439b08245566692c6784e281e",
+        "size": 68
+      },
+      {
+        "mediaType": "application/vnd.ollama.image.template",
+        "digest": "sha256:eb4402837c7829a690fa845de4d7f3fd842c2adee476d5341da8a46ea9255175",
+        "size": 1482
+      },
+      {
+        "mediaType": "application/vnd.ollama.image.license",
+        "digest": "sha256:832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+        "size": 11343
+      }
+    ]
+  },
+  "raw_manifest": "{\"schemaVersion\":2,\"mediaType\":\"application/vnd.docker.distribution.manifest.v2+json\",\"config\":{\"mediaType\":\"application/vnd.docker.container.image.v1+json\",\"digest\":\"sha256:005f95c7475154a17e84b85cd497949d6dd2a4f9d77c096e3c66e4d9c32acaf5\",\"size\":490},\"layers\":[{\"mediaType\":\"application/vnd.ollama.image.model\",\"digest\":\"sha256:c5396e06af294bd101b30dce59131a76d2b773e76950acc870eda801d3ab0515\",\"size\":397807936},{\"mediaType\":\"application/vnd.ollama.image.system\",\"digest\":\"sha256:66b9ea09bd5b7099cbb4fc820f31b575c0366fa439b08245566692c6784e281e\",\"size\":68},{\"mediaType\":\"application/vnd.ollama.image.template\",\"digest\":\"sha256:eb4402837c7829a690fa845de4d7f3fd842c2adee476d5341da8a46ea9255175\",\"size\":1482},{\"mediaType\":\"application/vnd.ollama.image.license\",\"digest\":\"sha256:832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e\",\"size\":11343}]}",
+  "model_config": {
+    "model_format": "gguf",
+    "model_family": "qwen2",
+    "model_families": [
+      "qwen2"
+    ],
+    "model_type": "494.03M",
+    "file_type": "Q4_K_M",
+    "architecture": "amd64",
+    "os": "linux",
+    "rootfs": {
+      "type": "layers",
+      "diff_ids": [
+        "sha256:c5396e06af294bd101b30dce59131a76d2b773e76950acc870eda801d3ab0515",
+        "sha256:75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+        "sha256:9bebd78bf5bc92d41d5f3aab3ee66c891376b4eb4cf433edc2533c2f5f9c95a6",
+        "sha256:832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"
+      ]
+    }
+  },
+  "raw_model_config": "{\"model_format\":\"gguf\",\"model_family\":\"qwen2\",\"model_families\":[\"qwen2\"],\"model_type\":\"494.03M\",\"file_type\":\"Q4_K_M\",\"architecture\":\"amd64\",\"os\":\"linux\",\"rootfs\":{\"type\":\"layers\",\"diff_ids\":[\"sha256:c5396e06af294bd101b30dce59131a76d2b773e76950acc870eda801d3ab0515\",\"sha256:75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de\",\"sha256:9bebd78bf5bc92d41d5f3aab3ee66c891376b4eb4cf433edc2533c2f5f9c95a6\",\"sha256:832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e\"]}}\n",
+  "upstream_config_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "upstream_config": {
+    "architectures": [
+      "Qwen2ForCausalLM"
+    ],
+    "attention_dropout": 0.0,
+    "bos_token_id": 151643,
+    "eos_token_id": 151645,
+    "hidden_act": "silu",
+    "hidden_size": 896,
+    "initializer_range": 0.02,
+    "intermediate_size": 4864,
+    "max_position_embeddings": 32768,
+    "max_window_layers": 21,
+    "model_type": "qwen2",
+    "num_attention_heads": 14,
+    "num_hidden_layers": 24,
+    "num_key_value_heads": 2,
+    "rms_norm_eps": 1e-06,
+    "rope_theta": 1000000.0,
+    "sliding_window": 32768,
+    "tie_word_embeddings": true,
+    "torch_dtype": "bfloat16",
+    "transformers_version": "4.43.1",
+    "use_cache": true,
+    "use_sliding_window": false,
+    "vocab_size": 151936
+  },
+  "upstream_to_ollama_conversion_provenance": "not established",
+  "model_config_bytes_retrieved": 490,
+  "model_layer_bytes_downloaded": false,
+  "model_and_config_publisher_bytes": 397821319,
+  "archive_plus_model_publisher_bytes": 1903040978,
+  "expanded_archive_bytes": "unknown without separately authorized archive inspection",
+  "scratch_capacity": {
+    "path": "/tmp/opencode",
+    "total_bytes": 8235421696,
+    "available_bytes": 8216715264,
+    "free_capacity_is_not_memory_or_extraction_headroom": true
+  },
+  "sources": [
+    {
+      "url": "https://api.github.com/repos/ollama/ollama/releases/tags/v0.40.8",
+      "status": 200,
+      "final_host": "api.github.com",
+      "body_sha256": "54d4fa80a914bd0fe1a6208b80af4fa954c95ddda6fe38918463977971ecbaec",
+      "body_bytes": 31016
+    },
+    {
+      "url": "https://registry.ollama.ai/v2/library/qwen2.5/manifests/sha256:a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+      "status": 404,
+      "body_retained": false
+    },
+    {
+      "url": "https://registry.ollama.ai/v2/library/qwen2.5/manifests/0.5b-instruct-q4_K_M",
+      "status": 200,
+      "final_host": "registry.ollama.ai",
+      "body_sha256": "a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+      "body_bytes": 857
+    },
+    {
+      "url": "https://registry.ollama.ai/v2/library/qwen2.5/blobs/sha256:005f95c7475154a17e84b85cd497949d6dd2a4f9d77c096e3c66e4d9c32acaf5",
+      "status": 200,
+      "final_host": "dd20bb891979d25aebc8bec07b2b3bbc.r2.cloudflarestorage.com",
+      "body_sha256": "005f95c7475154a17e84b85cd497949d6dd2a4f9d77c096e3c66e4d9c32acaf5",
+      "body_bytes": 490
+    },
+    {
+      "url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/raw/7ae557604adf67be50417f59c2c2f167def9a775/config.json",
+      "status": 200,
+      "final_host": "huggingface.co",
+      "body_sha256": "18e18afcaccafade98daf13a54092927904649e1dd4eba8299ab717d5d94ff45",
+      "body_bytes": 659
+    }
+  ],
+  "runtime_compatibility": "unvalidated",
+  "provider_started": false,
+  "inference_performed": false
+}
