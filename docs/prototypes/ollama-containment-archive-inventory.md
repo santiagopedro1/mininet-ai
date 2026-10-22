@@ -95,3 +95,55 @@ entry counts/type totals/file-size sums, exact archive hash recorded by the pass
 and explicit no-execution flags. It separately flags, rather than passes, the RSS
 anomaly. No production tests ran. #99 remains open and claimed; no Provider or
 architecture acceptance, and this branch must never be merged.
+
+## Separately authorized startup-counter diagnostic
+
+The human explicitly authorized the proposed read-only diagnostic. One fresh
+trusted interpreter ran the [diagnostic script](ollama_containment_memory_diagnostic_prototype.py);
+its [full observations](ollama-containment-memory-diagnostic.observations.json)
+are retained. No archive was opened, no large allocation attempted, no acquired
+code imported and no service/inference work performed. The only limit change was
+a restrictive RLIMIT_AS applied to the diagnostic process itself; no other
+process or persistent setting was modified.
+
+```sh
+env -i PATH=/usr/bin:/bin LANG=C /usr/bin/python3 -I -S \
+  docs/prototypes/ollama_containment_memory_diagnostic_prototype.py
+```
+
+Before any inventory work (none was performed), `ru_maxrss` was already exactly
+**677656 KiB**, matching the original inventory report. The diagnostic's own
+`/proc/self/status` reported:
+
+| Metric | Before local limit | After local limit |
+| --- | ---: | ---: |
+| VmHWM / VmRSS | 15,772 KiB | 15,844 KiB |
+| VmPeak / VmSize | 27,980 KiB | 27,980 KiB |
+| ru_maxrss | 677,656 KiB | 677,656 KiB |
+| RLIMIT_AS soft/hard | unlimited | 536,870,912 bytes |
+
+The [Linux man-pages getrusage(2) NOTES](https://man7.org/linux/man-pages/man2/getrusage.2.html#NOTES),
+retrieved 2026-10-22, explicitly document that resource-usage metrics survive
+`execve(2)`. This primary documentation plus the directly observed startup mismatch
+supports a pre-exec/lifetime high-water explanation. No parent/unrelated process
+was inspected, so the source process/event behind that value is not established.
+The diagnostic does **not** show 662 MiB of inventory-phase resident memory use.
+
+**Diagnostic verdict:** startup counter contamination is reproduced without archive
+work or a large allocation. The original pass's current-image peak was not
+collected and is **not reconstructed or retroactively accepted**. Keep its complete
+header/integrity facts and partial memory verdict unchanged.
+
+### Next proposed authorization, not yet granted
+
+One repeat inventory pass with the **same** 12 GiB expanded-stream, 10,000-member,
+10-minute wall, 120-second CPU and 512 MiB address-space limits. Add startup/end
+`/proc/self/status` VmHWM/VmPeak snapshots and observed effective RLIMIT_AS to the
+pass receipt, and explicitly evaluate those current-image memory witnesses rather
+than treating inherited ru_maxrss as the only peak metric. Preserve ru_maxrss as
+separate history, not delete or subtract it. Any missing/over-budget witness is
+a negative/partial result, not permission to increase limits or retry again.
+
+No extraction, model or executable launch, services, large intentional allocation,
+new download or deletion. The earlier one-pass authorization is consumed; the
+diagnostic authorization does not authorize this repeat or any later extraction.

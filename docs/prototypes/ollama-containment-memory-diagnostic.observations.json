@@ -1,0 +1,56 @@
+{
+  "throwaway": true,
+  "issue": 99,
+  "observed_utc": "2026-10-22T19:25:09.245963+00:00",
+  "source_sha256": "a57ac021b2585180d990706a28dbe8fb6869fe21264a90ec4b31d0bc67c23f86",
+  "scope": "fresh trusted interpreter process counters and own status only",
+  "before_applying_address_space_limit": {
+    "proc_self_status": {
+      "VmPeak": "27980 kB",
+      "VmSize": "27980 kB",
+      "VmHWM": "15772 kB",
+      "VmRSS": "15772 kB",
+      "RssAnon": "5972 kB",
+      "RssFile": "9800 kB",
+      "RssShmem": "0 kB"
+    },
+    "ru_maxrss_kib": 677656,
+    "cpu_seconds": 0.022732999999999996,
+    "rlimit_as": [
+      -1,
+      -1
+    ],
+    "rlimit_cpu": [
+      -1,
+      -1
+    ]
+  },
+  "after_applying_address_space_limit": {
+    "proc_self_status": {
+      "VmPeak": "27980 kB",
+      "VmSize": "27980 kB",
+      "VmHWM": "15844 kB",
+      "VmRSS": "15844 kB",
+      "RssAnon": "5980 kB",
+      "RssFile": "9864 kB",
+      "RssShmem": "0 kB"
+    },
+    "ru_maxrss_kib": 677656,
+    "cpu_seconds": 0.022779,
+    "rlimit_as": [
+      536870912,
+      536870912
+    ],
+    "rlimit_cpu": [
+      -1,
+      -1
+    ]
+  },
+  "elapsed_seconds": 0.00021906599977228325,
+  "large_allocation_attempted": false,
+  "archive_opened_or_rescanned": false,
+  "acquired_code_loaded": false,
+  "service_started": false,
+  "inference_performed": false,
+  "original_inventory_peak_reconstructed": false
+}
