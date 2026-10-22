@@ -1,0 +1,6138 @@
+{
+  "prototype": true,
+  "cases": [
+    {
+      "scenario": "startup",
+      "unit": "mininet-ai-containment-prototype-373574fc8e01452fb0a9e2e4e6b9b285.service",
+      "checks": {
+        "quarantine_committed_before_ack": true,
+        "actual_controller_late_refusal": true,
+        "startup_never_ready": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "missing_exit_evidence_rejected": true,
+        "stale_incarnation_rejected": true,
+        "contradictory_observation_rejected": true,
+        "fresh_process_denies_conflicting_service_launch": true,
+        "denied_launch_has_no_process_effect": true,
+        "physical_flock_free_but_quarantine_retained": true,
+        "delayed_valid_observation_reconciles": true,
+        "failed_run_cannot_be_resumed": true,
+        "new_fixture_generation_launches_only_after_verification": true,
+        "old_failed_run_denied_after_successor_launch": true,
+        "sqlite_integrity": true,
+        "no_dispatch_authorized_after_cancel_commit": true,
+        "no_duplicate_operation_terminals": true,
+        "one_worker_incarnation": true
+      },
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "45s",
+        "MainPID": "30082",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-373574fc8e01452fb0a9e2e4e6b9b285.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "invocation": "72d8fd268f37485e9f777b3a505b4f45",
+      "controller_owner_identity": "30082:625618",
+      "processes_before_stop": [
+        30082,
+        30084,
+        30085
+      ],
+      "requests": [
+        {
+          "action": "cancel",
+          "run": "373574fc8e01452fb0a9e2e4e6b9b285",
+          "command": null
+        },
+        {
+          "action": "submit",
+          "run": "373574fc8e01452fb0a9e2e4e6b9b285",
+          "command": {
+            "id": "late-controller",
+            "route": "session",
+            "agent": "A"
+          }
+        }
+      ],
+      "replies": [
+        {
+          "worker_pid": 30085,
+          "controller_pid": 30082
+        },
+        {
+          "startup_blocked": true
+        },
+        {
+          "controller_cancel_committed": true
+        },
+        {
+          "id": "late-controller",
+          "controller_denied": true
+        },
+        {
+          "startup_rejected": true
+        }
+      ],
+      "controller_events": [
+        {
+          "seq": 1,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "373574fc8e01452fb0a9e2e4e6b9b285",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 2,
+          "kind": "cancel-durable",
+          "payload": {}
+        },
+        {
+          "seq": 3,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "373574fc8e01452fb0a9e2e4e6b9b285",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 4,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {}
+          }
+        },
+        {
+          "seq": 5,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "373574fc8e01452fb0a9e2e4e6b9b285",
+              "invocation": "stale",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 6,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "373574fc8e01452fb0a9e2e4e6b9b285",
+              "invocation": "72d8fd268f37485e9f777b3a505b4f45",
+              "processes_exited": false,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 7,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7e5085f07bb04ccdbc9d822b1c0eb4c0",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 8,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": true,
+            "observation": {
+              "generation": "373574fc8e01452fb0a9e2e4e6b9b285",
+              "invocation": "72d8fd268f37485e9f777b3a505b4f45",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 9,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "373574fc8e01452fb0a9e2e4e6b9b285",
+            "allowed": false,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 10,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7e5085f07bb04ccdbc9d822b1c0eb4c0",
+            "allowed": true,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 11,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "373574fc8e01452fb0a9e2e4e6b9b285",
+            "allowed": false,
+            "state": "open"
+          }
+        }
+      ],
+      "worker_events": [],
+      "retained_memories": [],
+      "start_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-373574fc8e01452fb0a9e2e4e6b9b285.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=45s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_quarantine_prototype.py",
+          "bridge",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/startup",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/helpers",
+          "startup"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-373574fc8e01452fb0a9e2e4e6b9b285.service; invocation ID: 72d8fd268f37485e9f777b3a505b4f45\n"
+      },
+      "stop_command": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-373574fc8e01452fb0a9e2e4e6b9b285.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "new_generation_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--wait",
+          "--collect",
+          "--unit=mininet-ai-containment-prototype-7e5085f07bb04ccdbc9d822b1c0eb4c0.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=RuntimeMaxSec=5s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "-c",
+          "from pathlib import Path; Path('/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/startup/new-independent-fixture-started').write_text('new generation')"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-7e5085f07bb04ccdbc9d822b1c0eb4c0.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 35ms\n             CPU time consumed: 24ms\n                   Memory peak: 5.4M (swap: 0B)\n"
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "new-independent-fixture-started",
+        "new-launch.json",
+        "release-startup",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "admission",
+      "unit": "mininet-ai-containment-prototype-424562a4e26841b485d0fa55fe971f39.service",
+      "checks": {
+        "worker_gate_held_while_active": true,
+        "quarantine_committed_before_ack": true,
+        "actual_controller_late_refusal": true,
+        "actual_worker_late_refusal": true,
+        "queued_refused_at_actual_dispatch": true,
+        "active_not_actionable": true,
+        "sibling_not_actionable": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "missing_exit_evidence_rejected": true,
+        "stale_incarnation_rejected": true,
+        "contradictory_observation_rejected": true,
+        "fresh_process_denies_conflicting_service_launch": true,
+        "denied_launch_has_no_process_effect": true,
+        "physical_flock_free_but_quarantine_retained": true,
+        "delayed_valid_observation_reconciles": true,
+        "failed_run_cannot_be_resumed": true,
+        "new_fixture_generation_launches_only_after_verification": true,
+        "old_failed_run_denied_after_successor_launch": true,
+        "sqlite_integrity": true,
+        "no_dispatch_authorized_after_cancel_commit": true,
+        "seed_memory_preserved": true,
+        "no_duplicate_operation_terminals": true,
+        "one_worker_incarnation": true
+      },
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "45s",
+        "MainPID": "30099",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-424562a4e26841b485d0fa55fe971f39.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "invocation": "f50b521e91dc40c9beb762680649a080",
+      "controller_owner_identity": "30099:625732",
+      "processes_before_stop": [
+        30099,
+        30100,
+        30101
+      ],
+      "requests": [
+        {
+          "action": "submit",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "id": "seed",
+            "route": "add",
+            "agent": "A",
+            "memory_id": "seed"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "id": "warm",
+            "route": "session",
+            "agent": "A",
+            "text": "establish session"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "id": "active",
+            "route": "reason",
+            "agent": "A",
+            "dispatch_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "id": "sibling",
+            "route": "session",
+            "agent": "B",
+            "finalize_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "id": "queued",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "route": "gate-probe"
+          }
+        },
+        {
+          "action": "cancel",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": null
+        },
+        {
+          "action": "submit",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "id": "late-controller",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "worker-diagnostic",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "id": "late-worker",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "release_dispatch": "active"
+          }
+        },
+        {
+          "action": "release",
+          "run": "424562a4e26841b485d0fa55fe971f39",
+          "command": {
+            "release_finalize": "sibling"
+          }
+        }
+      ],
+      "replies": [
+        {
+          "worker_pid": 30101,
+          "controller_pid": 30099
+        },
+        {
+          "ready": true,
+          "config": {
+            "startup_hold": false,
+            "quiescence_bound": 4
+          }
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140617319446208,
+          "agent_object": 140617324301008,
+          "adapter_object": 140617323806208,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T11:17:26",
+              "updated_at": "2026-10-22T11:17:27",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm",
+          "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140617319446208,
+          "agent_object": 140617323802848,
+          "adapter_object": 140617310115536,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        },
+        {
+          "controller_cancel_committed": true
+        },
+        {
+          "cancel_ack": true
+        },
+        {
+          "id": "late-controller",
+          "controller_denied": true
+        },
+        {
+          "id": "late-worker",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        },
+        {
+          "id": "active",
+          "success": false,
+          "run_failed": true,
+          "dispatch": "refused",
+          "rejected": "queued work refused after failure latch"
+        },
+        {
+          "id": "queued",
+          "success": false,
+          "run_failed": true,
+          "dispatch": "refused",
+          "rejected": "queued work refused after failure latch"
+        },
+        {
+          "id": "sibling",
+          "hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140617310004928,
+          "agent_object": 140617324313104,
+          "adapter_object": 140617310683536,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        }
+      ],
+      "controller_events": [
+        {
+          "seq": 1,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 2,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 3,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "seed",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 4,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 5,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "warm",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 6,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 7,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 8,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "sibling",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 9,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 10,
+          "kind": "cancel-durable",
+          "payload": {}
+        },
+        {
+          "seq": 11,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 12,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "active",
+            "allowed": false
+          }
+        },
+        {
+          "seq": 13,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "queued",
+            "allowed": false
+          }
+        },
+        {
+          "seq": 14,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {}
+          }
+        },
+        {
+          "seq": 15,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "424562a4e26841b485d0fa55fe971f39",
+              "invocation": "stale",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 16,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "424562a4e26841b485d0fa55fe971f39",
+              "invocation": "f50b521e91dc40c9beb762680649a080",
+              "processes_exited": false,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 17,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "1fed20187aac4115b160d7f5e90447c5",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 18,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": true,
+            "observation": {
+              "generation": "424562a4e26841b485d0fa55fe971f39",
+              "invocation": "f50b521e91dc40c9beb762680649a080",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 19,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": false,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 20,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "1fed20187aac4115b160d7f5e90447c5",
+            "allowed": true,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 21,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "424562a4e26841b485d0fa55fe971f39",
+            "allowed": false,
+            "state": "open"
+          }
+        }
+      ],
+      "worker_events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140617323806208,
+            "agent_object": 140617324301008,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T11:17:26",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:27",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140617319446208,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140617310115536,
+            "agent_object": 140617323802848,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "id": "warm",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140617319446208,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "before-dispatch",
+          "payload": {}
+        },
+        {
+          "seq": 14,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "worker",
+          "kind": "cancel-observed",
+          "payload": {}
+        },
+        {
+          "seq": 21,
+          "id": "late-worker",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "4847d48d4b54561a8416179bd76b6c184742c04499abf052430a62af5aef4aea",
+            "latch": true
+          }
+        },
+        {
+          "seq": 22,
+          "id": "active",
+          "kind": "dispatch-denied",
+          "payload": {
+            "command_hash": "174cba4aa9a8dba287529948ec25fd73423524a0f22ec88bbf2b5912c1636192"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "queued",
+          "kind": "dispatch-denied",
+          "payload": {
+            "command_hash": "21417dccbc93fbbee98a6c15e52bd9928bdf826b988c18c1d1b1e058207b4a45"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "sibling",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140617310683536,
+            "agent_object": 140617324313104,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "id": "sibling",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140617310004928,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 25,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
+          }
+        }
+      ],
+      "retained_memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T11:17:26",
+          "updated_at": "2026-10-22T11:17:27",
+          "user_id": "trial:A"
+        }
+      ],
+      "start_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-424562a4e26841b485d0fa55fe971f39.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=45s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_quarantine_prototype.py",
+          "bridge",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/admission",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/helpers",
+          "admission"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-424562a4e26841b485d0fa55fe971f39.service; invocation ID: f50b521e91dc40c9beb762680649a080\n"
+      },
+      "stop_command": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-424562a4e26841b485d0fa55fe971f39.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "new_generation_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--wait",
+          "--collect",
+          "--unit=mininet-ai-containment-prototype-1fed20187aac4115b160d7f5e90447c5.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=RuntimeMaxSec=5s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "-c",
+          "from pathlib import Path; Path('/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/admission/new-independent-fixture-started').write_text('new generation')"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-1fed20187aac4115b160d7f5e90447c5.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 29ms\n             CPU time consumed: 22ms\n                   Memory peak: 5.5M (swap: 0B)\n"
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "command-007.json",
+        "command-008.json",
+        "command-009.json",
+        "command-010.json",
+        "command-011.json",
+        "new-independent-fixture-started",
+        "new-launch.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "foreground",
+      "unit": "mininet-ai-containment-prototype-fb6d14a24c8e49c7b930ad456cb16fc3.service",
+      "checks": {
+        "worker_gate_held_while_active": true,
+        "quarantine_committed_before_ack": true,
+        "actual_controller_late_refusal": true,
+        "actual_worker_late_refusal": true,
+        "queued_refused_at_actual_dispatch": true,
+        "active_not_actionable": true,
+        "sibling_not_actionable": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "missing_exit_evidence_rejected": true,
+        "stale_incarnation_rejected": true,
+        "contradictory_observation_rejected": true,
+        "fresh_process_denies_conflicting_service_launch": true,
+        "denied_launch_has_no_process_effect": true,
+        "physical_flock_free_but_quarantine_retained": true,
+        "delayed_valid_observation_reconciles": true,
+        "failed_run_cannot_be_resumed": true,
+        "new_fixture_generation_launches_only_after_verification": true,
+        "old_failed_run_denied_after_successor_launch": true,
+        "sqlite_integrity": true,
+        "no_dispatch_authorized_after_cancel_commit": true,
+        "seed_memory_preserved": true,
+        "no_duplicate_operation_terminals": true,
+        "one_worker_incarnation": true
+      },
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "45s",
+        "MainPID": "30118",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-fb6d14a24c8e49c7b930ad456cb16fc3.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "invocation": "4bf6a1abef264e738dbe37e8bfe14274",
+      "controller_owner_identity": "30118:625855",
+      "processes_before_stop": [
+        30118,
+        30119,
+        30120
+      ],
+      "requests": [
+        {
+          "action": "submit",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "id": "seed",
+            "route": "add",
+            "agent": "A",
+            "memory_id": "seed"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "id": "warm",
+            "route": "session",
+            "agent": "A",
+            "text": "establish session"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "id": "active",
+            "route": "reason",
+            "agent": "A",
+            "foreground_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "id": "sibling",
+            "route": "session",
+            "agent": "B",
+            "finalize_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "id": "queued",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "route": "gate-probe"
+          }
+        },
+        {
+          "action": "cancel",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": null
+        },
+        {
+          "action": "submit",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "id": "late-controller",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "worker-diagnostic",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "id": "late-worker",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "release_background": "active"
+          }
+        },
+        {
+          "action": "release",
+          "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+          "command": {
+            "release_finalize": "sibling"
+          }
+        }
+      ],
+      "replies": [
+        {
+          "worker_pid": 30120,
+          "controller_pid": 30118
+        },
+        {
+          "ready": true,
+          "config": {
+            "startup_hold": false,
+            "quiescence_bound": 4
+          }
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 139889774425792,
+          "agent_object": 139889775315664,
+          "adapter_object": 139889774820864,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T11:17:27",
+              "updated_at": "2026-10-22T11:17:28",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm",
+          "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139889774425792,
+          "agent_object": 139889774817504,
+          "adapter_object": 139889765029584,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        },
+        {
+          "controller_cancel_committed": true
+        },
+        {
+          "cancel_ack": true
+        },
+        {
+          "id": "late-controller",
+          "controller_denied": true
+        },
+        {
+          "id": "late-worker",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        },
+        {
+          "id": "sibling",
+          "hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139889764984512,
+          "agent_object": 139889765436784,
+          "adapter_object": 139889765612944,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        },
+        {
+          "id": "active",
+          "hash": "cda57cffbcec7a02ad8bbaf7082c0b0ba2e223b51857ced6e1c024f9e9378e7b",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 139889774425792,
+          "agent_object": 139889775315664,
+          "adapter_object": 139889774820864,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T11:17:27",
+              "updated_at": "2026-10-22T11:17:28",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "queued",
+          "success": false,
+          "run_failed": true,
+          "dispatch": "refused",
+          "rejected": "queued work refused after failure latch"
+        }
+      ],
+      "controller_events": [
+        {
+          "seq": 1,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 2,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 3,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "seed",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 4,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 5,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "warm",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 6,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 7,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "active",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 8,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 9,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "sibling",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 10,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 11,
+          "kind": "cancel-durable",
+          "payload": {}
+        },
+        {
+          "seq": 12,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 13,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "queued",
+            "allowed": false
+          }
+        },
+        {
+          "seq": 14,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {}
+          }
+        },
+        {
+          "seq": 15,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "fb6d14a24c8e49c7b930ad456cb16fc3",
+              "invocation": "stale",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 16,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "fb6d14a24c8e49c7b930ad456cb16fc3",
+              "invocation": "4bf6a1abef264e738dbe37e8bfe14274",
+              "processes_exited": false,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 17,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "f5cdbd31a94a4735ac84ac885a7e6f72",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 18,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": true,
+            "observation": {
+              "generation": "fb6d14a24c8e49c7b930ad456cb16fc3",
+              "invocation": "4bf6a1abef264e738dbe37e8bfe14274",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 19,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": false,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 20,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "f5cdbd31a94a4735ac84ac885a7e6f72",
+            "allowed": true,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 21,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "fb6d14a24c8e49c7b930ad456cb16fc3",
+            "allowed": false,
+            "state": "open"
+          }
+        }
+      ],
+      "worker_events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 139889774820864,
+            "agent_object": 139889775315664,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T11:17:27",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:28",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 139889774425792,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 139889765029584,
+            "agent_object": 139889774817504,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "id": "warm",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 139889774425792,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "cda57cffbcec7a02ad8bbaf7082c0b0ba2e223b51857ced6e1c024f9e9378e7b",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "foreground-blocked",
+          "payload": {}
+        },
+        {
+          "seq": 17,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "worker",
+          "kind": "cancel-observed",
+          "payload": {}
+        },
+        {
+          "seq": 24,
+          "id": "late-worker",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "4847d48d4b54561a8416179bd76b6c184742c04499abf052430a62af5aef4aea",
+            "latch": true
+          }
+        },
+        {
+          "seq": 25,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 26,
+          "id": "sibling",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 139889765612944,
+            "agent_object": 139889765436784,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "id": "sibling",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 139889764984512,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 27,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 28,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 29,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 30,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 31,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 32,
+          "id": "active",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 139889774820864,
+            "agent_object": 139889775315664,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "cda57cffbcec7a02ad8bbaf7082c0b0ba2e223b51857ced6e1c024f9e9378e7b",
+            "id": "active",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T11:17:27",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:28",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 139889774425792,
+            "profile": "manager",
+            "response": "offline response",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 33,
+          "id": "queued",
+          "kind": "dispatch-denied",
+          "payload": {
+            "command_hash": "21417dccbc93fbbee98a6c15e52bd9928bdf826b988c18c1d1b1e058207b4a45"
+          }
+        },
+        {
+          "seq": 34,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
+          }
+        }
+      ],
+      "retained_memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T11:17:27",
+          "updated_at": "2026-10-22T11:17:28",
+          "user_id": "trial:A"
+        }
+      ],
+      "start_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-fb6d14a24c8e49c7b930ad456cb16fc3.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=45s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_quarantine_prototype.py",
+          "bridge",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/foreground",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/helpers",
+          "foreground"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-fb6d14a24c8e49c7b930ad456cb16fc3.service; invocation ID: 4bf6a1abef264e738dbe37e8bfe14274\n"
+      },
+      "stop_command": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-fb6d14a24c8e49c7b930ad456cb16fc3.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "new_generation_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--wait",
+          "--collect",
+          "--unit=mininet-ai-containment-prototype-f5cdbd31a94a4735ac84ac885a7e6f72.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=RuntimeMaxSec=5s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "-c",
+          "from pathlib import Path; Path('/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/foreground/new-independent-fixture-started').write_text('new generation')"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-f5cdbd31a94a4735ac84ac885a7e6f72.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 38ms\n             CPU time consumed: 26ms\n                   Memory peak: 5.4M (swap: 0B)\n"
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "command-007.json",
+        "command-008.json",
+        "command-009.json",
+        "command-010.json",
+        "command-011.json",
+        "new-independent-fixture-started",
+        "new-launch.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "background",
+      "unit": "mininet-ai-containment-prototype-b6043bec77954daaa20f02d0c9001626.service",
+      "checks": {
+        "worker_gate_held_while_active": true,
+        "quarantine_committed_before_ack": true,
+        "actual_controller_late_refusal": true,
+        "actual_worker_late_refusal": true,
+        "queued_refused_at_actual_dispatch": true,
+        "active_not_actionable": true,
+        "sibling_not_actionable": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "missing_exit_evidence_rejected": true,
+        "stale_incarnation_rejected": true,
+        "contradictory_observation_rejected": true,
+        "fresh_process_denies_conflicting_service_launch": true,
+        "denied_launch_has_no_process_effect": true,
+        "physical_flock_free_but_quarantine_retained": true,
+        "delayed_valid_observation_reconciles": true,
+        "failed_run_cannot_be_resumed": true,
+        "new_fixture_generation_launches_only_after_verification": true,
+        "old_failed_run_denied_after_successor_launch": true,
+        "sqlite_integrity": true,
+        "no_dispatch_authorized_after_cancel_commit": true,
+        "seed_memory_preserved": true,
+        "no_duplicate_operation_terminals": true,
+        "one_worker_incarnation": true
+      },
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "45s",
+        "MainPID": "30138",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-b6043bec77954daaa20f02d0c9001626.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "invocation": "a3755ddb39e14b72b934ecc8633e6fb8",
+      "controller_owner_identity": "30138:625979",
+      "processes_before_stop": [
+        30138,
+        30139,
+        30140
+      ],
+      "requests": [
+        {
+          "action": "submit",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "id": "seed",
+            "route": "add",
+            "agent": "A",
+            "memory_id": "seed"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "id": "warm",
+            "route": "session",
+            "agent": "A",
+            "text": "establish session"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "id": "active",
+            "route": "automatic",
+            "agent": "A",
+            "background": "block"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "id": "sibling",
+            "route": "session",
+            "agent": "B",
+            "finalize_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "id": "queued",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "route": "gate-probe"
+          }
+        },
+        {
+          "action": "cancel",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": null
+        },
+        {
+          "action": "submit",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "id": "late-controller",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "worker-diagnostic",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "id": "late-worker",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "release_background": "active"
+          }
+        },
+        {
+          "action": "release",
+          "run": "b6043bec77954daaa20f02d0c9001626",
+          "command": {
+            "release_finalize": "sibling"
+          }
+        }
+      ],
+      "replies": [
+        {
+          "worker_pid": 30140,
+          "controller_pid": 30138
+        },
+        {
+          "ready": true,
+          "config": {
+            "startup_hold": false,
+            "quiescence_bound": 4
+          }
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140279071897280,
+          "agent_object": 140279076145872,
+          "adapter_object": 140279075651072,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T11:17:28",
+              "updated_at": "2026-10-22T11:17:29",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm",
+          "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140279071897280,
+          "agent_object": 140279075647712,
+          "adapter_object": 140279062566608,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        },
+        {
+          "controller_cancel_committed": true
+        },
+        {
+          "cancel_ack": true
+        },
+        {
+          "id": "late-controller",
+          "controller_denied": true
+        },
+        {
+          "id": "late-worker",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        },
+        {
+          "id": "sibling",
+          "hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140279051966144,
+          "agent_object": 140279053589808,
+          "adapter_object": 140279053576912,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        },
+        {
+          "id": "active",
+          "hash": "b24b43cfbfc7fb46b7788d780fdf1aaa5f3d634594a1d36135c0130986796792",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140279071897280,
+          "agent_object": 140279076157968,
+          "adapter_object": 140279062854736,
+          "user": "trial:A",
+          "profile": "automatic",
+          "memory_free": false,
+          "owned_futures": 1,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed | late-background-fact",
+              "created_at": "2026-10-22T11:17:28",
+              "updated_at": "2026-10-22T11:17:29",
+              "input": "offline automatic",
+              "user_id": "trial:A",
+              "agent_id": "A"
+            }
+          ]
+        },
+        {
+          "id": "queued",
+          "success": false,
+          "run_failed": true,
+          "dispatch": "refused",
+          "rejected": "queued work refused after failure latch"
+        }
+      ],
+      "controller_events": [
+        {
+          "seq": 1,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 2,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 3,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "seed",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 4,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 5,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "warm",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 6,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 7,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "active",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 8,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 9,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "sibling",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 10,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 11,
+          "kind": "cancel-durable",
+          "payload": {}
+        },
+        {
+          "seq": 12,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 13,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "queued",
+            "allowed": false
+          }
+        },
+        {
+          "seq": 14,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {}
+          }
+        },
+        {
+          "seq": 15,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "b6043bec77954daaa20f02d0c9001626",
+              "invocation": "stale",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 16,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "b6043bec77954daaa20f02d0c9001626",
+              "invocation": "a3755ddb39e14b72b934ecc8633e6fb8",
+              "processes_exited": false,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 17,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "8d975e54ddbc403abe6491d1c0ec1b08",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 18,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": true,
+            "observation": {
+              "generation": "b6043bec77954daaa20f02d0c9001626",
+              "invocation": "a3755ddb39e14b72b934ecc8633e6fb8",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 19,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": false,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 20,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "8d975e54ddbc403abe6491d1c0ec1b08",
+            "allowed": true,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 21,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "b6043bec77954daaa20f02d0c9001626",
+            "allowed": false,
+            "state": "open"
+          }
+        }
+      ],
+      "worker_events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140279075651072,
+            "agent_object": 140279076145872,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T11:17:28",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:29",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140279071897280,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140279062566608,
+            "agent_object": 140279075647712,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "id": "warm",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140279071897280,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b24b43cfbfc7fb46b7788d780fdf1aaa5f3d634594a1d36135c0130986796792",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "active",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        },
+        {
+          "seq": 25,
+          "id": "worker",
+          "kind": "cancel-observed",
+          "payload": {}
+        },
+        {
+          "seq": 26,
+          "id": "late-worker",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "4847d48d4b54561a8416179bd76b6c184742c04499abf052430a62af5aef4aea",
+            "latch": true
+          }
+        },
+        {
+          "seq": 27,
+          "id": "sibling",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140279053576912,
+            "agent_object": 140279053589808,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "id": "sibling",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140279051966144,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 28,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 29,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 30,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 31,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 32,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 33,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 34,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 35,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 36,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 37,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 38,
+          "id": "active",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140279062854736,
+            "agent_object": 140279076157968,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "b24b43cfbfc7fb46b7788d780fdf1aaa5f3d634594a1d36135c0130986796792",
+            "id": "active",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "agent_id": "A",
+                "created_at": "2026-10-22T11:17:28",
+                "input": "offline automatic",
+                "memory": "direct seed | late-background-fact",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:29",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 1,
+            "owner": 140279071897280,
+            "profile": "automatic",
+            "response": "offline response",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 39,
+          "id": "queued",
+          "kind": "dispatch-denied",
+          "payload": {
+            "command_hash": "21417dccbc93fbbee98a6c15e52bd9928bdf826b988c18c1d1b1e058207b4a45"
+          }
+        },
+        {
+          "seq": 40,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
+          }
+        }
+      ],
+      "retained_memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed | late-background-fact",
+          "created_at": "2026-10-22T11:17:28",
+          "updated_at": "2026-10-22T11:17:29",
+          "input": "offline automatic",
+          "user_id": "trial:A",
+          "agent_id": "A"
+        }
+      ],
+      "start_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-b6043bec77954daaa20f02d0c9001626.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=45s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_quarantine_prototype.py",
+          "bridge",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/background",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/helpers",
+          "background"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-b6043bec77954daaa20f02d0c9001626.service; invocation ID: a3755ddb39e14b72b934ecc8633e6fb8\n"
+      },
+      "stop_command": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-b6043bec77954daaa20f02d0c9001626.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "new_generation_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--wait",
+          "--collect",
+          "--unit=mininet-ai-containment-prototype-8d975e54ddbc403abe6491d1c0ec1b08.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=RuntimeMaxSec=5s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "-c",
+          "from pathlib import Path; Path('/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/background/new-independent-fixture-started').write_text('new generation')"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-8d975e54ddbc403abe6491d1c0ec1b08.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 27ms\n             CPU time consumed: 22ms\n                   Memory peak: 5.4M (swap: 0B)\n"
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "command-007.json",
+        "command-008.json",
+        "command-009.json",
+        "command-010.json",
+        "command-011.json",
+        "new-independent-fixture-started",
+        "new-launch.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "outcome",
+      "unit": "mininet-ai-containment-prototype-a99d303bc5784aaa91bb2110969bbb9a.service",
+      "checks": {
+        "worker_gate_held_while_active": true,
+        "quarantine_committed_before_ack": true,
+        "actual_controller_late_refusal": true,
+        "actual_worker_late_refusal": true,
+        "queued_refused_at_actual_dispatch": true,
+        "active_not_actionable": true,
+        "sibling_not_actionable": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "missing_exit_evidence_rejected": true,
+        "stale_incarnation_rejected": true,
+        "contradictory_observation_rejected": true,
+        "fresh_process_denies_conflicting_service_launch": true,
+        "denied_launch_has_no_process_effect": true,
+        "physical_flock_free_but_quarantine_retained": true,
+        "delayed_valid_observation_reconciles": true,
+        "failed_run_cannot_be_resumed": true,
+        "new_fixture_generation_launches_only_after_verification": true,
+        "old_failed_run_denied_after_successor_launch": true,
+        "sqlite_integrity": true,
+        "no_dispatch_authorized_after_cancel_commit": true,
+        "seed_memory_preserved": true,
+        "committed_outcome_preserved": true,
+        "no_duplicate_operation_terminals": true,
+        "one_worker_incarnation": true
+      },
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "45s",
+        "MainPID": "30159",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-a99d303bc5784aaa91bb2110969bbb9a.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "invocation": "b5acde164ba242729e9dcb984288c815",
+      "controller_owner_identity": "30159:626105",
+      "processes_before_stop": [
+        30159,
+        30160,
+        30161
+      ],
+      "requests": [
+        {
+          "action": "submit",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "id": "seed",
+            "route": "add",
+            "agent": "A",
+            "memory_id": "seed"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "id": "warm",
+            "route": "session",
+            "agent": "A",
+            "text": "establish session"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "id": "active",
+            "route": "outcome",
+            "agent": "A",
+            "state": {
+              "action_result": "known-installed"
+            },
+            "finalize_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "id": "sibling",
+            "route": "session",
+            "agent": "B",
+            "finalize_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "id": "queued",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "route": "gate-probe"
+          }
+        },
+        {
+          "action": "cancel",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": null
+        },
+        {
+          "action": "submit",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "id": "late-controller",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "worker-diagnostic",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "id": "late-worker",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "release_finalize": "active"
+          }
+        },
+        {
+          "action": "release",
+          "run": "a99d303bc5784aaa91bb2110969bbb9a",
+          "command": {
+            "release_finalize": "sibling"
+          }
+        }
+      ],
+      "replies": [
+        {
+          "worker_pid": 30161,
+          "controller_pid": 30159
+        },
+        {
+          "ready": true,
+          "config": {
+            "startup_hold": false,
+            "quiescence_bound": 4
+          }
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140060416538304,
+          "agent_object": 140060420786896,
+          "adapter_object": 140060420292096,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T11:17:30",
+              "updated_at": "2026-10-22T11:17:30",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm",
+          "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140060416538304,
+          "agent_object": 140060420288736,
+          "adapter_object": 140060407207632,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        },
+        {
+          "controller_cancel_committed": true
+        },
+        {
+          "cancel_ack": true
+        },
+        {
+          "id": "late-controller",
+          "controller_denied": true
+        },
+        {
+          "id": "late-worker",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        },
+        {
+          "id": "active",
+          "hash": "2bcce0443804661e689601f877723469833b2f7eeeb61a2d713d2216fd6f6ffc",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "{'action_result': 'known-installed'}",
+          "owner": 140060416538304,
+          "agent_object": 140060420288736,
+          "adapter_object": 140060407207632,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        },
+        {
+          "id": "sibling",
+          "hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140060407097024,
+          "agent_object": 140060420798992,
+          "adapter_object": 140060407775632,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": true,
+          "actionable_success": false,
+          "memories": []
+        },
+        {
+          "id": "queued",
+          "success": false,
+          "run_failed": true,
+          "dispatch": "refused",
+          "rejected": "queued work refused after failure latch"
+        }
+      ],
+      "controller_events": [
+        {
+          "seq": 1,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 2,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 3,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "seed",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 4,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 5,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "warm",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 6,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 7,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "active",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 8,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 9,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "sibling",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 10,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 11,
+          "kind": "cancel-durable",
+          "payload": {}
+        },
+        {
+          "seq": 12,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 13,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "queued",
+            "allowed": false
+          }
+        },
+        {
+          "seq": 14,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {}
+          }
+        },
+        {
+          "seq": 15,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "a99d303bc5784aaa91bb2110969bbb9a",
+              "invocation": "stale",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 16,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "a99d303bc5784aaa91bb2110969bbb9a",
+              "invocation": "b5acde164ba242729e9dcb984288c815",
+              "processes_exited": false,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 17,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "642083319feb42588a955fb874b5da26",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 18,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": true,
+            "observation": {
+              "generation": "a99d303bc5784aaa91bb2110969bbb9a",
+              "invocation": "b5acde164ba242729e9dcb984288c815",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 19,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": false,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 20,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "642083319feb42588a955fb874b5da26",
+            "allowed": true,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 21,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "a99d303bc5784aaa91bb2110969bbb9a",
+            "allowed": false,
+            "state": "open"
+          }
+        }
+      ],
+      "worker_events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140060420292096,
+            "agent_object": 140060420786896,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T11:17:30",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:30",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140060416538304,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140060407207632,
+            "agent_object": 140060420288736,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "id": "warm",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140060416538304,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "2bcce0443804661e689601f877723469833b2f7eeeb61a2d713d2216fd6f6ffc",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "active"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "worker",
+          "kind": "cancel-observed",
+          "payload": {}
+        },
+        {
+          "seq": 24,
+          "id": "late-worker",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "4847d48d4b54561a8416179bd76b6c184742c04499abf052430a62af5aef4aea",
+            "latch": true
+          }
+        },
+        {
+          "seq": 25,
+          "id": "active",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140060407207632,
+            "agent_object": 140060420288736,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "2bcce0443804661e689601f877723469833b2f7eeeb61a2d713d2216fd6f6ffc",
+            "id": "active",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140060416538304,
+            "profile": "memory-free",
+            "response": "{'action_result': 'known-installed'}",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 26,
+          "id": "sibling",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": false,
+            "adapter_object": 140060407775632,
+            "agent_object": 140060420798992,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "id": "sibling",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140060407097024,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": true,
+            "success": true,
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 27,
+          "id": "queued",
+          "kind": "dispatch-denied",
+          "payload": {
+            "command_hash": "21417dccbc93fbbee98a6c15e52bd9928bdf826b988c18c1d1b1e058207b4a45"
+          }
+        },
+        {
+          "seq": 28,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
+          }
+        }
+      ],
+      "retained_memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T11:17:30",
+          "updated_at": "2026-10-22T11:17:30",
+          "user_id": "trial:A"
+        }
+      ],
+      "start_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-a99d303bc5784aaa91bb2110969bbb9a.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=45s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_quarantine_prototype.py",
+          "bridge",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/outcome",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/helpers",
+          "outcome"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-a99d303bc5784aaa91bb2110969bbb9a.service; invocation ID: b5acde164ba242729e9dcb984288c815\n"
+      },
+      "stop_command": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-a99d303bc5784aaa91bb2110969bbb9a.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "new_generation_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--wait",
+          "--collect",
+          "--unit=mininet-ai-containment-prototype-642083319feb42588a955fb874b5da26.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=RuntimeMaxSec=5s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "-c",
+          "from pathlib import Path; Path('/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/outcome/new-independent-fixture-started').write_text('new generation')"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-642083319feb42588a955fb874b5da26.service; invocation ID: 43216c9753194934a732b94885d375ff\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 34ms\n             CPU time consumed: 25ms\n                   Memory peak: 5.7M (swap: 0B)\n"
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "command-007.json",
+        "command-008.json",
+        "command-009.json",
+        "command-010.json",
+        "command-011.json",
+        "new-independent-fixture-started",
+        "new-launch.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "controller-loss",
+      "unit": "mininet-ai-containment-prototype-5218150bd3ef405fb4e9cfee108961d5.service",
+      "checks": {
+        "worker_gate_held_while_active": true,
+        "quarantine_committed_before_ack": true,
+        "actual_controller_late_refusal": true,
+        "actual_worker_late_refusal": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "missing_exit_evidence_rejected": true,
+        "stale_incarnation_rejected": true,
+        "contradictory_observation_rejected": true,
+        "fresh_process_denies_conflicting_service_launch": true,
+        "denied_launch_has_no_process_effect": true,
+        "physical_flock_free_but_quarantine_retained": true,
+        "delayed_valid_observation_reconciles": true,
+        "failed_run_cannot_be_resumed": true,
+        "new_fixture_generation_launches_only_after_verification": true,
+        "old_failed_run_denied_after_successor_launch": true,
+        "sqlite_integrity": true,
+        "no_dispatch_authorized_after_cancel_commit": true,
+        "seed_memory_preserved": true,
+        "no_duplicate_operation_terminals": true,
+        "one_worker_incarnation": true
+      },
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "45s",
+        "MainPID": "30179",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-5218150bd3ef405fb4e9cfee108961d5.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "invocation": "3c25b11ebb6e41be9f3e6cca64de4706",
+      "controller_owner_identity": "30179:626226",
+      "processes_before_stop": [
+        30179,
+        30182,
+        30183
+      ],
+      "requests": [
+        {
+          "action": "submit",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": {
+            "id": "seed",
+            "route": "add",
+            "agent": "A",
+            "memory_id": "seed"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": {
+            "id": "warm",
+            "route": "session",
+            "agent": "A",
+            "text": "establish session"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": {
+            "id": "active",
+            "route": "automatic",
+            "agent": "A",
+            "background": "block"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": {
+            "id": "sibling",
+            "route": "session",
+            "agent": "B",
+            "finalize_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": {
+            "id": "queued",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": {
+            "route": "gate-probe"
+          }
+        },
+        {
+          "action": "cancel",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": null
+        },
+        {
+          "action": "submit",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": {
+            "id": "late-controller",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "worker-diagnostic",
+          "run": "5218150bd3ef405fb4e9cfee108961d5",
+          "command": {
+            "id": "late-worker",
+            "route": "session",
+            "agent": "A"
+          }
+        }
+      ],
+      "replies": [
+        {
+          "worker_pid": 30183,
+          "controller_pid": 30179
+        },
+        {
+          "ready": true,
+          "config": {
+            "startup_hold": false,
+            "quiescence_bound": 4
+          }
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140320043955904,
+          "agent_object": 140320034540240,
+          "adapter_object": 140320048086528,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T11:17:31",
+              "updated_at": "2026-10-22T11:17:32",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm",
+          "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140320043955904,
+          "agent_object": 140320048083168,
+          "adapter_object": 140320034756304,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        },
+        {
+          "controller_cancel_committed": true
+        },
+        {
+          "cancel_ack": true
+        },
+        {
+          "id": "late-controller",
+          "controller_denied": true
+        },
+        {
+          "id": "late-worker",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      ],
+      "controller_events": [
+        {
+          "seq": 1,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 2,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 3,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "seed",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 4,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 5,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "warm",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 6,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 7,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "active",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 8,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 9,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "sibling",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 10,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 11,
+          "kind": "cancel-durable",
+          "payload": {}
+        },
+        {
+          "seq": 12,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 13,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {}
+          }
+        },
+        {
+          "seq": 14,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "5218150bd3ef405fb4e9cfee108961d5",
+              "invocation": "stale",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 15,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "5218150bd3ef405fb4e9cfee108961d5",
+              "invocation": "3c25b11ebb6e41be9f3e6cca64de4706",
+              "processes_exited": false,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 16,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "c290f0cdd2e346ab894f4443f9013f8a",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 17,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": true,
+            "observation": {
+              "generation": "5218150bd3ef405fb4e9cfee108961d5",
+              "invocation": "3c25b11ebb6e41be9f3e6cca64de4706",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 18,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": false,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 19,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "c290f0cdd2e346ab894f4443f9013f8a",
+            "allowed": true,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 20,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "5218150bd3ef405fb4e9cfee108961d5",
+            "allowed": false,
+            "state": "open"
+          }
+        }
+      ],
+      "worker_events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140320048086528,
+            "agent_object": 140320034540240,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T11:17:31",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:32",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140320043955904,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140320034756304,
+            "agent_object": 140320048083168,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "id": "warm",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140320043955904,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b24b43cfbfc7fb46b7788d780fdf1aaa5f3d634594a1d36135c0130986796792",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "active",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        },
+        {
+          "seq": 25,
+          "id": "worker",
+          "kind": "cancel-observed",
+          "payload": {}
+        },
+        {
+          "seq": 26,
+          "id": "late-worker",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "4847d48d4b54561a8416179bd76b6c184742c04499abf052430a62af5aef4aea",
+            "latch": true
+          }
+        }
+      ],
+      "retained_memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T11:17:31",
+          "updated_at": "2026-10-22T11:17:32",
+          "user_id": "trial:A"
+        }
+      ],
+      "start_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-5218150bd3ef405fb4e9cfee108961d5.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=45s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_quarantine_prototype.py",
+          "bridge",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/controller-loss",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/helpers",
+          "controller-loss"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-5218150bd3ef405fb4e9cfee108961d5.service; invocation ID: 3c25b11ebb6e41be9f3e6cca64de4706\n"
+      },
+      "stop_command": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "kill",
+          "--kill-whom=main",
+          "--signal=SIGKILL",
+          "mininet-ai-containment-prototype-5218150bd3ef405fb4e9cfee108961d5.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "new_generation_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--wait",
+          "--collect",
+          "--unit=mininet-ai-containment-prototype-c290f0cdd2e346ab894f4443f9013f8a.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=RuntimeMaxSec=5s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "-c",
+          "from pathlib import Path; Path('/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/controller-loss/new-independent-fixture-started').write_text('new generation')"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-c290f0cdd2e346ab894f4443f9013f8a.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 33ms\n             CPU time consumed: 22ms\n                   Memory peak: 5.1M (swap: 0B)\n"
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "command-007.json",
+        "command-008.json",
+        "command-009.json",
+        "new-independent-fixture-started",
+        "new-launch.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "controller-loss-before-cancel",
+      "unit": "mininet-ai-containment-prototype-7b6b526a3868475fa93396682970f3fb.service",
+      "checks": {
+        "worker_gate_held_while_active": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "fresh_controller_cannot_resume_before_quarantine_commit": true,
+        "missing_exit_evidence_rejected": true,
+        "stale_incarnation_rejected": true,
+        "contradictory_observation_rejected": true,
+        "fresh_process_denies_conflicting_service_launch": true,
+        "denied_launch_has_no_process_effect": true,
+        "physical_flock_free_but_quarantine_retained": true,
+        "delayed_valid_observation_reconciles": true,
+        "failed_run_cannot_be_resumed": true,
+        "new_fixture_generation_launches_only_after_verification": true,
+        "old_failed_run_denied_after_successor_launch": true,
+        "sqlite_integrity": true,
+        "no_dispatch_authorized_after_cancel_commit": true,
+        "seed_memory_preserved": true,
+        "no_duplicate_operation_terminals": true,
+        "one_worker_incarnation": true
+      },
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "45s",
+        "MainPID": "30201",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-7b6b526a3868475fa93396682970f3fb.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "invocation": "1cb6d3133a554359bb9d4319c811fa41",
+      "controller_owner_identity": "30201:626353",
+      "processes_before_stop": [
+        30201,
+        30202,
+        30203
+      ],
+      "requests": [
+        {
+          "action": "submit",
+          "run": "7b6b526a3868475fa93396682970f3fb",
+          "command": {
+            "id": "seed",
+            "route": "add",
+            "agent": "A",
+            "memory_id": "seed"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "7b6b526a3868475fa93396682970f3fb",
+          "command": {
+            "id": "warm",
+            "route": "session",
+            "agent": "A",
+            "text": "establish session"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "7b6b526a3868475fa93396682970f3fb",
+          "command": {
+            "id": "active",
+            "route": "automatic",
+            "agent": "A",
+            "background": "block"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "7b6b526a3868475fa93396682970f3fb",
+          "command": {
+            "id": "sibling",
+            "route": "session",
+            "agent": "B",
+            "finalize_hold": true
+          }
+        },
+        {
+          "action": "submit",
+          "run": "7b6b526a3868475fa93396682970f3fb",
+          "command": {
+            "id": "queued",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "release",
+          "run": "7b6b526a3868475fa93396682970f3fb",
+          "command": {
+            "route": "gate-probe"
+          }
+        }
+      ],
+      "replies": [
+        {
+          "worker_pid": 30203,
+          "controller_pid": 30201
+        },
+        {
+          "ready": true,
+          "config": {
+            "startup_hold": false,
+            "quiescence_bound": 4
+          }
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140221213570752,
+          "agent_object": 140221218147024,
+          "adapter_object": 140221217652224,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T11:17:32",
+              "updated_at": "2026-10-22T11:17:33",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm",
+          "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140221213570752,
+          "agent_object": 140221217648864,
+          "adapter_object": 140221218346704,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "gate_probe": "denied"
+        }
+      ],
+      "controller_events": [
+        {
+          "seq": 1,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 2,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 3,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "seed",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 4,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 5,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "warm",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 6,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 7,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "active",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 8,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 9,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "sibling",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 10,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 11,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": false,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 12,
+          "kind": "cancel-durable",
+          "payload": {}
+        },
+        {
+          "seq": 13,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {}
+          }
+        },
+        {
+          "seq": 14,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "7b6b526a3868475fa93396682970f3fb",
+              "invocation": "stale",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 15,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "7b6b526a3868475fa93396682970f3fb",
+              "invocation": "1cb6d3133a554359bb9d4319c811fa41",
+              "processes_exited": false,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 16,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "19a35042aade4a3b9c1cc1c41d681d68",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 17,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": true,
+            "observation": {
+              "generation": "7b6b526a3868475fa93396682970f3fb",
+              "invocation": "1cb6d3133a554359bb9d4319c811fa41",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 18,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": false,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 19,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "19a35042aade4a3b9c1cc1c41d681d68",
+            "allowed": true,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 20,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "7b6b526a3868475fa93396682970f3fb",
+            "allowed": false,
+            "state": "open"
+          }
+        }
+      ],
+      "worker_events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140221217652224,
+            "agent_object": 140221218147024,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T11:17:32",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:33",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140221213570752,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140221218346704,
+            "agent_object": 140221217648864,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "id": "warm",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140221213570752,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "active",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b24b43cfbfc7fb46b7788d780fdf1aaa5f3d634594a1d36135c0130986796792",
+            "profile": "automatic",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "active",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "active",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "active",
+          "kind": "background-entered",
+          "payload": {}
+        },
+        {
+          "seq": 19,
+          "id": "sibling",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b50d926c1288f5c1366c1b13ed92b01d80e0c856425a6a73a21ea7c7bbe359ec",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "sibling",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "sibling",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "sibling",
+          "kind": "finalize-hold",
+          "payload": {
+            "op": "sibling"
+          }
+        }
+      ],
+      "retained_memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T11:17:32",
+          "updated_at": "2026-10-22T11:17:33",
+          "user_id": "trial:A"
+        }
+      ],
+      "start_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-7b6b526a3868475fa93396682970f3fb.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=45s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_quarantine_prototype.py",
+          "bridge",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/controller-loss-before-cancel",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/helpers",
+          "controller-loss-before-cancel"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-7b6b526a3868475fa93396682970f3fb.service; invocation ID: 1cb6d3133a554359bb9d4319c811fa41\n"
+      },
+      "stop_command": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "kill",
+          "--kill-whom=main",
+          "--signal=SIGKILL",
+          "mininet-ai-containment-prototype-7b6b526a3868475fa93396682970f3fb.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "new_generation_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--wait",
+          "--collect",
+          "--unit=mininet-ai-containment-prototype-19a35042aade4a3b9c1cc1c41d681d68.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=RuntimeMaxSec=5s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "-c",
+          "from pathlib import Path; Path('/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/controller-loss-before-cancel/new-independent-fixture-started').write_text('new generation')"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-19a35042aade4a3b9c1cc1c41d681d68.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 32ms\n             CPU time consumed: 25ms\n                   Memory peak: 5.3M (swap: 0B)\n"
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "new-independent-fixture-started",
+        "new-launch.json",
+        "replies.jsonl"
+      ]
+    },
+    {
+      "scenario": "healthy",
+      "unit": "mininet-ai-containment-prototype-e6042bdc25ed4683a439d36f3c79b47b.service",
+      "checks": {
+        "independent_overlap_completed": true,
+        "distinct_owner_threads": true,
+        "stable_agent_and_owner": true,
+        "quarantine_committed_before_ack": true,
+        "actual_controller_late_refusal": true,
+        "actual_worker_late_refusal": true,
+        "actual_process_exit": true,
+        "actual_cgroup_empty": true,
+        "missing_exit_evidence_rejected": true,
+        "stale_incarnation_rejected": true,
+        "contradictory_observation_rejected": true,
+        "fresh_process_denies_conflicting_service_launch": true,
+        "denied_launch_has_no_process_effect": true,
+        "physical_flock_free_but_quarantine_retained": true,
+        "delayed_valid_observation_reconciles": true,
+        "failed_run_cannot_be_resumed": true,
+        "new_fixture_generation_launches_only_after_verification": true,
+        "old_failed_run_denied_after_successor_launch": true,
+        "sqlite_integrity": true,
+        "no_dispatch_authorized_after_cancel_commit": true,
+        "seed_memory_preserved": true,
+        "no_duplicate_operation_terminals": true,
+        "one_worker_incarnation": true
+      },
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "45s",
+        "MainPID": "30223",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-e6042bdc25ed4683a439d36f3c79b47b.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "invocation": "0325a77937944d50be69146998549bd5",
+      "controller_owner_identity": "30223:626481",
+      "processes_before_stop": [
+        30223,
+        30225,
+        30226
+      ],
+      "requests": [
+        {
+          "action": "submit",
+          "run": "e6042bdc25ed4683a439d36f3c79b47b",
+          "command": {
+            "id": "seed",
+            "route": "add",
+            "agent": "A",
+            "memory_id": "seed"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "e6042bdc25ed4683a439d36f3c79b47b",
+          "command": {
+            "id": "warm",
+            "route": "session",
+            "agent": "A",
+            "text": "establish session"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "e6042bdc25ed4683a439d36f3c79b47b",
+          "command": {
+            "id": "overlap-B",
+            "route": "overlap",
+            "agent": "B",
+            "text": "overlap"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "e6042bdc25ed4683a439d36f3c79b47b",
+          "command": {
+            "id": "overlap-C",
+            "route": "overlap",
+            "agent": "C",
+            "text": "overlap"
+          }
+        },
+        {
+          "action": "submit",
+          "run": "e6042bdc25ed4683a439d36f3c79b47b",
+          "command": {
+            "id": "again-B",
+            "route": "session",
+            "agent": "B",
+            "text": "continuity"
+          }
+        },
+        {
+          "action": "cancel",
+          "run": "e6042bdc25ed4683a439d36f3c79b47b",
+          "command": null
+        },
+        {
+          "action": "submit",
+          "run": "e6042bdc25ed4683a439d36f3c79b47b",
+          "command": {
+            "id": "late-controller",
+            "route": "session",
+            "agent": "A"
+          }
+        },
+        {
+          "action": "worker-diagnostic",
+          "run": "e6042bdc25ed4683a439d36f3c79b47b",
+          "command": {
+            "id": "late-worker",
+            "route": "session",
+            "agent": "A"
+          }
+        }
+      ],
+      "replies": [
+        {
+          "worker_pid": 30226,
+          "controller_pid": 30223
+        },
+        {
+          "ready": true,
+          "config": {
+            "startup_hold": false,
+            "quiescence_bound": 4
+          }
+        },
+        {
+          "id": "seed",
+          "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "seed",
+          "owner": 140534243915456,
+          "agent_object": 140534244690640,
+          "adapter_object": 140534244195840,
+          "user": "trial:A",
+          "profile": "manager",
+          "memory_free": false,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": [
+            {
+              "memory_id": "seed",
+              "memory": "direct seed",
+              "created_at": "2026-10-22T11:17:33",
+              "updated_at": "2026-10-22T11:17:34",
+              "user_id": "trial:A"
+            }
+          ]
+        },
+        {
+          "id": "warm",
+          "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140534243915456,
+          "agent_object": 140534244192480,
+          "adapter_object": 140534244906704,
+          "user": "trial:A",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "id": "overlap-C",
+          "hash": "b6099177b9cc88d7ed020bb4eb6e15dd2f1bb18c859ab488e1a22e53a4695ec1",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140534226081472,
+          "agent_object": 140534234811088,
+          "adapter_object": 140534234977360,
+          "user": "trial:C",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "id": "overlap-B",
+          "hash": "99ae712ee5eec43468d4108d594343eea8dea02a6ce885aaba78754994dcffc7",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140534234474176,
+          "agent_object": 140534244702736,
+          "adapter_object": 140534234973520,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "id": "again-B",
+          "hash": "f730f41967ef2508142073a5f85244286baa32bb5505100926db8aba4c761140",
+          "success": true,
+          "errors": [],
+          "agno_status": "n/a",
+          "response": "offline response",
+          "owner": 140534234474176,
+          "agent_object": 140534244702736,
+          "adapter_object": 140534234973520,
+          "user": "trial:B",
+          "profile": "memory-free",
+          "memory_free": true,
+          "owned_futures": 0,
+          "dispatch_check": true,
+          "latch_mode": "write",
+          "run_failed": false,
+          "actionable_success": true,
+          "memories": []
+        },
+        {
+          "controller_cancel_committed": true
+        },
+        {
+          "cancel_ack": true
+        },
+        {
+          "id": "late-controller",
+          "controller_denied": true
+        },
+        {
+          "id": "late-worker",
+          "success": false,
+          "run_failed": true,
+          "rejected": "admission closed by failure latch"
+        }
+      ],
+      "controller_events": [
+        {
+          "seq": 1,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 2,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 3,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "seed",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 4,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 5,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "warm",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 6,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 7,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 8,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "overlap-B",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 9,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "overlap-C",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 10,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": true,
+            "state": "open"
+          }
+        },
+        {
+          "seq": 11,
+          "kind": "worker-dispatch",
+          "payload": {
+            "operation": "again-B",
+            "allowed": true
+          }
+        },
+        {
+          "seq": 12,
+          "kind": "cancel-durable",
+          "payload": {}
+        },
+        {
+          "seq": 13,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 14,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {}
+          }
+        },
+        {
+          "seq": 15,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "e6042bdc25ed4683a439d36f3c79b47b",
+              "invocation": "stale",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 16,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": false,
+            "observation": {
+              "generation": "e6042bdc25ed4683a439d36f3c79b47b",
+              "invocation": "0325a77937944d50be69146998549bd5",
+              "processes_exited": false,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 17,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "9875fc2fdff34512a14e290bb5d15f71",
+            "allowed": false,
+            "state": "quarantined"
+          }
+        },
+        {
+          "seq": 18,
+          "kind": "exit-observation",
+          "payload": {
+            "accepted": true,
+            "observation": {
+              "generation": "e6042bdc25ed4683a439d36f3c79b47b",
+              "invocation": "0325a77937944d50be69146998549bd5",
+              "processes_exited": true,
+              "cgroup_empty": true
+            }
+          }
+        },
+        {
+          "seq": 19,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": false,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 20,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "9875fc2fdff34512a14e290bb5d15f71",
+            "allowed": true,
+            "state": "contained"
+          }
+        },
+        {
+          "seq": 21,
+          "kind": "controller-admission",
+          "payload": {
+            "run": "e6042bdc25ed4683a439d36f3c79b47b",
+            "allowed": false,
+            "state": "open"
+          }
+        }
+      ],
+      "worker_events": [
+        {
+          "seq": 1,
+          "id": "seed",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "profile": "manager",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 2,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 3,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_user_memory"
+          }
+        },
+        {
+          "seq": 4,
+          "id": "seed",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 5,
+          "id": "seed",
+          "kind": "db-ack",
+          "payload": {
+            "method": "get_user_memories"
+          }
+        },
+        {
+          "seq": 6,
+          "id": "seed",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140534244195840,
+            "agent_object": 140534244690640,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "73ce8f99cf53a05c2f1f836c9da3c1b132105c4e2b0ca9ea29781e71ed3a3918",
+            "id": "seed",
+            "latch_mode": "write",
+            "memories": [
+              {
+                "created_at": "2026-10-22T11:17:33",
+                "memory": "direct seed",
+                "memory_id": "seed",
+                "updated_at": "2026-10-22T11:17:34",
+                "user_id": "trial:A"
+              }
+            ],
+            "memory_free": false,
+            "owned_futures": 0,
+            "owner": 140534243915456,
+            "profile": "manager",
+            "response": "seed",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 7,
+          "id": "warm",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "profile": "memory-free",
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 8,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 9,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 10,
+          "id": "warm",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 11,
+          "id": "warm",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 12,
+          "id": "warm",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140534244906704,
+            "agent_object": 140534244192480,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "dfd623b702783dee27432dde2fd1ca83862f9e3372ab9c598c9b8f4835e555fd",
+            "id": "warm",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140534243915456,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:A"
+          }
+        },
+        {
+          "seq": 13,
+          "id": "overlap-B",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "99ae712ee5eec43468d4108d594343eea8dea02a6ce885aaba78754994dcffc7",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 14,
+          "id": "overlap-C",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "b6099177b9cc88d7ed020bb4eb6e15dd2f1bb18c859ab488e1a22e53a4695ec1",
+            "profile": "memory-free",
+            "user": "trial:C"
+          }
+        },
+        {
+          "seq": 15,
+          "id": "overlap-C",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 16,
+          "id": "overlap-B",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 17,
+          "id": "overlap-B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 18,
+          "id": "overlap-C",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 19,
+          "id": "overlap-C",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 20,
+          "id": "overlap-B",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 21,
+          "id": "overlap-C",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 22,
+          "id": "overlap-C",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140534234977360,
+            "agent_object": 140534234811088,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "b6099177b9cc88d7ed020bb4eb6e15dd2f1bb18c859ab488e1a22e53a4695ec1",
+            "id": "overlap-C",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140534226081472,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:C"
+          }
+        },
+        {
+          "seq": 23,
+          "id": "overlap-B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 24,
+          "id": "overlap-B",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140534234973520,
+            "agent_object": 140534244702736,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "99ae712ee5eec43468d4108d594343eea8dea02a6ce885aaba78754994dcffc7",
+            "id": "overlap-B",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140534234474176,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 25,
+          "id": "again-B",
+          "kind": "admitted",
+          "payload": {
+            "command_hash": "f730f41967ef2508142073a5f85244286baa32bb5505100926db8aba4c761140",
+            "profile": "memory-free",
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 26,
+          "id": "again-B",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 27,
+          "id": "again-B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_session"
+          }
+        },
+        {
+          "seq": 28,
+          "id": "again-B",
+          "kind": "db-attempt",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 29,
+          "id": "again-B",
+          "kind": "db-ack",
+          "payload": {
+            "method": "upsert_run"
+          }
+        },
+        {
+          "seq": 30,
+          "id": "again-B",
+          "kind": "terminal",
+          "payload": {
+            "actionable_success": true,
+            "adapter_object": 140534234973520,
+            "agent_object": 140534244702736,
+            "agno_status": "n/a",
+            "dispatch_check": true,
+            "errors": [],
+            "hash": "f730f41967ef2508142073a5f85244286baa32bb5505100926db8aba4c761140",
+            "id": "again-B",
+            "latch_mode": "write",
+            "memories": [],
+            "memory_free": true,
+            "owned_futures": 0,
+            "owner": 140534234474176,
+            "profile": "memory-free",
+            "response": "offline response",
+            "run_failed": false,
+            "success": true,
+            "user": "trial:B"
+          }
+        },
+        {
+          "seq": 31,
+          "id": "worker",
+          "kind": "cancel-observed",
+          "payload": {}
+        },
+        {
+          "seq": 32,
+          "id": "worker",
+          "kind": "quiesced",
+          "payload": {
+            "executing": 0,
+            "queued": 0
+          }
+        },
+        {
+          "seq": 33,
+          "id": "late-worker",
+          "kind": "admission-denied",
+          "payload": {
+            "command_hash": "4847d48d4b54561a8416179bd76b6c184742c04499abf052430a62af5aef4aea",
+            "latch": true
+          }
+        }
+      ],
+      "retained_memories": [
+        {
+          "memory_id": "seed",
+          "memory": "direct seed",
+          "created_at": "2026-10-22T11:17:33",
+          "updated_at": "2026-10-22T11:17:34",
+          "user_id": "trial:A"
+        }
+      ],
+      "start_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--unit=mininet-ai-containment-prototype-e6042bdc25ed4683a439d36f3c79b47b.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=TimeoutStopSec=1s",
+          "--property=SendSIGKILL=yes",
+          "--property=RuntimeMaxSec=45s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/integrated_quarantine_prototype.py",
+          "bridge",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/healthy",
+          "/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/helpers",
+          "healthy"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-e6042bdc25ed4683a439d36f3c79b47b.service; invocation ID: 0325a77937944d50be69146998549bd5\n"
+      },
+      "stop_command": {
+        "argv": [
+          "systemctl",
+          "--user",
+          "stop",
+          "mininet-ai-containment-prototype-e6042bdc25ed4683a439d36f3c79b47b.service"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "new_generation_command": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--wait",
+          "--collect",
+          "--unit=mininet-ai-containment-prototype-9875fc2fdff34512a14e290bb5d15f71.service",
+          "--service-type=exec",
+          "--property=KillMode=control-group",
+          "--property=RuntimeMaxSec=5s",
+          "/home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python",
+          "-P",
+          "-c",
+          "from pathlib import Path; Path('/tmp/opencode/integrated-quarantine-prototype-1uzcfc9x/healthy/new-independent-fixture-started').write_text('new generation')"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Running as unit: mininet-ai-containment-prototype-9875fc2fdff34512a14e290bb5d15f71.service\n          Finished with result: success\nMain processes terminated with: code=exited, status=0/SUCCESS\n               Service runtime: 34ms\n             CPU time consumed: 22ms\n                   Memory peak: 5.5M (swap: 0B)\n"
+      },
+      "files": [
+        "PROTOTYPE-wipe-me.learning.lock",
+        "PROTOTYPE-wipe-me.sqlite3",
+        "PROTOTYPE-wipe-me.sqlite3-shm",
+        "PROTOTYPE-wipe-me.sqlite3-wal",
+        "command-001.json",
+        "command-002.json",
+        "command-003.json",
+        "command-004.json",
+        "command-005.json",
+        "command-006.json",
+        "command-007.json",
+        "command-008.json",
+        "new-independent-fixture-started",
+        "new-launch.json",
+        "replies.jsonl"
+      ]
+    }
+  ],
+  "baseline_pin": "d96928ecd8cb608b69942e4fb08c957134621b28",
+  "helpers": {
+    "admission_failure_prototype.py": {
+      "baseline_sha256": "1d27110af789f9cda9b6926c99f5473fdd70c1bf10a99fae41b34296c60ca129",
+      "executed_sha256": "762658829376772008f2a1f31f98e37444281b8e0943492038d1ed823d7bbca8"
+    },
+    "learning_gate_prototype.py": {
+      "baseline_sha256": "8717c384c1f10acc6688165c3c1721ff91ad4ed603a1ccfd2fe6f1d03524bc64",
+      "executed_sha256": "8717c384c1f10acc6688165c3c1721ff91ad4ed603a1ccfd2fe6f1d03524bc64"
+    },
+    "integrated_storage_prototype.py": {
+      "baseline_sha256": "42cd9e9649cfd95f6bd11fba4f0f88dd1fd1d8319455aedbcfbb29486ea43db5",
+      "executed_sha256": "42cd9e9649cfd95f6bd11fba4f0f88dd1fd1d8319455aedbcfbb29486ea43db5"
+    },
+    "storage_prototype.py": {
+      "baseline_sha256": "e9bbd1c69c03499ed47d52e30ec52327edc6cdc0d9f5e6a605670c997c0b82a0",
+      "executed_sha256": "e9bbd1c69c03499ed47d52e30ec52327edc6cdc0d9f5e6a605670c997c0b82a0"
+    }
+  },
+  "sources": {
+    "integrated_quarantine_prototype.py": "aa52cece30c803b62387817d59380cbb6d2a12164962321414fe0704a590c5d6",
+    "containment_prototype.py": "c8798c8d60f160fa865d0f142531f143260c04dac7608b1bf1408fea95acd4d6",
+    "systemd_phase_prototype.py": "e91a9d22c91b36423d067a9925bdf59d6705ad1daf8f0deab9ea95c9c0d00fef",
+    "systemd_containment_prototype.py": "9ead90570e650b4319d875c09ea6a1c110f405af6a9de153ed0d79f5d652473c"
+  },
+  "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+  "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+  "sqlite": "3.54.0",
+  "sqlite_source_id": "2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcalt1",
+  "packages": {
+    "agno": "3.0.11",
+    "sqlalchemy": "2.1.0"
+  },
+  "systemd": "systemd 262 (262.1-1-arch)\n+PAM +AUDIT -SELINUX +APPARMOR -IMA +IPE +SMACK +SECCOMP +GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK +BTF +XKBCOMMON +UTMP +LIBARCHIVE\n",
+  "limits": "Offline trusted fixtures; observer failures injected, no real unkillable process or Provider"
+}
