@@ -192,3 +192,10 @@ downloads, host elevation/firewall changes, guard relaxation or deletion. This
 diagnostic can establish new observations, not reconstruct missing snapshots of
 the failed run. The corrected-attempt grant does not authorize it; no new service
 or second attempt has been launched.
+
+The human subsequently explicitly authorized this one-service observational
+diagnostic. [Its new observations](ollama-containment-namespace-diagnostic.md)
+confirm a current-child/network-owner-parent mismatch with CAP_NET_ADMIN present,
+plus independent harmless-fixture exit witnesses, without any interface changes.
+A pre-guard owner-bootstrap design is proposed separately; no two-role repeat or
+actual Ollama execution is authorized by that diagnostic result.
