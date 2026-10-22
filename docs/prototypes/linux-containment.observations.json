@@ -1,0 +1,187 @@
+{
+  "prototype": true,
+  "verdict": "candidate insufficient",
+  "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+  "source_sha256": "c8798c8d60f160fa865d0f142531f143260c04dac7608b1bf1408fea95acd4d6",
+  "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+  "experiment_bound_seconds": 3.0,
+  "source": "Linux prctl parent-death + post-arm parent check; no durable guardian",
+  "checks": {
+    "prearm_unguarded:orphan_wrongly_reached_ready": true,
+    "prearm_guarded:worker_exit_observed": true,
+    "prearm_guarded:parent_mismatch_rejected": true,
+    "prearm_guarded:no_ready": true,
+    "creator_thread:worker_exited_after_creator_thread": true,
+    "creator_thread:supervisor_still_live": true,
+    "descendants:worker_exit_observed": true,
+    "descendants:descendants_survive_worker_death": true,
+    "descendants:descendants_ignore_term": true,
+    "descendants:external_group_kill_stops_descendants": true
+  },
+  "cases": [
+    {
+      "case": "prearm_unguarded",
+      "observations": {
+        "orphan_wrongly_reached_ready": true,
+        "trace": [
+          {
+            "event": "worker_created",
+            "pid": 23601,
+            "ppid": 23566,
+            "monotonic_ns": 3600294962282,
+            "worker": 23602
+          },
+          {
+            "event": "worker_prearm",
+            "pid": 23602,
+            "ppid": 23601,
+            "monotonic_ns": 3600329625991
+          },
+          {
+            "event": "watchdog_armed",
+            "pid": 23602,
+            "ppid": 23566,
+            "monotonic_ns": 3600339921370
+          },
+          {
+            "event": "ready",
+            "pid": 23602,
+            "ppid": 23566,
+            "monotonic_ns": 3600339989454
+          }
+        ]
+      }
+    },
+    {
+      "case": "prearm_guarded",
+      "observations": {
+        "worker_exit_observed": true,
+        "parent_mismatch_rejected": true,
+        "no_ready": true,
+        "trace": [
+          {
+            "event": "worker_created",
+            "pid": 23603,
+            "ppid": 23566,
+            "monotonic_ns": 3600385582370,
+            "worker": 23604
+          },
+          {
+            "event": "worker_prearm",
+            "pid": 23604,
+            "ppid": 23603,
+            "monotonic_ns": 3600416517940
+          },
+          {
+            "event": "watchdog_armed",
+            "pid": 23604,
+            "ppid": 23566,
+            "monotonic_ns": 3600426806927
+          },
+          {
+            "event": "parent_mismatch_rejected",
+            "pid": 23604,
+            "ppid": 23566,
+            "monotonic_ns": 3600426872285
+          }
+        ]
+      }
+    },
+    {
+      "case": "creator_thread",
+      "observations": {
+        "worker_exited_after_creator_thread": true,
+        "supervisor_still_live": true,
+        "trace": [
+          {
+            "event": "worker_created",
+            "pid": 23605,
+            "ppid": 23566,
+            "monotonic_ns": 3600474034248,
+            "worker": 23607
+          },
+          {
+            "event": "worker_prearm",
+            "pid": 23607,
+            "ppid": 23605,
+            "monotonic_ns": 3600503015928
+          },
+          {
+            "event": "watchdog_armed",
+            "pid": 23607,
+            "ppid": 23605,
+            "monotonic_ns": 3600503119107
+          },
+          {
+            "event": "ready",
+            "pid": 23607,
+            "ppid": 23605,
+            "monotonic_ns": 3600503150665
+          },
+          {
+            "event": "creator_thread_exited",
+            "pid": 23605,
+            "ppid": 23566,
+            "monotonic_ns": 3600504918308
+          }
+        ]
+      }
+    },
+    {
+      "case": "descendants",
+      "observations": {
+        "worker_exit_observed": true,
+        "descendants_survive_worker_death": true,
+        "descendants_ignore_term": true,
+        "external_group_kill_stops_descendants": true,
+        "trace": [
+          {
+            "event": "worker_created",
+            "pid": 23627,
+            "ppid": 23566,
+            "monotonic_ns": 3600545213730,
+            "worker": 23629
+          },
+          {
+            "event": "worker_prearm",
+            "pid": 23629,
+            "ppid": 23627,
+            "monotonic_ns": 3600573088456
+          },
+          {
+            "event": "watchdog_armed",
+            "pid": 23629,
+            "ppid": 23627,
+            "monotonic_ns": 3600573193823
+          },
+          {
+            "event": "tracked_child",
+            "pid": 23629,
+            "ppid": 23627,
+            "monotonic_ns": 3600573448138,
+            "child": 23630
+          },
+          {
+            "event": "child_ready",
+            "pid": 23630,
+            "ppid": 23629,
+            "monotonic_ns": 3600601202173,
+            "child": 23631
+          },
+          {
+            "event": "grandchild_ready",
+            "pid": 23631,
+            "ppid": 23630,
+            "monotonic_ns": 3600630007417
+          },
+          {
+            "event": "ready",
+            "pid": 23629,
+            "ppid": 23627,
+            "monotonic_ns": 3600634954217
+          }
+        ]
+      }
+    }
+  ]
+}
