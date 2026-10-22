@@ -107,3 +107,9 @@ runtime work or establish loaded-byte identity. Separate working private-loopbac
 distinct worker/Provider ownership, actual service/model-loading/inference scopes
 and failure-matrix authorization remain necessary. The extraction grant is consumed
 and cannot authorize this phase or any executable permission change.
+
+The human subsequently explicitly approved the read-only static preflight.
+[Its captured findings](ollama-containment-static-preflight.md) identify CPU/model/
+ELF metadata and an embedded build-directory/current-directory search constraint.
+Seven inspection checks pass; deployment eligibility and runtime authorization
+remain false, and no acquired code was executed or permissions changed.

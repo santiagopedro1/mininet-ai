@@ -1,0 +1,3879 @@
+{
+  "throwaway": true,
+  "issue": 99,
+  "scope": "local metadata-as-data inspection only",
+  "started_utc": "2026-10-22T19:50:04.353869+00:00",
+  "source_sha256": "7ad15eb683edd0d373846a4828d66762ce2489c298e9330b40bad40492f569e7",
+  "limits": {
+    "wall_seconds": 120,
+    "cpu_seconds": 120,
+    "address_space_bytes": 536870912,
+    "elf_metadata_bytes": 134217728,
+    "gguf_metadata_bytes": 16777216
+  },
+  "package_elf": {
+    "bin/ollama": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": "/lib64/ld-linux-x86-64.so.2",
+      "needed": [
+        "libresolv.so.2",
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libc.so.6"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libresolv.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.28",
+          "GLIBC_2.14",
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 30168944,
+        "device": 42,
+        "inode": 4495312,
+        "mtime_ns": 1792697750929344111
+      },
+      "staged_sha256_from_verified_receipt": "47a02863417f0b35ad5765a02f5c872ec3dd227b22bae5a7ae877bfb1f28d25e"
+    },
+    "lib/ollama/cuda_v12/libggml-cuda.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libcudart.so.12",
+        "libcublas.so.12",
+        "libcuda.so.1",
+        "libcublasLt.so.12",
+        "libdl.so.2",
+        "librt.so.1",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5",
+          "GLIBC_2.27"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "libcublas.so.12": [
+          "libcublas.so.12"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.2.5",
+          "GLIBC_2.3"
+        ],
+        "libcudart.so.12": [
+          "libcudart.so.12"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.18",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 427114800,
+        "device": 42,
+        "inode": 4495324,
+        "mtime_ns": 1792697751773317887
+      },
+      "staged_sha256_from_verified_receipt": "4bce5c89178e39d0b8f43c798d614c5cec07cf1c524a61fc23f8e4692d2f31cd"
+    },
+    "lib/ollama/cuda_v12/libcublasLt.so.12.8.5.5": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "librt.so.1",
+        "libpthread.so.0",
+        "libdl.so.2",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libcublasLt.so.12",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "librt.so.1": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libgcc_s.so.1": [
+          "GCC_4.2.0",
+          "GCC_3.3",
+          "GCC_3.4",
+          "GCC_3.0"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.18",
+          "GLIBC_2.3.3",
+          "GLIBC_2.3",
+          "GLIBC_2.17",
+          "GLIBC_2.4",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libcublasLt.so.12",
+        "libcublasLt.so.12"
+      ],
+      "file_stat": {
+        "size": 751775824,
+        "device": 42,
+        "inode": 4495325,
+        "mtime_ns": 1792697753364268501
+      },
+      "staged_sha256_from_verified_receipt": "974927b9af78cadc0412ea3ab296da791af02c2dd0de5a35b5f0fbb8dc5d0a4d"
+    },
+    "lib/ollama/cuda_v12/libcublas.so.12.8.5.5": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libcublasLt.so.12",
+        "librt.so.1",
+        "libpthread.so.0",
+        "libdl.so.2",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libcublas.so.12",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "librt.so.1": [
+          "GLIBC_2.2.5"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5"
+        ],
+        "libgcc_s.so.1": [
+          "GCC_4.2.0",
+          "GCC_3.3",
+          "GCC_3.0"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libcublasLt.so.12": [
+          "libcublasLt.so.12"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.3.3",
+          "GLIBC_2.4",
+          "GLIBC_2.3",
+          "GLIBC_2.17",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libcublas.so.12",
+        "libcublas.so.12"
+      ],
+      "file_stat": {
+        "size": 116388640,
+        "device": 42,
+        "inode": 4495326,
+        "mtime_ns": 1792697753690258389
+      },
+      "staged_sha256_from_verified_receipt": "18a5df540d156e9aff0363776fefab7884b614f122847b51c3eb1da772048e5c"
+    },
+    "lib/ollama/cuda_v12/libcudart.so.12.8.90": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6",
+        "ld-linux-x86-64.so.2",
+        "libdl.so.2",
+        "libpthread.so.0",
+        "librt.so.1"
+      ],
+      "soname": "libcudart.so.12",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libdl.so.2": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "librt.so.1": [
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.3",
+          "GLIBC_2.17",
+          "GLIBC_2.3.2",
+          "GLIBC_2.3.3",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libcudart.so.12",
+        "libcudart.so.12"
+      ],
+      "file_stat": {
+        "size": 728800,
+        "device": 42,
+        "inode": 4495327,
+        "mtime_ns": 1792697753731257118
+      },
+      "staged_sha256_from_verified_receipt": "c3a75b33af334a3486d197dbd1584a2985183ba4688d237a2be5f2f679329920"
+    },
+    "lib/ollama/cuda_v13/libggml-cuda.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libcudart.so.13",
+        "libcublas.so.13",
+        "libcuda.so.1",
+        "libcublasLt.so.13",
+        "libdl.so.2",
+        "librt.so.1",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5",
+          "GLIBC_2.27"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.2.5",
+          "GLIBC_2.3"
+        ],
+        "libcudart.so.13": [
+          "libcudart.so.13"
+        ],
+        "libcublas.so.13": [
+          "libcublas.so.13"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.18",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 261042384,
+        "device": 42,
+        "inode": 4495328,
+        "mtime_ns": 1792697754146244250
+      },
+      "staged_sha256_from_verified_receipt": "ac2c1b0ff6616c02c363657177f18061fe1d7c687011b8992c53a8bffde4d10c"
+    },
+    "lib/ollama/cuda_v13/libnvfatbin.so.13.0.85": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2",
+        "libdl.so.2",
+        "libpthread.so.0"
+      ],
+      "soname": "libnvfatbin.so.13",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libdl.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.3",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 2467432,
+        "device": 42,
+        "inode": 4495329,
+        "mtime_ns": 1792697754239241367
+      },
+      "staged_sha256_from_verified_receipt": "84f3b78e44924a5b811b2ae7c44f6f4cb9c93fedfda1a09633bc92db94ce605c"
+    },
+    "lib/ollama/cuda_v13/libnvrtc.so.13.0.88": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libpthread.so.0",
+        "librt.so.1",
+        "libdl.so.2",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libnvrtc.so.13",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.6",
+          "GLIBC_2.3.4",
+          "GLIBC_2.3",
+          "GLIBC_2.7",
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libnvrtc.so.13",
+        "libnvrtc.so.13"
+      ],
+      "file_stat": {
+        "size": 109338064,
+        "device": 42,
+        "inode": 4495330,
+        "mtime_ns": 1792697754504233155
+      },
+      "staged_sha256_from_verified_receipt": "a49e67e8e74590f1e98de55c39c6287efd3f59e3c3797464d7bbe0fe01349b11"
+    },
+    "lib/ollama/cuda_v13/libnvrtc-builtins.so.13.0.88": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libnvrtc-builtins.so.13.0",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libnvrtc-builtins.so.13.0",
+        "libnvrtc-builtins.so.13.0"
+      ],
+      "file_stat": {
+        "size": 4380616,
+        "device": 42,
+        "inode": 4495331,
+        "mtime_ns": 1792697754574230985
+      },
+      "staged_sha256_from_verified_receipt": "91dcd944d01da9c0f08fff5d779db136a47f6d62bdb63bae900d2f481e92c3a2"
+    },
+    "lib/ollama/cuda_v13/libcublas.so.13.1.1.3": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libcublasLt.so.13",
+        "librt.so.1",
+        "libpthread.so.0",
+        "libdl.so.2",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libcublas.so.13",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "librt.so.1": [
+          "GLIBC_2.2.5"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5"
+        ],
+        "libgcc_s.so.1": [
+          "GCC_4.2.0",
+          "GCC_3.3",
+          "GCC_3.0"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libcublasLt.so.13": [
+          "libcublasLt.so.13"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.3.3",
+          "GLIBC_2.4",
+          "GLIBC_2.3",
+          "GLIBC_2.17",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libcublas.so.13",
+        "libcublas.so.13"
+      ],
+      "file_stat": {
+        "size": 54177976,
+        "device": 42,
+        "inode": 4495332,
+        "mtime_ns": 1792697754663228227
+      },
+      "staged_sha256_from_verified_receipt": "25cde432108543626df85d887c730bf2cab96803ca16f9654e4abc8d2b45833e"
+    },
+    "lib/ollama/cuda_v13/libnvJitLink.so.13.0.88": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libpthread.so.0",
+        "librt.so.1",
+        "libdl.so.2",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libnvJitLink.so.13",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.6",
+          "GLIBC_2.3.4",
+          "GLIBC_2.3",
+          "GLIBC_2.7",
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libnvJitLink.so.13",
+        "libnvJitLink.so.13"
+      ],
+      "file_stat": {
+        "size": 98806736,
+        "device": 42,
+        "inode": 4495333,
+        "mtime_ns": 1792697754931219921
+      },
+      "staged_sha256_from_verified_receipt": "931347fa77d9fd5511059e04627f122b1ee33e409f22c3273ddddbe065713a3a"
+    },
+    "lib/ollama/cuda_v13/libcublasLt.so.13.1.1.3": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "librt.so.1",
+        "libpthread.so.0",
+        "libdl.so.2",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libcublasLt.so.13",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "librt.so.1": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libgcc_s.so.1": [
+          "GCC_4.2.0",
+          "GCC_3.3",
+          "GCC_3.4",
+          "GCC_3.0"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.18",
+          "GLIBC_2.3.3",
+          "GLIBC_2.3",
+          "GLIBC_2.17",
+          "GLIBC_2.4",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libcublasLt.so.13",
+        "libcublasLt.so.13"
+      ],
+      "file_stat": {
+        "size": 541607888,
+        "device": 42,
+        "inode": 4495334,
+        "mtime_ns": 1792697755963187963
+      },
+      "staged_sha256_from_verified_receipt": "1489aeb75d55ee55782798343ac66f57771d561cc1fe1e0491568deefa0e6515"
+    },
+    "lib/ollama/cuda_v13/libcudart.so.13.0.96": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6",
+        "ld-linux-x86-64.so.2",
+        "libdl.so.2",
+        "libpthread.so.0",
+        "librt.so.1"
+      ],
+      "soname": "libcudart.so.13",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libdl.so.2": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "librt.so.1": [
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.3",
+          "GLIBC_2.17",
+          "GLIBC_2.3.2",
+          "GLIBC_2.3.3",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libcudart.so.13",
+        "libcudart.so.13"
+      ],
+      "file_stat": {
+        "size": 704288,
+        "device": 42,
+        "inode": 4495335,
+        "mtime_ns": 1792697756130182795
+      },
+      "staged_sha256_from_verified_receipt": "96c42e418cec19054186b9429c321603cc190bf26a18104e19408117a2a817b0"
+    },
+    "lib/ollama/libggml-base.so.0.27.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": "libggml-base.so.0",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.18",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3.8",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.17",
+          "GLIBC_2.14",
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 812880,
+        "device": 42,
+        "inode": 4495336,
+        "mtime_ns": 1792697756134182671
+      },
+      "staged_sha256_from_verified_receipt": "e572a052eaf441ef469b8f3b842b1d98a3a39286bb9fa750d6095d8156c7a01b"
+    },
+    "lib/ollama/libggml-cpu-alderlake.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1284360,
+        "device": 42,
+        "inode": 4495337,
+        "mtime_ns": 1792697756141182455
+      },
+      "staged_sha256_from_verified_receipt": "57cc274f77aef9f8bf92853595ee4fe2f46713dbe3127c87ce5fde793c67a2df"
+    },
+    "lib/ollama/libggml-cpu-cannonlake.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1460488,
+        "device": 42,
+        "inode": 4495338,
+        "mtime_ns": 1792697756146182300
+      },
+      "staged_sha256_from_verified_receipt": "e3d66d69ac01b3161d805e422fcfc33aed50d12fcd066290160571a2f5de8f46"
+    },
+    "lib/ollama/libggml-cpu-cascadelake.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1472776,
+        "device": 42,
+        "inode": 4495339,
+        "mtime_ns": 1792697756150182176
+      },
+      "staged_sha256_from_verified_receipt": "6b350a5a0ee41d8aa6f3b6794283b93fa8b4152873aa2cf55ff42272766100ca"
+    },
+    "lib/ollama/libggml-cpu-cooperlake.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1472776,
+        "device": 42,
+        "inode": 4495340,
+        "mtime_ns": 1792697756154182052
+      },
+      "staged_sha256_from_verified_receipt": "4387ee62e9cac85cdc13f529505a853f58fa537a889e378401e5f925bd997e2d"
+    },
+    "lib/ollama/libggml-cpu-haswell.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1288456,
+        "device": 42,
+        "inode": 4495341,
+        "mtime_ns": 1792697756157181960
+      },
+      "staged_sha256_from_verified_receipt": "750a689ca3b7f529cc9e6195ba6ea0418db561ca87bf19510494c218e3d63c69"
+    },
+    "lib/ollama/libggml-cpu-icelake.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1472776,
+        "device": 42,
+        "inode": 4495342,
+        "mtime_ns": 1792697756161181836
+      },
+      "staged_sha256_from_verified_receipt": "b9068f7d3fc192ee21e11176896dc33c8e7f78fd69ce3089ff8aabcfe48b7f14"
+    },
+    "lib/ollama/libggml-cpu-ivybridge.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1214856,
+        "device": 42,
+        "inode": 4495343,
+        "mtime_ns": 1792697756166252779
+      },
+      "staged_sha256_from_verified_receipt": "d3c4b2ce42ba971c8b50fd7f04ca460da9fc80c51fd9e0071074c0e22ceb5323"
+    },
+    "lib/ollama/libggml-cpu-piledriver.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1210760,
+        "device": 42,
+        "inode": 4495344,
+        "mtime_ns": 1792697756169181588
+      },
+      "staged_sha256_from_verified_receipt": "06d34bc8932e2c4a13162d87505d4e9819e3e53936577309d48cc920cc8974d7"
+    },
+    "lib/ollama/libggml-cpu-sandybridge.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1210760,
+        "device": 42,
+        "inode": 4495345,
+        "mtime_ns": 1792697756173181465
+      },
+      "staged_sha256_from_verified_receipt": "1003df4917f28d8d7a5a18edacf3f9d8e1afcc97365b06377465fa12851482a2"
+    },
+    "lib/ollama/libggml-cpu-sapphirerapids.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.17",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.21",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1722944,
+        "device": 42,
+        "inode": 4495346,
+        "mtime_ns": 1792697756179181279
+      },
+      "staged_sha256_from_verified_receipt": "ce3698394588de7143744d322549f090db846666569432dbc61eb8250a6610de"
+    },
+    "lib/ollama/libggml-cpu-skylakex.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1460488,
+        "device": 42,
+        "inode": 4495347,
+        "mtime_ns": 1792697756182181186
+      },
+      "staged_sha256_from_verified_receipt": "288d527d70807aba41fc53d61674ddc1dd63fdbdf4e2e1939912c5effaf979c3"
+    },
+    "lib/ollama/libggml-cpu-sse42.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 903592,
+        "device": 42,
+        "inode": 4495348,
+        "mtime_ns": 1792697756186181062
+      },
+      "staged_sha256_from_verified_receipt": "06e21476663acc3b5ab234aea89fc59eb54ec4220ba57a62bb8101dfa9a02523"
+    },
+    "lib/ollama/libggml-cpu-x64.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 903592,
+        "device": 42,
+        "inode": 4495349,
+        "mtime_ns": 1792697756191180908
+      },
+      "staged_sha256_from_verified_receipt": "eae58655182bec34a073f1783f3fafb927958867f43439cb324a62ed121b3017"
+    },
+    "lib/ollama/libggml-cpu-zen4.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN:/build/llama-server-cpu/bin:",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.7",
+          "GLIBC_2.14",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1472776,
+        "device": 42,
+        "inode": 4495350,
+        "mtime_ns": 1792697756196180753
+      },
+      "staged_sha256_from_verified_receipt": "d92fe1fae364c76167de0eb750cef895d29cd3e5dbd17d80baa742c0de608160"
+    },
+    "lib/ollama/libggml.so.0.27.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libdl.so.2",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libggml.so.0",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.20",
+          "CXXABI_1.3.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.17",
+          "GLIBC_2.14",
+          "GLIBC_2.6",
+          "GLIBC_2.3",
+          "GLIBC_2.4",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 220784,
+        "device": 42,
+        "inode": 4495351,
+        "mtime_ns": 1792697756199541852
+      },
+      "staged_sha256_from_verified_receipt": "fb936d4ee59b3f45ad1d37939266d22c1f06ea9d3fb0485ba97fc4855bbde101"
+    },
+    "lib/ollama/libgomp.so.1.0.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libdl.so.2",
+        "libpthread.so.0",
+        "libc.so.6"
+      ],
+      "soname": "libgomp.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libdl.so.2": [
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.3",
+          "GLIBC_2.16",
+          "GLIBC_2.14",
+          "GLIBC_2.4",
+          "GLIBC_2.6",
+          "GLIBC_2.17",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libgomp.so.1",
+        "OMP_1.0",
+        "OMP_2.0",
+        "OMP_3.0",
+        "OMP_3.1",
+        "OMP_4.0",
+        "OMP_4.5",
+        "OMP_5.0",
+        "GOMP_1.0",
+        "GOMP_2.0",
+        "GOMP_3.0",
+        "GOMP_4.0",
+        "GOMP_4.0.1",
+        "GOMP_4.5",
+        "GOMP_5.0",
+        "OACC_2.0",
+        "OACC_2.0.1",
+        "OACC_2.5",
+        "GOACC_2.0",
+        "GOACC_2.0.1",
+        "GOMP_PLUGIN_1.0",
+        "GOMP_PLUGIN_1.1",
+        "GOMP_PLUGIN_1.2"
+      ],
+      "file_stat": {
+        "size": 235072,
+        "device": 42,
+        "inode": 4495352,
+        "mtime_ns": 1792697756201180598
+      },
+      "staged_sha256_from_verified_receipt": "e985bcbb6b444c2c472de70c331ab101e6de860affa3a20d1d1aecd06d9242e8"
+    },
+    "lib/ollama/libllama-common.so.0.7.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libllama.so.0",
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libllama-common.so.0",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.10",
+          "GLIBC_2.3",
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.7",
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.17",
+          "CXXABI_1.3.3",
+          "CXXABI_1.3.9",
+          "CXXABI_1.3.11",
+          "CXXABI_1.3.2",
+          "GLIBCXX_3.4.18",
+          "GLIBCXX_3.4.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.14",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4.15",
+          "GLIBCXX_3.4.19",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 4753520,
+        "device": 42,
+        "inode": 4495353,
+        "mtime_ns": 1792697756215180165
+      },
+      "staged_sha256_from_verified_receipt": "92db3c3ffafbc86c94928ab5ff2a7e5f495e5e978190db28a05b8db1f3462960"
+    },
+    "lib/ollama/libllama-quantize-impl.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libllama-common.so.0",
+        "libllama.so.0",
+        "libpthread.so.0",
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libllama-quantize-impl.so",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.18",
+          "CXXABI_1.3.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4",
+          "CXXABI_1.3.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 72560,
+        "device": 42,
+        "inode": 4495354,
+        "mtime_ns": 1792697756222405198
+      },
+      "staged_sha256_from_verified_receipt": "4688f493b66666a0c53239928138961e8b394ea8e36a2c59cbcc82ed0a6100fc"
+    },
+    "lib/ollama/libllama-server-impl.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libpthread.so.0",
+        "libllama-common.so.0",
+        "libmtmd.so.0",
+        "libllama.so.0",
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libllama-server-impl.so",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.10",
+          "GLIBC_2.3",
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.7",
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.17",
+          "CXXABI_1.3.3",
+          "CXXABI_1.3.9",
+          "CXXABI_1.3.11",
+          "CXXABI_1.3.2",
+          "GLIBCXX_3.4.18",
+          "GLIBCXX_3.4.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.14",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4.15",
+          "GLIBCXX_3.4.19",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 3046576,
+        "device": 42,
+        "inode": 4495355,
+        "mtime_ns": 1792697756230179701
+      },
+      "staged_sha256_from_verified_receipt": "53937ca0bed6508bff05d95664e1d42638e2d9d16c5b1769b4b9c7c277dbcfba"
+    },
+    "lib/ollama/libllama.so.0.7.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libllama.so.0",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libgcc_s.so.1": [
+          "GCC_3.0",
+          "GCC_3.4"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.25",
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.17",
+          "CXXABI_1.3.3",
+          "CXXABI_1.3.9",
+          "CXXABI_1.3.11",
+          "CXXABI_1.3.2",
+          "GLIBCXX_3.4.18",
+          "GLIBCXX_3.4.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.14",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4.15",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4.19",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 4493968,
+        "device": 42,
+        "inode": 4495356,
+        "mtime_ns": 1792697756247179175
+      },
+      "staged_sha256_from_verified_receipt": "3ba1cbb9a82542bc3b74190dce7f71f3fb061742f5d86ed5850dbe5fc2c6718d"
+    },
+    "lib/ollama/libmtmd.so.0.7.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libllama.so.0",
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libmtmd.so.0",
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.2.5"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.20",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.18",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.14",
+          "GLIBCXX_3.4.21",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1781872,
+        "device": 42,
+        "inode": 4495357,
+        "mtime_ns": 1792697756261178742
+      },
+      "staged_sha256_from_verified_receipt": "77a091e80171be3173cf58e6a9d248fb55eaf6806c17c74d8c9398ee12d4057c"
+    },
+    "lib/ollama/llama-quantize": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": "/lib64/ld-linux-x86-64.so.2",
+      "needed": [
+        "libllama-quantize-impl.so",
+        "libllama-common.so.0",
+        "libllama.so.0",
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 15096,
+        "device": 42,
+        "inode": 4495358,
+        "mtime_ns": 1792697756287040305
+      },
+      "staged_sha256_from_verified_receipt": "208fcacd9b4264cacdc9783efc5b3361ac775372469edc12b48747e6b9c4dbff"
+    },
+    "lib/ollama/llama-server": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": "/lib64/ld-linux-x86-64.so.2",
+      "needed": [
+        "libllama-server-impl.so",
+        "libllama-common.so.0",
+        "libmtmd.so.0",
+        "libllama.so.0",
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 15096,
+        "device": 42,
+        "inode": 4495359,
+        "mtime_ns": 1792697756317215112
+      },
+      "staged_sha256_from_verified_receipt": "234b05b2138264f8fb263c3205e85f4c290e8afe5067e280a4f6f90cdac5696b"
+    },
+    "lib/ollama/vulkan/libggml-vulkan.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libvulkan.so.1",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": null,
+      "rpath": null,
+      "runpath": "$ORIGIN",
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5",
+          "GLIBC_2.27"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.14",
+          "GLIBC_2.16",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.18",
+          "GLIBCXX_3.4.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.14",
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.21",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 40283912,
+        "device": 42,
+        "inode": 4495360,
+        "mtime_ns": 1792697756423173730
+      },
+      "staged_sha256_from_verified_receipt": "3523137f664b934921aacd1de404b133d42e49b809224b20bffeb201e7a1b625"
+    }
+  },
+  "package_non_elf": [
+    "lib/ollama/CPP_HTTPLIB_LICENSE",
+    "lib/ollama/DLPACK_LICENSE",
+    "lib/ollama/FMT_LICENSE",
+    "lib/ollama/GO_LICENSE",
+    "lib/ollama/LLAMA_CPP_LICENSE",
+    "lib/ollama/LLAMA_CPP_VENDORS_LICENSE",
+    "lib/ollama/MLX_C_LICENSE",
+    "lib/ollama/MLX_LICENSE",
+    "lib/ollama/PICOJSON_LICENSE",
+    "lib/ollama/XGRAMMAR_LICENSE",
+    "lib/ollama/XGRAMMAR_NOTICE"
+  ],
+  "dependency_candidates": {
+    "/lib64/ld-linux-x86-64.so.2": {
+      "canonical_path": "/usr/lib/ld-linux-x86-64.so.2",
+      "package_name_candidates": []
+    },
+    "ld-linux-x86-64.so.2": {
+      "canonical_path": "/usr/lib/ld-linux-x86-64.so.2",
+      "package_name_candidates": []
+    },
+    "libc.so.6": {
+      "canonical_path": "/usr/lib/libc.so.6",
+      "package_name_candidates": []
+    },
+    "libcublas.so.12": {
+      "unresolved": "no candidate at explicitly searched system path",
+      "package_name_candidates": [
+        "lib/ollama/cuda_v12/libcublas.so.12"
+      ]
+    },
+    "libcublas.so.13": {
+      "unresolved": "no candidate at explicitly searched system path",
+      "package_name_candidates": [
+        "lib/ollama/cuda_v13/libcublas.so.13"
+      ]
+    },
+    "libcublasLt.so.12": {
+      "unresolved": "no candidate at explicitly searched system path",
+      "package_name_candidates": [
+        "lib/ollama/cuda_v12/libcublasLt.so.12"
+      ]
+    },
+    "libcublasLt.so.13": {
+      "unresolved": "no candidate at explicitly searched system path",
+      "package_name_candidates": [
+        "lib/ollama/cuda_v13/libcublasLt.so.13"
+      ]
+    },
+    "libcuda.so.1": {
+      "canonical_path": "/usr/lib/libcuda.so.615.78.08",
+      "package_name_candidates": []
+    },
+    "libcudart.so.12": {
+      "unresolved": "no candidate at explicitly searched system path",
+      "package_name_candidates": [
+        "lib/ollama/cuda_v12/libcudart.so.12"
+      ]
+    },
+    "libcudart.so.13": {
+      "unresolved": "no candidate at explicitly searched system path",
+      "package_name_candidates": [
+        "lib/ollama/cuda_v13/libcudart.so.13"
+      ]
+    },
+    "libdl.so.2": {
+      "canonical_path": "/usr/lib/libdl.so.2",
+      "package_name_candidates": []
+    },
+    "libgcc_s.so.1": {
+      "canonical_path": "/usr/lib/libgcc_s.so.1",
+      "package_name_candidates": []
+    },
+    "libggml-base.so.0": {
+      "canonical_path": "/usr/lib/libggml-base.so.0.26.0",
+      "package_name_candidates": [
+        "lib/ollama/libggml-base.so.0"
+      ]
+    },
+    "libggml.so.0": {
+      "canonical_path": "/usr/lib/libggml.so.0.26.0",
+      "package_name_candidates": [
+        "lib/ollama/libggml.so.0"
+      ]
+    },
+    "libllama-common.so.0": {
+      "canonical_path": "/usr/lib/libllama-common.so.0.6.0",
+      "package_name_candidates": [
+        "lib/ollama/libllama-common.so.0"
+      ]
+    },
+    "libllama-quantize-impl.so": {
+      "canonical_path": "/usr/lib/libllama-quantize-impl.so",
+      "package_name_candidates": [
+        "lib/ollama/libllama-quantize-impl.so"
+      ]
+    },
+    "libllama-server-impl.so": {
+      "canonical_path": "/usr/lib/libllama-server-impl.so",
+      "package_name_candidates": [
+        "lib/ollama/libllama-server-impl.so"
+      ]
+    },
+    "libllama.so.0": {
+      "canonical_path": "/usr/lib/libllama.so.0.6.0",
+      "package_name_candidates": [
+        "lib/ollama/libllama.so.0"
+      ]
+    },
+    "libm.so.6": {
+      "canonical_path": "/usr/lib/libm.so.6",
+      "package_name_candidates": []
+    },
+    "libmtmd.so.0": {
+      "canonical_path": "/usr/lib/libmtmd.so.0.6.0",
+      "package_name_candidates": [
+        "lib/ollama/libmtmd.so.0"
+      ]
+    },
+    "libpthread.so.0": {
+      "canonical_path": "/usr/lib/libpthread.so.0",
+      "package_name_candidates": []
+    },
+    "libresolv.so.2": {
+      "canonical_path": "/usr/lib/libresolv.so.2",
+      "package_name_candidates": []
+    },
+    "librt.so.1": {
+      "canonical_path": "/usr/lib/librt.so.1",
+      "package_name_candidates": []
+    },
+    "libstdc++.so.6": {
+      "canonical_path": "/usr/lib/libstdc++.so.6.0.36",
+      "package_name_candidates": []
+    },
+    "libvulkan.so.1": {
+      "canonical_path": "/usr/lib/libvulkan.so.1.4.363",
+      "package_name_candidates": []
+    },
+    "libgomp.so.1": {
+      "canonical_path": "/usr/lib/libgomp.so.1.0.0",
+      "package_name_candidates": [
+        "lib/ollama/libgomp.so.1"
+      ]
+    },
+    "libssl.so.3": {
+      "canonical_path": "/usr/lib/libssl.so.3",
+      "package_name_candidates": []
+    },
+    "libcrypto.so.3": {
+      "canonical_path": "/usr/lib/libcrypto.so.3",
+      "package_name_candidates": []
+    },
+    "libz.so.1": {
+      "canonical_path": "/usr/lib/libz.so.1.3.2",
+      "package_name_candidates": []
+    },
+    "libbrotlienc.so.1": {
+      "canonical_path": "/usr/lib/libbrotlienc.so.1.2.0",
+      "package_name_candidates": []
+    },
+    "libbrotlidec.so.1": {
+      "canonical_path": "/usr/lib/libbrotlidec.so.1.2.0",
+      "package_name_candidates": []
+    },
+    "libzstd.so.1": {
+      "canonical_path": "/usr/lib/libzstd.so.1.5.7",
+      "package_name_candidates": []
+    },
+    "libbrotlicommon.so.1": {
+      "canonical_path": "/usr/lib/libbrotlicommon.so.1.2.0",
+      "package_name_candidates": []
+    }
+  },
+  "system_elf": {
+    "/usr/lib/ld-linux-x86-64.so.2": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [],
+      "soname": "ld-linux-x86-64.so.2",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {},
+      "defined_versions": [
+        "ld-linux-x86-64.so.2",
+        "GLIBC_2.2.5",
+        "GLIBC_2.3",
+        "GLIBC_2.4",
+        "GLIBC_2.34",
+        "GLIBC_2.35",
+        "GLIBC_PRIVATE"
+      ],
+      "file_stat": {
+        "size": 263152,
+        "device": 31,
+        "inode": 709891,
+        "mtime_ns": 1790526947000000000
+      }
+    },
+    "/usr/lib/libc.so.6": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": "/usr/lib/ld-linux-x86-64.so.2",
+      "needed": [
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libc.so.6",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.2.5",
+          "GLIBC_2.3",
+          "GLIBC_2.35",
+          "GLIBC_PRIVATE"
+        ]
+      },
+      "defined_versions": [
+        "libc.so.6",
+        "GLIBC_2.2.5",
+        "GLIBC_2.2.6",
+        "GLIBC_2.3",
+        "GLIBC_2.3.2",
+        "GLIBC_2.3.3",
+        "GLIBC_2.3.4",
+        "GLIBC_2.4",
+        "GLIBC_2.5",
+        "GLIBC_2.6",
+        "GLIBC_2.7",
+        "GLIBC_2.8",
+        "GLIBC_2.9",
+        "GLIBC_2.10",
+        "GLIBC_2.11",
+        "GLIBC_2.12",
+        "GLIBC_2.13",
+        "GLIBC_2.14",
+        "GLIBC_2.15",
+        "GLIBC_2.16",
+        "GLIBC_2.17",
+        "GLIBC_2.18",
+        "GLIBC_2.22",
+        "GLIBC_2.23",
+        "GLIBC_2.24",
+        "GLIBC_2.25",
+        "GLIBC_2.26",
+        "GLIBC_2.27",
+        "GLIBC_2.28",
+        "GLIBC_2.29",
+        "GLIBC_2.30",
+        "GLIBC_2.31",
+        "GLIBC_2.32",
+        "GLIBC_2.33",
+        "GLIBC_2.34",
+        "GLIBC_2.35",
+        "GLIBC_2.36",
+        "GLIBC_2.38",
+        "GLIBC_2.39",
+        "GLIBC_2.41",
+        "GLIBC_2.42",
+        "GLIBC_2.43",
+        "GLIBC_2.44",
+        "GLIBC_ABI_DT_RELR",
+        "GLIBC_ABI_DT_X86_64_PLT",
+        "GLIBC_ABI_GNU2_TLS",
+        "GLIBC_PRIVATE"
+      ],
+      "file_stat": {
+        "size": 2215072,
+        "device": 31,
+        "inode": 709900,
+        "mtime_ns": 1790526947000000000
+      }
+    },
+    "/usr/lib/libcuda.so.615.78.08": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libpthread.so.0",
+        "libm.so.6",
+        "libc.so.6",
+        "libdl.so.2",
+        "librt.so.1"
+      ],
+      "soname": "libcuda.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libm.so.6": [
+          "GLIBC_2.2.5"
+        ],
+        "librt.so.1": [
+          "GLIBC_2.2.5"
+        ],
+        "libdl.so.2": [
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.8",
+          "GLIBC_2.9",
+          "GLIBC_2.3.2",
+          "GLIBC_2.3",
+          "GLIBC_2.4",
+          "GLIBC_2.7",
+          "GLIBC_2.3.3",
+          "GLIBC_2.2.5"
+        ],
+        "libpthread.so.0": [
+          "GLIBC_2.3.2",
+          "GLIBC_2.4",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 112668520,
+        "device": 31,
+        "inode": 1214520,
+        "mtime_ns": 1791470489000000000
+      }
+    },
+    "/usr/lib/libdl.so.2": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": "libdl.so.2",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_X86_64_PLT",
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libdl.so.2",
+        "GLIBC_2.2.5",
+        "GLIBC_2.3.3",
+        "GLIBC_2.3.4"
+      ],
+      "file_stat": {
+        "size": 14352,
+        "device": 31,
+        "inode": 709905,
+        "mtime_ns": 1790526947000000000
+      }
+    },
+    "/usr/lib/libgcc_s.so.1": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libgcc_s.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.3.4",
+          "GLIBC_2.35",
+          "GLIBC_2.14",
+          "GLIBC_2.34",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libgcc_s.so.1",
+        "GCC_3.0",
+        "GCC_3.3",
+        "GCC_3.3.1",
+        "GCC_3.4",
+        "GCC_3.4.2",
+        "GCC_3.4.4",
+        "GCC_4.0.0",
+        "GCC_4.2.0",
+        "GCC_4.3.0",
+        "GCC_4.7.0",
+        "GCC_4.8.0",
+        "GCC_7.0.0",
+        "GCC_12.0.0",
+        "GCC_13.0.0",
+        "GCC_14.0.0"
+      ],
+      "file_stat": {
+        "size": 182512,
+        "device": 31,
+        "inode": 4258,
+        "mtime_ns": 1786392286000000000
+      }
+    },
+    "/usr/lib/libggml-base.so.0.26.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libgomp.so.1",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libggml-base.so.0",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "libgomp.so.1": [
+          "GOMP_4.0",
+          "GOMP_4.5",
+          "GOMP_1.0"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.29",
+          "GLIBC_2.27",
+          "GLIBC_2.43",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.18",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.29",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.38",
+          "GLIBC_2.4",
+          "GLIBC_2.17",
+          "GLIBC_2.14",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 907784,
+        "device": 31,
+        "inode": 1229416,
+        "mtime_ns": 1791749889000000000
+      }
+    },
+    "/usr/lib/libggml.so.0.26.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libggml.so.0",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0"
+        ],
+        "libc.so.6": [
+          "GLIBC_2.32",
+          "GLIBC_2.4",
+          "GLIBC_2.14",
+          "GLIBC_2.34",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.20",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4.26"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 51864,
+        "device": 31,
+        "inode": 1229419,
+        "mtime_ns": 1791749889000000000
+      }
+    },
+    "/usr/lib/libllama-common.so.0.6.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libllama.so.0",
+        "libssl.so.3",
+        "libcrypto.so.3",
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libllama-common.so.0",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.3.1",
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.38",
+          "GLIBC_2.27",
+          "GLIBC_2.29",
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.9",
+          "GLIBC_2.32",
+          "GLIBC_2.15",
+          "GLIBC_2.29",
+          "GLIBC_2.3",
+          "GLIBC_2.10",
+          "GLIBC_2.4",
+          "GLIBC_2.34",
+          "GLIBC_2.3.4",
+          "GLIBC_2.33",
+          "GLIBC_2.14",
+          "GLIBC_2.38",
+          "GLIBC_2.2.5"
+        ],
+        "libssl.so.3": [
+          "OPENSSL_3.0.0"
+        ],
+        "libcrypto.so.3": [
+          "OPENSSL_3.3.0",
+          "OPENSSL_3.0.0"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.32",
+          "GLIBCXX_3.4.17",
+          "GLIBCXX_3.4.14",
+          "GLIBCXX_3.4.19",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4.29",
+          "CXXABI_1.3.11",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4.9",
+          "CXXABI_1.3.7",
+          "CXXABI_1.3.3",
+          "GLIBCXX_3.4.30",
+          "CXXABI_1.3.13",
+          "GLIBCXX_3.4.15",
+          "GLIBCXX_3.4.18",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.20",
+          "CXXABI_1.3.2",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4",
+          "GLIBCXX_3.4.26"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 4239408,
+        "device": 31,
+        "inode": 836458,
+        "mtime_ns": 1791296492000000000
+      }
+    },
+    "/usr/lib/libllama-quantize-impl.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libllama-common.so.0",
+        "libllama.so.0",
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libllama-quantize-impl.so",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.0",
+          "GCC_3.3.1"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.18",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.29",
+          "GLIBCXX_3.4.21",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.30",
+          "GLIBCXX_3.4.26",
+          "GLIBCXX_3.4",
+          "CXXABI_1.3.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.38",
+          "GLIBC_2.4",
+          "GLIBC_2.14",
+          "GLIBC_2.2.5",
+          "GLIBC_2.3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 75752,
+        "device": 31,
+        "inode": 836462,
+        "mtime_ns": 1791296492000000000
+      }
+    },
+    "/usr/lib/libllama-server-impl.so": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libllama-common.so.0",
+        "libmtmd.so.0",
+        "libllama.so.0",
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libssl.so.3",
+        "libcrypto.so.3",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libllama-server-impl.so",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libgcc_s.so.1": [
+          "GCC_3.3.1",
+          "GCC_3.0"
+        ],
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.43",
+          "GLIBC_2.27",
+          "GLIBC_2.29"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.9",
+          "GLIBC_2.32",
+          "GLIBC_2.15",
+          "GLIBC_2.29",
+          "GLIBC_2.3",
+          "GLIBC_2.10",
+          "GLIBC_2.4",
+          "GLIBC_2.34",
+          "GLIBC_2.3.4",
+          "GLIBC_2.33",
+          "GLIBC_2.14",
+          "GLIBC_2.38",
+          "GLIBC_2.2.5"
+        ],
+        "libssl.so.3": [
+          "OPENSSL_3.0.0"
+        ],
+        "libcrypto.so.3": [
+          "OPENSSL_3.3.0",
+          "OPENSSL_3.0.0"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.32",
+          "GLIBCXX_3.4.17",
+          "GLIBCXX_3.4.14",
+          "GLIBCXX_3.4.19",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4.29",
+          "CXXABI_1.3.11",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4.9",
+          "CXXABI_1.3.7",
+          "CXXABI_1.3.3",
+          "GLIBCXX_3.4.30",
+          "CXXABI_1.3.13",
+          "GLIBCXX_3.4.15",
+          "GLIBCXX_3.4.18",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.11",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.20",
+          "CXXABI_1.3.2",
+          "GLIBCXX_3.4",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4.26"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 6216176,
+        "device": 31,
+        "inode": 836463,
+        "mtime_ns": 1791296492000000000
+      }
+    },
+    "/usr/lib/libllama.so.0.6.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml.so.0",
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libllama.so.0",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.43",
+          "GLIBC_2.29",
+          "GLIBC_2.2.5"
+        ],
+        "libgcc_s.so.1": [
+          "GCC_3.0",
+          "GCC_3.4",
+          "GCC_3.3.1"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.33",
+          "GLIBC_2.32",
+          "GLIBC_2.34",
+          "GLIBC_2.14",
+          "GLIBC_2.4",
+          "GLIBC_2.3.4",
+          "GLIBC_2.38",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.25",
+          "GLIBCXX_3.4.20",
+          "GLIBCXX_3.4.17",
+          "CXXABI_1.3.3",
+          "CXXABI_1.3.9",
+          "CXXABI_1.3.11",
+          "CXXABI_1.3.2",
+          "GLIBCXX_3.4.29",
+          "GLIBCXX_3.4.18",
+          "GLIBCXX_3.4.9",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.30",
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.14",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4.15",
+          "GLIBCXX_3.4.22",
+          "CXXABI_1.3.13",
+          "GLIBCXX_3.4.19",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 3966008,
+        "device": 31,
+        "inode": 836466,
+        "mtime_ns": 1791296492000000000
+      }
+    },
+    "/usr/lib/libm.so.6": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libm.so.6",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_PRIVATE"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_X86_64_PLT",
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.34",
+          "GLIBC_2.35",
+          "GLIBC_2.14",
+          "GLIBC_2.4",
+          "GLIBC_2.3.2",
+          "GLIBC_PRIVATE",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libm.so.6",
+        "GLIBC_2.2.5",
+        "GLIBC_2.4",
+        "GLIBC_2.15",
+        "GLIBC_2.18",
+        "GLIBC_2.23",
+        "GLIBC_2.24",
+        "GLIBC_2.25",
+        "GLIBC_2.26",
+        "GLIBC_2.27",
+        "GLIBC_2.28",
+        "GLIBC_2.29",
+        "GLIBC_2.31",
+        "GLIBC_2.32",
+        "GLIBC_2.35",
+        "GLIBC_2.38",
+        "GLIBC_2.39",
+        "GLIBC_2.40",
+        "GLIBC_2.41",
+        "GLIBC_2.42",
+        "GLIBC_2.43",
+        "GLIBC_2.44"
+      ],
+      "file_stat": {
+        "size": 1268336,
+        "device": 31,
+        "inode": 709910,
+        "mtime_ns": 1790526947000000000
+      }
+    },
+    "/usr/lib/libmtmd.so.0.6.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libggml.so.0",
+        "libllama.so.0",
+        "libggml-base.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "libmtmd.so.0",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libgcc_s.so.1": [
+          "GCC_3.0",
+          "GCC_3.3.1"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.27",
+          "GLIBC_2.43",
+          "GLIBC_2.29",
+          "GLIBC_2.2.5"
+        ],
+        "libstdc++.so.6": [
+          "GLIBCXX_3.4.11",
+          "GLIBCXX_3.4.20",
+          "CXXABI_1.3.9",
+          "GLIBCXX_3.4.29",
+          "GLIBCXX_3.4.18",
+          "CXXABI_1.3",
+          "GLIBCXX_3.4.21",
+          "GLIBCXX_3.4.14",
+          "GLIBCXX_3.4.30",
+          "CXXABI_1.3.5",
+          "GLIBCXX_3.4.22",
+          "GLIBCXX_3.4"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.4",
+          "GLIBC_2.14",
+          "GLIBC_2.9",
+          "GLIBC_2.3.4",
+          "GLIBC_2.38",
+          "GLIBC_2.15",
+          "GLIBC_2.32",
+          "GLIBC_2.29",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 1506080,
+        "device": 31,
+        "inode": 836469,
+        "mtime_ns": 1791296492000000000
+      }
+    },
+    "/usr/lib/libpthread.so.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": "libpthread.so.0",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_X86_64_PLT",
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libpthread.so.0",
+        "GLIBC_2.2.5",
+        "GLIBC_2.2.6",
+        "GLIBC_2.3.2",
+        "GLIBC_2.3.3",
+        "GLIBC_2.3.4",
+        "GLIBC_2.4",
+        "GLIBC_2.11",
+        "GLIBC_2.12",
+        "GLIBC_2.18",
+        "GLIBC_2.28",
+        "GLIBC_2.30",
+        "GLIBC_2.31"
+      ],
+      "file_stat": {
+        "size": 14360,
+        "device": 31,
+        "inode": 709927,
+        "mtime_ns": 1790526947000000000
+      }
+    },
+    "/usr/lib/libresolv.so.2": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": "libresolv.so.2",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_X86_64_PLT",
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.14",
+          "GLIBC_2.4",
+          "GLIBC_2.34",
+          "GLIBC_PRIVATE",
+          "GLIBC_2.3.4",
+          "GLIBC_2.2.5",
+          "GLIBC_2.3"
+        ]
+      },
+      "defined_versions": [
+        "libresolv.so.2",
+        "GLIBC_2.2.5",
+        "GLIBC_2.3.2",
+        "GLIBC_2.9",
+        "GLIBC_PRIVATE"
+      ],
+      "file_stat": {
+        "size": 67904,
+        "device": 31,
+        "inode": 709930,
+        "mtime_ns": 1790526947000000000
+      }
+    },
+    "/usr/lib/librt.so.1": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6",
+        "ld-linux-x86-64.so.2"
+      ],
+      "soname": "librt.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_PRIVATE"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_X86_64_PLT",
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.2.5",
+          "GLIBC_PRIVATE"
+        ]
+      },
+      "defined_versions": [
+        "librt.so.1",
+        "GLIBC_2.2.5",
+        "GLIBC_2.3.3",
+        "GLIBC_2.3.4",
+        "GLIBC_2.4",
+        "GLIBC_2.7"
+      ],
+      "file_stat": {
+        "size": 14424,
+        "device": 31,
+        "inode": 709932,
+        "mtime_ns": 1790526947000000000
+      }
+    },
+    "/usr/lib/libstdc++.so.6.0.36": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-x86-64.so.2",
+        "libgcc_s.so.1"
+      ],
+      "soname": "libstdc++.so.6",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "ld-linux-x86-64.so.2": [
+          "GLIBC_2.3"
+        ],
+        "libgcc_s.so.1": [
+          "GCC_4.2.0",
+          "GCC_3.4",
+          "GCC_3.3",
+          "GCC_4.3.0",
+          "GCC_3.0"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.2.5"
+        ],
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.14",
+          "GLIBC_2.38",
+          "GLIBC_2.6",
+          "GLIBC_2.26",
+          "GLIBC_2.25",
+          "GLIBC_2.18",
+          "GLIBC_2.32",
+          "GLIBC_2.4",
+          "GLIBC_2.7",
+          "GLIBC_2.33",
+          "GLIBC_2.3.4",
+          "GLIBC_2.17",
+          "GLIBC_2.3",
+          "GLIBC_2.36",
+          "GLIBC_2.3.2",
+          "GLIBC_2.34",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libstdc++.so.6",
+        "GLIBCXX_3.4",
+        "GLIBCXX_3.4.1",
+        "GLIBCXX_3.4.2",
+        "GLIBCXX_3.4.3",
+        "GLIBCXX_3.4.4",
+        "GLIBCXX_3.4.5",
+        "GLIBCXX_3.4.6",
+        "GLIBCXX_3.4.7",
+        "GLIBCXX_3.4.8",
+        "GLIBCXX_3.4.9",
+        "GLIBCXX_3.4.10",
+        "GLIBCXX_3.4.11",
+        "GLIBCXX_3.4.12",
+        "GLIBCXX_3.4.13",
+        "GLIBCXX_3.4.14",
+        "GLIBCXX_3.4.15",
+        "GLIBCXX_3.4.16",
+        "GLIBCXX_3.4.17",
+        "GLIBCXX_3.4.18",
+        "GLIBCXX_3.4.19",
+        "GLIBCXX_3.4.20",
+        "GLIBCXX_3.4.21",
+        "GLIBCXX_3.4.22",
+        "GLIBCXX_3.4.23",
+        "GLIBCXX_3.4.24",
+        "GLIBCXX_3.4.25",
+        "GLIBCXX_3.4.26",
+        "GLIBCXX_3.4.27",
+        "GLIBCXX_3.4.28",
+        "GLIBCXX_3.4.29",
+        "GLIBCXX_3.4.30",
+        "GLIBCXX_3.4.31",
+        "GLIBCXX_3.4.32",
+        "GLIBCXX_3.4.33",
+        "GLIBCXX_3.4.34",
+        "GLIBCXX_3.4.35",
+        "GLIBCXX_3.4.36",
+        "CXXABI_1.3",
+        "CXXABI_1.3.1",
+        "CXXABI_1.3.2",
+        "CXXABI_1.3.3",
+        "CXXABI_1.3.4",
+        "CXXABI_1.3.5",
+        "CXXABI_1.3.6",
+        "CXXABI_1.3.7",
+        "CXXABI_1.3.8",
+        "CXXABI_1.3.9",
+        "CXXABI_1.3.10",
+        "CXXABI_1.3.11",
+        "CXXABI_1.3.12",
+        "CXXABI_1.3.13",
+        "CXXABI_1.3.14",
+        "CXXABI_1.3.15",
+        "CXXABI_1.3.17",
+        "CXXABI_TM_1",
+        "CXXABI_FLOAT128"
+      ],
+      "file_stat": {
+        "size": 2939928,
+        "device": 31,
+        "inode": 4267,
+        "mtime_ns": 1786392286000000000
+      }
+    },
+    "/usr/lib/libvulkan.so.1.4.363": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": "libvulkan.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.33",
+          "GLIBC_2.14",
+          "GLIBC_2.3",
+          "GLIBC_2.4",
+          "GLIBC_2.17",
+          "GLIBC_2.34",
+          "GLIBC_2.38",
+          "GLIBC_2.2.5",
+          "GLIBC_2.3.4"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 694272,
+        "device": 31,
+        "inode": 820103,
+        "mtime_ns": 1790671484000000000
+      }
+    },
+    "/usr/lib/libgomp.so.1.0.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": "libgomp.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.3",
+          "GLIBC_2.14",
+          "GLIBC_2.4",
+          "GLIBC_2.6",
+          "GLIBC_2.17",
+          "GLIBC_2.32",
+          "GLIBC_2.34",
+          "GLIBC_2.3.4",
+          "GLIBC_2.38",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libgomp.so.1",
+        "OMP_1.0",
+        "OMP_2.0",
+        "OMP_3.0",
+        "OMP_3.1",
+        "OMP_4.0",
+        "OMP_4.5",
+        "OMP_5.0",
+        "OMP_5.0.1",
+        "OMP_5.0.2",
+        "OMP_5.1",
+        "OMP_5.1.1",
+        "OMP_5.2",
+        "GOMP_1.0",
+        "GOMP_2.0",
+        "GOMP_3.0",
+        "GOMP_4.0",
+        "GOMP_4.0.1",
+        "GOMP_4.5",
+        "GOMP_5.0",
+        "GOMP_5.0.1",
+        "GOMP_5.1",
+        "GOMP_5.1.1",
+        "GOMP_5.1.2",
+        "GOMP_5.1.3",
+        "GOMP_6.0",
+        "GOMP_6.0.1",
+        "OACC_2.0",
+        "OACC_2.0.1",
+        "OACC_2.5",
+        "OACC_2.5.1",
+        "OACC_2.6",
+        "OACC_2.6.1",
+        "GOACC_2.0",
+        "GOACC_2.0.1",
+        "GOACC_2.0.2",
+        "GOMP_PLUGIN_1.0",
+        "GOMP_PLUGIN_1.1",
+        "GOMP_PLUGIN_1.2",
+        "GOMP_PLUGIN_1.3",
+        "GOMP_PLUGIN_1.4"
+      ],
+      "file_stat": {
+        "size": 363560,
+        "device": 31,
+        "inode": 4309,
+        "mtime_ns": 1786392286000000000
+      }
+    },
+    "/usr/lib/libssl.so.3": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libcrypto.so.3",
+        "libc.so.6"
+      ],
+      "soname": "libssl.so.3",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.38",
+          "GLIBC_2.17",
+          "GLIBC_2.3.4",
+          "GLIBC_2.4",
+          "GLIBC_2.3",
+          "GLIBC_2.33",
+          "GLIBC_2.34",
+          "GLIBC_2.14",
+          "GLIBC_2.2.5",
+          "GLIBC_2.3.2"
+        ],
+        "libcrypto.so.3": [
+          "OPENSSL_3.3.0",
+          "OPENSSL_3.0.3",
+          "OPENSSL_3.4.0",
+          "OPENSSL_3.2.0",
+          "OPENSSL_3.6.0",
+          "OPENSSL_3.0.0"
+        ]
+      },
+      "defined_versions": [
+        "libssl.so.3",
+        "OPENSSL_3.0.0",
+        "OPENSSL_3.2.0",
+        "OPENSSL_3.3.0",
+        "OPENSSL_3.4.0",
+        "OPENSSL_3.5.0"
+      ],
+      "file_stat": {
+        "size": 1015768,
+        "device": 31,
+        "inode": 725991,
+        "mtime_ns": 1790697111000000000
+      }
+    },
+    "/usr/lib/libcrypto.so.3": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libz.so.1",
+        "libbrotlienc.so.1",
+        "libbrotlidec.so.1",
+        "libzstd.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libcrypto.so.3",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.15",
+          "GLIBC_2.4",
+          "GLIBC_2.38",
+          "GLIBC_2.3",
+          "GLIBC_2.25",
+          "GLIBC_2.33",
+          "GLIBC_2.12",
+          "GLIBC_2.14",
+          "GLIBC_2.3.4",
+          "GLIBC_2.17",
+          "GLIBC_2.16",
+          "GLIBC_2.3.2",
+          "GLIBC_2.34",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [
+        "libcrypto.so.3",
+        "OPENSSL_3.0.0",
+        "OPENSSL_3.0.3",
+        "OPENSSL_3.0.8",
+        "OPENSSL_3.0.9",
+        "OPENSSL_3.1.0",
+        "OPENSSL_3.2.0",
+        "OPENSSL_3.3.0",
+        "OPENSSL_3.4.0",
+        "OPENSSL_3.5.0",
+        "OPENSSL_3.6.0"
+      ],
+      "file_stat": {
+        "size": 5926392,
+        "device": 31,
+        "inode": 725989,
+        "mtime_ns": 1790697111000000000
+      }
+    },
+    "/usr/lib/libz.so.1.3.2": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": "libz.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.14",
+          "GLIBC_2.4",
+          "GLIBC_2.2.5",
+          "GLIBC_2.3.4"
+        ]
+      },
+      "defined_versions": [
+        "libz.so.1",
+        "ZLIB_1.2.0",
+        "ZLIB_1.2.0.2",
+        "ZLIB_1.2.0.8",
+        "ZLIB_1.2.2",
+        "ZLIB_1.2.2.3",
+        "ZLIB_1.2.2.4",
+        "ZLIB_1.2.3.3",
+        "ZLIB_1.2.3.4",
+        "ZLIB_1.2.3.5",
+        "ZLIB_1.2.5.1",
+        "ZLIB_1.2.5.2",
+        "ZLIB_1.2.7.1",
+        "ZLIB_1.2.9",
+        "ZLIB_1.2.12",
+        "ZLIB_1.3.1.2",
+        "ZLIB_1.3.2"
+      ],
+      "file_stat": {
+        "size": 108560,
+        "device": 31,
+        "inode": 1271026,
+        "mtime_ns": 1791808009000000000
+      }
+    },
+    "/usr/lib/libbrotlienc.so.1.2.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libm.so.6",
+        "libbrotlicommon.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libbrotlienc.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.3.4",
+          "GLIBC_2.14",
+          "GLIBC_2.2.5",
+          "GLIBC_2.4"
+        ],
+        "libm.so.6": [
+          "GLIBC_2.29"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 780768,
+        "device": 31,
+        "inode": 8057,
+        "mtime_ns": 1767465015000000000
+      }
+    },
+    "/usr/lib/libbrotlidec.so.1.2.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libbrotlicommon.so.1",
+        "libc.so.6"
+      ],
+      "soname": "libbrotlidec.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.14",
+          "GLIBC_2.3.4",
+          "GLIBC_2.4",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 55168,
+        "device": 31,
+        "inode": 8054,
+        "mtime_ns": 1767465015000000000
+      }
+    },
+    "/usr/lib/libzstd.so.1.5.7": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": "libzstd.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.34",
+          "GLIBC_2.8",
+          "GLIBC_2.14",
+          "GLIBC_2.3.4",
+          "GLIBC_2.4",
+          "GLIBC_2.3.2",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 939976,
+        "device": 31,
+        "inode": 8535,
+        "mtime_ns": 1771173791000000000
+      }
+    },
+    "/usr/lib/libbrotlicommon.so.1.2.0": {
+      "machine": 62,
+      "elf_class": 64,
+      "byte_order": "little",
+      "interpreter": null,
+      "needed": [
+        "libc.so.6"
+      ],
+      "soname": "libbrotlicommon.so.1",
+      "rpath": null,
+      "runpath": null,
+      "required_versions": {
+        "libc.so.6": [
+          "GLIBC_ABI_DT_RELR",
+          "GLIBC_2.2.5"
+        ]
+      },
+      "defined_versions": [],
+      "file_stat": {
+        "size": 141264,
+        "device": 31,
+        "inode": 8051,
+        "mtime_ns": 1767465015000000000
+      }
+    }
+  },
+  "acquired_code_executed_or_loaded": false,
+  "subprocess_started": false,
+  "permissions_changed": false,
+  "service_started": false,
+  "inference_performed": false,
+  "model_runtime_loaded": false,
+  "network_used": false,
+  "deletion_performed": false,
+  "deployment_eligible": false,
+  "runtime_authorized": false,
+  "startup_memory": {
+    "proc_self_status": {
+      "VmPeak": "29196 kB",
+      "VmSize": "29196 kB",
+      "VmHWM": "17384 kB",
+      "VmRSS": "17384 kB"
+    },
+    "rlimit_as": [
+      536870912,
+      536870912
+    ],
+    "historical_ru_maxrss_kib": 683000
+  },
+  "staging_receipt_sha256": "8c854863cb5cdb3be7b0ccc939c89e05b802bc07e54aa0927762512e33443e7d",
+  "acquisition_receipt_sha256": "96fc2d983173ecc526805cdb56a68a330ca2039f6a6de37c4198e047dbf1c8de",
+  "gguf": {
+    "version": 3,
+    "tensor_count": 290,
+    "metadata_pairs": 34,
+    "metadata_bytes_read": 5931697,
+    "metadata_sha256": "efc778991f30643c4de7166be439779dd3faaff7695bfed0d12ccf78aaa59dee",
+    "values": {
+      "general.architecture": "qwen2",
+      "general.type": "model",
+      "general.name": "Qwen2.5 0.5B Instruct",
+      "general.finetune": "Instruct",
+      "general.basename": "Qwen2.5",
+      "general.size_label": "0.5B",
+      "general.license": "apache-2.0",
+      "general.license.link": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/blob/main/LICENSE",
+      "general.base_model.count": 1,
+      "general.base_model.0.name": "Qwen2.5 0.5B",
+      "general.base_model.0.organization": "Qwen",
+      "general.base_model.0.repo_url": "https://huggingface.co/Qwen/Qwen2.5-0.5B",
+      "general.tags": {
+        "array_element_type": 8,
+        "count": 2,
+        "contents_not_retained": true
+      },
+      "general.languages": {
+        "array_element_type": 8,
+        "count": 1,
+        "contents_not_retained": true
+      },
+      "qwen2.block_count": 24,
+      "qwen2.context_length": 32768,
+      "qwen2.embedding_length": 896,
+      "qwen2.feed_forward_length": 4864,
+      "qwen2.attention.head_count": 14,
+      "qwen2.attention.head_count_kv": 2,
+      "qwen2.rope.freq_base": 1000000.0,
+      "qwen2.attention.layer_norm_rms_epsilon": 9.999999974752427e-07,
+      "general.file_type": 15,
+      "tokenizer.ggml.model": "gpt2",
+      "tokenizer.ggml.pre": "qwen2",
+      "tokenizer.ggml.tokens": {
+        "array_element_type": 8,
+        "count": 151936,
+        "contents_not_retained": true
+      },
+      "tokenizer.ggml.token_type": {
+        "array_element_type": 5,
+        "count": 151936,
+        "contents_not_retained": true
+      },
+      "tokenizer.ggml.merges": {
+        "array_element_type": 8,
+        "count": 151387,
+        "contents_not_retained": true
+      },
+      "tokenizer.ggml.eos_token_id": 151645,
+      "tokenizer.ggml.padding_token_id": 151643,
+      "tokenizer.ggml.bos_token_id": 151643,
+      "tokenizer.ggml.add_bos_token": 0,
+      "tokenizer.chat_template": "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0]['role'] == 'system' %}\n        {{- messages[0]['content'] }}\n    {%- else %}\n        {{- 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.' }}\n    {%- endif %}\n    {{- \"\\n\\n# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0]['role'] == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0]['content'] + '<|im_end|>\\n' }}\n    {%- else %}\n        {{- '<|im_start|>system\\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- for message in messages %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) or (message.role == \"assistant\" and not message.tool_calls) %}\n        {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == \"assistant\" %}\n        {{- '<|im_start|>' + message.role }}\n        {%- if message.content %}\n            {{- '\\n' + message.content }}\n        {%- endif %}\n        {%- for tool_call in message.tool_calls %}\n            {%- if tool_call.function is defined %}\n                {%- set tool_call = tool_call.function %}\n            {%- endif %}\n            {{- '\\n<tool_call>\\n{\"name\": \"' }}\n            {{- tool_call.name }}\n            {{- '\", \"arguments\": ' }}\n            {{- tool_call.arguments | tojson }}\n            {{- '}\\n</tool_call>' }}\n        {%- endfor %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- '\\n<tool_response>\\n' }}\n        {{- message.content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n{%- endif %}\n",
+      "general.quantization_version": 2
+    },
+    "tensor_descriptors_or_data_parsed": false
+  },
+  "small_model_metadata": {
+    "manifest": {
+      "sha256": "a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+      "bytes": 857,
+      "text": "{\"schemaVersion\":2,\"mediaType\":\"application/vnd.docker.distribution.manifest.v2+json\",\"config\":{\"mediaType\":\"application/vnd.docker.container.image.v1+json\",\"digest\":\"sha256:005f95c7475154a17e84b85cd497949d6dd2a4f9d77c096e3c66e4d9c32acaf5\",\"size\":490},\"layers\":[{\"mediaType\":\"application/vnd.ollama.image.model\",\"digest\":\"sha256:c5396e06af294bd101b30dce59131a76d2b773e76950acc870eda801d3ab0515\",\"size\":397807936},{\"mediaType\":\"application/vnd.ollama.image.system\",\"digest\":\"sha256:66b9ea09bd5b7099cbb4fc820f31b575c0366fa439b08245566692c6784e281e\",\"size\":68},{\"mediaType\":\"application/vnd.ollama.image.template\",\"digest\":\"sha256:eb4402837c7829a690fa845de4d7f3fd842c2adee476d5341da8a46ea9255175\",\"size\":1482},{\"mediaType\":\"application/vnd.ollama.image.license\",\"digest\":\"sha256:832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e\",\"size\":11343}]}"
+    },
+    "application/vnd.docker.container.image.v1+json": {
+      "sha256": "005f95c7475154a17e84b85cd497949d6dd2a4f9d77c096e3c66e4d9c32acaf5",
+      "bytes": 490,
+      "text": "{\"model_format\":\"gguf\",\"model_family\":\"qwen2\",\"model_families\":[\"qwen2\"],\"model_type\":\"494.03M\",\"file_type\":\"Q4_K_M\",\"architecture\":\"amd64\",\"os\":\"linux\",\"rootfs\":{\"type\":\"layers\",\"diff_ids\":[\"sha256:c5396e06af294bd101b30dce59131a76d2b773e76950acc870eda801d3ab0515\",\"sha256:75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de\",\"sha256:9bebd78bf5bc92d41d5f3aab3ee66c891376b4eb4cf433edc2533c2f5f9c95a6\",\"sha256:832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e\"]}}\n"
+    },
+    "application/vnd.ollama.image.system": {
+      "sha256": "66b9ea09bd5b7099cbb4fc820f31b575c0366fa439b08245566692c6784e281e",
+      "bytes": 68,
+      "text": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
+    },
+    "application/vnd.ollama.image.template": {
+      "sha256": "eb4402837c7829a690fa845de4d7f3fd842c2adee476d5341da8a46ea9255175",
+      "bytes": 1482,
+      "text": "{{- if .Messages }}\n{{- if or .System .Tools }}<|im_start|>system\n{{- if .System }}\n{{ .System }}\n{{- end }}\n{{- if .Tools }}\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{{- range .Tools }}\n{\"type\": \"function\", \"function\": {{ .Function }}}\n{{- end }}\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call>\n{{- end }}<|im_end|>\n{{ end }}\n{{- range $i, $_ := .Messages }}\n{{- $last := eq (len (slice $.Messages $i)) 1 -}}\n{{- if eq .Role \"user\" }}<|im_start|>user\n{{ .Content }}<|im_end|>\n{{ else if eq .Role \"assistant\" }}<|im_start|>assistant\n{{ if .Content }}{{ .Content }}\n{{- else if .ToolCalls }}<tool_call>\n{{ range .ToolCalls }}{\"name\": \"{{ .Function.Name }}\", \"arguments\": {{ .Function.Arguments }}}\n{{ end }}</tool_call>\n{{- end }}{{ if not $last }}<|im_end|>\n{{ end }}\n{{- else if eq .Role \"tool\" }}<|im_start|>user\n<tool_response>\n{{ .Content }}\n</tool_response><|im_end|>\n{{ end }}\n{{- if and (ne .Role \"assistant\") $last }}<|im_start|>assistant\n{{ end }}\n{{- end }}\n{{- else }}\n{{- if .System }}<|im_start|>system\n{{ .System }}<|im_end|>\n{{ end }}{{ if .Prompt }}<|im_start|>user\n{{ .Prompt }}<|im_end|>\n{{ end }}<|im_start|>assistant\n{{ end }}{{ .Response }}{{ if .Response }}<|im_end|>{{ end }}"
+    },
+    "application/vnd.ollama.image.license": {
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e",
+      "bytes": 11343,
+      "text": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for use, reproduction,\n      and distribution as defined by Sections 1 through 9 of this document.\n\n      \"Licensor\" shall mean the copyright owner or entity authorized by\n      the copyright owner that is granting the License.\n\n      \"Legal Entity\" shall mean the union of the acting entity and all\n      other entities that control, are controlled by, or are under common\n      control with that entity. For the purposes of this definition,\n      \"control\" means (i) the power, direct or indirect, to cause the\n      direction or management of such entity, whether by contract or\n      otherwise, or (ii) ownership of fifty percent (50%) or more of the\n      outstanding shares, or (iii) beneficial ownership of such entity.\n\n      \"You\" (or \"Your\") shall mean an individual or Legal Entity\n      exercising permissions granted by this License.\n\n      \"Source\" form shall mean the preferred form for making modifications,\n      including but not limited to software source code, documentation\n      source, and configuration files.\n\n      \"Object\" form shall mean any form resulting from mechanical\n      transformation or translation of a Source form, including but\n      not limited to compiled object code, generated documentation,\n      and conversions to other media types.\n\n      \"Work\" shall mean the work of authorship, whether in Source or\n      Object form, made available under the License, as indicated by a\n      copyright notice that is included in or attached to the work\n      (an example is provided in the Appendix below).\n\n      \"Derivative Works\" shall mean any work, whether in Source or Object\n      form, that is based on (or derived from) the Work and for which the\n      editorial revisions, annotations, elaborations, or other modifications\n      represent, as a whole, an original work of authorship. For the purposes\n      of this License, Derivative Works shall not include works that remain\n      separable from, or merely link (or bind by name) to the interfaces of,\n      the Work and Derivative Works thereof.\n\n      \"Contribution\" shall mean any work of authorship, including\n      the original version of the Work and any modifications or additions\n      to that Work or Derivative Works thereof, that is intentionally\n      submitted to Licensor for inclusion in the Work by the copyright owner\n      or by an individual or Legal Entity authorized to submit on behalf of\n      the copyright owner. For the purposes of this definition, \"submitted\"\n      means any form of electronic, verbal, or written communication sent\n      to the Licensor or its representatives, including but not limited to\n      communication on electronic mailing lists, source code control systems,\n      and issue tracking systems that are managed by, or on behalf of, the\n      Licensor for the purpose of discussing and improving the Work, but\n      excluding communication that is conspicuously marked or otherwise\n      designated in writing by the copyright owner as \"Not a Contribution.\"\n\n      \"Contributor\" shall mean Licensor and any individual or Legal Entity\n      on behalf of whom a Contribution has been received by Licensor and\n      subsequently incorporated within the Work.\n\n   2. Grant of Copyright License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      copyright license to reproduce, prepare Derivative Works of,\n      publicly display, publicly perform, sublicense, and distribute the\n      Work and such Derivative Works in Source or Object form.\n\n   3. Grant of Patent License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      (except as stated in this section) patent license to make, have made,\n      use, offer to sell, sell, import, and otherwise transfer the Work,\n      where such license applies only to those patent claims licensable\n      by such Contributor that are necessarily infringed by their\n      Contribution(s) alone or by combination of their Contribution(s)\n      with the Work to which such Contribution(s) was submitted. If You\n      institute patent litigation against any entity (including a\n      cross-claim or counterclaim in a lawsuit) alleging that the Work\n      or a Contribution incorporated within the Work constitutes direct\n      or contributory patent infringement, then any patent licenses\n      granted to You under this License for that Work shall terminate\n      as of the date such litigation is filed.\n\n   4. Redistribution. You may reproduce and distribute copies of the\n      Work or Derivative Works thereof in any medium, with or without\n      modifications, and in Source or Object form, provided that You\n      meet the following conditions:\n\n      (a) You must give any other recipients of the Work or\n          Derivative Works a copy of this License; and\n\n      (b) You must cause any modified files to carry prominent notices\n          stating that You changed the files; and\n\n      (c) You must retain, in the Source form of any Derivative Works\n          that You distribute, all copyright, patent, trademark, and\n          attribution notices from the Source form of the Work,\n          excluding those notices that do not pertain to any part of\n          the Derivative Works; and\n\n      (d) If the Work includes a \"NOTICE\" text file as part of its\n          distribution, then any Derivative Works that You distribute must\n          include a readable copy of the attribution notices contained\n          within such NOTICE file, excluding those notices that do not\n          pertain to any part of the Derivative Works, in at least one\n          of the following places: within a NOTICE text file distributed\n          as part of the Derivative Works; within the Source form or\n          documentation, if provided along with the Derivative Works; or,\n          within a display generated by the Derivative Works, if and\n          wherever such third-party notices normally appear. The contents\n          of the NOTICE file are for informational purposes only and\n          do not modify the License. You may add Your own attribution\n          notices within Derivative Works that You distribute, alongside\n          or as an addendum to the NOTICE text from the Work, provided\n          that such additional attribution notices cannot be construed\n          as modifying the License.\n\n      You may add Your own copyright statement to Your modifications and\n      may provide additional or different license terms and conditions\n      for use, reproduction, or distribution of Your modifications, or\n      for any such Derivative Works as a whole, provided Your use,\n      reproduction, and distribution of the Work otherwise complies with\n      the conditions stated in this License.\n\n   5. Submission of Contributions. Unless You explicitly state otherwise,\n      any Contribution intentionally submitted for inclusion in the Work\n      by You to the Licensor shall be under the terms and conditions of\n      this License, without any additional terms or conditions.\n      Notwithstanding the above, nothing herein shall supersede or modify\n      the terms of any separate license agreement you may have executed\n      with Licensor regarding such Contributions.\n\n   6. Trademarks. This License does not grant permission to use the trade\n      names, trademarks, service marks, or product names of the Licensor,\n      except as required for reasonable and customary use in describing the\n      origin of the Work and reproducing the content of the NOTICE file.\n\n   7. Disclaimer of Warranty. Unless required by applicable law or\n      agreed to in writing, Licensor provides the Work (and each\n      Contributor provides its Contributions) on an \"AS IS\" BASIS,\n      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or\n      implied, including, without limitation, any warranties or conditions\n      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A\n      PARTICULAR PURPOSE. You are solely responsible for determining the\n      appropriateness of using or redistributing the Work and assume any\n      risks associated with Your exercise of permissions under this License.\n\n   8. Limitation of Liability. In no event and under no legal theory,\n      whether in tort (including negligence), contract, or otherwise,\n      unless required by applicable law (such as deliberate and grossly\n      negligent acts) or agreed to in writing, shall any Contributor be\n      liable to You for damages, including any direct, indirect, special,\n      incidental, or consequential damages of any character arising as a\n      result of this License or out of the use or inability to use the\n      Work (including but not limited to damages for loss of goodwill,\n      work stoppage, computer failure or malfunction, or any and all\n      other commercial damages or losses), even if such Contributor\n      has been advised of the possibility of such damages.\n\n   9. Accepting Warranty or Additional Liability. While redistributing\n      the Work or Derivative Works thereof, You may choose to offer,\n      and charge a fee for, acceptance of support, warranty, indemnity,\n      or other liability obligations and/or rights consistent with this\n      License. However, in accepting such obligations, You may act only\n      on Your own behalf and on Your sole responsibility, not on behalf\n      of any other Contributor, and only if You agree to indemnify,\n      defend, and hold each Contributor harmless for any liability\n      incurred by, or claims asserted against, such Contributor by reason\n      of your accepting any such warranty or additional liability.\n\n   END OF TERMS AND CONDITIONS\n\n   APPENDIX: How to apply the Apache License to your work.\n\n      To apply the Apache License to your work, attach the following\n      boilerplate notice, with the fields enclosed by brackets \"[]\"\n      replaced with your own identifying information. (Don't include\n      the brackets!)  The text should be enclosed in the appropriate\n      comment syntax for the file format. We also recommend that a\n      file or class name and description of purpose be included on the\n      same \"printed page\" as the copyright notice for easier\n      identification within third-party archives.\n\n   Copyright 2024 Alibaba Cloud\n\n   Licensed under the Apache License, Version 2.0 (the \"License\");\n   you may not use this file except in compliance with the License.\n   You may obtain a copy of the License at\n\n       http://www.apache.org/licenses/LICENSE-2.0\n\n   Unless required by applicable law or agreed to in writing, software\n   distributed under the License is distributed on an \"AS IS\" BASIS,\n   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n   See the License for the specific language governing permissions and\n   limitations under the License."
+    }
+  },
+  "cpu": {
+    "logical_cpu_records": 12,
+    "models": [
+      "12th Gen Intel(R) Core(TM) i5-12450H"
+    ],
+    "vendors": [
+      "GenuineIntel"
+    ],
+    "common_flags": [
+      "3dnowprefetch",
+      "abm",
+      "acpi",
+      "adx",
+      "aes",
+      "aperfmperf",
+      "apic",
+      "arat",
+      "arch_capabilities",
+      "arch_lbr",
+      "arch_perfmon",
+      "art",
+      "avx",
+      "avx2",
+      "avx_vnni",
+      "bmi1",
+      "bmi2",
+      "bts",
+      "clflush",
+      "clflushopt",
+      "clwb",
+      "cmov",
+      "constant_tsc",
+      "cpuid",
+      "cpuid_fault",
+      "cx16",
+      "cx8",
+      "de",
+      "ds_cpl",
+      "dtes64",
+      "dtherm",
+      "dts",
+      "epb",
+      "ept",
+      "ept_ad",
+      "erms",
+      "est",
+      "f16c",
+      "flexpriority",
+      "flush_l1d",
+      "fma",
+      "fpu",
+      "fsgsbase",
+      "fsrm",
+      "fxsr",
+      "gfni",
+      "hfi",
+      "ht",
+      "hwp",
+      "hwp_act_window",
+      "hwp_epp",
+      "hwp_notify",
+      "hwp_pkg_req",
+      "ibpb",
+      "ibrs",
+      "ibrs_enhanced",
+      "ibt",
+      "ida",
+      "intel_pt",
+      "invpcid",
+      "lahf_lm",
+      "lm",
+      "mca",
+      "mce",
+      "md_clear",
+      "mmx",
+      "monitor",
+      "movbe",
+      "movdir64b",
+      "movdiri",
+      "msr",
+      "mtrr",
+      "nonstop_tsc",
+      "nopl",
+      "nx",
+      "ospke",
+      "pae",
+      "pat",
+      "pbe",
+      "pcid",
+      "pclmulqdq",
+      "pdcm",
+      "pdpe1gb",
+      "pebs",
+      "pge",
+      "pku",
+      "pln",
+      "pni",
+      "popcnt",
+      "pse",
+      "pse36",
+      "pts",
+      "rdpid",
+      "rdrand",
+      "rdseed",
+      "rdtscp",
+      "rep_good",
+      "sdbg",
+      "sep",
+      "serialize",
+      "sha_ni",
+      "smap",
+      "smep",
+      "smx",
+      "split_lock_detect",
+      "ss",
+      "ssbd",
+      "sse",
+      "sse2",
+      "sse4_1",
+      "sse4_2",
+      "ssse3",
+      "stibp",
+      "syscall",
+      "tm",
+      "tm2",
+      "tpr_shadow",
+      "tsc",
+      "tsc_adjust",
+      "tsc_deadline_timer",
+      "tsc_known_freq",
+      "umip",
+      "user_shstk",
+      "vaes",
+      "vme",
+      "vmx",
+      "vnmi",
+      "vpclmulqdq",
+      "vpid",
+      "waitpkg",
+      "x2apic",
+      "xgetbv1",
+      "xsave",
+      "xsavec",
+      "xsaveopt",
+      "xsaves",
+      "xtopology",
+      "xtpr"
+    ],
+    "serial_or_unrelated_fields_retained": false
+  },
+  "host_machine": "x86_64",
+  "static_identifiers": {
+    "expected_model_architecture": true,
+    "package_machine_matches_selected_x86_64": true,
+    "host_matches_selected_x86_64": true,
+    "no_remote_config_route_fields": true
+  },
+  "not_established": [
+    "actual loader resolution or loaded-byte identity",
+    "dynamic dlopen closure or device probing",
+    "specific compiled CPU variant/ISA compatibility",
+    "symbol-level ABI or model inference compatibility",
+    "absence of runtime offload or untracked tools",
+    "network/worker/Provider ownership or containment"
+  ],
+  "inspection_completed": true,
+  "elapsed_seconds": 0.35202295999988564,
+  "cpu_seconds": 0.366044,
+  "elf_metadata_bytes_read": 304135,
+  "finished_utc": "2026-10-22T19:50:04.705896+00:00",
+  "completed_memory": {
+    "proc_self_status": {
+      "VmPeak": "30364 kB",
+      "VmSize": "30364 kB",
+      "VmHWM": "18292 kB",
+      "VmRSS": "18292 kB"
+    },
+    "rlimit_as": [
+      536870912,
+      536870912
+    ],
+    "historical_ru_maxrss_kib": 683000
+  },
+  "checks": {
+    "inspection_completed": true,
+    "wall_within_limit": true,
+    "cpu_within_limit": true,
+    "metadata_reads_within_limit": true,
+    "startup_memory_witness": true,
+    "completed_memory_witness": true,
+    "static_identifiers_match_selected_candidate": true
+  },
+  "success": true
+}
