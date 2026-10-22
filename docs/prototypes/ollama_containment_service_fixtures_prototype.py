@@ -133,6 +133,9 @@ def fixture(role, nonce, host_user, host_net, port=None):
     if ("CapEff:\t0000000000000000" not in status
             or "CapBnd:\t0000000000000000" not in status or "NoNewPrivs:\t1" not in status):
         raise RuntimeError("Fixture retained capabilities or lacked no-new-privileges")
+    controller_bus_absent = not any(key in os.environ for key in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"))
+    if not controller_bus_absent:
+        raise RuntimeError("Controller-only bus locator leaked into fixture environment")
     filesystem = {
         "cwd": os.getcwd(), "cwd_entries": os.listdir("."),
         "build_exists": Path("/build").exists(), "home_entries": os.listdir("/home"),
@@ -157,6 +160,7 @@ def fixture(role, nonce, host_user, host_net, port=None):
             egress = {"errno": error.errno, "error": "network unreachable"}
     common = {"role": role, "nonce": nonce, "namespaces": namespaces(), "setup": setup,
               "status": status, "filesystem": filesystem, "egress_probe": egress,
+              "controller_bus_environment_absent": controller_bus_absent,
               "interfaces": socket.if_nameindex(), "cgroup": Path("/proc/self/cgroup").read_text()}
     if role == "provider":
         with socket.socket() as server:
@@ -249,7 +253,7 @@ def controller():
     host = namespaces()
     source = Path(__file__).resolve()
     repo = source.parents[2]
-    output = repo / "docs/prototypes/ollama-containment-service-fixtures.observations.json"
+    output = repo / "docs/prototypes/ollama-containment-service-fixtures.corrected.observations.json"
     if output.exists():
         raise RuntimeError("Fixture evidence exists; no automatic rerun or overwrite")
     stage_bytes = (repo / "docs/prototypes/ollama-containment-extraction.observations.json").read_bytes()
@@ -257,6 +261,15 @@ def controller():
     if not stage["success"]:
         raise RuntimeError("Staging prerequisite is not verified")
     staged = Path(stage["directory"])
+    runtime = Path("/run/user") / str(os.getuid())
+    bus = runtime / "bus"
+    runtime_stat, bus_stat = runtime.lstat(), bus.lstat()
+    if (not stat.S_ISDIR(runtime_stat.st_mode) or runtime_stat.st_uid != os.getuid()
+            or stat.S_IMODE(runtime_stat.st_mode) != 0o700
+            or not stat.S_ISSOCK(bus_stat.st_mode) or bus_stat.st_uid != os.getuid()):
+        raise RuntimeError("Current user's runtime directory/socket is not the approved owned endpoint")
+    control_env = {"PATH": "/usr/bin:/bin", "LANG": "C", "XDG_RUNTIME_DIR": str(runtime),
+                   "DBUS_SESSION_BUS_ADDRESS": "unix:path=" + str(bus)}
     root = repo / ".prototype-gh99-artifacts" / ("service-fixtures-" + uuid.uuid4().hex)
     root.mkdir(mode=0o700)
     copied = root / "trusted-fixture.py"
@@ -267,6 +280,11 @@ def controller():
               "started_utc": now(), "root": str(root), "nonce": nonce, "host_namespaces": host,
               "source_sha256": __import__("hashlib").sha256(source.read_bytes()).hexdigest(),
               "staging_receipt_sha256": __import__("hashlib").sha256(stage_bytes).hexdigest(),
+              "controller_bus": {"runtime_path": str(runtime), "bus_path": str(bus),
+                                 "runtime_uid": runtime_stat.st_uid, "bus_uid": bus_stat.st_uid,
+                                 "runtime_mode": oct(stat.S_IMODE(runtime_stat.st_mode)),
+                                 "bus_mode": oct(stat.S_IMODE(bus_stat.st_mode)),
+                                 "passed_to_sandbox": False},
               "commands": [], "units": {}, "checks": {}, "controller_as_limit": list(resource.getrlimit(resource.RLIMIT_AS)),
               "acquired_code_executed_or_loaded": False, "acquired_permissions_changed": False,
               "inference_performed": False, "model_loaded": False, "network_outside_private_namespace": False,
@@ -277,7 +295,7 @@ def controller():
 
     def run(argv, timeout=8):
         result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
-                                env={"PATH": "/usr/bin:/bin", "LANG": "C"})
+                                env=control_env)
         report["commands"].append({"argv": argv, "returncode": result.returncode,
                                    "stdout": result.stdout, "stderr": result.stderr,
                                    "elapsed_seconds": time.monotonic() - start})

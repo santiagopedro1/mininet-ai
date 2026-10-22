@@ -1,0 +1,304 @@
+{
+  "throwaway": true,
+  "issue": 99,
+  "scope": "two harmless user-service fixtures only",
+  "started_utc": "2026-10-22T20:54:56.764677+00:00",
+  "root": "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/service-fixtures-0e2fb0dc20434db88048d65d9e78c45c",
+  "nonce": "70bb291274314cd5a0bacf68f30cd1b5",
+  "host_namespaces": {
+    "user": "user:[4026531837]",
+    "net": "net:[4026531833]",
+    "pid": "pid:[4026531836]",
+    "mnt": "mnt:[4026531832]",
+    "cgroup": "cgroup:[4026531835]"
+  },
+  "source_sha256": "a0065e77b60ca3b31cba8afa9119aaf77334e4850b95c4d6c995fcf71364845d",
+  "staging_receipt_sha256": "8c854863cb5cdb3be7b0ccc939c89e05b802bc07e54aa0927762512e33443e7d",
+  "controller_bus": {
+    "runtime_path": "/run/user/1000",
+    "bus_path": "/run/user/1000/bus",
+    "runtime_uid": 1000,
+    "bus_uid": 1000,
+    "runtime_mode": "0o700",
+    "bus_mode": "0o666",
+    "passed_to_sandbox": false
+  },
+  "commands": [
+    {
+      "argv": [
+        "systemd-run",
+        "--user",
+        "--no-ask-password",
+        "--unit=prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "--description=THROWAWAY GH99 harmless provider fixture",
+        "--property=RuntimeMaxSec=50",
+        "--property=TimeoutStopSec=3",
+        "--property=MemoryMax=128M",
+        "--property=TasksMax=16",
+        "--property=NoNewPrivileges=yes",
+        "--property=KillMode=control-group",
+        "--property=SendSIGKILL=yes",
+        "--property=Restart=no",
+        "--property=StandardOutput=append:/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/service-fixtures-0e2fb0dc20434db88048d65d9e78c45c/provider/service.stdout",
+        "--property=StandardError=append:/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/service-fixtures-0e2fb0dc20434db88048d65d9e78c45c/provider/service.stderr",
+        "/usr/bin/env",
+        "-i",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "/usr/bin/bwrap",
+        "--unshare-all",
+        "--unshare-user",
+        "--uid",
+        "0",
+        "--gid",
+        "0",
+        "--disable-userns",
+        "--assert-userns-disabled",
+        "--cap-drop",
+        "ALL",
+        "--cap-add",
+        "CAP_NET_ADMIN",
+        "--cap-add",
+        "CAP_SETPCAP",
+        "--new-session",
+        "--die-with-parent",
+        "--ro-bind",
+        "/usr",
+        "/usr",
+        "--symlink",
+        "usr/bin",
+        "/bin",
+        "--symlink",
+        "usr/lib",
+        "/lib",
+        "--symlink",
+        "usr/lib",
+        "/lib64",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "--tmpfs",
+        "/tmp",
+        "--tmpfs",
+        "/work",
+        "--dir",
+        "/sys",
+        "--dir",
+        "/run",
+        "--dir",
+        "/home",
+        "--ro-bind",
+        "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/service-fixtures-0e2fb0dc20434db88048d65d9e78c45c/trusted-fixture.py",
+        "/fixture.py",
+        "--ro-bind",
+        "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/extraction-23a304ee610249aebda73a51eaecca55",
+        "/opt/ollama",
+        "--bind",
+        "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/service-fixtures-0e2fb0dc20434db88048d65d9e78c45c/provider",
+        "/evidence",
+        "--chdir",
+        "/work",
+        "--remount-ro",
+        "/",
+        "--clearenv",
+        "--setenv",
+        "PATH",
+        "/usr/bin:/bin",
+        "--setenv",
+        "LANG",
+        "C",
+        "--setenv",
+        "HOME",
+        "/nonexistent",
+        "/usr/bin/python3",
+        "-I",
+        "-S",
+        "/fixture.py",
+        "--provider",
+        "70bb291274314cd5a0bacf68f30cd1b5",
+        "user:[4026531837]",
+        "net:[4026531833]"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Running as unit: prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service; invocation ID: bd68bd7604bf4d7c817d8bbdeecdfc75\n",
+      "elapsed_seconds": 0.007199026998932823
+    },
+    {
+      "argv": [
+        "systemctl",
+        "--user",
+        "show",
+        "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "--property=Id,LoadState,ActiveState,SubState,MainPID,InvocationID,ControlGroup,MemoryMax,MemoryCurrent,MemoryPeak,TasksMax,TasksCurrent,RuntimeMaxUSec,TimeoutStopUSec,Restart,KillMode,SendSIGKILL,NoNewPrivileges,Result"
+      ],
+      "returncode": 0,
+      "stdout": "Id=prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service\nLoadState=loaded\nActiveState=active\nSubState=running\nInvocationID=bd68bd7604bf4d7c817d8bbdeecdfc75\nRestart=no\nTimeoutStopUSec=3s\nRuntimeMaxUSec=50s\nMainPID=30911\nResult=success\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service\nMemoryCurrent=1310720\nMemoryPeak=1310720\nTasksCurrent=1\nMemoryMax=134217728\nTasksMax=16\nNoNewPrivileges=yes\nKillMode=control-group\nSendSIGKILL=yes\n",
+      "stderr": "",
+      "elapsed_seconds": 0.019472436999421916
+    },
+    {
+      "argv": [
+        "systemctl",
+        "--user",
+        "show",
+        "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "--property=Id,LoadState,ActiveState,SubState,MainPID,InvocationID,ControlGroup,MemoryMax,MemoryCurrent,MemoryPeak,TasksMax,TasksCurrent,RuntimeMaxUSec,TimeoutStopUSec,Restart,KillMode,SendSIGKILL,NoNewPrivileges,Result"
+      ],
+      "returncode": 0,
+      "stdout": "Id=prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service\nLoadState=loaded\nActiveState=failed\nSubState=failed\nInvocationID=bd68bd7604bf4d7c817d8bbdeecdfc75\nRestart=no\nTimeoutStopUSec=3s\nRuntimeMaxUSec=50s\nMainPID=0\nResult=exit-code\nControlGroup=\nMemoryCurrent=[not set]\nMemoryPeak=11444224\nTasksCurrent=[not set]\nMemoryMax=134217728\nTasksMax=16\nNoNewPrivileges=yes\nKillMode=control-group\nSendSIGKILL=yes\n",
+      "stderr": "",
+      "elapsed_seconds": 8.047779946999071
+    },
+    {
+      "argv": [
+        "systemctl",
+        "--user",
+        "--no-ask-password",
+        "stop",
+        "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "elapsed_seconds": 8.05242297299992
+    },
+    {
+      "argv": [
+        "systemctl",
+        "--user",
+        "show",
+        "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "--property=Id,LoadState,ActiveState,SubState,MainPID,InvocationID,ControlGroup,MemoryMax,MemoryCurrent,MemoryPeak,TasksMax,TasksCurrent,RuntimeMaxUSec,TimeoutStopUSec,Restart,KillMode,SendSIGKILL,NoNewPrivileges,Result"
+      ],
+      "returncode": 0,
+      "stdout": "Id=prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service\nLoadState=loaded\nActiveState=failed\nSubState=failed\nInvocationID=bd68bd7604bf4d7c817d8bbdeecdfc75\nRestart=no\nTimeoutStopUSec=3s\nRuntimeMaxUSec=50s\nMainPID=0\nResult=exit-code\nControlGroup=\nMemoryCurrent=[not set]\nMemoryPeak=11444224\nTasksCurrent=[not set]\nMemoryMax=134217728\nTasksMax=16\nNoNewPrivileges=yes\nKillMode=control-group\nSendSIGKILL=yes\n",
+      "stderr": "",
+      "elapsed_seconds": 8.058182126000247
+    },
+    {
+      "argv": [
+        "journalctl",
+        "--user",
+        "--unit=prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "--no-pager",
+        "--output=short-monotonic"
+      ],
+      "returncode": 0,
+      "stdout": "-- No entries --\n",
+      "stderr": "An error was encountered while opening journal file or directory /var/log/journal/<REDACTED-HOST-PATH>, ignoring file: Cannot allocate memory\n",
+      "elapsed_seconds": 8.118085108999367
+    }
+  ],
+  "units": {
+    "provider": {
+      "name": "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+      "evidence_directory": "/home/pedro/projects/mininet-ai/mininet-ai/.prototype-gh99-artifacts/service-fixtures-0e2fb0dc20434db88048d65d9e78c45c/provider",
+      "initial_state": {
+        "Id": "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "SubState": "running",
+        "InvocationID": "bd68bd7604bf4d7c817d8bbdeecdfc75",
+        "Restart": "no",
+        "TimeoutStopUSec": "3s",
+        "RuntimeMaxUSec": "50s",
+        "MainPID": "30911",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+        "MemoryCurrent": "1310720",
+        "MemoryPeak": "1310720",
+        "TasksCurrent": "1",
+        "MemoryMax": "134217728",
+        "TasksMax": "16",
+        "NoNewPrivileges": "yes",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "stop": {
+        "command_returncode": 0,
+        "unit_after": {
+          "Id": "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+          "LoadState": "loaded",
+          "ActiveState": "failed",
+          "SubState": "failed",
+          "InvocationID": "bd68bd7604bf4d7c817d8bbdeecdfc75",
+          "Restart": "no",
+          "TimeoutStopUSec": "3s",
+          "RuntimeMaxUSec": "50s",
+          "MainPID": "0",
+          "Result": "exit-code",
+          "ControlGroup": "",
+          "MemoryCurrent": "[not set]",
+          "MemoryPeak": "11444224",
+          "TasksCurrent": "[not set]",
+          "MemoryMax": "134217728",
+          "TasksMax": "16",
+          "NoNewPrivileges": "yes",
+          "KillMode": "control-group",
+          "SendSIGKILL": "yes"
+        }
+      },
+      "service_stderr": "Traceback (most recent call last):\n  File \"/fixture.py\", line 489, in <module>\n    fixture(\"provider\", *sys.argv[2:])\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/fixture.py\", line 130, in fixture\n    fcntl.ioctl(control, 0x8914, struct.pack(\"16sH14s\", b\"lo\", flags | 1, bytes(14)))\n    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nPermissionError: [Errno 1] Operation not permitted\n"
+    }
+  },
+  "checks": {},
+  "controller_as_limit": [
+    134217728,
+    134217728
+  ],
+  "acquired_code_executed_or_loaded": false,
+  "acquired_permissions_changed": false,
+  "inference_performed": false,
+  "model_loaded": false,
+  "network_outside_private_namespace": false,
+  "host_elevation_or_firewall_change": false,
+  "deletion_performed": false,
+  "exercise_completed": false,
+  "failure": {
+    "type": "TimeoutError",
+    "message": "Fixture did not publish complete expected evidence"
+  },
+  "missing_cleanup_inventory": [
+    {
+      "unit": "prototype-gh99-provider-b335b7f89c954115a351a35f6cd28868.service",
+      "type": "RuntimeError"
+    }
+  ],
+  "finished_utc": "2026-10-22T20:55:04.882357+00:00",
+  "elapsed_seconds": 8.11810960799994,
+  "controller_status": [
+    "NSpid:\t30908",
+    "VmPeak:\t   31544 kB",
+    "VmSize:\t   31544 kB",
+    "VmHWM:\t   19872 kB",
+    "VmRSS:\t   19872 kB",
+    "CapInh:\t0000000800000000",
+    "CapPrm:\t0000000000000000",
+    "CapEff:\t0000000000000000",
+    "CapBnd:\t000001ffffffffff",
+    "CapAmb:\t0000000000000000",
+    "NoNewPrivs:\t0"
+  ],
+  "success": false,
+  "publication": {
+    "raw_local_receipt_sha256": "4e9ebd8bbd61917e5b65e6fa2163989561a964fa444a4f3d49b31922f1416bf6",
+    "public_exporter_sha256": "96e53209bc291408df10e78aed2f7df6264b821592529c9c806478ffd7146a55",
+    "redactions": [
+      {
+        "field": "commands[5].stderr",
+        "count": 1,
+        "reason": "unneeded host journal machine/file identifiers; error and outcome preserved"
+      }
+    ],
+    "raw_receipt_retained_unchanged": true,
+    "installed_documentation": {
+      "path": "/usr/share/man/man1/bwrap.1.gz",
+      "compressed_file_sha256": "8e34b4164581c2ff40fc9bc2e75f20ec25e4f10a65415d13ea73435254fafc86",
+      "evidence_class": "installed documentation, not observed ownership",
+      "summary": "--disable-userns sets user.max_user_namespaces to 1, then enters a nested user namespace unable to raise the outer limit",
+      "failed_run_network_owner_or_effective_caps_observed": false
+    }
+  }
+}

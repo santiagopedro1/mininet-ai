@@ -142,3 +142,8 @@ The human subsequently explicitly authorized this harmless fixture scope. The
 to the user control-plane bus after environment sanitization; neither service was
 created and no namespace/network/ownership test ran. The negative evidence is
 retained; a corrected attempt requires new approval, not a weaker sandbox.
+
+A separately approved corrected attempt then created one fixture unit but failed
+with EPERM enabling namespace-local loopback before readiness. Its worker was
+never launched; the same fixture findings document the missing capability/owner
+witnesses and partial cleanup evidence. No actual Ollama or native request ran.
