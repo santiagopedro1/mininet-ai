@@ -1,0 +1,101 @@
+{
+  "format": "manually transcribed relevant observations; not the full raw report",
+  "date": "2026-10-22",
+  "issue": 99,
+  "attempt_index": 2,
+  "newly_authorized_services": 1,
+  "harness_passed": true,
+  "human_containment_acceptance": false,
+  "raw_directory": "/tmp/opencode/PROTOTYPE-GH99/capability-73240199c0e149b2b4b8d6ba0fa28c3e",
+  "raw_report_sha256": "e5d254c9496226441b98d62f7899af8e485975f8413452b0c34bd176575b1249",
+  "service_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "executed_source_sha256": "496b3e7f0a916d5980434bb57396dcb0be24ce06976d1ec11de7c688cfc2a371",
+  "unit": "prototype-gh99-426c0fdf615d4d6bbc0c1c59bb9c25b8.service",
+  "invocation_id": "9676317b99274056be44bc4989ed46b5",
+  "initial_control_group": "/user.slice/user-1000.slice/user@1000.service/app.slice/prototype-gh99-426c0fdf615d4d6bbc0c1c59bb9c25b8.service",
+  "controller_checks": {
+    "service_launch_command_succeeded": true,
+    "sandbox_and_child_ready": true,
+    "owned_process_inventory_present": true,
+    "memory_and_task_limits": true,
+    "distinct_namespaces": true,
+    "test_net_connect_network_unreachable": true,
+    "host_control_paths_hidden": true,
+    "no_accelerator_device_nodes_exposed": true,
+    "no_new_privileges_no_effective_caps": true,
+    "stop_command_succeeded": true,
+    "all_sampled_fixture_processes_exited": true,
+    "unit_not_active": true,
+    "cgroup_empty_or_removed": true
+  },
+  "host_namespaces": {
+    "net": "net:[4026531833]",
+    "pid": "pid:[4026531836]",
+    "mnt": "mnt:[4026531832]",
+    "user": "user:[4026531837]",
+    "cgroup": "cgroup:[4026531835]"
+  },
+  "fixture_namespaces": {
+    "net": "net:[4026532761]",
+    "pid": "pid:[4026532759]",
+    "mnt": "mnt:[4026532756]",
+    "user": "user:[4026533033]",
+    "cgroup": "cgroup:[4026532760]"
+  },
+  "processes_before_excerpt": [
+    {"pid": 13225, "start_ticks": "13625", "exe": "/usr/bin/bwrap"},
+    {"pid": 13227, "start_ticks": "13626", "exe": "/usr/bin/bwrap"},
+    {"pid": 13228, "start_ticks": "13627", "exe": "/usr/bin/python3.14"},
+    {"pid": 13229, "start_ticks": "13629", "exe": "/usr/bin/python3.14"}
+  ],
+  "processes_after": [
+    {"pid": 13225, "absent_or_exited_during_read": true},
+    {"pid": 13227, "absent_or_exited_during_read": true},
+    {"pid": 13228, "absent_or_exited_during_read": true},
+    {"pid": 13229, "absent_or_exited_during_read": true}
+  ],
+  "cgroup_before": {
+    "cgroup.events": "populated 1\nfrozen 0\n",
+    "cgroup.type": "domain\n",
+    "memory.max": "134217728\n",
+    "pids.max": "16\n"
+  },
+  "sandbox_devices": [
+    "core", "fd", "full", "null", "ptmx", "pts", "random", "shm",
+    "stderr", "stdin", "stdout", "tty", "urandom", "zero"
+  ],
+  "sandbox_status": [
+    "CapInh:\t0000000000000000", "CapPrm:\t0000000000000000",
+    "CapEff:\t0000000000000000", "CapBnd:\t0000000000000000",
+    "CapAmb:\t0000000000000000", "NoNewPrivs:\t1",
+    "Seccomp:\t0", "Seccomp_filters:\t0"
+  ],
+  "sys_contents": [],
+  "run_contents": [],
+  "home_contents": [],
+  "network_probe": {"errno": 101, "error": "[Errno 101] Network is unreachable"},
+  "child": {"pid": 3, "listener": ["127.0.0.1", 40661], "ignores_sigterm": true},
+  "primary_stop_returncode": 0,
+  "stop_elapsed_seconds": 0.005581696000007241,
+  "cgroup_samples": [{"elapsed": 0.0731222750000029, "events": "populated 1\nfrozen 0"}],
+  "cgroup_removed_after_stop": true,
+  "final_unit_excerpt": {"LoadState": "not-found", "ActiveState": "inactive", "SubState": "dead", "MainPID": "0", "ControlGroup": "", "InvocationID": ""},
+  "redundant_final_stop_returncode": 5,
+  "redundant_final_stop_stderr": "Failed to stop prototype-gh99-426c0fdf615d4d6bbc0c1c59bb9c25b8.service: Unit prototype-gh99-426c0fdf615d4d6bbc0c1c59bb9c25b8.service not loaded.\n",
+  "escalation_demonstrated": false,
+  "sampled_populated_zero": false,
+  "elapsed_seconds": 0.23492570999999884,
+  "post_execution_file_hash_samples": {
+    "/usr/bin/bwrap": "33516b9cd1fa6432307ad71f23765fa30604b0a8d769dac0d2ba054e85aeec83",
+    "/usr/bin/python3": "375532f83be620283ab780c14ca6bcc5907dc379d2b621de0c5d0a112cf5458b",
+    "/usr/bin/systemd-run": "62a4f4021eb356f8124953eea7ba7c95b2daf96c2e83808399ad043ba2447a99",
+    "/usr/bin/systemctl": "6e727451366c75070ab02f02d945e3c83f8774ddf7e1661c5d71cbbf0d59b3cc",
+    "/usr/lib/systemd/systemd": "0870c4fb212fdf8a88e1644ed61f30a6ef97b2cc17204a1c17ea57830bd94bdf"
+  },
+  "not_performed": [
+    "Ollama acquisition or startup", "model selection, download or loading", "inference",
+    "loopback client connectivity", "socket-inode ownership correlation",
+    "accelerator cessation", "controller loss", "real Provider failure matrix"
+  ],
+  "next_launch_requires_new_authorization": true
+}

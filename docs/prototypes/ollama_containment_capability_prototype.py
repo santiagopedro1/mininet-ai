@@ -124,7 +124,7 @@ def controller():
         for argv in (["systemctl", "--version"], ["bwrap", "--version"]):
             run(argv)
         sandbox = [
-            "/usr/bin/bwrap", "--unshare-all", "--disable-userns",
+            "/usr/bin/bwrap", "--unshare-all", "--unshare-user", "--disable-userns",
             "--assert-userns-disabled", "--cap-drop", "ALL", "--new-session",
             "--die-with-parent", "--ro-bind", "/usr", "/usr",
             "--symlink", "usr/bin", "/bin", "--symlink", "usr/lib", "/lib",
