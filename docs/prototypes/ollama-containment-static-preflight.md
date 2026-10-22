@@ -136,3 +136,9 @@ is proposed at <=128 MiB process address space and <=2 minutes wall, separate fr
 each unit's caps. Both services would be new/exclusively owned; no existing daemon
 would be discovered, adopted or stopped. This is a proposal, **not authorization**;
 static preflight approval does not permit these units or any Ollama execution.
+
+The human subsequently explicitly authorized this harmless fixture scope. The
+[first controller attempt](ollama-containment-service-fixtures.md) failed to connect
+to the user control-plane bus after environment sanitization; neither service was
+created and no namespace/network/ownership test ran. The negative evidence is
+retained; a corrected attempt requires new approval, not a weaker sandbox.
