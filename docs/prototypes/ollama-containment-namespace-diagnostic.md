@@ -131,3 +131,10 @@ none may remain in final toy applications. No acquired-code/permission changes,
 model-store provisioning/loading, downloads, inference, host elevation/firewall
 changes, guard relaxation, binary patching or deletion. The diagnostic grant is
 consumed and does **not** authorize this new bootstrap or interface change.
+
+The human subsequently authorized that two-role owner-bootstrap toy test.
+[Its final observations](ollama-containment-owner-bootstrap-fixtures.md) passed
+21 bounded checks without any Ollama/model execution. The user then explicitly
+paused Provider investigation, requested local cleanup and chose a narrower #38
+scope preserving existing persistence/lifecycle behavior. No further runtime
+experiments are authorized by these historical grants.
