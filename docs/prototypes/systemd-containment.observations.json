@@ -1,0 +1,337 @@
+{
+  "prototype": true,
+  "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.44",
+  "python": "3.14.8 (main, Oct  2 2026, 10:23:31) [GCC 16.2.1 20260810]",
+  "systemd": "systemd 262 (262.1-1-arch)\n+PAM +AUDIT -SELINUX +APPARMOR -IMA +IPE +SMACK +SECCOMP +GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK +BTF +XKBCOMMON +UTMP +LIBARCHIVE\n",
+  "source_sha256": "9ead90570e650b4319d875c09ea6a1c110f405af6a9de153ed0d79f5d652473c",
+  "fixture_sha256": "c8798c8d60f160fa865d0f142531f143260c04dac7608b1bf1408fea95acd4d6",
+  "cases": [
+    {
+      "scenario": "prearm_main_loss",
+      "unit": "mininet-ai-containment-prototype-9e3e576ea09446d9b9af198f1348e959.service",
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "15s",
+        "MainPID": "24536",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-9e3e576ea09446d9b9af198f1348e959.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "after": {
+        "ActiveState": "failed",
+        "SubState": "failed",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "15s",
+        "MainPID": "0",
+        "Result": "signal",
+        "ControlGroup": "",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "cgroup_members_before": "24536\n24537\n",
+      "checks": {
+        "fixture_pids_in_service_cgroup": true,
+        "all_observed_fixture_processes_exited": true,
+        "cgroup_unpopulated_or_removed": true,
+        "unit_not_active": true,
+        "worker_never_ready": true
+      },
+      "trace": [
+        {
+          "event": "worker_created",
+          "pid": 24536,
+          "ppid": 2822,
+          "monotonic_ns": 4034655762220,
+          "worker": 24537
+        },
+        {
+          "event": "worker_prearm",
+          "pid": 24537,
+          "ppid": 24536,
+          "monotonic_ns": 4034684010303
+        }
+      ],
+      "commands": [
+        {
+          "argv": [
+            "systemd-run",
+            "--user",
+            "--unit=mininet-ai-containment-prototype-9e3e576ea09446d9b9af198f1348e959.service",
+            "--service-type=exec",
+            "--property=KillMode=control-group",
+            "--property=TimeoutStopSec=1s",
+            "--property=SendSIGKILL=yes",
+            "--property=RuntimeMaxSec=15s",
+            "/usr/bin/python",
+            "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/containment_prototype.py",
+            "supervisor",
+            "/tmp/opencode/systemd-containment-prototype-fsd8qy75/prearm_main_loss",
+            "prearm_guarded",
+            "0"
+          ],
+          "returncode": 0,
+          "stdout": "",
+          "stderr": "Running as unit: mininet-ai-containment-prototype-9e3e576ea09446d9b9af198f1348e959.service; invocation ID: 2576876a79384345a8198bb0a564e04c\n"
+        },
+        {
+          "argv": [
+            "systemctl",
+            "--user",
+            "kill",
+            "--kill-whom=main",
+            "--signal=SIGKILL",
+            "mininet-ai-containment-prototype-9e3e576ea09446d9b9af198f1348e959.service"
+          ],
+          "returncode": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "elapsed_seconds": 0.10480328699986785
+    },
+    {
+      "scenario": "ready_main_loss",
+      "unit": "mininet-ai-containment-prototype-c6de67849cf343db8bcc7788a3185407.service",
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "15s",
+        "MainPID": "24545",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-c6de67849cf343db8bcc7788a3185407.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "after": {
+        "ActiveState": "failed",
+        "SubState": "failed",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "15s",
+        "MainPID": "0",
+        "Result": "signal",
+        "ControlGroup": "",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "cgroup_members_before": "24545\n24546\n24547\n24548\n",
+      "checks": {
+        "fixture_pids_in_service_cgroup": true,
+        "all_observed_fixture_processes_exited": true,
+        "cgroup_unpopulated_or_removed": true,
+        "unit_not_active": true,
+        "tracked_child_and_grandchild_present": true
+      },
+      "trace": [
+        {
+          "event": "worker_created",
+          "pid": 24545,
+          "ppid": 2822,
+          "monotonic_ns": 4034761390252,
+          "worker": 24546
+        },
+        {
+          "event": "worker_prearm",
+          "pid": 24546,
+          "ppid": 24545,
+          "monotonic_ns": 4034790182615
+        },
+        {
+          "event": "watchdog_armed",
+          "pid": 24546,
+          "ppid": 24545,
+          "monotonic_ns": 4034790287365
+        },
+        {
+          "event": "tracked_child",
+          "pid": 24546,
+          "ppid": 24545,
+          "monotonic_ns": 4034790473490,
+          "child": 24547
+        },
+        {
+          "event": "child_ready",
+          "pid": 24547,
+          "ppid": 24546,
+          "monotonic_ns": 4034822219679,
+          "child": 24548
+        },
+        {
+          "event": "grandchild_ready",
+          "pid": 24548,
+          "ppid": 24547,
+          "monotonic_ns": 4034850839473
+        },
+        {
+          "event": "ready",
+          "pid": 24546,
+          "ppid": 24545,
+          "monotonic_ns": 4034851694598
+        }
+      ],
+      "commands": [
+        {
+          "argv": [
+            "systemd-run",
+            "--user",
+            "--unit=mininet-ai-containment-prototype-c6de67849cf343db8bcc7788a3185407.service",
+            "--service-type=exec",
+            "--property=KillMode=control-group",
+            "--property=TimeoutStopSec=1s",
+            "--property=SendSIGKILL=yes",
+            "--property=RuntimeMaxSec=15s",
+            "/usr/bin/python",
+            "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/containment_prototype.py",
+            "supervisor",
+            "/tmp/opencode/systemd-containment-prototype-fsd8qy75/ready_main_loss",
+            "descendants",
+            "0"
+          ],
+          "returncode": 0,
+          "stdout": "",
+          "stderr": "Running as unit: mininet-ai-containment-prototype-c6de67849cf343db8bcc7788a3185407.service; invocation ID: a3e3ec80b8e64f6a8012ba40376b30f4\n"
+        },
+        {
+          "argv": [
+            "systemctl",
+            "--user",
+            "kill",
+            "--kill-whom=main",
+            "--signal=SIGKILL",
+            "mininet-ai-containment-prototype-c6de67849cf343db8bcc7788a3185407.service"
+          ],
+          "returncode": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "elapsed_seconds": 1.305996874000357
+    },
+    {
+      "scenario": "explicit_stop",
+      "unit": "mininet-ai-containment-prototype-f8b5dc194dac4cbbb398e512b58d6597.service",
+      "before": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "15s",
+        "MainPID": "24577",
+        "Result": "success",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/mininet-ai-containment-prototype-f8b5dc194dac4cbbb398e512b58d6597.service",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "after": {
+        "ActiveState": "failed",
+        "SubState": "failed",
+        "Type": "exec",
+        "TimeoutStopUSec": "1s",
+        "RuntimeMaxUSec": "15s",
+        "MainPID": "0",
+        "Result": "timeout",
+        "ControlGroup": "",
+        "KillMode": "control-group",
+        "SendSIGKILL": "yes"
+      },
+      "cgroup_members_before": "24577\n24578\n24579\n24580\n",
+      "checks": {
+        "fixture_pids_in_service_cgroup": true,
+        "all_observed_fixture_processes_exited": true,
+        "cgroup_unpopulated_or_removed": true,
+        "unit_not_active": true,
+        "tracked_child_and_grandchild_present": true
+      },
+      "trace": [
+        {
+          "event": "worker_created",
+          "pid": 24577,
+          "ppid": 2822,
+          "monotonic_ns": 4036076169178,
+          "worker": 24578
+        },
+        {
+          "event": "worker_prearm",
+          "pid": 24578,
+          "ppid": 24577,
+          "monotonic_ns": 4036103892436
+        },
+        {
+          "event": "watchdog_armed",
+          "pid": 24578,
+          "ppid": 24577,
+          "monotonic_ns": 4036103987507
+        },
+        {
+          "event": "tracked_child",
+          "pid": 24578,
+          "ppid": 24577,
+          "monotonic_ns": 4036104312425,
+          "child": 24579
+        },
+        {
+          "event": "child_ready",
+          "pid": 24579,
+          "ppid": 24578,
+          "monotonic_ns": 4036132668069,
+          "child": 24580
+        },
+        {
+          "event": "grandchild_ready",
+          "pid": 24580,
+          "ppid": 24579,
+          "monotonic_ns": 4036160461074
+        },
+        {
+          "event": "ready",
+          "pid": 24578,
+          "ppid": 24577,
+          "monotonic_ns": 4036165662790
+        }
+      ],
+      "commands": [
+        {
+          "argv": [
+            "systemd-run",
+            "--user",
+            "--unit=mininet-ai-containment-prototype-f8b5dc194dac4cbbb398e512b58d6597.service",
+            "--service-type=exec",
+            "--property=KillMode=control-group",
+            "--property=TimeoutStopSec=1s",
+            "--property=SendSIGKILL=yes",
+            "--property=RuntimeMaxSec=15s",
+            "/usr/bin/python",
+            "/home/pedro/projects/mininet-ai/mininet-ai/mininet_ai/agents/agno/containment_prototype.py",
+            "supervisor",
+            "/tmp/opencode/systemd-containment-prototype-fsd8qy75/explicit_stop",
+            "descendants",
+            "0"
+          ],
+          "returncode": 0,
+          "stdout": "",
+          "stderr": "Running as unit: mininet-ai-containment-prototype-f8b5dc194dac4cbbb398e512b58d6597.service; invocation ID: 305a92e184d24695b5822a0df31c4da4\n"
+        },
+        {
+          "argv": [
+            "systemctl",
+            "--user",
+            "stop",
+            "mininet-ai-containment-prototype-f8b5dc194dac4cbbb398e512b58d6597.service"
+          ],
+          "returncode": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "elapsed_seconds": 1.2428949479999574
+    }
+  ],
+  "limits": "Local modeled fixtures only; no Agno/gate/admission/Provider guarantees"
+}
