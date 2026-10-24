@@ -3,6 +3,7 @@
 Callers own source identity validation and writer/exclusive-reader coordination.
 """
 
+import json
 import sqlite3
 from contextlib import closing
 from datetime import datetime
@@ -32,17 +33,36 @@ def read_ledger(
         row = connection.execute(
             "SELECT manifest_json FROM runs WHERE run_id=?", (run_id,)
         ).fetchone()
-        manifest = (
-            RunManifest.model_validate_json(row[0]).model_dump(
-                mode="json", by_alias=True
-            )
-            if row
-            else None
-        )
+        problems = []
+        manifest = None
+        if row:
+            try:
+                manifest = RunManifest.model_validate_json(row[0]).model_dump(
+                    mode="json", by_alias=True
+                )
+            except ValidationError:
+                if not partial_inspection:
+                    raise
+                # A malformed manifest may still explicitly identify another run.
+                # Never turn that conflict into an ordinary missing-manifest gap.
+                try:
+                    raw_manifest = json.loads(row[0])
+                except json.JSONDecodeError:
+                    raw_manifest = None
+                if isinstance(raw_manifest, dict) and any(
+                    key in raw_manifest and raw_manifest[key] != run_id
+                    for key in ("runId", "run_id")
+                ):
+                    raise ValueError("ledger manifest identity mismatch")
+                problems.append(
+                    {
+                        "reference": f"{path}#manifest",
+                        "reason": "Malformed run manifest; manifest identity, start time and provenance unavailable",
+                    }
+                )
         if manifest is not None and manifest["runId"] != run_id:
             raise ValueError("ledger manifest identity mismatch")
         records = []
-        problems = []
         for index, (sequence, category, kind, timestamp, correlation, raw) in enumerate(
             connection.execute(
                 "SELECT sequence,category,type,recorded_at,correlation_id,record_json "
