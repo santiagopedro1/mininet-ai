@@ -59,6 +59,8 @@ def deploy_and_exit_without_teardown(connection: Connection) -> None:
 )
 class LiveMininetOVSRuntimeTests(unittest.TestCase):
     def test_cli_runs_inspects_and_cooperatively_stops_owner(self) -> None:
+        from tests.storage_fixtures import storage_args
+
         state_path = Path("/run/mininet-ai/mininet-ovs.json")
         log_path = (
             Path(self.enterContext(TemporaryDirectory(prefix="mn-log-"))) / "run.log"
@@ -71,8 +73,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 "run",
                 str(MININET_OVS_SMOKE_SPECIFICATION),
                 "--verbose",
-                "--log-file",
-                str(log_path),
+                *storage_args(log_path.parent, log_file=log_path),
             ],
             cwd=ROOT,
             stdout=subprocess.PIPE,

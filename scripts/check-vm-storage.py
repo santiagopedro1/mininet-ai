@@ -104,7 +104,7 @@ def run() -> None:
         # The mount must reject unsafe explicit live storage without deployment.
         unsafe_root = Path("/vagrant") / f".storage-unsafe-{uuid.uuid4().hex}"
         result = subprocess.run(
-            [executable, "run", str(path), "--artifact-root", str(unsafe_root)],
+            [executable, "run", str(path), "--results-dir", str(unsafe_root)],
             capture_output=True,
             text=True,
             timeout=30,

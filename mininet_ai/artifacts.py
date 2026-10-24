@@ -72,7 +72,7 @@ def reserve_artifacts(
     except (OSError, MininetAIError) as error:
         raise MininetAIError(
             f"could not reserve private run artifacts at {directory}: {error}; "
-            "use an absolute --artifact-root on a local filesystem "
+            "use an absolute --results-dir on a local filesystem "
             "supporting private permissions and SQLite locking (not /vagrant)"
         ) from error
     return RunArtifacts(
