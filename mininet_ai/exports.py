@@ -18,8 +18,8 @@ from typing import Any
 
 from mininet_ai.artifacts import run_directory
 from mininet_ai.errors import MininetAIError
+from mininet_ai.evidence_reader import read_ledger
 from mininet_ai.outcomes import CleanupOutcome, MutationEffects, OperationFailure
-from mininet_ai.runtime.ledger import LedgerRecord, RunManifest
 from mininet_ai.saved_runs import (
     SourceLocks,
     absolute,
@@ -42,6 +42,8 @@ def _json(path: Path, value: Any) -> None:
 
 
 def _database(path: Path, role: str, run_id: str) -> dict[str, Any]:
+    if role == "ledger":
+        return read_ledger(path, run_id)
     # Read-only connections never initialize missing stores or change schemas.
     with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as connection:
         connection.execute("PRAGMA query_only=ON")
@@ -50,39 +52,6 @@ def _database(path: Path, role: str, run_id: str) -> dict[str, Any]:
             raise ValueError(f"unsupported {role} database schema at {path}")
         if connection.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
             raise ValueError(f"corrupt {role} database at {path}")
-        if role == "ledger":
-            row = connection.execute(
-                "SELECT manifest_json FROM runs WHERE run_id=?", (run_id,)
-            ).fetchone()
-            manifest = (
-                RunManifest.model_validate_json(row[0]).model_dump(
-                    mode="json", by_alias=True
-                )
-                if row
-                else None
-            )
-            records = [
-                LedgerRecord.model_validate_json(row[0]).model_dump(
-                    mode="json", by_alias=True
-                )
-                for row in connection.execute(
-                    "SELECT record_json FROM records WHERE run_id=? ORDER BY sequence",
-                    (run_id,),
-                )
-            ]
-            if manifest is not None and manifest["runId"] != run_id:
-                raise ValueError("ledger manifest identity mismatch")
-            if any(
-                record["runId"] != run_id or record["sequence"] != index
-                for index, record in enumerate(records, 1)
-            ):
-                raise ValueError("ledger record identity/sequence mismatch")
-            return {
-                "schema_version": 1,
-                "run_id": run_id,
-                "manifest": manifest,
-                "records": records,
-            }
         prefix = f"run:{run_id}:deployment:"
         rows = connection.execute(
             "SELECT namespace, scope, key, value_json, version, deleted, updated_by, updated_at FROM shared_state "
