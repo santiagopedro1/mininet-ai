@@ -58,6 +58,7 @@ from mininet_ai.specification import (
     CapabilityDefinition,
     Experiment,
 )
+from mininet_ai.storage_config import StorageCommand, load_storage_config
 from mininet_ai.substrates import (
     ExternallyStoppableRuntime,
     RuntimeSnapshot,
@@ -526,7 +527,7 @@ def plan(
         _print_text_plan(deployment_plan)
 
 
-@app.command()
+@app.command(cls=StorageCommand)
 def run(
     experiment: Annotated[
         Path,
@@ -542,7 +543,10 @@ def run(
         ),
     ] = False,
     output_format: Annotated[
-        OutputFormat, typer.Option("--format", "-f", help="Output format.")
+        OutputFormat,
+        typer.Option(
+            "--format", "-f", help="Output format.", rich_help_panel="Results and output"
+        ),
     ] = OutputFormat.TEXT,
     initial_intents: Annotated[
         list[str],
@@ -558,27 +562,6 @@ def run(
             help="Stop after every initial --intent reaches a final result.",
         ),
     ] = False,
-    ledger_db: Annotated[
-        Path | None,
-        typer.Option(
-            "--ledger-db",
-            help="Persistent experiment ledger database.",
-        ),
-    ] = None,
-    agno_db: Annotated[
-        Path | None,
-        typer.Option(
-            "--agno-db",
-            help="Private SQLite database for Agno sessions and memory.",
-        ),
-    ] = None,
-    shared_state_db: Annotated[
-        Path | None,
-        typer.Option(
-            "--shared-state-db",
-            help="Private SQLite database for shared operational state.",
-        ),
-    ] = None,
     discover: Annotated[
         bool,
         typer.Option(
@@ -592,20 +575,23 @@ def run(
             "--verbose",
             "-v",
             help="Show live lifecycle, invocation, model, and capability progress.",
+            rich_help_panel="Results and output",
         ),
     ] = False,
-    log_file: Annotated[
+    storage_config: Annotated[
         Path | None,
         typer.Option(
-            "--log-file",
-            help="Append human-readable run progress to this file.",
+            "--storage-config",
+            help="Explicit YAML with optional log_file, ledger_db, shared_state_db, agno_db paths, relative to this file. Each overrides only its own default.",
+            rich_help_panel="Advanced storage",
         ),
     ] = None,
-    artifact_root: Annotated[
+    results_dir: Annotated[
         Path | None,
         typer.Option(
-            "--artifact-root",
-            help="Persistent live storage root (default: effective-user local state, not the project directory).",
+            "--results-dir",
+            help="Parent live storage root, not an exact run directory or export destination. Default: /var/lib/mininet-ai for effective UID 0; otherwise absolute XDG_STATE_HOME/mininet-ai or ~/.local/state/mininet-ai. May include memory/. Private and potentially sensitive; not necessarily safe to share or use on a VM shared filesystem.",
+            rich_help_panel="Results and output",
         ),
     ] = None,
     control_dir: Annotated[
@@ -617,6 +603,11 @@ def run(
 ) -> None:
     """Own a complete continuous experiment until interrupted or stopped."""
 
+    storage = load_storage_config(storage_config)
+    log_file = storage.get("log_file")
+    ledger_db = storage.get("ledger_db")
+    shared_state_db = storage.get("shared_state_db")
+    agno_db = storage.get("agno_db")
     deployment_plan = _compile_or_exit(experiment)
     if dry_run:
         if output_format == OutputFormat.JSON:
@@ -625,8 +616,8 @@ def run(
             _print_text_plan(deployment_plan)
         return
 
-    root_selection = "--artifact-root" if artifact_root is not None else "default"
-    artifact_root = (artifact_root or default_artifact_root()).absolute()
+    root_selection = "--results-dir" if results_dir is not None else "default"
+    artifact_root = (results_dir or default_artifact_root()).absolute()
     print_event(
         error_console,
         "INFO",
@@ -666,9 +657,9 @@ def run(
     if persistent_memory and agno_db is None and legacy_memory.exists():
         raise typer.BadParameter(
             f"Existing learned-memory store found at {legacy_memory}. "
-            f"Use --agno-db {legacy_memory} to retain its agent memory, or explicitly "
-            "select a new --agno-db to start fresh. No automatic migration is performed.",
-            param_hint="--agno-db",
+            f"Use --storage-config FILE with agno_db: {legacy_memory} to retain its agent memory, or explicitly "
+            "select a new agno_db path to start fresh. This starts a new run, not an old session. No automatic migration is performed.",
+            param_hint="--storage-config",
         )
     artifacts = None
     if reserved_id is None:
@@ -677,7 +668,7 @@ def run(
         ):
             raise typer.BadParameter(
                 "This registered adapter does not support built-in identity reservation. "
-                "Provide --log-file, --ledger-db, --shared-state-db, and --agno-db explicitly; "
+                "Provide all four paths (log_file, ledger_db, shared_state_db, agno_db) through --storage-config FILE; "
                 "its zero-argument factory and runtime protocol remain unchanged."
             )
         artifact_description = (
@@ -879,7 +870,7 @@ def run(
         operation_failed = True
         progress.error(f"Run {reserved_id} startup/operation failed: {error}")
         error_console.print(
-            "Run failed; diagnostic output retained. For storage errors use --artifact-root on a private local filesystem supporting SQLite locking."
+            "Run failed; diagnostic output retained. For storage errors use --results-dir on a private local filesystem supporting SQLite locking."
         )
         if isinstance(error, MininetAIError):
             pending_error = error
@@ -1211,7 +1202,7 @@ def stop(
         raise typer.Exit(code=1)
 
 
-@app.command()
+@app.command(cls=StorageCommand)
 def invoke(
     run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
     agent_id: Annotated[
@@ -1241,16 +1232,6 @@ def invoke(
         Path | None,
         typer.Option("--audit-log", help="Deprecated: audit is recorded by the owner."),
     ] = None,
-    agno_db: Annotated[
-        Path | None,
-        typer.Option("--agno-db", help="Deprecated: configure sessions on run."),
-    ] = None,
-    shared_state_db: Annotated[
-        Path | None,
-        typer.Option(
-            "--shared-state-db", help="Deprecated: configure shared state on run."
-        ),
-    ] = None,
     discover: Annotated[
         bool,
         typer.Option("--discover-plugins", help="Deprecated: discover plugins on run."),
@@ -1261,10 +1242,7 @@ def invoke(
 ) -> None:
     """Queue an intent in an already-running owner, including from another terminal."""
 
-    if (
-        any(value is not None for value in (audit_log, agno_db, shared_state_db))
-        or discover
-    ):
+    if audit_log is not None or discover:
         error_console.print(
             "[yellow]Deprecated invoke configuration options are ignored; "
             "the foreground owner uses the databases, audit, and plugins configured on run.[/yellow]"

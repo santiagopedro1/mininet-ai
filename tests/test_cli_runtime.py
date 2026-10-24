@@ -680,18 +680,19 @@ class RuntimeCLITests(unittest.TestCase):
 
     @staticmethod
     def run_databases(directory: str) -> list[str]:
+        from tests.storage_fixtures import storage_args
+
         root = Path(directory)
         return [
-            "--artifact-root",
+            "--results-dir",
             str(root / "output"),
-            "--ledger-db",
-            str(root / "ledger.sqlite3"),
-            "--agno-db",
-            str(root / "agno.sqlite3"),
-            "--shared-state-db",
-            str(root / "state.sqlite3"),
-            "--log-file",
-            str(root / "run.log"),
+            *storage_args(
+                root,
+                ledger_db=root / "ledger.sqlite3",
+                agno_db=root / "agno.sqlite3",
+                shared_state_db=root / "state.sqlite3",
+                log_file=root / "run.log",
+            ),
             "--control-dir",
             str(root / "control"),
         ]
@@ -820,10 +821,6 @@ class RuntimeCLITests(unittest.TestCase):
                         str(control_dir),
                         "--audit-log",
                         str(Path(temporary) / "unused-audit.jsonl"),
-                        "--agno-db",
-                        str(Path(temporary) / "unused-agno.sqlite3"),
-                        "--shared-state-db",
-                        str(Path(temporary) / "unused-state.sqlite3"),
                         "--discover-plugins",
                         "--format",
                         "json",

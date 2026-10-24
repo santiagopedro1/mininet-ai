@@ -84,7 +84,7 @@ def test_cli_uses_shared_root_for_artifacts_and_default_control(tmp_path_factory
             [
                 "run",
                 "experiment.yaml",
-                "--artifact-root",
+                "--results-dir",
                 str(root),
                 "--intent",
                 "switch-router@s1=install flows",
@@ -187,10 +187,11 @@ def test_legacy_agent_memory_requires_explicit_selection(tmp_path):
     )
     with patch("mininet_ai.cli._compile_or_exit", return_value=plan):
         result = CliRunner().invoke(
-            app, ["run", "experiment.yaml", "--artifact-root", str(root)]
+            app, ["run", "experiment.yaml", "--results-dir", str(root)]
         )
     assert result.exit_code != 0
-    assert "--agno-db" in result.output
+    assert "--storage-config" in result.output
+    assert "agno_db" in result.output
     assert legacy.read_bytes() == b"old learned memory"
     assert list(root.iterdir()) == [legacy]
 
@@ -211,20 +212,31 @@ def test_keyboard_interrupt_during_service_start_cleans_network(tmp_path):
         ),
     ):
         result = CliRunner().invoke(
-            app, ["run", "experiment.yaml", "--artifact-root", str(tmp_path / "output")]
+            app, ["run", "experiment.yaml", "--results-dir", str(tmp_path / "output")]
         )
     assert result.exit_code != 0
     assert runtime.inspect("run-interrupted").run.state == RunState.STOPPED
     assert "failed" in (tmp_path / "output/run-interrupted/logs/run.log").read_text()
 
 
-def test_unreserved_registered_adapter_can_use_explicit_paths(tmp_path, control_directory):
+def test_unreserved_registered_adapter_can_use_explicit_paths(
+    tmp_path, control_directory
+):
     from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 
     runtime = FakeSubstrateRuntime(run_id_factory=lambda: "custom-run")
     arguments = ["run", "experiment.yaml", "--control-dir", str(control_directory)]
-    for option in ("log-file", "ledger-db", "shared-state-db", "agno-db"):
-        arguments.extend([f"--{option}", str(tmp_path / option)])
+    from tests.storage_fixtures import storage_args
+
+    arguments.extend(
+        storage_args(
+            tmp_path,
+            log_file=tmp_path / "log-file",
+            ledger_db=tmp_path / "ledger-db",
+            shared_state_db=tmp_path / "shared-state-db",
+            agno_db=tmp_path / "agno-db",
+        )
+    )
     with (
         patch("mininet_ai.cli.reserve_run", return_value=(None, runtime)),
         patch(
@@ -253,7 +265,7 @@ def test_two_cli_runs_have_separate_saved_output(tmp_path, control_directory):
                 [
                     "run",
                     "experiment.yaml",
-                    "--artifact-root",
+                    "--results-dir",
                     str(root),
                     "--control-dir",
                     str(control_directory),
@@ -269,7 +281,9 @@ def test_two_cli_runs_have_separate_saved_output(tmp_path, control_directory):
         assert (directory / "dbs/agno.sqlite3").is_file()
 
 
-def test_start_failure_retains_diagnostics_and_cleans_network(tmp_path, control_directory):
+def test_start_failure_retains_diagnostics_and_cleans_network(
+    tmp_path, control_directory
+):
     from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 
     runtime = FakeSubstrateRuntime(run_id_factory=lambda: "run-failed")
@@ -289,7 +303,7 @@ def test_start_failure_retains_diagnostics_and_cleans_network(tmp_path, control_
             [
                 "run",
                 "experiment.yaml",
-                "--artifact-root",
+                "--results-dir",
                 str(tmp_path / "output"),
                 "--control-dir",
                 str(control_directory),
