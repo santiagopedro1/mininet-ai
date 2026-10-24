@@ -10,8 +10,10 @@ import stat
 import threading
 from collections.abc import Callable
 from contextlib import suppress
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from time import monotonic
 from types import FrameType
 from typing import Annotated, Self, cast
 
@@ -89,6 +91,15 @@ class _RunLogError(MininetAIError):
         self.code = "run.log.open-failed"
 
 
+@dataclass
+class _WarningRepeats:
+    source: str
+    message: str
+    last_shown: float
+    total: int = 1
+    pending: int = 0
+
+
 class _RunProgress:
     """Mirror run progress to an owner-only log and optionally stderr."""
 
@@ -108,6 +119,7 @@ class _RunProgress:
         self._network_capabilities = network_capabilities
         self._lock = threading.RLock()
         self._capabilities: dict[tuple[str, str], str] = {}
+        self._warnings: dict[tuple[str, str, str, str], _WarningRepeats] = {}
         descriptor: int | None = None
         try:
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -152,6 +164,7 @@ class _RunProgress:
         source: str = "Run",
         visible: bool = False,
         summary: str | None = None,
+        warning_key: tuple[str, str, str] | None = None,
     ) -> None:
         with self._lock:
             self._logger.log(
@@ -159,6 +172,22 @@ class _RunProgress:
                 message,
                 extra={"run_identity": self._run_identity, "source": source},
             )
+            if not self._verbose and level == logging.WARNING:
+                # Group by source, agent, code and stable message, never invocation.
+                agent, code, problem = warning_key or ("", "", message)
+                key = (source, agent, code, problem)
+                now = monotonic()
+                previous = self._warnings.get(key)
+                if previous is not None:
+                    previous.total += 1
+                    previous.pending += 1
+                    if now - previous.last_shown >= 30:
+                        self._show_warning_repeats(previous)
+                        previous.last_shown = now
+                    return
+                self._warnings[key] = _WarningRepeats(
+                    source, problem + (f" agent={agent}" if agent else ""), now
+                )
             if self._verbose or visible or level >= logging.WARNING:
                 print_event(
                     error_console,
@@ -166,6 +195,17 @@ class _RunProgress:
                     source,
                     message if self._verbose or summary is None else summary,
                 )
+
+    def _show_warning_repeats(self, warning: _WarningRepeats) -> None:
+        if warning.pending:
+            print_event(
+                error_console,
+                "WARNING",
+                warning.source,
+                f"{warning.message} (repeated {warning.pending} times; "
+                f"{warning.total} occurrences total)",
+            )
+            warning.pending = 0
 
     def info(self, message: str, *, visible: bool = False) -> None:
         self.emit(message, visible=visible)
@@ -228,7 +268,7 @@ class _RunProgress:
             and details.get("status") not in (None, "succeeded")
         )
         source = f"Agent:{event.agent_id}"
-        visible = event.type == AuditEventType.AGENT_COMPLETED
+        visible = False
         summary = str(
             details.get("message")
             or "Reasoning completed; see subsequent action results"
@@ -263,6 +303,13 @@ class _RunProgress:
                 summary += f" message={details['message']}"
         elif failed:
             summary = f"{event.type.value}: {details.get('message', 'failed')}"
+        if failed:
+            summary += f" invocation={event.invocation_id}"
+            summary += "".join(
+                f" {key}={json.dumps(details[key], ensure_ascii=True)}"
+                for key in ("code", "request_id", "errorType")
+                if key in details
+            )
         self.emit(
             message,
             level=logging.ERROR if failed else logging.INFO,
@@ -272,11 +319,16 @@ class _RunProgress:
         )
 
     def close(self) -> None:
-        for handler in tuple(self._logger.handlers):
-            handler.flush()
-            handler.close()
-            self._logger.removeHandler(handler)
-        self._stream.close()
+        with self._lock:
+            try:
+                for warning in self._warnings.values():
+                    self._show_warning_repeats(warning)
+            finally:
+                for handler in tuple(self._logger.handlers):
+                    handler.flush()
+                    handler.close()
+                    self._logger.removeHandler(handler)
+                self._stream.close()
 
 
 class _ReportingAuditSink:
@@ -867,10 +919,11 @@ def run(
                     if stop_after_intents
                     else "Press Ctrl+C to stop."
                 )
-                console.print(
-                    f"[green]Running[/green] {run_info.id} on "
+                progress.info(
+                    f"Running {run_info.id} on "
                     f"{run_info.substrate}. {wait_message}\n"
-                    f"Log: {log_file}"
+                    f"Log: {log_file}",
+                    visible=True,
                 )
             stop_latch.wait()
     except BaseException as error:

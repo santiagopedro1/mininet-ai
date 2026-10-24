@@ -64,13 +64,18 @@ class _DiagnosticHandler(logging.Handler):
         message = (
             f"Agno dependency {record.levelname.lower()} diagnostic dependency=agno"
         )
+        warning_key = (
+            context.agent_id if context is not None else "unknown",
+            "agno.diagnostic",
+            message,
+        )
         message += (
             " agent=unknown"
             if context is None
             else f" agent={context.agent_id} invocation={context.invocation_id}"
         )
         # Never format msg/args/exception: provider content is excluded.
-        self.sink(message, level=record.levelno, source=source)
+        self.sink(message, level=record.levelno, source=source, warning_key=warning_key)
 
 
 @contextmanager
