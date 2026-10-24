@@ -281,8 +281,12 @@ def test_managed_export_filters_an_explicit_log_shared_across_runs(tmp_path):
     from mininet_ai.cli import app
 
     log = tmp_path / "shared.log"
-    _, first = run_fake(tmp_path / "first", storage_args(tmp_path / "first", log_file=log))
-    root, second = run_fake(tmp_path / "second", storage_args(tmp_path / "second", log_file=log))
+    _, first = run_fake(
+        tmp_path / "first", storage_args(tmp_path / "first", log_file=log)
+    )
+    root, second = run_fake(
+        tmp_path / "second", storage_args(tmp_path / "second", log_file=log)
+    )
     with log.open("a") as stream:
         stream.write(
             f"2026-10-08 14:32:00,000 ERROR run_id={json.dumps(second.name)} legacy-error\n"
