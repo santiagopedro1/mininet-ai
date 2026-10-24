@@ -600,7 +600,10 @@ def run(
     output_format: Annotated[
         OutputFormat,
         typer.Option(
-            "--format", "-f", help="Output format.", rich_help_panel="Results and output"
+            "--format",
+            "-f",
+            help="Command results on stdout; independent of --verbose. JSON is not a live event stream.",
+            rich_help_panel="Results and output",
         ),
     ] = OutputFormat.TEXT,
     initial_intents: Annotated[
@@ -629,7 +632,7 @@ def run(
         typer.Option(
             "--verbose",
             "-v",
-            help="Show live lifecycle, invocation, model, and capability progress.",
+            help="Add detailed progress on stderr; saved diagnostics are equally detailed without it.",
             rich_help_panel="Results and output",
         ),
     ] = False,
@@ -656,7 +659,13 @@ def run(
         ),
     ] = DEFAULT_CONTROL_DIRECTORY,
 ) -> None:
-    """Own a complete continuous experiment until interrupted or stopped."""
+    """Own a complete continuous experiment until interrupted or stopped.
+
+    Built-in runs announce their recorded ID and absolute results directory.
+    When safely available, inspect summary.md, equivalent summary.json and
+    complete recorded structured responses in evidence/ledger.json there.
+    These private derived views are not an export or proof of experiment success.
+    """
 
     storage = load_storage_config(storage_config)
     log_file = storage.get("log_file")
@@ -770,8 +779,12 @@ def run(
         )
     evidence = None
     if artifacts is not None and reserved_id is not None:
-        print_event(error_console, "INFO", "Run",
-                    f"Recorded run ID: {reserved_id}; Results directory: {artifacts.directory}")
+        print_event(
+            error_console,
+            "INFO",
+            "Run",
+            f"Recorded run ID: {reserved_id}; Results directory: {artifacts.directory}",
+        )
         verified_writers = (
             not loaded
             and all(
@@ -930,9 +943,12 @@ def run(
             stop_latch.wait()
     except BaseException as error:
         operation_failed = True
-        operation_problem = {"code": str(getattr(error, "code", "operation.failed")),
-                             "reason": str(error) or type(error).__name__,
-                             "phase": "startup/operation", "source": str(log_file)}
+        operation_problem = {
+            "code": str(getattr(error, "code", "operation.failed")),
+            "reason": str(error) or type(error).__name__,
+            "phase": "startup/operation",
+            "source": str(log_file),
+        }
         progress.error(f"Run {reserved_id} startup/operation failed: {error}")
         error_console.print(
             "Run failed; diagnostic output retained. For storage errors use --results-dir on a private local filesystem supporting SQLite locking."
@@ -1014,17 +1030,25 @@ def run(
                         from mininet_ai.inspection import publish_inspection
 
                         try:
-                            print_event(error_console, "INFO", "Run",
-                                        f"Recorded run ID: {reserved_id}; Results directory: {evidence.directory}")
+                            print_event(
+                                error_console,
+                                "INFO",
+                                "Run",
+                                f"Recorded run ID: {reserved_id}; Results directory: {evidence.directory}",
+                            )
                             for message in publish_inspection(
                                 evidence,
-                                interrupted=getattr(stop_latch, "interruption_observed", None),
+                                interrupted=getattr(
+                                    stop_latch, "interruption_observed", None
+                                ),
                                 report=report,
                                 operation_problem=operation_problem,
                             ):
                                 print_event(
                                     error_console,
-                                    "WARNING" if message.startswith("Inspection unavailable:") else "INFO",
+                                    "WARNING"
+                                    if message.startswith("Inspection unavailable:")
+                                    else "INFO",
                                     "Run",
                                     message,
                                 )
@@ -1032,8 +1056,12 @@ def run(
                             # A broken diagnostic stream must not introduce an
                             # inspection-only exit rule or mask original errors.
                             with suppress(Exception):
-                                print_event(error_console, "WARNING", "Run",
-                                            f"Inspection unavailable: summary.md, summary.json, evidence/ledger.json: {inspection_error}; sources: {evidence.metadata.sources}")
+                                print_event(
+                                    error_console,
+                                    "WARNING",
+                                    "Run",
+                                    f"Inspection unavailable: summary.md, summary.json, evidence/ledger.json: {inspection_error}; sources: {evidence.metadata.sources}",
+                                )
                 finally:
                     if evidence is not None:
                         evidence.close()

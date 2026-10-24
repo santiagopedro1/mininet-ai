@@ -139,28 +139,65 @@ on `run`, not `invoke`.
 `/var/lib/mininet-ai` for root, or `$XDG_STATE_HOME/mininet-ai` for other users
 (fallback: `~/.local/state/mininet-ai`; relative XDG paths are ignored).
 It is independent of the project directory and the invoking `sudo` user.
-Saved output lives in `<root>/<run-id>/`: `logs/run.log`, `dbs/ledger.sqlite3`,
+Saved output lives in a private child of `<root>` (safe built-in run IDs retain
+their names; other IDs use a disjoint hashed name): `logs/run.log`, `dbs/ledger.sqlite3`,
 `dbs/shared-state.sqlite3`, `dbs/agno.sqlite3`, and an `artifacts/` directory.
-`--artifact-root` changes the saved-output root, not socket discovery. Startup
-prints and logs absolute effective paths; `--verbose` streams progress to stderr.
-Explicit `--log-file`, `--ledger-db`, `--shared-state-db`, and `--agno-db` paths
-remain honored. Existing output is never migrated or deleted, and run directory
-collisions fail. Failed starts retain logs and databases for diagnosis.
+`--results-dir ROOT` selects the parent **live storage root**, not the exact run
+directory, an export destination, or socket discovery. Startup announces the
+recorded run ID and absolute results directory; final reporting repeats them
+where possible. This advertises a location, not already-generated final files.
+Default stderr shows milestones, applied changes and problems; `--verbose/-v`
+adds routine detail without changing retained diagnostics. Command results stay
+on stdout; `--format/-f json` is independent of verbosity, not a live event stream
+or a promise of JSON for every error.
+
+When safely available, start with `<run-directory>/summary.md`, then read the
+equivalent `summary.json` and complete recorded structured responses in
+`evidence/ledger.json`. The summary links actual diagnostic and workload artifact
+paths, including external overrides. Execution, interruption, cleanup, evidence
+finalization/completeness, inspection availability and experiment success are
+distinct. Unknown counts are not zero; applied changes are not verified recovery.
+Missing views do not mean missing underlying evidence or success. Old runs are
+not backfilled; existing output is never migrated or deleted, and directory
+collisions fail. Failed starts retain available sources for diagnosis.
+
+Advanced independent path selection uses one explicitly supplied file:
+
+```yaml
+# storage.yaml — all four keys are optional for built-in runs
+log_file: diagnostics/run.log
+ledger_db: databases/ledger.sqlite3
+shared_state_db: databases/shared-state.sqlite3
+agno_db: databases/agno.sqlite3
+```
+
+Pass `run EXPERIMENT --results-dir ROOT --storage-config storage.yaml`. Relative
+entries resolve against the configuration file's directory, not the working
+directory; absolute paths retain meaning. Each entry overrides only its own
+default. Unknown/duplicate keys, invalid values and unreadable files fail without
+fallback. There is no automatic discovery or new environment variable.
+**Breaking alpha change:** the former run root/individual-file flags are removed,
+not aliases. The ignored invocation database selectors are also removed: select
+storage on the owning `run`. See [migration notes](docs/compatibility.md#discoverable-results-breaking-alpha-cli-change).
 
 When any agent requests `learned.scope: agent`, the default Agno store is instead
-`<artifact-root>/memory/agno.sqlite3`, shared across runs under that root. Agno
+`<results-root>/memory/agno.sqlite3`, shared across runs under that root. Agno
 uses one database for both sessions and memory; sessions remain keyed by run,
 while learned memory uses the stable agent identity. Use the same absolute
-artifact root across working directories, or an explicit shared `--agno-db`, to
+results root across working directories, or explicit shared `agno_db` in the YAML, to
 reuse agent memory. The new default root is already working-directory independent.
 Old stores in other roots are not discovered or imported; startup announces the
 selected memory path. Run ledgers and shared operational state remain per-run.
-If the legacy `<artifact-root>/agno.sqlite3` exists, agent-scoped memory requires
-an explicit `--agno-db` selection; choose that file to retain previous learning.
+If the legacy `<results-root>/agno.sqlite3` exists, agent-scoped memory requires
+an explicit `agno_db` selection through `--storage-config`; choose that file to
+retain previous learning. Selecting it starts a new run, not an old session.
 The CLI never silently replaces existing learned memory with a fresh store.
 No multiple-database Agno routing or schema/protocol changes are introduced.
 
-Treat saved artifacts as sensitive: they may contain prompts and observations.
+Treat the live root, including optional `memory/`, and inspection files as private
+and potentially sensitive; they are not necessarily safe to share. Saved material
+may contain prompts and observations only where recorded; inspection adds no raw
+payload capture.
 Keep credentials outside YAML. Private permissions and SQLite locking are still
 required for **live storage**. From `/vagrant`, root automatically uses VM-local
 `/var/lib/mininet-ai`; no storage flags are needed. Explicit unsuitable paths
