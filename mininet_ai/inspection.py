@@ -42,20 +42,30 @@ def _human(summary: dict[str, Any]) -> str:
     outcomes = summary["outcomes"]
     counts = summary["counts"]
     invocation_counts = counts["invocations"]
+
+    def known(value: Any) -> str:
+        return "unknown" if value is None else str(value).lower()
+
+    problems = "".join(f"- {problem['reason']}\n" for problem in summary["problems"])
     return (
         f"# Run {summary['run_id']}\n\n"
         f"Results: {summary['results_directory']}\n\n"
         "## What happened\n\n"
         f"- Recorded execution: {outcomes['recorded_execution']}; operation: {outcomes['operation']}.\n"
         f"- Cleanup: {outcomes['cleanup']['status']}; evidence finalized: {outcomes['evidence_finalized']}.\n"
-        f"- Observed invocation results: {invocation_counts['succeeded']['value']} succeeded, "
-        f"{invocation_counts['failed']['value']} unsuccessful (partial coverage, not totals).\n"
-        f"- Observed action failures: {counts['actions']['failed']['value']} (partial or unknown coverage).\n"
-        f"- Observed interruption: {outcomes['interruption_observed']}; experiment success: unknown.\n\n"
+        f"- Observed invocation results: {known(invocation_counts['succeeded']['value'])} succeeded, "
+        f"{known(invocation_counts['failed']['value'])} unsuccessful (partial or unknown coverage, not totals).\n"
+        f"- Observed action failures: {known(counts['actions']['failed']['value'])} (partial or unknown coverage).\n"
+        f"- Observed interruption: {known(outcomes['interruption_observed'])}; experiment success: unknown.\n\n"
         "## What remains uncertain\n\n"
         f"Execution conclusion: {summary['conclusions']['execution'] or 'unknown'}. "
         f"Evidence completeness: {outcomes['evidence_completeness']}. "
-        f"Recorded problems/gaps: {len(summary['problems'])}; see reasons and references below.\n\n"
+        f"Recorded problems: {len(summary['problems'])}; supporting references and general gaps below.\n\n"
+        + problems + "\n"
+        "## Where to inspect\n\n"
+        f"- Readable ledger: {summary['inspection']['evidence/ledger.json']} — evidence/ledger.json.\n"
+        f"- Diagnostics: {summary['sources']['log']}.\n"
+        f"- Workload artifacts/measurements, if recorded: {summary['sources']['artifacts']}.\n\n"
         "Private derived inspection, not an export or a certification of success.\n"
         "Machine facts: summary.json. Complete available recorded structured responses: "
         "evidence/ledger.json. Diagnostics and workload artifact locations are listed below.\n\n"

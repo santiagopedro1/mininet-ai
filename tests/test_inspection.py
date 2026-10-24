@@ -306,3 +306,16 @@ def test_malformed_audit_payload_does_not_hide_independent_metadata(tmp_path):
     summary = json.loads((directory / "summary.json").read_text())
     assert summary["outcomes"]["cleanup"]["status"] == "verified"
     assert any("Malformed" in p["reason"] for p in summary["problems"])
+
+
+def test_failure_before_reservation_does_not_fabricate_results_handle(tmp_path):
+    with (
+        patch("mininet_ai.cli._compile_or_exit", return_value=fake_plan()),
+        patch("mininet_ai.cli.reserve_run", side_effect=MininetAIError("reservation unavailable")),
+    ):
+        result = CliRunner().invoke(app, ["run", "experiment.yaml", "--results-dir", str(tmp_path / "runs")])
+    assert result.exit_code == 1, result.output
+    assert "reservation unavailable" in result.output
+    assert "Recorded run ID:" not in result.output
+    assert "Results directory:" not in result.output
+    assert not (tmp_path / "runs").exists()

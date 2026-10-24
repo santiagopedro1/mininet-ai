@@ -681,7 +681,9 @@ def run(
     )
 
     try:
-        reserved_id, substrate = reserve_run(deployment_plan.substrate)
+        reserved_id, substrate = _operation_or_exit(
+            lambda: reserve_run(deployment_plan.substrate), output_format
+        )
     except (LookupError, TypeError, ValueError) as error:
         raise typer.BadParameter(str(error)) from error
     registries = ProviderRegistries()
