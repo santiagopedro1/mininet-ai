@@ -281,6 +281,7 @@ def publish_inspection(
             problems.append({"source": path, "reason": str(error)})
     try:
         ledger = evidence.inspection_ledger()
+        problems.extend(ledger.get("validation_problems", []))
         if ledger["manifest"] is None and not ledger["records"]:
             ledger = None
             raise ValueError(
@@ -305,6 +306,10 @@ def publish_inspection(
     ledger_coverage: Literal["complete", "partial", "unknown"] = "unknown"
     execution = None
     if ledger is not None:
+        # Persisted sequences survive rejected rows; JSON array offsets do not.
+        record_positions = {
+            record["sequence"]: index for index, record in enumerate(ledger["records"])
+        }
         lifecycle = [
             record
             for record in ledger["records"]
@@ -329,7 +334,7 @@ def publish_inspection(
             problems.append(
                 {
                     "source": metadata.sources["ledger"],
-                    "reason": "Missing run manifest; start time and provenance unavailable",
+                    "reason": "Run manifest unavailable; manifest start time and provenance unavailable",
                 }
             )
         if not terminal:
@@ -349,7 +354,7 @@ def publish_inspection(
                     "source": str(directory / "run.json"),
                     "reason": "Conflicting terminal lifecycle/metadata records; execution conclusion unknown",
                     "references": [
-                        f"evidence/ledger.json#/records/{record['sequence'] - 1}"
+                        f"evidence/ledger.json#/records/{record_positions[record['sequence']]}"
                         for record in terminal
                     ],
                 }
@@ -357,7 +362,6 @@ def publish_inspection(
         else:
             execution = metadata.outcome
         if ledger.get("validation_problems"):
-            problems.extend(ledger["validation_problems"])
             ledger_coverage = "partial"
             execution = None
     counts = _observations(ledger, problems, metadata.sources["ledger"])

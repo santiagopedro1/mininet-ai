@@ -198,6 +198,122 @@ def test_complete_recorded_response_survives_without_raw_capture(tmp_path):
     assert summary["counts"]["invocations"]["succeeded"]["value"] == 1
 
 
+@pytest.mark.parametrize("manifest_json", ["{", "{}"])
+def test_malformed_manifest_preserves_attributable_failure_and_strict_export(
+    tmp_path, manifest_json
+):
+    close = SQLiteRunLedger.close
+    before = {}
+
+    def damage_manifest(ledger):
+        ledger.append(
+            LedgerEntry(
+                runId="inspection-run",
+                category=LedgerRecordCategory.ACTION,
+                type="capability.execution.failed",
+                recordedAt=datetime.now(UTC),
+                data={
+                    "data": {"code": "action.failed", "message": "independent failure"}
+                },
+            )
+        )
+        close(ledger)
+        with sqlite3.connect(ledger.path) as connection:
+            connection.execute("UPDATE runs SET manifest_json=?", (manifest_json,))
+        before[ledger.path] = hashlib.sha256(ledger.path.read_bytes()).hexdigest()
+
+    with patch.object(SQLiteRunLedger, "close", damage_manifest):
+        result, directory = inspect_run(tmp_path)
+    assert result.exit_code == 0, result.output
+    summary = json.loads((directory / "summary.json").read_text())
+    assert summary["counts"]["actions"]["failed"]["value"] == 1
+    assert summary["counts"]["actions"]["failed"]["coverage"] == "partial"
+    assert summary["counts"]["actions"]["total"]["value"] is None
+    assert summary["coverage"]["ledger"] == "partial"
+    assert summary["conclusions"]["execution"] is None
+    assert any(p.get("code") == "action.failed" for p in summary["problems"])
+    assert any(
+        "Malformed" in p["reason"] and "manifest" in p["reason"] and p.get("reference")
+        for p in summary["problems"]
+    )
+    ledger = json.loads((directory / "evidence/ledger.json").read_text())
+    assert ledger["manifest"] is None
+    assert any(r["type"] == "capability.execution.failed" for r in ledger["records"])
+    destination = tmp_path / "bundle"
+    exported = CliRunner().invoke(
+        app,
+        [
+            "export",
+            "inspection-run",
+            "--artifact-root",
+            str(tmp_path / "runs"),
+            "--destination",
+            str(destination),
+            "--acknowledge-sensitive-data",
+        ],
+    )
+    assert exported.exit_code == 1, exported.output
+    assert not (destination / "EXPORT_COMPLETE").exists()
+    assert all(
+        hashlib.sha256(path.read_bytes()).hexdigest() == digest
+        for path, digest in before.items()
+    )
+
+
+@pytest.mark.parametrize("also_malformed", [False, True])
+def test_conflicting_manifest_identity_keeps_ledger_unavailable(
+    tmp_path, also_malformed
+):
+    close = SQLiteRunLedger.close
+
+    def conflicting_manifest(ledger):
+        close(ledger)
+        with sqlite3.connect(ledger.path) as connection:
+            manifest = json.loads(
+                connection.execute("SELECT manifest_json FROM runs").fetchone()[0]
+            )
+            manifest["runId"] = "another-run"
+            if also_malformed:
+                del manifest["createdAt"]
+            connection.execute(
+                "UPDATE runs SET manifest_json=?", (json.dumps(manifest),)
+            )
+
+    with patch.object(SQLiteRunLedger, "close", conflicting_manifest):
+        result, directory = inspect_run(tmp_path)
+    assert result.exit_code == 0, result.output
+    summary = json.loads((directory / "summary.json").read_text())
+    assert summary["inspection"]["evidence/ledger.json"] == "unavailable"
+    assert summary["counts"]["actions"]["failed"]["value"] is None
+    assert summary["conclusions"]["execution"] is None
+    assert any("manifest identity mismatch" in p["reason"] for p in summary["problems"])
+    assert not (directory / "evidence/ledger.json").exists()
+
+
+def test_empty_unreadable_evidence_retains_manifest_problem_without_empty_view(
+    tmp_path,
+):
+    close = SQLiteRunLedger.close
+
+    def empty_unreadable(ledger):
+        close(ledger)
+        with sqlite3.connect(ledger.path) as connection:
+            connection.execute("UPDATE runs SET manifest_json='{'")
+            connection.execute("DELETE FROM records")
+
+    with patch.object(SQLiteRunLedger, "close", empty_unreadable):
+        result, directory = inspect_run(tmp_path)
+    assert result.exit_code == 0, result.output
+    summary = json.loads((directory / "summary.json").read_text())
+    assert any(
+        "Malformed run manifest" in p["reason"] and p.get("reference")
+        for p in summary["problems"]
+    )
+    assert summary["inspection"]["evidence/ledger.json"] == "unavailable"
+    assert summary["counts"]["actions"]["failed"]["value"] is None
+    assert not (directory / "evidence/ledger.json").exists()
+
+
 @pytest.mark.parametrize("failed_view", ["summary.md", "summary.json", "ledger.json"])
 def test_inspection_write_failure_preserves_exit_and_sources(tmp_path, failed_view):
     link = os.link
@@ -452,6 +568,58 @@ def test_conflicting_terminal_records_are_not_confused_with_recorded_retry(
     assert result.exit_code == 0, result.output
     summary = json.loads((directory / "summary.json").read_text())
     assert summary["conclusions"]["execution"] == ("succeeded" if retry else None)
+
+
+@pytest.mark.parametrize("sparse", ["malformed", "missing"])
+@pytest.mark.parametrize("malformed_manifest", [False, True])
+def test_sparse_ledger_terminal_pointers_resolve_to_retained_records(
+    tmp_path, sparse, malformed_manifest
+):
+    close = SQLiteRunLedger.close
+
+    def sparse_conflict(ledger):
+        ledger.append(
+            LedgerEntry(
+                runId="inspection-run",
+                category=LedgerRecordCategory.RUN_LIFECYCLE,
+                type="run.failed",
+                recordedAt=datetime.now(UTC),
+            )
+        )
+        close(ledger)
+        with sqlite3.connect(ledger.path) as connection:
+            if sparse == "malformed":
+                connection.execute(
+                    "UPDATE records SET record_json='{' WHERE sequence=2"
+                )
+            else:
+                connection.execute("DELETE FROM records WHERE sequence=2")
+            if malformed_manifest:
+                connection.execute("UPDATE runs SET manifest_json='{'")
+
+    with patch.object(SQLiteRunLedger, "close", sparse_conflict):
+        result, directory = inspect_run(tmp_path)
+    assert result.exit_code == 0, result.output
+    summary = json.loads((directory / "summary.json").read_text())
+    ledger = json.loads((directory / "evidence/ledger.json").read_text())
+    conflict = next(
+        p for p in summary["problems"] if "Conflicting terminal" in p["reason"]
+    )
+    expected = [
+        r for r in ledger["records"] if r["type"] in {"run.stopped", "run.failed"}
+    ]
+    assert [r["type"] for r in expected] == ["run.stopped", "run.failed"]
+    resolved = []
+    for reference in conflict["references"]:
+        file, pointer = reference.split("#", 1)
+        assert file == "evidence/ledger.json"
+        value = ledger
+        for part in pointer.lstrip("/").split("/"):
+            value = value[int(part)] if isinstance(value, list) else value[part]
+        resolved.append(value)
+    assert resolved == expected
+    assert summary["coverage"]["ledger"] == "partial"
+    assert summary["conclusions"]["execution"] is None
 
 
 def test_malformed_audit_payload_does_not_hide_independent_metadata(tmp_path):
