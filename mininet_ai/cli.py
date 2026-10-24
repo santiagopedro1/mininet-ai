@@ -34,7 +34,7 @@ from mininet_ai.audit import (
 )
 from mininet_ai.compiler import DeploymentPlan, compile_experiment
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
-from mininet_ai.dependency_logging import RunDiagnostics
+from mininet_ai.dependency_logging import RunDiagnostics, WarningIdentity
 from mininet_ai.errors import MininetAIError, describe_failure
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.exports import export_managed, export_offline
@@ -119,7 +119,7 @@ class _RunProgress:
         self._network_capabilities = network_capabilities
         self._lock = threading.RLock()
         self._capabilities: dict[tuple[str, str], str] = {}
-        self._warnings: dict[tuple[str, str, str, str], _WarningRepeats] = {}
+        self._warnings: dict[tuple[str, WarningIdentity], _WarningRepeats] = {}
         descriptor: int | None = None
         try:
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -164,7 +164,7 @@ class _RunProgress:
         source: str = "Run",
         visible: bool = False,
         summary: str | None = None,
-        warning_key: tuple[str, str, str] | None = None,
+        warning_key: WarningIdentity | None = None,
     ) -> None:
         with self._lock:
             self._logger.log(
@@ -174,8 +174,10 @@ class _RunProgress:
             )
             if not self._verbose and level == logging.WARNING:
                 # Group by source, agent, code and stable message, never invocation.
-                agent, code, problem = warning_key or ("", "", message)
-                key = (source, agent, code, problem)
+                warning = warning_key or WarningIdentity(
+                    agent="", code="", problem=message
+                )
+                key = (source, warning)
                 now = monotonic()
                 previous = self._warnings.get(key)
                 if previous is not None:
@@ -186,7 +188,10 @@ class _RunProgress:
                         previous.last_shown = now
                     return
                 self._warnings[key] = _WarningRepeats(
-                    source, problem + (f" agent={agent}" if agent else ""), now
+                    source,
+                    warning.problem
+                    + (f" agent={warning.agent}" if warning.agent else ""),
+                    now,
                 )
             if self._verbose or visible or level >= logging.WARNING:
                 print_event(

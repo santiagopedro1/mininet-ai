@@ -5,13 +5,23 @@ Callers own source identity validation and writer/exclusive-reader coordination.
 
 import sqlite3
 from contextlib import closing
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from pydantic import ValidationError
 
 from mininet_ai.runtime.ledger import LedgerRecord, RunManifest
 
 
-def read_ledger(path: Path, run_id: str) -> dict[str, Any]:
+def read_ledger(
+    path: Path, run_id: str, *, partial_inspection: bool = False
+) -> dict[str, Any]:
+    """Strict by default; inspection alone may retain independently valid rows.
+
+    Partial reads never bypass database, manifest identity or row attribution
+    checks. Rejected JSON and sequence gaps are explicit, not repaired tails.
+    """
     with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as connection:
         connection.execute("PRAGMA query_only=ON")
         connection.execute("BEGIN")
@@ -23,19 +33,65 @@ def read_ledger(path: Path, run_id: str) -> dict[str, Any]:
             "SELECT manifest_json FROM runs WHERE run_id=?", (run_id,)
         ).fetchone()
         manifest = (
-            RunManifest.model_validate_json(row[0]).model_dump(mode="json", by_alias=True)
-            if row else None
-        )
-        records = [
-            LedgerRecord.model_validate_json(row[0]).model_dump(mode="json", by_alias=True)
-            for row in connection.execute(
-                "SELECT record_json FROM records WHERE run_id=? ORDER BY sequence", (run_id,)
+            RunManifest.model_validate_json(row[0]).model_dump(
+                mode="json", by_alias=True
             )
-        ]
+            if row
+            else None
+        )
         if manifest is not None and manifest["runId"] != run_id:
             raise ValueError("ledger manifest identity mismatch")
-        if any(record["runId"] != run_id or record["sequence"] != index
-               for index, record in enumerate(records, 1)):
-            raise ValueError("ledger record identity/sequence mismatch")
-        return {"schema_version": 1, "run_id": run_id,
-                "manifest": manifest, "records": records}
+        records = []
+        problems = []
+        for index, (sequence, category, kind, timestamp, correlation, raw) in enumerate(
+            connection.execute(
+                "SELECT sequence,category,type,recorded_at,correlation_id,record_json "
+                "FROM records WHERE run_id=? ORDER BY sequence",
+                (run_id,),
+            ),
+            1,
+        ):
+            reference = f"{path}#sequence={sequence}"
+            if sequence != index:
+                if not partial_inspection:
+                    raise ValueError("ledger record identity/sequence mismatch")
+                problems.append(
+                    {
+                        "reference": reference,
+                        "reason": "Ledger sequence gap; totals and execution conclusion unknown",
+                    }
+                )
+            try:
+                record = LedgerRecord.model_validate_json(raw).model_dump(
+                    mode="json", by_alias=True
+                )
+            except ValidationError:
+                if not partial_inspection:
+                    raise
+                problems.append(
+                    {
+                        "reference": reference,
+                        "reason": "Malformed ledger record; classification unavailable",
+                    }
+                )
+                continue
+            if record["runId"] != run_id or record["sequence"] != sequence:
+                raise ValueError("ledger record identity/sequence mismatch")
+            if partial_inspection and (
+                record["category"] != category
+                or record["type"] != kind
+                or datetime.fromisoformat(record["recordedAt"])
+                != datetime.fromisoformat(timestamp)
+                or record["correlationId"] != correlation
+            ):
+                raise ValueError("ledger record attribution mismatch")
+            records.append(record)
+        result = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "manifest": manifest,
+            "records": records,
+        }
+        if partial_inspection:
+            result["validation_problems"] = problems
+        return result

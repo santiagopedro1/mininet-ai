@@ -13,6 +13,7 @@ from agno.utils import log
 from mininet_ai.dependency_logging import (
     DiagnosticSink,
     LoggerSnapshot,
+    WarningIdentity,
     current_diagnostic_invocation,
 )
 
@@ -64,10 +65,10 @@ class _DiagnosticHandler(logging.Handler):
         message = (
             f"Agno dependency {record.levelname.lower()} diagnostic dependency=agno"
         )
-        warning_key = (
-            context.agent_id if context is not None else "unknown",
-            "agno.diagnostic",
-            message,
+        warning_key = WarningIdentity(
+            agent=context.agent_id if context is not None else "unknown",
+            code="agno.diagnostic",
+            problem=message,
         )
         message += (
             " agent=unknown"
