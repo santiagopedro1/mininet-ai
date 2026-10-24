@@ -419,6 +419,8 @@ class IntentControlTests(unittest.TestCase):
         self.assertEqual(owner.stop().continuous.completed, 1)
 
     def test_separate_cli_process_submits_to_foreground_owner(self) -> None:
+        from tests.storage_fixtures import storage_args
+
         command = [sys.executable, "-c", "from mininet_ai.cli import app; app()"]
         with TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -443,16 +445,15 @@ class IntentControlTests(unittest.TestCase):
                     str(experiment),
                     "--format",
                     "json",
-                    "--artifact-root",
+                    "--results-dir",
                     str(directory / "output"),
-                    "--log-file",
-                    str(log),
-                    "--ledger-db",
-                    str(directory / "runs.sqlite3"),
-                    "--agno-db",
-                    str(directory / "agno.sqlite3"),
-                    "--shared-state-db",
-                    str(directory / "state.sqlite3"),
+                    *storage_args(
+                        directory,
+                        log_file=log,
+                        ledger_db=directory / "runs.sqlite3",
+                        agno_db=directory / "agno.sqlite3",
+                        shared_state_db=directory / "state.sqlite3",
+                    ),
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

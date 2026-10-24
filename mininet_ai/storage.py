@@ -105,7 +105,7 @@ def prepare_private_sqlite_file(path: str | Path) -> Path:
                 ):
                     raise PrivateStoragePathError(
                         database_path,
-                        "filesystem did not create a private user-owned file; use a local --artifact-root",
+                        "filesystem did not create a private user-owned file; use a local --results-dir",
                         unsafe=True,
                     )
             finally:
