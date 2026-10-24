@@ -9,6 +9,7 @@ import signal
 import stat
 import threading
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -373,6 +374,7 @@ class _SignalLatch:
     def __init__(self) -> None:
         self._event = threading.Event()
         self._previous: dict[signal.Signals, signal.Handlers] = {}
+        self.interruption_observed = False
 
     def __enter__(self) -> Self:
         for number in (signal.SIGINT, signal.SIGTERM):
@@ -385,6 +387,7 @@ class _SignalLatch:
             signal.signal(number, handler)
 
     def _request_stop(self, number: int, frame: FrameType | None) -> None:
+        self.interruption_observed = True
         del number, frame
         self.request_stop()
 
@@ -678,7 +681,9 @@ def run(
     )
 
     try:
-        reserved_id, substrate = reserve_run(deployment_plan.substrate)
+        reserved_id, substrate = _operation_or_exit(
+            lambda: reserve_run(deployment_plan.substrate), output_format
+        )
     except (LookupError, TypeError, ValueError) as error:
         raise typer.BadParameter(str(error)) from error
     registries = ProviderRegistries()
@@ -765,6 +770,8 @@ def run(
         )
     evidence = None
     if artifacts is not None and reserved_id is not None:
+        print_event(error_console, "INFO", "Run",
+                    f"Recorded run ID: {reserved_id}; Results directory: {artifacts.directory}")
         verified_writers = (
             not loaded
             and all(
@@ -827,8 +834,10 @@ def run(
     intent_server = None
     report = None
     operation_failed = False
+    operation_problem = None
     pending_error: MininetAIError | None = None
     diagnostics = None
+    stop_latch = None
     try:
         if reserved_id is not None:
             diagnostics = RunDiagnostics(
@@ -921,6 +930,9 @@ def run(
             stop_latch.wait()
     except BaseException as error:
         operation_failed = True
+        operation_problem = {"code": str(getattr(error, "code", "operation.failed")),
+                             "reason": str(error) or type(error).__name__,
+                             "phase": "startup/operation", "source": str(log_file)}
         progress.error(f"Run {reserved_id} startup/operation failed: {error}")
         error_console.print(
             "Run failed; diagnostic output retained. For storage errors use --results-dir on a private local filesystem supporting SQLite locking."
@@ -999,6 +1011,29 @@ def run(
                                 owner.teardown_error if owner is not None else None
                             ),
                         )
+                        from mininet_ai.inspection import publish_inspection
+
+                        try:
+                            print_event(error_console, "INFO", "Run",
+                                        f"Recorded run ID: {reserved_id}; Results directory: {evidence.directory}")
+                            for message in publish_inspection(
+                                evidence,
+                                interrupted=getattr(stop_latch, "interruption_observed", None),
+                                report=report,
+                                operation_problem=operation_problem,
+                            ):
+                                print_event(
+                                    error_console,
+                                    "WARNING" if message.startswith("Inspection unavailable:") else "INFO",
+                                    "Run",
+                                    message,
+                                )
+                        except Exception as inspection_error:
+                            # A broken diagnostic stream must not introduce an
+                            # inspection-only exit rule or mask original errors.
+                            with suppress(Exception):
+                                print_event(error_console, "WARNING", "Run",
+                                            f"Inspection unavailable: summary.md, summary.json, evidence/ledger.json: {inspection_error}; sources: {evidence.metadata.sources}")
                 finally:
                     if evidence is not None:
                         evidence.close()
