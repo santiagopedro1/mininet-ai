@@ -75,9 +75,7 @@ class _DiagnosticHandler(logging.Handler):
             else f" agent={context.agent_id} invocation={context.invocation_id}"
         )
         # Never format msg/args/exception: provider content is excluded.
-        self.sink(
-            message, level=record.levelno, source=source, warning_key=warning_key
-        )
+        self.sink(message, level=record.levelno, source=source, warning_key=warning_key)
 
 
 @contextmanager
