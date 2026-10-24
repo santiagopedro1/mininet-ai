@@ -20,6 +20,7 @@ from mininet_ai.runtime.ledger import LedgerEntry, LedgerRecordCategory, SQLiteR
 from mininet_ai.saved_runs import RunEvidence
 from mininet_ai.substrates import FakeSubstrateRuntime
 from tests.agents.test_runtime import configured_plan
+from tests.storage_fixtures import storage_args
 from tests.test_cli_runtime import fake_plan
 
 
@@ -33,7 +34,7 @@ def inspect_run(tmp_path, *, plan=None, extra_args=(), wait=None):
     ):
         result = CliRunner().invoke(
             app,
-            ["run", "experiment.yaml", "--artifact-root", str(tmp_path / "runs"),
+            ["run", "experiment.yaml", "--results-dir", str(tmp_path / "runs"),
              "--control-dir", control, "--format", "json", *extra_args],
         )
     return result, run_directory(tmp_path / "runs", "inspection-run")
@@ -245,7 +246,7 @@ def test_external_effective_sources_and_unavailable_diagnostics_are_honest(tmp_p
         log.unlink()
 
     with patch.object(RunEvidence, "finish", remove_log):
-        result, directory = inspect_run(tmp_path, extra_args=("--log-file", str(log)))
+        result, directory = inspect_run(tmp_path, extra_args=storage_args(tmp_path, log_file=log))
     assert result.exit_code == 0, result.output
     summary = json.loads((directory / "summary.json").read_text())
     assert summary["sources"]["log"] == str(log)

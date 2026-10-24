@@ -967,7 +967,12 @@ def run(
                                 report=report,
                                 operation_problem=operation_problem,
                             ):
-                                print_event(error_console, "INFO", "Run", message)
+                                print_event(
+                                    error_console,
+                                    "WARNING" if message.startswith("Inspection unavailable:") else "INFO",
+                                    "Run",
+                                    message,
+                                )
                         except Exception as inspection_error:
                             # A broken diagnostic stream must not introduce an
                             # inspection-only exit rule or mask original errors.

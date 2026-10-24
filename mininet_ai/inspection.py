@@ -71,7 +71,8 @@ def _count(value: int | None, population: str, references: list[str]) -> dict[st
             "population": population, "references": references}
 
 
-def _observations(ledger: dict[str, Any] | None, problems: list[dict[str, Any]]) -> dict[str, Any]:
+def _observations(ledger: dict[str, Any] | None, problems: list[dict[str, Any]],
+                  source: str) -> dict[str, Any]:
     """Count supported audit populations, not overlapping runtime aggregates.
 
     Reasoning completion precedes action/state commitment, so it is deliberately
@@ -99,7 +100,7 @@ def _observations(ledger: dict[str, Any] | None, problems: list[dict[str, Any]])
         if record["category"] not in {"invocation", "action"}:
             continue
         group = groups.get(kind)
-        reference = f"evidence/ledger.json#/records/{record['sequence'] - 1}"
+        reference = f"{source}#sequence={record['sequence']}"
         payload = record["data"].get("data", {})
         if not isinstance(payload, dict) or not isinstance(payload.get("result", {}), dict):
             problems.append({"reason": "Malformed audit payload; classification unavailable",
@@ -117,8 +118,11 @@ def _observations(ledger: dict[str, Any] | None, problems: list[dict[str, Any]])
                 observed[group].append(reference)
                 invocation_ids.add(identity)
         if kind.endswith(".failed") or result.get("status") in {"failed", "rejected"}:
-            problems.append({"code": payload.get("code", kind),
-                             "reason": payload.get("message", result.get("message", "Recorded failure; inspect referenced record")),
+            issue = result.get("issue") or {}
+            if not isinstance(issue, dict):
+                issue = {}
+            problems.append({"code": payload.get("code", issue.get("code", kind)),
+                             "reason": payload.get("message", issue.get("message", "Recorded failure; inspect referenced record")),
                              "reference": reference})
     for (population, classification), references in observed.items():
         counts[population][classification] = _count(
@@ -202,7 +206,7 @@ def publish_inspection(evidence: RunEvidence, *, interrupted: bool | None = None
                              "references": [f"evidence/ledger.json#/records/{record['sequence'] - 1}" for record in terminal]})
         else:
             execution = metadata.outcome
-    counts = _observations(ledger, problems)
+    counts = _observations(ledger, problems, metadata.sources["ledger"])
     started_at = ledger["manifest"]["createdAt"] if ledger and ledger["manifest"] else None
     if report is not None:
         report_start = report.run.model_dump(mode="json")["started_at"]
@@ -244,7 +248,7 @@ def publish_inspection(evidence: RunEvidence, *, interrupted: bool | None = None
                       (item["status"] == "succeeded") == (classification == "succeeded")]
         counts["invocations"][classification] = _count(
             len(references) if report is not None else None,
-            f"{classification} unique invocation results in current-run end report; excludes missing results and delivery issues",
+            f"{'successful' if classification == 'succeeded' else 'unsuccessful (failed or rejected)'} unique invocation results in current-run end report; excludes missing results and delivery issues",
             references,
         )
     summary = {
@@ -283,6 +287,11 @@ def publish_inspection(evidence: RunEvidence, *, interrupted: bool | None = None
         "problems": problems,
         "counts": counts,
         "observations": {"invocations": list(invocations.values())},
+        "optional_raw_payloads": {
+            "capture_added_by_inspection": False,
+            "availability": "only material already present in the recorded ledger; no raw-capture setting inferred",
+            "omissions": "unrecorded optional prompts/observations/Provider payloads are not manufactured and are distinct from essential evidence gaps",
+        },
         "gaps": ["Workload measurement criteria are not evaluated by generic bookkeeping",
                  "Raw prompts, observations and Provider payloads are available only if explicitly recorded; no additional capture is performed"],
     }
