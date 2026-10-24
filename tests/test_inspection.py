@@ -34,8 +34,17 @@ def inspect_run(tmp_path, *, plan=None, extra_args=(), wait=None):
     ):
         result = CliRunner().invoke(
             app,
-            ["run", "experiment.yaml", "--results-dir", str(tmp_path / "runs"),
-             "--control-dir", control, "--format", "json", *extra_args],
+            [
+                "run",
+                "experiment.yaml",
+                "--results-dir",
+                str(tmp_path / "runs"),
+                "--control-dir",
+                control,
+                "--format",
+                "json",
+                *extra_args,
+            ],
         )
     return result, run_directory(tmp_path / "runs", "inspection-run")
 
@@ -66,13 +75,22 @@ def test_partial_observed_action_failures_do_not_invent_totals(tmp_path):
 
     def close_with_failures(ledger):
         for index in range(3):
-            ledger.append(LedgerEntry(
-                runId="inspection-run", category=LedgerRecordCategory.ACTION,
-                type="capability.execution.failed", recordedAt=datetime.now(UTC),
-                correlationId=f"invocation-{index}",
-                data={"invocationId": f"invocation-{index}", "data": {
-                    "code": "action.failed", "message": "controlled action failure"}},
-            ))
+            ledger.append(
+                LedgerEntry(
+                    runId="inspection-run",
+                    category=LedgerRecordCategory.ACTION,
+                    type="capability.execution.failed",
+                    recordedAt=datetime.now(UTC),
+                    correlationId=f"invocation-{index}",
+                    data={
+                        "invocationId": f"invocation-{index}",
+                        "data": {
+                            "code": "action.failed",
+                            "message": "controlled action failure",
+                        },
+                    },
+                )
+            )
         close(ledger)
 
     with patch.object(SQLiteRunLedger, "close", close_with_failures):
@@ -83,24 +101,97 @@ def test_partial_observed_action_failures_do_not_invent_totals(tmp_path):
     assert summary["counts"]["actions"]["failed"]["coverage"] == "partial"
     assert summary["counts"]["actions"]["total"]["value"] is None
     assert summary["counts"]["actions"]["total"]["coverage"] == "unknown"
-    assert len([p for p in summary["problems"] if p.get("code") == "action.failed"]) == 3
+    assert (
+        len([p for p in summary["problems"] if p.get("code") == "action.failed"]) == 3
+    )
+
+
+def test_malformed_row_preserves_independent_failures_but_export_remains_strict(
+    tmp_path,
+):
+    close = SQLiteRunLedger.close
+    before = {}
+
+    def mixed_records(ledger):
+        ledger.append(
+            LedgerEntry(
+                runId="inspection-run",
+                category=LedgerRecordCategory.ACTION,
+                type="capability.execution.failed",
+                recordedAt=datetime.now(UTC),
+                data={
+                    "data": {"code": "action.failed", "message": "independent failure"}
+                },
+            )
+        )
+        close(ledger)
+        with sqlite3.connect(ledger.path) as connection:
+            connection.execute("UPDATE records SET record_json='{' WHERE sequence=2")
+        before[ledger.path] = hashlib.sha256(ledger.path.read_bytes()).hexdigest()
+
+    with patch.object(SQLiteRunLedger, "close", mixed_records):
+        result, directory = inspect_run(tmp_path)
+    assert result.exit_code == 0, result.output
+    summary = json.loads((directory / "summary.json").read_text())
+    assert summary["counts"]["actions"]["failed"]["value"] == 1
+    assert summary["counts"]["actions"]["failed"]["coverage"] == "partial"
+    assert summary["counts"]["actions"]["total"]["value"] is None
+    assert summary["coverage"]["ledger"] == "partial"
+    assert summary["conclusions"]["execution"] is None
+    assert any(p.get("code") == "action.failed" for p in summary["problems"])
+    assert any("#sequence=2" in p.get("reference", "") for p in summary["problems"])
+    ledger = json.loads((directory / "evidence/ledger.json").read_text())
+    assert any(r["type"] == "capability.execution.failed" for r in ledger["records"])
+    destination = tmp_path / "bundle"
+    exported = CliRunner().invoke(
+        app,
+        [
+            "export",
+            "inspection-run",
+            "--artifact-root",
+            str(tmp_path / "runs"),
+            "--destination",
+            str(destination),
+            "--acknowledge-sensitive-data",
+        ],
+    )
+    assert exported.exit_code == 1, exported.output
+    assert not (destination / "EXPORT_COMPLETE").exists()
+    assert all(
+        hashlib.sha256(path.read_bytes()).hexdigest() == digest
+        for path, digest in before.items()
+    )
 
 
 def test_complete_recorded_response_survives_without_raw_capture(tmp_path):
-    response = {"message": "full structured answer " * 100,
-                "proposals": [{"id": "p1", "capability": "openflow.flow.install",
-                               "target": "s1", "arguments": {"match": "ip", "actions": "normal"}}]}
+    response = {
+        "message": "full structured answer " * 100,
+        "proposals": [
+            {
+                "id": "p1",
+                "capability": "openflow.flow.install",
+                "target": "s1",
+                "arguments": {"match": "ip", "actions": "normal"},
+            }
+        ],
+    }
     result, directory = inspect_run(
-        tmp_path, plan=configured_plan(response),
+        tmp_path,
+        plan=configured_plan(response),
         extra_args=("--intent", "switch-router@s1=inspect forwarding"),
     )
     assert result.exit_code == 0, result.output
     ledger = json.loads((directory / "evidence/ledger.json").read_text())
-    recorded = [r["data"]["data"]["response"] for r in ledger["records"]
-                if r["type"] == "agent.invocation.completed"]
+    recorded = [
+        r["data"]["data"]["response"]
+        for r in ledger["records"]
+        if r["type"] == "agent.invocation.completed"
+    ]
     assert len(recorded) == 1
     assert recorded[0]["message"] == response["message"]
-    assert recorded[0]["proposals"] == [{**response["proposals"][0], "reason": None, "timeoutSeconds": 30.0}]
+    assert recorded[0]["proposals"] == [
+        {**response["proposals"][0], "reason": None, "timeoutSeconds": 30.0}
+    ]
     assert ledger["manifest"]["contractVersion"] == "mininet-ai/run-ledger/v1alpha1"
     summary = json.loads((directory / "summary.json").read_text())
     assert summary["counts"]["actions"]["succeeded"]["value"] == 1
@@ -125,18 +216,30 @@ def test_inspection_write_failure_preserves_exit_and_sources(tmp_path, failed_vi
             raise OSError("controlled inspection failure")
         return link(source, destination, **kwargs)
 
-    with patch.object(RunEvidence, "finish", capture_finish), patch("os.link", fail_link):
+    with (
+        patch.object(RunEvidence, "finish", capture_finish),
+        patch("os.link", fail_link),
+    ):
         result, directory = inspect_run(tmp_path)
     assert result.exit_code == 0, result.output
     assert "controlled inspection failure" in result.stderr
     assert failed_view in result.stderr
-    assert not (directory / ("evidence" if failed_view == "ledger.json" else "") / failed_view).exists()
+    assert not (
+        directory / ("evidence" if failed_view == "ledger.json" else "") / failed_view
+    ).exists()
     assert before
-    assert all(hashlib.sha256(path.read_bytes()).hexdigest() == digest for path, digest in before.items())
+    assert all(
+        hashlib.sha256(path.read_bytes()).hexdigest() == digest
+        for path, digest in before.items()
+    )
 
 
 def test_partial_start_failure_keeps_original_error_and_unknown_start(tmp_path):
-    with patch.object(FakeSubstrateRuntime, "deploy", side_effect=MininetAIError("original deployment failure")):
+    with patch.object(
+        FakeSubstrateRuntime,
+        "deploy",
+        side_effect=MininetAIError("original deployment failure"),
+    ):
         result, directory = inspect_run(tmp_path)
     assert result.exit_code == 1, result.output
     assert "original deployment failure" in result.output
@@ -145,14 +248,20 @@ def test_partial_start_failure_keeps_original_error_and_unknown_start(tmp_path):
     assert summary["outcomes"]["operation"] == "failed"
     assert summary["outcomes"]["cleanup"]["status"] == "unknown"
     assert summary["outcomes"]["evidence_finalized"] is False
-    assert any("original deployment failure" in p["reason"] for p in summary["problems"])
+    assert any(
+        "original deployment failure" in p["reason"] for p in summary["problems"]
+    )
     assert summary["counts"]["actions"]["failed"]["value"] is None
     assert not (directory / "evidence/ledger.json").exists()
 
 
 def test_original_failure_survives_secondary_inspection_failure(tmp_path):
     with (
-        patch.object(FakeSubstrateRuntime, "deploy", side_effect=MininetAIError("original deployment failure")),
+        patch.object(
+            FakeSubstrateRuntime,
+            "deploy",
+            side_effect=MininetAIError("original deployment failure"),
+        ),
         patch("os.link", side_effect=OSError("secondary publication failure")),
     ):
         result, directory = inspect_run(tmp_path)
@@ -168,7 +277,9 @@ def test_missing_terminal_record_leaves_disputed_conclusion_unknown(tmp_path):
     def remove_terminal(ledger):
         close(ledger)
         with sqlite3.connect(ledger.path) as connection:
-            connection.execute("DELETE FROM records WHERE sequence=(SELECT max(sequence) FROM records)")
+            connection.execute(
+                "DELETE FROM records WHERE sequence=(SELECT max(sequence) FROM records)"
+            )
 
     with patch.object(SQLiteRunLedger, "close", remove_terminal):
         result, directory = inspect_run(tmp_path)
@@ -225,9 +336,17 @@ def test_observed_signal_does_not_claim_remote_termination(tmp_path):
 
 
 def test_failed_invocation_is_not_hidden_by_successful_reasoning_or_cleanup(tmp_path):
-    response = {"proposals": [{"id": "bad", "capability": "not.allowed", "target": "s1"}]}
-    result, directory = inspect_run(tmp_path, plan=configured_plan(response),
-                                    extra_args=("--intent", "switch-router@s1=inspect",))
+    response = {
+        "proposals": [{"id": "bad", "capability": "not.allowed", "target": "s1"}]
+    }
+    result, directory = inspect_run(
+        tmp_path,
+        plan=configured_plan(response),
+        extra_args=(
+            "--intent",
+            "switch-router@s1=inspect",
+        ),
+    )
     assert result.exit_code == 1, result.output
     summary = json.loads((directory / "summary.json").read_text())
     assert summary["outcomes"]["cleanup"]["status"] == "verified"
@@ -235,6 +354,41 @@ def test_failed_invocation_is_not_hidden_by_successful_reasoning_or_cleanup(tmp_
     assert summary["counts"]["invocations"]["succeeded"]["value"] == 0
     assert summary["counts"]["invocations"]["reasoning_completed"]["value"] == 1
     assert summary["observations"]["invocations"][0]["status"] != "succeeded"
+
+
+def test_unexpected_runtime_failure_preserves_issue_without_inventing_result(tmp_path):
+    with patch(
+        "mininet_ai.runtime.continuous.ContinuousAgentRuntime._invoke",
+        side_effect=RuntimeError("controlled unexpected invocation failure"),
+    ):
+        result, directory = inspect_run(
+            tmp_path,
+            plan=configured_plan({"message": "unused"}),
+            extra_args=(
+                "--intent",
+                "switch-router@s1=inspect",
+            ),
+        )
+    assert result.exit_code == 1, result.output
+    assert "runtime.invocation.failed" in result.stdout
+    summary = json.loads((directory / "summary.json").read_text())
+    issue = next(
+        p for p in summary["problems"] if p.get("code") == "runtime.invocation.failed"
+    )
+    assert issue["reason"] == "controlled unexpected invocation failure"
+    assert issue["agent_id"] == "switch-router@s1"
+    assert issue["event_id"] and issue["trigger"] and issue["source"]
+    assert issue["reference"]
+    assert summary["observations"]["invocations"] == []
+    counts = summary["counts"]["invocations"]
+    assert counts["failed"]["value"] == 0  # Result population, not runtime aggregates.
+    assert counts["runtime_failed"]["value"] == 1
+    assert counts["runtime_failed"]["coverage"] == "partial"
+    assert counts["total"]["value"] is None
+    assert (
+        "controlled unexpected invocation failure"
+        in (directory / "summary.md").read_text()
+    )
 
 
 def test_external_effective_sources_and_unavailable_diagnostics_are_honest(tmp_path):
@@ -246,7 +400,9 @@ def test_external_effective_sources_and_unavailable_diagnostics_are_honest(tmp_p
         log.unlink()
 
     with patch.object(RunEvidence, "finish", remove_log):
-        result, directory = inspect_run(tmp_path, extra_args=storage_args(tmp_path, log_file=log))
+        result, directory = inspect_run(
+            tmp_path, extra_args=storage_args(tmp_path, log_file=log)
+        )
     assert result.exit_code == 0, result.output
     summary = json.loads((directory / "summary.json").read_text())
     assert summary["sources"]["log"] == str(log)
@@ -273,15 +429,22 @@ def test_preexisting_inspection_file_is_not_overwritten(tmp_path):
 
 
 @pytest.mark.parametrize("retry", [False, True])
-def test_conflicting_terminal_records_are_not_confused_with_recorded_retry(tmp_path, retry):
+def test_conflicting_terminal_records_are_not_confused_with_recorded_retry(
+    tmp_path, retry
+):
     close = SQLiteRunLedger.close
 
     def terminal_records(ledger):
         types = ["run.failed"] + (["run.stop-retrying", "run.stopped"] if retry else [])
         for kind in types:
-            ledger.append(LedgerEntry(runId="inspection-run",
-                                     category=LedgerRecordCategory.RUN_LIFECYCLE,
-                                     type=kind, recordedAt=datetime.now(UTC)))
+            ledger.append(
+                LedgerEntry(
+                    runId="inspection-run",
+                    category=LedgerRecordCategory.RUN_LIFECYCLE,
+                    type=kind,
+                    recordedAt=datetime.now(UTC),
+                )
+            )
         close(ledger)
 
     with patch.object(SQLiteRunLedger, "close", terminal_records):
@@ -295,9 +458,15 @@ def test_malformed_audit_payload_does_not_hide_independent_metadata(tmp_path):
     close = SQLiteRunLedger.close
 
     def malformed_record(ledger):
-        ledger.append(LedgerEntry(runId="inspection-run", category=LedgerRecordCategory.ACTION,
-                                 type="capability.execution.completed", recordedAt=datetime.now(UTC),
-                                 data={"data": []}))
+        ledger.append(
+            LedgerEntry(
+                runId="inspection-run",
+                category=LedgerRecordCategory.ACTION,
+                type="capability.execution.completed",
+                recordedAt=datetime.now(UTC),
+                data={"data": []},
+            )
+        )
         close(ledger)
 
     with patch.object(SQLiteRunLedger, "close", malformed_record):
@@ -311,9 +480,14 @@ def test_malformed_audit_payload_does_not_hide_independent_metadata(tmp_path):
 def test_failure_before_reservation_does_not_fabricate_results_handle(tmp_path):
     with (
         patch("mininet_ai.cli._compile_or_exit", return_value=fake_plan()),
-        patch("mininet_ai.cli.reserve_run", side_effect=MininetAIError("reservation unavailable")),
+        patch(
+            "mininet_ai.cli.reserve_run",
+            side_effect=MininetAIError("reservation unavailable"),
+        ),
     ):
-        result = CliRunner().invoke(app, ["run", "experiment.yaml", "--results-dir", str(tmp_path / "runs")])
+        result = CliRunner().invoke(
+            app, ["run", "experiment.yaml", "--results-dir", str(tmp_path / "runs")]
+        )
     assert result.exit_code == 1, result.output
     assert "reservation unavailable" in result.output
     assert "Recorded run ID:" not in result.output
