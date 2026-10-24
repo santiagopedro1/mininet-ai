@@ -54,6 +54,7 @@ class DiagnosticSink(Protocol):
         level: int = logging.INFO,
         source: str = "Run",
         visible: bool = False,
+        warning_key: tuple[str, str, str] | None = None,
     ) -> None: ...
 
 
@@ -136,9 +137,14 @@ class _NativeHandler(logging.Handler):
             self.pending[key] = tail
 
     def _send(self, message: str, level: int, context: Invocation | None) -> None:
+        warning_key = (
+            context.agent_id if context is not None else "",
+            "mininet.diagnostic",
+            message,
+        )
         if context is not None:
             message += f" agent={context.agent_id} invocation={context.invocation_id}"
-        self.sink(message, level=level, source="Mininet")
+        self.sink(message, level=level, source="Mininet", warning_key=warning_key)
 
     def _flush(self, key: tuple[int, Invocation | None, int, str]) -> None:
         message = self.pending.pop(key)
