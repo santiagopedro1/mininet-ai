@@ -92,6 +92,8 @@ class RuntimeCLITests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("Running cli-run", result.output)
+        self.assertIn("Running cli-run", result.stderr)
+        self.assertNotIn("Running cli-run", result.stdout)
         self.assertIn("Stopped cli-run", result.output)
         self.assertEqual(runtime.inspect("cli-run").run.state, RunState.STOPPED)
 
@@ -175,7 +177,7 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertEqual(log_mode, 0o600)
         self.assertEqual(result.stderr.count("Control endpoint:"), 1)
 
-    def test_default_progress_attributes_agent_summaries_without_json_noise(
+    def test_default_progress_omits_reasoning_without_losing_saved_diagnostics(
         self,
     ) -> None:
         plan = configured_plan({"message": "handled [bold]literally[/bold]\nnext line"})
@@ -204,11 +206,9 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(json.loads(result.stdout)["state"], "stopped")
         self.assertRegex(result.stderr, r"\d{2}:\d{2}:\d{2} INFO \[Run\]")
-        self.assertIn(
-            "INFO [Agent:switch-router@s1] handled [bold]literally[/bold]",
-            result.stderr,
-        )
-        self.assertIn("INFO [Agent:switch-router@s1] next line", result.stderr)
+        self.assertNotIn("handled", result.stderr)
+        self.assertNotIn("next line", result.stderr)
+        self.assertIn('message="handled [bold]literally[/bold]\\nnext line"', log)
         self.assertNotIn("agent.invocation.started", result.stderr)
         self.assertNotIn("model.request.started", result.stderr)
         self.assertIn('INFO run_id="readable-run" [Agent:switch-router@s1]', log)
@@ -294,6 +294,7 @@ class RuntimeCLITests(unittest.TestCase):
                         [
                             "run",
                             "experiment.yaml",
+                            "--verbose",
                             "--format",
                             "json",
                             "--intent",
@@ -304,7 +305,7 @@ class RuntimeCLITests(unittest.TestCase):
                     )
                 log = (Path(temporary) / "run.log").read_text()
                 self.assertEqual(result.exit_code, 0, result.output)
-                self.assertIn(r"literal\x1b[31m\x0dtext", result.stderr)
+                self.assertIn(r"literal\u001b[31m\rtext", result.stderr)
                 self.assertNotIn("\x1b", log)
                 self.assertEqual("\x1b[36m[Run]" in result.stderr, not no_color)
                 self.assertEqual(
@@ -408,6 +409,9 @@ class RuntimeCLITests(unittest.TestCase):
             log,
         )
         self.assertIn('request_id="out-of-scope"', log)
+        self.assertIn("capability.target.out-of-scope", result.stderr)
+        self.assertIn('request_id="out-of-scope"', result.stderr)
+        self.assertIn("invocation=", result.stderr)
 
     def test_run_reports_invocation_failure_live_and_stops_automatically(self) -> None:
         plan = configured_plan({"metadata": {}})
@@ -492,6 +496,15 @@ class RuntimeCLITests(unittest.TestCase):
         self.assertEqual(runtime.inspect("cli-intents-run").run.state, RunState.STOPPED)
 
     def test_run_tears_down_if_reporting_the_started_run_fails(self) -> None:
+        from mininet_ai.cli import error_console
+
+        original = error_console.print
+
+        def print_or_fail(*args, **kwargs):
+            if args and "Running cli-broken-output" in str(args[0]):
+                raise BrokenPipeError
+            return original(*args, **kwargs)
+
         runtime = FakeSubstrateRuntime(run_id_factory=lambda: "cli-broken-output")
         with (
             TemporaryDirectory() as temporary,
@@ -500,7 +513,7 @@ class RuntimeCLITests(unittest.TestCase):
                 "mininet_ai.cli.reserve_run",
                 return_value=("cli-broken-output", runtime),
             ),
-            patch("mininet_ai.cli.console.print", side_effect=BrokenPipeError),
+            patch("mininet_ai.cli.error_console.print", side_effect=print_or_fail),
         ):
             result = self.runner.invoke(
                 app,
