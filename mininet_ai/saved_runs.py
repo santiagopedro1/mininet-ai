@@ -14,7 +14,7 @@ import stat
 import uuid
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -307,3 +307,29 @@ class RunEvidence:
         if self._source_locks is not None:
             self._source_locks.close()
         self._run_lock.close()
+
+    def inspection_ledger(self) -> dict[str, Any]:
+        """Read only after finalization, retaining the run's lifetime lock.
+
+        Releasing our source locks does not prove other writers stopped: the
+        exclusive reader lock and recorded physical identity are still required.
+        """
+        from mininet_ai.evidence_reader import read_ledger
+
+        self._run_lock.verify()
+        if not self.metadata.finalized or not self.metadata.managed_writers_verified:
+            raise ValueError(
+                "ledger unavailable: managed writers are not verified stopped"
+            )
+        if self._source_locks is not None:
+            self._source_locks.verify()
+            self._source_locks.close()
+            self._source_locks = None
+        path = Path(self.metadata.sources["ledger"])
+        with SourceLocks([path], writer=False) as locks:
+            if (
+                identity(locks.descriptor(path))
+                != self.metadata.source_identities["ledger"]
+            ):
+                raise ValueError(f"ledger source identity changed: {path}")
+            return read_ledger(path, self.metadata.run_id, partial_inspection=True)
