@@ -13,7 +13,11 @@ from uuid import uuid4
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from mininet_ai.agents.agno import AgnoAgentFactory, AgnoAgentProvider
-from mininet_ai.agents.bounded import BoundedDecisionAdapter, DecisionTransport
+from mininet_ai.agents.bounded import (
+    BoundedDecisionAdapter,
+    DecisionAuthority,
+    DecisionTransport,
+)
 from mininet_ai.audit import (
     AuditedCapabilityExecutor,
     AuditEventType,
@@ -121,6 +125,7 @@ class _OneShotPreparation:
     model_queueing_seconds: float
     reasoning_seconds: float
     state_changes: tuple[SharedStateChange, ...]
+    authority: DecisionAuthority | None = None
     action_total_seconds: float = 0
     action_timing_lock: Lock = field(default_factory=Lock)
     action_start_lock: Lock = field(default_factory=Lock)
@@ -198,6 +203,8 @@ class OneShotAgentRuntime:
         self._clock = clock
         self._monotonic = monotonic_clock
         self._invocation_id_factory = invocation_id_factory
+        self._authority_lock = Lock()
+        self._active_authorities: dict[str, tuple[DecisionAuthority, object, str]] = {}
         capability_engine = CapabilityEngine(
             self._catalog,
             registries.capabilities,
@@ -331,8 +338,30 @@ class OneShotAgentRuntime:
                 {"context": context.model_dump(mode="json", by_alias=True)},
             )
         reasoning_tick = self._monotonic()
+        provider: AgentExecutionAdapter | None = None
+        authority: DecisionAuthority | None = None
         try:
             provider = self._execution_factory(definition)
+            if definition.instance.decision_scenario is not None:
+                metadata = coordination.metadata if coordination is not None else {}
+                scheduled_tick = metadata.get("deadlineStartedAt")
+                deadline_seconds = metadata.get("deadlineSeconds")
+                deadline = (
+                    float(scheduled_tick) + float(deadline_seconds)
+                    if isinstance(scheduled_tick, (int, float))
+                    and isinstance(deadline_seconds, (int, float))
+                    else self._monotonic() + 0.8
+                )
+                authority = DecisionAuthority(deadline, self._monotonic)
+                bind_authority = getattr(provider, "bind_authority", None)
+                if callable(bind_authority):
+                    bind_authority(authority)
+                    with self._authority_lock:
+                        self._active_authorities[agent_id] = (
+                            authority,
+                            provider,
+                            invocation_id,
+                        )
             execution = provider.run(context)
             response = execution.response
         except Exception as error:
@@ -343,16 +372,25 @@ class OneShotAgentRuntime:
                     context,
                     self._error_data(error),
                 )
-            return self._failure(
+            failed_response = (
+                provider.failure_response(error)
+                if provider is not None
+                and callable(getattr(provider, "failure_response", None))
+                else None
+            )
+            failed = self._failure(
                 context,
                 started_at,
                 error,
+                response=failed_response,
                 timings=self._timings(
                     started_tick,
                     context_seconds=context_seconds,
                     reasoning_seconds=reasoning_seconds,
                 ),
             )
+            self._release_authority(agent_id, authority)
+            return failed
         reasoning_seconds = self._elapsed(reasoning_tick)
         if self._audit is not None:
             self._audit.record(
@@ -377,6 +415,7 @@ class OneShotAgentRuntime:
             model_queueing_seconds=execution.model_queueing_seconds,
             reasoning_seconds=reasoning_seconds,
             state_changes=(),
+            authority=getattr(execution, "authority", authority),
         )
         return PreparedAgentInvocation(
             context=context,
@@ -393,29 +432,30 @@ class OneShotAgentRuntime:
 
         state = self._prepared_state(prepared)
         with state.action_start_lock:
-            metadata = (
-                prepared.context.coordination.metadata
-                if prepared.context.coordination is not None
-                else {}
-            )
-            scheduled_tick = metadata.get("deadlineStartedAt")
-            deadline_seconds = metadata.get("deadlineSeconds")
-            if (
-                isinstance(scheduled_tick, (int, float))
-                and not isinstance(scheduled_tick, bool)
-                and isinstance(deadline_seconds, (int, float))
-                and not isinstance(deadline_seconds, bool)
-                and self._monotonic()
-                >= float(scheduled_tick) + float(deadline_seconds)
-            ):
-                return self.reject(
-                    prepared,
-                    proposal,
-                    code="agent.bounded-decision.timeout",
-                    message="decision deadline expired before action start",
-                )
             action_tick = self._monotonic()
-            result = self._capabilities.execute(prepared.context, proposal)
+            if state.authority is None:
+                result = self._capabilities.execute(prepared.context, proposal)
+            else:
+                started, result = state.authority.execute_if_authorized(
+                    lambda: self._capabilities.execute(prepared.context, proposal)
+                )
+                if not started:
+                    reason = state.authority.revocation or "timeout"
+                    return ActionResult(
+                        run_id=prepared.context.run_id,
+                        request_id=proposal.id,
+                        status=ActionStatus.FAILED,
+                        completed_at=self._clock(),
+                        issue=RuntimeIssue(
+                            code=(
+                                "agent.bounded-decision.cancelled"
+                                if reason == "cancelled"
+                                else "agent.bounded-decision.timeout"
+                            ),
+                            message=f"decision authority revoked before action start: {reason}",
+                            target=proposal.target,
+                        ),
+                    )
         elapsed = self._elapsed(action_tick)
         with state.action_timing_lock:
             state.action_total_seconds += elapsed
@@ -557,13 +597,15 @@ class OneShotAgentRuntime:
                         state.context,
                         self._error_data(error),
                     )
-                return self._state_failure(
+                failure = self._state_failure(
                     state.context,
                     state.started_at,
                     state.response,
                     error,
                     timings=timings,
                 ).model_copy(update={"action_results": action_results})
+                self._release_authority(state.context.agent_id, state.authority)
+                return failure
         try:
             runtime_update = state.provider.record_action_results(
                 state.context, action_results
@@ -591,7 +633,7 @@ class OneShotAgentRuntime:
                     state.context,
                     self._error_data(error),
                 )
-            return AgentInvocationResult(
+            failed = AgentInvocationResult(
                 invocationId=state.context.invocation_id,
                 runId=state.context.run_id,
                 agentId=state.context.agent_id,
@@ -608,7 +650,9 @@ class OneShotAgentRuntime:
                     agentId=state.context.agent_id,
                 ),
             )
-        return self._result(
+            self._release_authority(state.context.agent_id, state.authority)
+            return failed
+        result = self._result(
             state.context,
             state.started_at,
             state.response,
@@ -616,6 +660,32 @@ class OneShotAgentRuntime:
             state.state_changes,
             timings,
         )
+        self._release_authority(state.context.agent_id, state.authority)
+        return result
+
+    def cancel_bounded_decision(self, agent_id: str) -> bool:
+        """Revoke local commitment authority; this does not prove remote stop."""
+        with self._authority_lock:
+            active = self._active_authorities.get(agent_id)
+        if active is None:
+            return False
+        authority, provider, invocation_id = active
+        cancel = getattr(provider, "cancel_local", None)
+        if callable(cancel):
+            cancel(invocation_id)
+        else:
+            authority.revoke("cancelled")
+        return True
+
+    def _release_authority(
+        self, agent_id: str, authority: DecisionAuthority | None
+    ) -> None:
+        if authority is None:
+            return
+        with self._authority_lock:
+            active = self._active_authorities.get(agent_id)
+            if active is not None and active[0] is authority:
+                del self._active_authorities[agent_id]
 
     @staticmethod
     def _prepared_state(prepared: PreparedAgentInvocation) -> _OneShotPreparation:
@@ -859,6 +929,7 @@ class OneShotAgentRuntime:
         started_at: datetime,
         error: Exception,
         *,
+        response: AgentResponse | None = None,
         timings: InvocationTimings,
     ) -> AgentInvocationResult:
         return AgentInvocationResult(
@@ -868,6 +939,7 @@ class OneShotAgentRuntime:
             status=InvocationStatus.FAILED,
             startedAt=started_at,
             completedAt=self._clock(),
+            response=response,
             timings=timings,
             issue=AgentRuntimeIssue(
                 code=self._error_code(error),

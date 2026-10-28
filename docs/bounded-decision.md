@@ -24,11 +24,15 @@ active are dropped/coalesced rather than queued for catch-up. Already-started
 actions keep their configured action timeout and are not rolled back.
 
 Deadline expiry prevents a late local response from becoming an admitted action
-and prevents later bundle steps from starting. Local cancellation/discard does
-not establish cancellation or termination at llama.cpp: remote terminal status
-is unknown unless independently verified. No general transport cancellation,
-live-model/network validation, or accepted live-support claim is provided by
-this incremental implementation.
+and prevents later bundle steps from starting. Call
+`ExperimentRuntime.cancel_bounded_decision(agent_id)` to revoke local action
+authority. The HTTP transport makes a best-effort local client-close request;
+custom transports may provide their own `cancel_request` hook. A late response
+may still arrive and is retained as discarded evidence, and already-started
+actions continue under their action timeout with effects recorded. These local
+operations do not establish cancellation or termination at llama.cpp: remote
+terminal status remains unknown unless independently verified. Live-model/network
+validation and accepted live-support claims remain outside this implementation.
 
 The native request contains the retained canonical context string in `state`
 and exactly one `questions.next_action` choice question. Choice IDs and criteria

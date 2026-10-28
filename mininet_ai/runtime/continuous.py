@@ -46,6 +46,7 @@ from mininet_ai.specification.models import EventTrigger, IntervalTrigger
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
 InvocationListener = Callable[[ContinuousInvocationRecord], None]
+RuntimeIssueListener = Callable[[ContinuousRuntimeIssue], None]
 MonotonicClock = Callable[[], float]
 
 
@@ -118,6 +119,7 @@ class ContinuousAgentRuntime:
         clock: Clock = _utc_now,
         event_id_factory: EventIdFactory = _event_id,
         monotonic_clock: MonotonicClock = time.monotonic,
+        issue_listener: RuntimeIssueListener | None = None,
     ) -> None:
         if not run_id:
             raise ValueError("continuous runtime run id cannot be empty")
@@ -138,6 +140,7 @@ class ContinuousAgentRuntime:
         self._monotonic = monotonic_clock
         self._scheduled_ticks: dict[str, float] = {}
         self._invocation_listener = invocation_listener
+        self._issue_listener = issue_listener
         self._agents = {agent.id: agent for agent in plan.agents}
         self._coordination_graph = (
             CoordinationGraph(plan) if isinstance(invoker, Coordinator) else None
@@ -563,12 +566,14 @@ class ContinuousAgentRuntime:
         execution = self._agents[execution_agent_id].execution
         with self._condition:
             queue = self._queues[execution_agent_id]
-            if self._bounded_tick(item) and execution_agent_id in self._bounded_active:
+            if self._bounded_tick(item) and (
+                execution_agent_id in self._bounded_active or queue
+            ):
                 with self._report_lock:
                     self._counts["coalesced"] += 1
                 self._issue(
                     "runtime.bounded-decision.tick-coalesced",
-                    "bounded decision tick was dropped while its prior decision remained in flight",
+                    "bounded decision tick was dropped while an earlier tick was queued or in flight",
                     event=item.event,
                     agent_id=item.agent.id,
                     trigger=item.trigger,
@@ -701,6 +706,7 @@ class ContinuousAgentRuntime:
                 agent_id,
                 lambda: self._invoke(item, lease),
                 before_wait=lease.close if lease is not None else None,
+                continue_after_failure=self._bounded_tick(item),
             )
         except Exception as error:
             self._issue(
@@ -807,8 +813,17 @@ class ContinuousAgentRuntime:
             None,
         )
         if root is None:
+            cause = next(
+                (
+                    issue
+                    for issue in outcome.issues
+                    if issue.message_id == root_message_id
+                ),
+                None,
+            )
             raise ContinuousRuntimeError(
-                "coordination outcome has no root invocation",
+                "coordination outcome has no root invocation"
+                + (f": {cause.code}: {cause.message}" if cause is not None else ""),
                 code="runtime.coordination.root-missing",
             )
         return root
@@ -852,3 +867,5 @@ class ContinuousAgentRuntime:
                 self._counts["dropped"] += 1
             if rejected:
                 self._counts["rejected"] += 1
+        if self._issue_listener is not None:
+            self._issue_listener(issue)

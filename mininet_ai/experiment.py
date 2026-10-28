@@ -24,6 +24,7 @@ from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime.continuous import ContinuousAgentRuntime, ContinuousRuntimeState
 from mininet_ai.runtime.contracts import (
     ContinuousInvocationRecord,
+    ContinuousRuntimeIssue,
     ContinuousRuntimeReport,
     ManualIntentPayload,
     RuntimeEvent,
@@ -115,6 +116,7 @@ class ExperimentRuntime:
         invocation_listener: Callable[[ContinuousInvocationRecord], None] | None = None,
         decision_transport: object | None = None,
         monotonic_clock: MonotonicClock = monotonic,
+        runtime_issue_listener: Callable[[ContinuousRuntimeIssue], None] | None = None,
     ) -> None:
         self._plan = plan
         self._substrate = substrate
@@ -134,10 +136,12 @@ class ExperimentRuntime:
         self._clock = clock
         self._event_id_factory = event_id_factory
         self._invocation_listener = invocation_listener
+        self._runtime_issue_listener = runtime_issue_listener
         self._lock = Lock()
         self._state = ExperimentRuntimeState.CREATED
         self._run: RunInfo | None = None
         self._continuous: ContinuousAgentRuntime | None = None
+        self._one_shot: OneShotAgentRuntime | None = None
         self._telemetry: TelemetryPipeline | None = None
         self._continuous_started = False
         self._telemetry_started = False
@@ -194,6 +198,17 @@ class ExperimentRuntime:
             if any(trigger.type == "manual" for trigger in agent.triggers)
         )
 
+    def cancel_bounded_decision(self, agent_id: str) -> bool:
+        """Revoke active local admission authority without claiming remote stop."""
+        with self._lock:
+            runtime = self._one_shot
+        if runtime is None or not any(
+            agent.id == agent_id and agent.decision_scenario is not None
+            for agent in self._plan.agents
+        ):
+            return False
+        return runtime.cancel_bounded_decision(agent_id)
+
     def start(self) -> RunInfo:
         """Deploy and start all continuous experiment producers and consumers."""
 
@@ -229,6 +244,7 @@ class ExperimentRuntime:
                 bounded_startup=self._bounded_startup,
                 monotonic_clock=self._monotonic,
             )
+            self._one_shot = invoker
             coordinator = CoordinationRuntime(self._plan, invoker)
             continuous = ContinuousAgentRuntime(
                 self._plan,
@@ -239,6 +255,7 @@ class ExperimentRuntime:
                 clock=self._clock,
                 event_id_factory=self._event_id_factory,
                 monotonic_clock=self._monotonic,
+                issue_listener=self._runtime_issue_listener,
             )
             telemetry = TelemetryPipeline(
                 self._plan,

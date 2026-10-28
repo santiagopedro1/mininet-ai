@@ -135,6 +135,7 @@ class AgentSupervisor:
         invocation: Callable[[], InvocationResult],
         *,
         before_wait: Callable[[], None] | None = None,
+        continue_after_failure: bool = False,
     ) -> InvocationResult:
         """Run an invocation, retrying failures within the restart budget."""
 
@@ -147,6 +148,8 @@ class AgentSupervisor:
                     continue
                 raise
             if result.status == InvocationStatus.FAILED:
+                if continue_after_failure:
+                    return result
                 if self._recover(agent_id):
                     continue
                 return result

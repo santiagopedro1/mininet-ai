@@ -6,6 +6,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from threading import Lock, Thread
 from time import monotonic
 from typing import Any, Protocol
 
@@ -167,6 +168,7 @@ class NativeSystemOneClient:
         criteria: Sequence[str],
         choices: Mapping[str, Sequence[dict[str, Any]]],
         timeout_seconds: float,
+        request_id: str | None = None,
     ) -> ChoiceResult:
         if tuple(choices) != tuple(criteria):
             raise AgentRuntimeError(
@@ -190,6 +192,7 @@ class NativeSystemOneClient:
                 headers={"Content-Type": "application/json"},
                 timeout_seconds=timeout_seconds,
                 max_response_bytes=1_048_576,
+                **({"request_id": request_id} if request_id is not None else {}),
             )
         except Exception as error:
             if isinstance(error, TimeoutError):
@@ -303,6 +306,61 @@ class BoundedExecutionResult:
     model_queueing_seconds: float
     runtime_name: str
     runtime_data: dict[str, Any]
+    authority: DecisionAuthority | None = None
+
+
+class DecisionAuthority:
+    """Synchronize revocation with the start boundary of local actions."""
+
+    def __init__(self, deadline_tick: float, clock: Any = monotonic) -> None:
+        self.deadline_tick = deadline_tick
+        self._clock = clock
+        self._lock = Lock()
+        self._action_serial = Lock()
+        self._revocation: str | None = None
+        self._action_starts: list[float] = []
+
+    def revoke(self, reason: str) -> bool:
+        if reason not in {"cancelled", "timeout"}:
+            raise ValueError("decision revocation reason must be cancelled or timeout")
+        with self._lock:
+            if self._revocation is not None:
+                return False
+            self._revocation = reason
+            return True
+
+    def execute_if_authorized(self, action: Any) -> tuple[bool, Any]:
+        """Atomically check authority and cross the local action-start boundary."""
+        with self._action_serial:
+            with self._lock:
+                if self._revocation is not None:
+                    return False, None
+                started_tick = self._clock()
+                if started_tick >= self.deadline_tick:
+                    self._revocation = "timeout"
+                    return False, None
+                self._action_starts.append(started_tick)
+            # Cancellation can revoke future starts while this effect runs;
+            # it does not wait for, or interrupt, the already-started effect.
+            return True, action()
+
+    def validate_response(self) -> str | None:
+        with self._lock:
+            if self._revocation is not None:
+                return self._revocation
+            if self._clock() >= self.deadline_tick:
+                self._revocation = "timeout"
+            return self._revocation
+
+    @property
+    def revocation(self) -> str | None:
+        with self._lock:
+            return self._revocation
+
+    @property
+    def action_starts(self) -> tuple[float, ...]:
+        with self._lock:
+            return tuple(self._action_starts)
 
 
 class BoundedDecisionAdapter:
@@ -336,6 +394,39 @@ class BoundedDecisionAdapter:
             )
         self.scenario = dict(scenario)
         self.client = NativeSystemOneClient(model.parameters["endpoint"], transport)
+        self.authority: DecisionAuthority | None = None
+        self._failure_execution_record: dict[str, Any] | None = None
+        self._active_context: Any = None
+        self._active_request: dict[str, Any] | None = None
+        self._active_deadline = 0.0
+        self._active_started = 0.0
+        self._active_original_tick = 0.0
+        self._local_cancellation_status = "not-requested"
+
+    def bind_authority(self, authority: DecisionAuthority) -> None:
+        self.authority = authority
+
+    def cancel_local(self, request_id: str) -> str:
+        """Revoke local admission and optionally ask a capable transport to stop."""
+        if self.authority is not None:
+            self.authority.revoke("cancelled")
+        cancel = getattr(self.transport, "cancel_request", None)
+        if callable(cancel):
+            def attempt_transport_cancel() -> None:
+                try:
+                    cancel(request_id)
+                except Exception:
+                    self._local_cancellation_status = "transport-cancellation-failed"
+
+            Thread(
+                target=attempt_transport_cancel,
+                name="mininet-ai-bounded-cancel",
+                daemon=True,
+            ).start()
+            self._local_cancellation_status = "transport-cancellation-attempted"
+        else:
+            self._local_cancellation_status = "local-authority-revoked"
+        return self._local_cancellation_status
 
     def run(self, context: Any) -> BoundedExecutionResult:
         from mininet_ai.sdk import ActionProposal, AgentResponse
@@ -352,7 +443,18 @@ class BoundedDecisionAdapter:
             if scheduled_tick is not None
             else clock() + 0.8
         )
+        if self.authority is None:
+            self.authority = DecisionAuthority(deadline, clock)
+        deadline = self.authority.deadline_tick
         started = clock()
+        self._active_context = context
+        self._active_deadline = deadline
+        self._active_started = started
+        self._active_original_tick = (
+            float(scheduled_tick)
+            if isinstance(scheduled_tick, (int, float))
+            else started
+        )
         choices_list = self.scenario["choices"]
         choices = {item["id"]: tuple(item["proposals"]) for item in choices_list}
         criteria = tuple(item["id"] for item in choices_list)
@@ -399,8 +501,16 @@ class BoundedDecisionAdapter:
             sort_keys=True,
             separators=(",", ":"),
         )
+        self._active_request = {
+            "url": f"{self.client.endpoint}/v1/systemone",
+            "state": state,
+            "instructions": self.scenario["instructions"],
+            "criteria": list(criteria),
+        }
         remaining_budget = deadline - clock()
         if remaining_budget <= 0:
+            self.authority.revoke("timeout")
+            self._retain_failure(context, "timeout", phase="input-assembly")
             raise AgentRuntimeError(
                 "bounded decision deadline expired during input assembly",
                 code="agent.bounded-decision.timeout",
@@ -408,23 +518,52 @@ class BoundedDecisionAdapter:
                 invocation_id=context.invocation_id,
             )
         inference_started = clock()
-        result = self.client.decide(
-            state=state,
-            instructions=self.scenario["instructions"],
-            criteria=criteria,
-            choices=choices,
-            timeout_seconds=remaining_budget,
-        )
+        try:
+            result = self.client.decide(
+                state=state,
+                instructions=self.scenario["instructions"],
+                criteria=criteria,
+                choices=choices,
+                timeout_seconds=remaining_budget,
+                request_id=context.invocation_id,
+            )
+        except Exception as error:
+            if self.authority.revocation == "cancelled":
+                reason = "cancelled"
+            elif (
+                getattr(error, "code", None) == "agent.bounded-decision.timeout"
+                or clock() >= deadline
+            ):
+                reason = "timeout"
+                self.authority.revoke(reason)
+            else:
+                reason = "failed"
+            self._retain_failure(context, reason, phase="inference")
+            raise
         if result.choice_id == "no_action" and result.proposals:
             raise AgentRuntimeError(
                 "no_action unexpectedly mapped to proposals",
                 code="agent.bounded-decision.native-contract-violation",
             )
         completed_tick = clock()
-        if completed_tick >= deadline:
+        revoked = self.authority.validate_response()
+        if revoked is not None or completed_tick >= deadline:
+            reason = revoked or "timeout"
+            self.authority.revoke(reason)
+            self._retain_failure(
+                context,
+                reason,
+                phase="inference",
+                native_response=result.native_response or {},
+                late=True,
+            )
             raise AgentRuntimeError(
-                "bounded decision result arrived after its admission deadline; late result discarded",
-                code="agent.bounded-decision.timeout",
+                "bounded decision result arrived after cancellation or its admission deadline; late result discarded",
+                code=(
+                    "agent.bounded-decision.cancelled"
+                    if reason == "cancelled"
+                    else "agent.bounded-decision.timeout"
+                ),
                 agent_id=context.agent_id,
                 invocation_id=context.invocation_id,
             )
@@ -532,7 +671,98 @@ class BoundedDecisionAdapter:
             model_queueing_seconds=0.0,
             runtime_name="bounded-decision",
             runtime_data=execution_record,
+            authority=self.authority,
         )
+
+    def failure_response(self, error: Exception) -> Any | None:
+        from mininet_ai.sdk import AgentResponse
+
+        record = self._failure_execution_record
+        if record is None:
+            return None
+        record["issue"] = {
+            "code": getattr(error, "code", "agent.bounded-decision.failed"),
+            "message": str(error) or type(error).__name__,
+        }
+        return AgentResponse(
+            message="bounded decision failed before action admission",
+            metadata={
+                "executionKind": "bounded-decision",
+                "selectedChoice": "unavailable",
+                "executionRecord": record,
+            },
+        )
+
+    def _retain_failure(
+        self,
+        context: Any,
+        reason: str,
+        *,
+        phase: str,
+        native_response: Mapping[str, Any] | None = None,
+        late: bool = False,
+    ) -> None:
+        from mininet_ai.agents.bounded_contracts import AgentExecutionRecord
+
+        now = self._monotonic()
+        decision = BoundedDecisionRecord(
+            runId=context.run_id,
+            agentId=context.agent_id,
+            invocationId=context.invocation_id,
+            correlationId=(
+                context.coordination.correlation_id
+                if context.coordination
+                else context.invocation_id
+            ),
+            scenario=self.scenario,
+            effectiveConfiguration={
+                "model": self.model.name,
+                "provider": self.model.provider,
+                "parameters": self.model.parameters,
+            },
+            request=self._active_request or {},
+            response=dict(native_response or {}),
+            selectedChoice="unavailable",
+            modelProvenance={
+                "startup": self.startup,
+                "expectedIdentity": self.model.parameters["expectedIdentity"],
+                "verification": self.startup.get("status", "unverified"),
+                "remoteTerminalStatus": "unknown",
+            },
+            timings={
+                "startedTick": self._active_original_tick,
+                "completedTick": now,
+                "deadlineTick": self._active_deadline,
+                "clockDomain": "run-monotonic",
+                "invokedAt": context.invoked_at.isoformat(),
+                "phaseTransitions": [
+                    {"phase": "input-assembly", "tick": self._active_started},
+                    {"phase": phase, "tick": now},
+                ],
+            },
+            proposalMapping={"choice": "unavailable", "proposals": []},
+            authorization={"status": "not-reached"},
+            admission={"status": reason},
+            actionOutcomes=(),
+            cancellationStatus="cancelled" if reason == "cancelled" else "not-requested",
+            lateResultDiscarded=late,
+            gaps=(
+                "remote inference terminal status is unknown",
+                "no network action was admitted from this decision",
+            ),
+        )
+        self._failure_execution_record = AgentExecutionRecord(
+            executionKind="bounded-decision",
+            outcome="failed",
+            runtime={
+                "boundedDecision": {
+                    **decision.model_dump(mode="json", by_alias=True),
+                    "timeoutStatus": "expired" if reason == "timeout" else "not-expired",
+                    "remoteTerminalStatus": "unknown",
+                    "localCancellationStatus": self._local_cancellation_status,
+                }
+            },
+        ).model_dump(mode="json", by_alias=True)
 
     def record_action_results(
         self, context: Any, results: tuple[Any, ...]
@@ -551,7 +781,12 @@ class BoundedDecisionAdapter:
                 "stepStatus": (
                     "not-started"
                     if result.issue is not None
-                    and result.issue.code == "agent.bounded-decision.bundle-stopped"
+                    and result.issue.code
+                    in {
+                        "agent.bounded-decision.bundle-stopped",
+                        "agent.bounded-decision.timeout",
+                        "agent.bounded-decision.cancelled",
+                    }
                     else "completed"
                     if result.status.value == "succeeded"
                     else "failed"
@@ -589,7 +824,11 @@ class BoundedDecisionAdapter:
             "results": authorization_results,
         }
         admission_status = (
-            "rejected"
+            "cancelled"
+            if self.authority is not None and self.authority.revocation == "cancelled"
+            else "expired"
+            if self.authority is not None and self.authority.revocation == "timeout"
+            else "rejected"
             if any(
                 result.status.value == "rejected"
                 and not (
@@ -620,4 +859,31 @@ class BoundedDecisionAdapter:
             if all(result.status.value == "succeeded" for result in results)
             else "failed"
         )
+        decision = record["runtime"]["boundedDecision"]
+        decision["cancellationStatus"] = (
+            "cancelled"
+            if self.authority is not None and self.authority.revocation == "cancelled"
+            else "not-requested"
+        )
+        decision["timeoutStatus"] = (
+            "expired"
+            if self.authority is not None and self.authority.revocation == "timeout"
+            else "not-expired"
+        )
+        decision["remoteTerminalStatus"] = "unknown"
+        decision["localCancellationStatus"] = self._local_cancellation_status
+        decision["timings"]["phaseTransitions"].extend(
+            {"phase": "action-start", "tick": tick}
+            for tick in (self.authority.action_starts if self.authority else ())
+        )
+        decision["incompleteEffects"] = [
+            {
+                "requestId": result.request_id,
+                "status": result.status.value,
+                "effects": result.effects.value,
+            }
+            for result in results
+            if result.status.value != "succeeded"
+            or result.effects.value not in {"changed", "unchanged"}
+        ]
         return record

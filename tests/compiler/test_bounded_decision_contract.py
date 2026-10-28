@@ -1,5 +1,6 @@
 import json
 import shutil
+from copy import deepcopy
 from threading import Event
 
 import pytest
@@ -408,7 +409,92 @@ def test_late_native_result_is_discarded_at_exact_deadline(tmp_path):
     assert transport.timeout == 0.8
     assert results[0].status.value == "failed"
     assert results[0].issue.code == "agent.bounded-decision.timeout"
-    assert results[0].response is None
+    assert results[0].response is not None
+    evidence = results[0].response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert evidence["lateResultDiscarded"] is True
+    assert evidence["selectedChoice"] == "unavailable"
+    assert evidence["remoteTerminalStatus"] == "unknown"
+    assert evidence["timeoutStatus"] == "expired"
+
+
+def test_cancellation_revokes_action_authority_and_retains_remote_unknown(tmp_path):
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    entered, release = Event(), Event()
+
+    class BlockingTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            if kwargs["timeout_seconds"] <= 0.8:
+                entered.set()
+                assert release.wait(2)
+            return {
+                "answers": {
+                    "next_action": {
+                        "type": "choice",
+                        "choice": "install_recovery",
+                    }
+                }
+            }
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+
+    class RecordingSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.mutations = []
+
+        def execute(self, run_id, request):
+            self.mutations.append(request)
+            return super().execute(run_id, request)
+
+    substrate = RecordingSubstrate()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    completed = Event()
+    results = []
+
+    def record_result(record):
+        results.append(record.result)
+        completed.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=BlockingTransport(),
+        invocation_listener=record_result,
+    )
+    runtime.start()
+    try:
+        assert entered.wait(2), "native inference did not start"
+        assert runtime.cancel_bounded_decision(plan.agents[0].id)
+        release.set()
+        assert completed.wait(2), "cancelled inference did not complete locally"
+    finally:
+        release.set()
+        runtime.stop()
+
+    result = results[0]
+    assert result.status.value == "failed"
+    assert result.response is not None
+    evidence = result.response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert evidence["cancellationStatus"] == "cancelled"
+    assert evidence["lateResultDiscarded"] is True
+    assert evidence["remoteTerminalStatus"] == "unknown"
+    assert evidence["localCancellationStatus"] == "local-authority-revoked"
+    assert evidence["admission"]["status"] == "cancelled"
+    assert result.action_results == ()
+    assert substrate.mutations == []
 
 
 def test_recovery_selection_executes_fixed_bundle_and_retains_completion_evidence(
@@ -555,6 +641,344 @@ def test_failed_recovery_step_stops_bundle_and_retains_partial_effects(tmp_path)
     assert evidence["actionOutcomes"][0]["effects"] == "unknown"
     assert evidence["authorization"]["status"] == "authorized"
     assert evidence["admission"]["status"] == "failed"
+    assert [
+        phase["phase"]
+        for phase in evidence["timings"]["phaseTransitions"]
+    ].count("action-start") == 1
+    assert evidence["incompleteEffects"] == [
+        {
+            "requestId": "bounded-1",
+            "status": "failed",
+            "effects": "unknown",
+        },
+        {
+            "requestId": "bounded-2",
+            "status": "rejected",
+            "effects": "unknown",
+        },
+    ]
+    assert evidence["remoteTerminalStatus"] == "unknown"
+
+
+def test_deadline_between_recovery_steps_preserves_started_effect_and_stops_next(
+    tmp_path,
+):
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class ControlledClock:
+        now = 0.0
+
+        def __call__(self):
+            return self.now
+
+    class RecoveryTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+
+    clock = ControlledClock()
+
+    class AdvancingSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.mutations = []
+
+        def execute(self, run_id, request):
+            self.mutations.append(request)
+            result = super().execute(run_id, request)
+            clock.now = 0.8
+            return result
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = AdvancingSubstrate()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    completed = Event()
+    results = []
+
+    def record_result(record):
+        results.append(record.result)
+        completed.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=RecoveryTransport(),
+        monotonic_clock=clock,
+        invocation_listener=record_result,
+    )
+    runtime.start()
+    completed_on_time = completed.wait(3)
+    report = runtime.stop()
+    assert completed_on_time, f"bounded recovery did not complete: {report}"
+
+    result = results[0]
+    assert result.status.value == "failed"
+    assert len(substrate.mutations) == 1
+    evidence = result.response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert [step["stepStatus"] for step in evidence["actionOutcomes"]] == [
+        "completed",
+        "not-started",
+    ]
+    assert evidence["actionOutcomes"][0]["effects"] == "changed"
+    assert evidence["actionOutcomes"][1]["effects"] == "unknown"
+    assert evidence["timeoutStatus"] == "expired"
+    assert evidence["admission"]["status"] == "expired"
+    assert evidence["incompleteEffects"][0]["effects"] == "unknown"
+
+
+def test_cancellation_racing_started_action_revokes_only_future_steps(tmp_path):
+    from threading import Thread
+
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    action_started, finish_action, cancel_returned = Event(), Event(), Event()
+
+    class RecoveryTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+
+    class BlockingActionSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.mutations = []
+
+        def execute(self, run_id, request):
+            self.mutations.append(request)
+            if request.parameters["match"]["step"] == 1:
+                action_started.set()
+                assert finish_action.wait(2)
+            return super().execute(run_id, request)
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = BlockingActionSubstrate()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    completed = Event()
+    results = []
+
+    def record_result(record):
+        results.append(record.result)
+        completed.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=RecoveryTransport(),
+        invocation_listener=record_result,
+    )
+    runtime.start()
+    try:
+        assert action_started.wait(2), "first bundle action did not start"
+
+        def cancel():
+            runtime.cancel_bounded_decision(plan.agents[0].id)
+            cancel_returned.set()
+
+        cancellation = Thread(target=cancel)
+        cancellation.start()
+        assert cancel_returned.wait(1), "local cancellation waited on a started action"
+        finish_action.set()
+        cancellation.join(2)
+        assert completed.wait(2), "cancelled bundle did not complete"
+    finally:
+        finish_action.set()
+        runtime.stop()
+
+    result = results[0]
+    assert result.status.value == "failed"
+    assert len(substrate.mutations) == 1
+    evidence = result.response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert [item["stepStatus"] for item in evidence["actionOutcomes"]] == [
+        "completed",
+        "not-started",
+    ]
+    assert evidence["actionOutcomes"][0]["effects"] == "changed"
+    assert evidence["cancellationStatus"] == "cancelled"
+    assert evidence["remoteTerminalStatus"] == "unknown"
+
+
+def test_active_bounded_tick_is_coalesced_and_next_work_waits_for_next_cadence(
+    tmp_path,
+):
+    from threading import Lock
+
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    first_entered, release_first, coalesced, second_entered = (
+        Event(),
+        Event(),
+        Event(),
+        Event(),
+    )
+    calls_lock = Lock()
+
+    class CadenceTransport:
+        decision_calls = 0
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            if kwargs["timeout_seconds"] > 0.8:
+                return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            with calls_lock:
+                self.decision_calls += 1
+                call_number = self.decision_calls
+            if call_number == 1:
+                first_entered.set()
+                assert release_first.wait(4)
+            else:
+                second_entered.set()
+            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = FakeSubstrateRuntime()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    transport = CadenceTransport()
+
+    def on_issue(issue):
+        if issue.code == "runtime.bounded-decision.tick-coalesced":
+            coalesced.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=transport,
+        runtime_issue_listener=on_issue,
+    )
+    runtime.start()
+    try:
+        assert first_entered.wait(2), "first scheduled inference did not start"
+        assert coalesced.wait(2), "cadence tick was not dropped while busy"
+        assert transport.decision_calls == 1
+        release_first.set()
+        assert second_entered.wait(2), "fresh work did not start on a later cadence tick"
+    finally:
+        release_first.set()
+        runtime.stop()
+
+    assert transport.decision_calls == 2
+
+
+def test_unrelated_agno_agent_progresses_while_bounded_inference_is_in_flight(
+    tmp_path,
+):
+    import asyncio
+
+    from agno.agent import Agent
+    from agno.run.agent import RunOutput
+
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.agents.agno import AgnoAgentFactory
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.sdk import AgentResponse
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    inference_started, release_inference, unrelated_completed = Event(), Event(), Event()
+
+    class BlockingTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            if kwargs["timeout_seconds"] <= 0.8:
+                inference_started.set()
+                assert release_inference.wait(3)
+            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+
+    class StaticAgent(Agent):
+        async def arun(self, input=None, **options):
+            return await asyncio.to_thread(self.run, input, **options)
+
+        def run(self, input=None, **options):
+            return RunOutput(
+                run_id=options["run_id"],
+                session_id=options["session_id"],
+                user_id=options["user_id"],
+                content=AgentResponse(message="unrelated completed"),
+            )
+
+    class StaticFactory(AgnoAgentFactory):
+        def _declarative(self, definition):
+            return StaticAgent()
+
+    source_path = _source_for_compile(tmp_path)
+    source = yaml.safe_load(source_path.read_text())
+    source["resourceLimits"]["max-concurrent-invocations"] = 2
+    source["blueprints"].append(
+        {
+            "apiVersion": "mininet-ai/v1alpha5",
+            "kind": "AgentBlueprint",
+            "metadata": {"name": "unrelated"},
+            "implementation": {"type": "declarative"},
+            "model": {
+                "provider": "mock",
+                "name": "unused",
+                "parameters": {"response": {"message": "ignored by factory"}},
+            },
+        }
+    )
+    unrelated = deepcopy(source["agents"][0])
+    unrelated["name"] = "unrelated"
+    unrelated["blueprint"] = "unrelated"
+    unrelated["placement"]["targets"]["names"] = ["s2"]
+    unrelated["capabilities"] = []
+    unrelated["observe"] = []
+    unrelated.pop("decisionInputs", None)
+    unrelated["triggers"] = [{"type": "manual", "name": "operator"}]
+    source["agents"].append(unrelated)
+    mixed_path = tmp_path / "mixed.yaml"
+    mixed_path.write_text(yaml.safe_dump(source))
+    plan = compile_experiment(mixed_path)
+    unrelated_id = next(agent.id for agent in plan.agents if agent.decision_scenario is None)
+    substrate = FakeSubstrateRuntime()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+
+    def record_invocation(record):
+        if record.result.agent_id == unrelated_id:
+            unrelated_completed.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        agent_factory=StaticFactory(),
+        decision_transport=BlockingTransport(),
+        invocation_listener=record_invocation,
+    )
+    runtime.start()
+    try:
+        assert inference_started.wait(2), "bounded inference did not start"
+        runtime.submit_intent(unrelated_id, "make unrelated progress")
+        assert unrelated_completed.wait(1), "unrelated agent was blocked by bounded inference"
+    finally:
+        release_inference.set()
+        runtime.stop()
 
 
 def test_compiler_rejects_fixed_recovery_arguments_that_fail_capability_schema(
