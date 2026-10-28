@@ -641,8 +641,13 @@ def _compile_instances(
                 )
             if deployment.execution.max_concurrency != 1:
                 raise CompilationError("bounded-decision requires maxConcurrency=1")
-            if deployment.placement.cardinality != Cardinality.SINGLETON:
-                raise CompilationError("bounded-decision requires singleton placement")
+            if deployment.placement.cardinality not in {
+                Cardinality.SINGLETON,
+                Cardinality.PER_GROUP,
+            }:
+                raise CompilationError(
+                    "bounded-decision requires one singleton or one grouped placement"
+                )
             if (
                 len(deployment.triggers) != 1
                 or getattr(deployment.triggers[0], "type", None) != "interval"

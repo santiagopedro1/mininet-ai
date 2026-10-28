@@ -5,6 +5,7 @@ evolves. Golden plans are not used for examples — they are meant to be
 readable, not frozen.
 """
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -26,11 +27,99 @@ from mininet_ai.substrates.runtime import ObservationQuery, ObservationResult
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 EXAMPLE_NAMES = [
+    "diamond-recovery",
     "getting-started",
     "autonomous-operation",
     "hierarchical-routing",
     "iperf-throughput",
 ]
+
+
+def test_diamond_recovery_compiles_exact_recovery_bundle() -> None:
+    """The maintained diamond plan embeds its complete fixed recovery policy."""
+    plan = compile_experiment(EXAMPLES_DIR / "diamond-recovery/experiment.yaml")
+    assert plan.api_version == "mininet-ai/v1alpha5"
+    assert len(plan.agents) == 1
+    instance = plan.agents[0]
+    scenario = instance.decision_scenario
+    assert scenario is not None
+    assert scenario["paths"] == {
+        "primary": ["h1", "s1", "s2", "s4", "h2"],
+        "recovery": ["h1", "s1", "s3", "s4", "h2"],
+    }
+    choices = scenario["choices"]
+    assert [choice["id"] for choice in choices] == ["no_action", "install_recovery"]
+    assert choices[0]["proposals"] == []
+    rules = choices[1]["proposals"]
+    assert len(rules) == 8
+    assert [
+        (
+            rule["target"],
+            rule["arguments"]["match"]["in_port"],
+            rule["arguments"]["actions"],
+        )
+        for rule in rules
+    ] == [
+        ("s3", 1, ["output:2"]),
+        ("s3", 2, ["output:1"]),
+        ("s4", 3, ["output:1"]),
+        ("s4", 1, ["output:3"]),
+        ("s1", 1, ["output:3"]),
+        ("s1", 3, ["output:1"]),
+        ("s2", 1, ["drop"]),
+        ("s2", 2, ["drop"]),
+    ]
+    assert [rule["arguments"]["priority"] for rule in rules] == [200] * 8
+    assert [rule["arguments"]["hardTimeout"] for rule in rules] == [0] * 8
+    assert [rule["arguments"]["cookie"] for rule in rules] == list(range(12201, 12209))
+    assert all(
+        rule["arguments"]["match"]["dl_type"] == 2048
+        and rule["arguments"]["match"]["nw_src"] in {"10.0.0.1", "10.0.0.2"}
+        and rule["arguments"]["match"]["nw_dst"] in {"10.0.0.1", "10.0.0.2"}
+        for rule in rules
+    )
+    assert scenario["observations"]["historyRounds"] == 3
+    assert scenario["timing"] == {"cadence": "1s", "decisionDeadline": "800ms"}
+    resources = plan.snapshot["substrate"]["topology"]["resources"]
+    switch_ports = {
+        resource["name"]: {port["number"] for port in resource["ports"]}
+        for resource in resources
+        if resource["kind"] == "switch"
+    }
+    assert switch_ports == {
+        "s1": {1, 2, 3},
+        "s2": {1, 2},
+        "s3": {1, 2},
+        "s4": {1, 2, 3},
+    }
+    assert plan.agents[0].attachment.targets == ("s1", "s2", "s3", "s4")
+
+
+def test_diamond_recovery_oracle_covers_required_decision_classes() -> None:
+    fixture = (
+        EXAMPLES_DIR.parent
+        / "tests/fixtures/specifications/diamond-recovery/oracle.json"
+    )
+    cases = json.loads(fixture.read_text())["cases"]
+    labels = {case["label"] for case in cases}
+    assert {
+        "healthy",
+        "startup-insufficient-history",
+        "one-round-transient-loss",
+        "two-round-transient-loss",
+        "sustained-primary-failure",
+        "stale-evidence",
+        "missing-round",
+        "conflicting-link-and-probe-evidence",
+        "failed-recovery-probes",
+        "post-recovery-restraint",
+    } <= labels
+    assert all(case["expected"] in {"no_action", "install_recovery"} for case in cases)
+    assert all(
+        case["expected"] == "no_action"
+        for case in cases
+        if case["label"] != "sustained-primary-failure"
+    )
 
 
 def test_examples_validate_and_plan() -> None:

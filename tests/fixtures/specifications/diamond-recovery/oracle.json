@@ -1,0 +1,16 @@
+{
+  "description": "Expected model choices for offline diamond decision inputs; fixtures do not replace inference.",
+  "cases": [
+    {"id": "healthy", "label": "healthy", "policy": "primary", "primaryReplies": [2, 2, 2], "recoveryReplies": [2, 2, 2], "primaryLinkDown": false, "completeRounds": 3, "fresh": true, "expected": "no_action"},
+    {"id": "startup", "label": "startup-insufficient-history", "policy": "primary", "primaryReplies": [], "recoveryReplies": [], "primaryLinkDown": false, "completeRounds": 0, "fresh": true, "expected": "no_action"},
+    {"id": "transient-one", "label": "one-round-transient-loss", "policy": "primary", "primaryReplies": [0, 2, 2], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
+    {"id": "transient-two", "label": "two-round-transient-loss", "policy": "primary", "primaryReplies": [0, 0, 2], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
+    {"id": "sustained-s1-s2", "label": "sustained-primary-failure", "failedLink": "s1-s2", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "install_recovery"},
+    {"id": "sustained-s2-s4", "label": "sustained-primary-failure", "failedLink": "s2-s4", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "install_recovery"},
+    {"id": "stale", "label": "stale-evidence", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": false, "expected": "no_action"},
+    {"id": "missing", "label": "missing-round", "policy": "primary", "primaryReplies": [0, 0, null], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 2, "fresh": true, "expected": "no_action"},
+    {"id": "conflicting", "label": "conflicting-link-and-probe-evidence", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": false, "completeRounds": 3, "fresh": true, "expected": "no_action"},
+    {"id": "recovery-probe-failed", "label": "failed-recovery-probes", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [0, 2, 0], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
+    {"id": "post-recovery", "label": "post-recovery-restraint", "policy": "recovery", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"}
+  ]
+}

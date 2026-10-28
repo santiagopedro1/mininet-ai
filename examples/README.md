@@ -19,6 +19,9 @@ Start with the simplest example and work your way up:
    coordination.
 4. **[iperf Throughput](iperf-throughput/README.md)** — an Ollama-driven TCP
    throughput test with real traffic on `mininet-ovs`.
+5. **[Diamond Recovery](diamond-recovery/README.md)** — an exploratory,
+   offline bounded-decision topology and planning contract; it does not claim
+   live model or network support.
 
 ## Index
 
@@ -28,10 +31,11 @@ Start with the simplest example and work your way up:
 | [Autonomous Network Operation](autonomous-operation/README.md) | Self-healing network | `fake` | `mock` | Feature demonstration | Shared model + shallow override, event/interval triggers, threshold detector, rollback, postconditions, shared state, multi-layer placement |
 | [Hierarchical Routing Coordination](hierarchical-routing/README.md) | Three-tier routing system | `mininet-ovs` | `ollama` | Both | Multi-layer placement, hierarchical coordination, declarative + Python factory blueprints, postconditions, shared state |
 | [iperf Throughput](iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` | Realistic scenario | Host placement, Python factory blueprints, cross-terminal `invoke`, serialized startup intents |
+| [Diamond Recovery](diamond-recovery/README.md) | Four-switch failover decision contract (offline only) | `fake` | `llamacpp-systemone` (placeholder) | Both | Explicit choices, fixed recovery bundle, three-round inputs |
 
 ## Feature Matrix
 
-| Feature | Getting Started | Autonomous Operation | Hierarchical Routing | iperf Throughput |
+| Feature | Getting Started | Autonomous Operation | Hierarchical Routing | iperf Throughput | Diamond Recovery |
 | --- | --- | --- | --- | --- |
 | `fake` substrate | ✓ | ✓ | | |
 | `mininet-ovs` substrate | | | ✓ | ✓ |
@@ -49,6 +53,7 @@ Start with the simplest example and work your way up:
 | Declarative blueprint | ✓ | ✓ | ✓ | |
 | Python factory blueprint | | | ✓ | ✓ |
 | Shared model + shallow override | | ✓ | | |
+| Bounded decision contract (offline plan only) | | | | | ✓ |
 
 ## Running the examples
 
