@@ -833,6 +833,14 @@ def test_active_bounded_tick_is_coalesced_and_next_work_waits_for_next_cadence(
     )
     calls_lock = Lock()
 
+    class ControlledClock:
+        now = 0.0
+
+        def __call__(self):
+            return self.now
+
+    clock = ControlledClock()
+
     class CadenceTransport:
         decision_calls = 0
 
@@ -868,6 +876,7 @@ def test_active_bounded_tick_is_coalesced_and_next_work_waits_for_next_cadence(
         registries,
         decision_transport=transport,
         runtime_issue_listener=on_issue,
+        monotonic_clock=clock,
     )
     runtime.start()
     try:
@@ -875,12 +884,298 @@ def test_active_bounded_tick_is_coalesced_and_next_work_waits_for_next_cadence(
         assert coalesced.wait(2), "cadence tick was not dropped while busy"
         assert transport.decision_calls == 1
         release_first.set()
+        clock.now = 0.1
+        assert not second_entered.wait(0.1), "coalesced tick caused an immediate catch-up invocation"
         assert second_entered.wait(2), "fresh work did not start on a later cadence tick"
     finally:
         release_first.set()
         runtime.stop()
 
     assert transport.decision_calls == 2
+
+
+def test_queued_bounded_tick_keeps_scheduled_deadline_while_capacity_is_occupied(
+    tmp_path,
+):
+    import asyncio
+
+    from agno.agent import Agent
+    from agno.run.agent import RunOutput
+
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.agents.agno import AgnoAgentFactory
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.sdk import AgentResponse
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    occupied, release, coalesced, bounded_failed = Event(), Event(), Event(), Event()
+
+    class ControlledClock:
+        now = 30.0
+
+        def __call__(self):
+            return self.now
+
+    clock = ControlledClock()
+
+    class CountingTransport:
+        inference_calls = 0
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            if kwargs["timeout_seconds"] <= 0.8:
+                self.inference_calls += 1
+            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+
+    class WaitingAgent(Agent):
+        async def arun(self, input=None, **options):
+            return await asyncio.to_thread(self.run, input, **options)
+
+        def run(self, input=None, **options):
+            occupied.set()
+            assert release.wait(6)
+            return RunOutput(
+                run_id=options["run_id"],
+                session_id=options["session_id"],
+                user_id=options["user_id"],
+                content=AgentResponse(message="capacity released"),
+            )
+
+    class WaitingFactory(AgnoAgentFactory):
+        def _declarative(self, definition):
+            return WaitingAgent()
+
+    source_path = _source_for_compile(tmp_path)
+    source = yaml.safe_load(source_path.read_text())
+    source["resourceLimits"]["max-concurrent-invocations"] = 1
+    source["agents"][0]["triggers"][0]["every"] = "1s"
+    source["agents"][0]["triggers"][0]["initialDelay"] = "100ms"
+    source["blueprints"].append(
+        {
+            "apiVersion": "mininet-ai/v1alpha5",
+            "kind": "AgentBlueprint",
+            "metadata": {"name": "capacity-holder"},
+            "implementation": {"type": "declarative"},
+            "model": {
+                "provider": "mock",
+                "name": "unused",
+                "parameters": {"response": {"message": "unused"}},
+            },
+        }
+    )
+    holder = deepcopy(source["agents"][0])
+    holder["name"] = "capacity-holder"
+    holder["blueprint"] = "capacity-holder"
+    holder["placement"]["targets"]["names"] = ["s2"]
+    holder["capabilities"] = []
+    holder["observe"] = []
+    holder.pop("decisionInputs", None)
+    holder["triggers"] = [{"type": "manual", "name": "operator"}]
+    source["agents"].append(holder)
+    mixed_path = tmp_path / "capacity.yaml"
+    mixed_path.write_text(yaml.safe_dump(source))
+    plan = compile_experiment(mixed_path)
+    assert plan.resource_limits.max_concurrent_invocations == 1
+    holder_id = next(agent.id for agent in plan.agents if agent.decision_scenario is None)
+    bounded_id = next(agent.id for agent in plan.agents if agent.decision_scenario is not None)
+    substrate = FakeSubstrateRuntime()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    transport = CountingTransport()
+    results = []
+
+    def on_issue(issue):
+        if issue.code == "runtime.bounded-decision.tick-coalesced":
+            coalesced.set()
+
+    def on_invocation(record):
+        results.append(record.result)
+        if record.result.agent_id == bounded_id:
+            bounded_failed.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        agent_factory=WaitingFactory(),
+        decision_transport=transport,
+        monotonic_clock=clock,
+        runtime_issue_listener=on_issue,
+        invocation_listener=on_invocation,
+    )
+    runtime.start()
+    try:
+        runtime.submit_intent(holder_id, "occupy the only invocation slot")
+        assert occupied.wait(2), "capacity-holder did not acquire invocation capacity"
+        assert coalesced.wait(3), "bounded tick was not observed queued behind capacity"
+        assert transport.inference_calls == 0, "queued bounded tick started inference while capacity was held"
+        clock.now = 30.8
+        release.set()
+        assert bounded_failed.wait(3), "expired queued bounded work did not complete"
+    finally:
+        release.set()
+        runtime.stop()
+
+    bounded_result = next(result for result in results if result.agent_id == bounded_id)
+    assert bounded_result.status.value == "failed"
+    evidence = bounded_result.response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert evidence["timings"]["startedTick"] == 30.0
+    assert evidence["timings"]["deadlineTick"] == 30.8
+    assert transport.inference_calls == 0
+    assert evidence["timeoutStatus"] == "expired"
+
+
+def test_bounded_admission_wait_consumes_original_deadline_before_action_start(
+    tmp_path,
+):
+    import asyncio
+
+    from agno.agent import Agent
+    from agno.run.agent import RunOutput
+
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.agents.agno import AgnoAgentFactory
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.sdk import ActionProposal, AgentResponse
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    holder_action_started, release_holder, bounded_response = Event(), Event(), Event()
+
+    class ControlledClock:
+        now = 40.0
+
+        def __call__(self):
+            return self.now
+
+    clock = ControlledClock()
+
+    class RecoveryTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            if kwargs["timeout_seconds"] > 0.8:
+                return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            bounded_response.set()
+            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+
+    class BlockingSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.mutations = []
+
+        def execute(self, run_id, request):
+            self.mutations.append(request)
+            if request.id == "hold-flow":
+                holder_action_started.set()
+                assert release_holder.wait(4)
+            return super().execute(run_id, request)
+
+    class ActionAgent(Agent):
+        async def arun(self, input=None, **options):
+            return await asyncio.to_thread(self.run, input, **options)
+
+        def run(self, input=None, **options):
+            return RunOutput(
+                run_id=options["run_id"],
+                session_id=options["session_id"],
+                user_id=options["user_id"],
+                content=AgentResponse(
+                    proposals=(
+                        ActionProposal(
+                            id="hold-flow",
+                            capability="openflow.flow.install",
+                            target="s1",
+                            arguments={"match": {"step": 1}, "actions": []},
+                        ),
+                    )
+                ),
+            )
+
+    class ActionFactory(AgnoAgentFactory):
+        def _declarative(self, definition):
+            return ActionAgent()
+
+    source_path = _source_for_compile(tmp_path)
+    source = yaml.safe_load(source_path.read_text())
+    source["agents"][0]["triggers"][0]["initialDelay"] = "100ms"
+    source["blueprints"].append(
+        {
+            "apiVersion": "mininet-ai/v1alpha5",
+            "kind": "AgentBlueprint",
+            "metadata": {"name": "admission-holder"},
+            "implementation": {"type": "declarative"},
+            "model": {
+                "provider": "mock",
+                "name": "unused",
+                "parameters": {"response": {"message": "unused"}},
+            },
+        }
+    )
+    holder = deepcopy(source["agents"][0])
+    holder["name"] = "admission-holder"
+    holder["blueprint"] = "admission-holder"
+    holder["placement"]["targets"]["names"] = ["s1"]
+    holder["capabilities"] = ["openflow.flow.install"]
+    holder["triggers"] = [{"type": "manual", "name": "operator"}]
+    holder.pop("decisionInputs", None)
+    source["agents"].append(holder)
+    mixed_path = tmp_path / "admission.yaml"
+    mixed_path.write_text(yaml.safe_dump(source))
+    plan = compile_experiment(mixed_path)
+    holder_id = next(agent.id for agent in plan.agents if agent.decision_scenario is None)
+    bounded_id = next(agent.id for agent in plan.agents if agent.decision_scenario is not None)
+    substrate = BlockingSubstrate()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    results = []
+    bounded_completed = Event()
+
+    def on_invocation(record):
+        results.append(record.result)
+        if record.result.agent_id == bounded_id:
+            bounded_completed.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        agent_factory=ActionFactory(),
+        decision_transport=RecoveryTransport(),
+        monotonic_clock=clock,
+        invocation_listener=on_invocation,
+    )
+    runtime.start()
+    try:
+        runtime.submit_intent(holder_id, "hold the conflicting flow admission")
+        assert holder_action_started.wait(2), f"conflicting action did not start: {results}"
+        assert bounded_response.wait(2), "bounded decision did not return its choice"
+        clock.now = 40.8
+        release_holder.set()
+        assert bounded_completed.wait(2), "bounded admission wait did not complete"
+    finally:
+        release_holder.set()
+        runtime.stop()
+
+    bounded_result = next(result for result in results if result.agent_id == bounded_id)
+    assert bounded_result.status.value == "failed"
+    assert len(substrate.mutations) == 1
+    evidence = bounded_result.response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert evidence["timings"]["deadlineTick"] == 40.8
+    assert evidence["timeoutStatus"] == "expired"
+    assert evidence["admission"]["status"] == "expired"
+    assert evidence["actionOutcomes"][0]["stepStatus"] == "not-started"
+    assert "action-start" not in {
+        transition["phase"] for transition in evidence["timings"]["phaseTransitions"]
+    }
 
 
 def test_unrelated_agno_agent_progresses_while_bounded_inference_is_in_flight(
