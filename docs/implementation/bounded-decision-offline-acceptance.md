@@ -80,3 +80,7 @@ claim:
 These gaps block live-support claims. Do not label scripted inference as model
 quality, offline checks as live validation, or local cancellation as remote
 termination.
+
+The pinned live-candidate attempt is separately recorded as
+[UNVERIFIED / BLOCKED](bounded-decision-live-model-evaluation.md); no live samples
+or latency results were collected.
