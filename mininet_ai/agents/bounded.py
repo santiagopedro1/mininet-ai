@@ -315,10 +315,12 @@ class BoundedDecisionAdapter:
         definition: Any,
         transport: DecisionTransport,
         startup: Mapping[str, Any] | None = None,
+        monotonic_clock: Any = monotonic,
     ) -> None:
         self.definition = definition
         self.transport = transport
         self.startup = dict(startup or {})
+        self._monotonic = monotonic_clock
         model = definition.blueprint.model
         if not hasattr(model, "parameters") or model.provider != "llamacpp-systemone":
             raise AgentRuntimeError(
@@ -338,7 +340,19 @@ class BoundedDecisionAdapter:
     def run(self, context: Any) -> BoundedExecutionResult:
         from mininet_ai.sdk import ActionProposal, AgentResponse
 
-        started = monotonic()
+        clock = self._monotonic
+        metadata = (
+            context.coordination.metadata
+            if context.coordination is not None
+            else {}
+        )
+        scheduled_tick = metadata.get("deadlineStartedAt")
+        deadline = (
+            float(scheduled_tick) + float(metadata.get("deadlineSeconds", 0.8))
+            if scheduled_tick is not None
+            else clock() + 0.8
+        )
+        started = clock()
         choices_list = self.scenario["choices"]
         choices = {item["id"]: tuple(item["proposals"]) for item in choices_list}
         criteria = tuple(item["id"] for item in choices_list)
@@ -385,7 +399,7 @@ class BoundedDecisionAdapter:
             sort_keys=True,
             separators=(",", ":"),
         )
-        remaining_budget = 0.8 - max(0.0, monotonic() - started)
+        remaining_budget = deadline - clock()
         if remaining_budget <= 0:
             raise AgentRuntimeError(
                 "bounded decision deadline expired during input assembly",
@@ -393,7 +407,7 @@ class BoundedDecisionAdapter:
                 agent_id=context.agent_id,
                 invocation_id=context.invocation_id,
             )
-        inference_started = monotonic()
+        inference_started = clock()
         result = self.client.decide(
             state=state,
             instructions=self.scenario["instructions"],
@@ -406,7 +420,14 @@ class BoundedDecisionAdapter:
                 "no_action unexpectedly mapped to proposals",
                 code="agent.bounded-decision.native-contract-violation",
             )
-        completed_tick = monotonic()
+        completed_tick = clock()
+        if completed_tick >= deadline:
+            raise AgentRuntimeError(
+                "bounded decision result arrived after its admission deadline; late result discarded",
+                code="agent.bounded-decision.timeout",
+                agent_id=context.agent_id,
+                invocation_id=context.invocation_id,
+            )
         elapsed = max(0.0, completed_tick - inference_started)
         record = BoundedDecisionRecord(
             runId=context.run_id,
@@ -442,11 +463,18 @@ class BoundedDecisionAdapter:
             timings={
                 "decisionSeconds": elapsed,
                 "inputAssemblySeconds": max(0.0, inference_started - started),
-                "startedTick": started,
+                "startedTick": (
+                    float(scheduled_tick) if scheduled_tick is not None else started
+                ),
                 "completedTick": completed_tick,
-                "deadlineTick": started + 0.8,
+                "deadlineTick": deadline,
                 "clockDomain": "process-monotonic",
                 "invokedAt": context.invoked_at.isoformat(),
+                "phaseTransitions": [
+                    {"phase": "input-assembly", "tick": started},
+                    {"phase": "inference", "tick": inference_started},
+                    {"phase": "decision-complete", "tick": completed_tick},
+                ],
             },
             proposalMapping={
                 "choice": result.choice_id,
@@ -468,6 +496,7 @@ class BoundedDecisionAdapter:
                 "observation timestamps are unavailable from the agent-runtime contract",
                 "server build and hardware provenance are unavailable",
                 "full model artifact SHA-256 has not been independently verified",
+                "remote inference terminal status is unknown; local timeout/discard does not prove remote termination",
                 *(
                     ()
                     if self.startup.get("status") == "verified"

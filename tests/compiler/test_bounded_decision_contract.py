@@ -354,6 +354,63 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
     )
 
 
+def test_late_native_result_is_discarded_at_exact_deadline(tmp_path):
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class ControlledClock:
+        now = 0.0
+
+        def __call__(self):
+            return self.now
+
+    class LateTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            if kwargs["timeout_seconds"] <= 0.8:
+                self.timeout = kwargs["timeout_seconds"]
+                clock.now = 0.8
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
+
+    clock = ControlledClock()
+    transport = LateTransport()
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = FakeSubstrateRuntime()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    completed = Event()
+    results = []
+
+    def record_result(record):
+        results.append(record.result)
+        completed.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=transport,
+        monotonic_clock=clock,
+        invocation_listener=record_result,
+    )
+    runtime.start()
+    try:
+        assert completed.wait(3), "bounded decision did not complete"
+    finally:
+        runtime.stop()
+
+    assert transport.timeout == 0.8
+    assert results[0].status.value == "failed"
+    assert results[0].issue.code == "agent.bounded-decision.timeout"
+    assert results[0].response is None
+
+
 def test_recovery_selection_executes_fixed_bundle_and_retains_completion_evidence(
     tmp_path,
 ):

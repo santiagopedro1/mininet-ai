@@ -6,12 +6,14 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import StrEnum
 from threading import Lock
+from time import monotonic
+from typing import cast
 from uuid import uuid4
 
 from pydantic import Field, JsonValue
 
 from mininet_ai.agents.agno import AgnoAgentFactory
-from mininet_ai.agents.bounded import NativeSystemOneClient
+from mininet_ai.agents.bounded import DecisionTransport, NativeSystemOneClient
 from mininet_ai.agents.runtime import OneShotAgentRuntime
 from mininet_ai.audit import AuditRecorder
 from mininet_ai.compiler import DeploymentPlan
@@ -45,6 +47,7 @@ from mininet_ai.substrates import RunInfo, SubstrateRuntime, TeardownResult
 
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
+MonotonicClock = Callable[[], float]
 
 
 def _utc_now() -> datetime:
@@ -111,6 +114,7 @@ class ExperimentRuntime:
         event_id_factory: EventIdFactory = _event_id,
         invocation_listener: Callable[[ContinuousInvocationRecord], None] | None = None,
         decision_transport: object | None = None,
+        monotonic_clock: MonotonicClock = monotonic,
     ) -> None:
         self._plan = plan
         self._substrate = substrate
@@ -122,6 +126,7 @@ class ExperimentRuntime:
             else None
         )
         self._decision_transport = decision_transport
+        self._monotonic = monotonic_clock
         self._bounded_startup: dict[str, dict[str, JsonValue]] = {}
         self._shared_state = shared_state
         self._ledger = ledger
@@ -218,8 +223,11 @@ class ExperimentRuntime:
                 audit=self._audit,
                 agent_factory=self._agent_factory,
                 shared_state=self._shared_state,
-                decision_transport=self._decision_transport,
+                decision_transport=cast(
+                    DecisionTransport | None, self._decision_transport
+                ),
                 bounded_startup=self._bounded_startup,
+                monotonic_clock=self._monotonic,
             )
             coordinator = CoordinationRuntime(self._plan, invoker)
             continuous = ContinuousAgentRuntime(
@@ -230,6 +238,7 @@ class ExperimentRuntime:
                 invocation_listener=self._invocation_listener,
                 clock=self._clock,
                 event_id_factory=self._event_id_factory,
+                monotonic_clock=self._monotonic,
             )
             telemetry = TelemetryPipeline(
                 self._plan,
@@ -275,7 +284,10 @@ class ExperimentRuntime:
             return
         from mininet_ai.transports.http import HttpxJsonTransport
 
-        transport = self._decision_transport or HttpxJsonTransport()
+        transport = cast(
+            DecisionTransport,
+            self._decision_transport or HttpxJsonTransport(),
+        )
         catalog = ExecutionCatalog(self._plan)
         for agent in bounded:
             definition = catalog.resolve(agent.id)

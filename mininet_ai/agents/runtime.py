@@ -7,13 +7,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from threading import Lock
 from time import monotonic
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from mininet_ai.agents.agno import AgnoAgentFactory, AgnoAgentProvider
-from mininet_ai.agents.bounded import BoundedDecisionAdapter
+from mininet_ai.agents.bounded import BoundedDecisionAdapter, DecisionTransport
 from mininet_ai.audit import (
     AuditedCapabilityExecutor,
     AuditEventType,
@@ -123,6 +123,7 @@ class _OneShotPreparation:
     state_changes: tuple[SharedStateChange, ...]
     action_total_seconds: float = 0
     action_timing_lock: Lock = field(default_factory=Lock)
+    action_start_lock: Lock = field(default_factory=Lock)
 
 
 def register_builtin_providers(
@@ -222,8 +223,12 @@ class OneShotAgentRuntime:
 
             return BoundedDecisionAdapter(
                 definition,
-                self._decision_transport or HttpxJsonTransport(),
+                cast(
+                    DecisionTransport,
+                    self._decision_transport or HttpxJsonTransport(),
+                ),
                 self._bounded_startup.get(definition.instance.id),
+                monotonic_clock=self._monotonic,
             )
         if self._agent_factory is None:
             self._agent_factory = AgnoAgentFactory()
@@ -387,8 +392,30 @@ class OneShotAgentRuntime:
         """Commit one admitted proposal through the capability engine."""
 
         state = self._prepared_state(prepared)
-        action_tick = self._monotonic()
-        result = self._capabilities.execute(prepared.context, proposal)
+        with state.action_start_lock:
+            metadata = (
+                prepared.context.coordination.metadata
+                if prepared.context.coordination is not None
+                else {}
+            )
+            scheduled_tick = metadata.get("deadlineStartedAt")
+            deadline_seconds = metadata.get("deadlineSeconds")
+            if (
+                isinstance(scheduled_tick, (int, float))
+                and not isinstance(scheduled_tick, bool)
+                and isinstance(deadline_seconds, (int, float))
+                and not isinstance(deadline_seconds, bool)
+                and self._monotonic()
+                >= float(scheduled_tick) + float(deadline_seconds)
+            ):
+                return self.reject(
+                    prepared,
+                    proposal,
+                    code="agent.bounded-decision.timeout",
+                    message="decision deadline expired before action start",
+                )
+            action_tick = self._monotonic()
+            result = self._capabilities.execute(prepared.context, proposal)
         elapsed = self._elapsed(action_tick)
         with state.action_timing_lock:
             state.action_total_seconds += elapsed

@@ -17,9 +17,18 @@ valid recovery choice.
 The fixed bundle stops at the first rejection or execution failure. Evidence
 retains ordered action outcomes and mutation effects; partial or unknown effects
 are not reported as successful recovery or rolled back. Reconciliation and safe
-retry are not implemented. Cadence/deadline safety and live-model/network
-validation also remain unsupported; do not claim accepted live support from this
-incremental implementation.
+retry are not implemented. Scheduled bounded decisions carry one run-owned
+monotonic 800 ms deadline from their original interval tick through inference
+and each action-start check. Ticks received while that bounded lifecycle is
+active are dropped/coalesced rather than queued for catch-up. Already-started
+actions keep their configured action timeout and are not rolled back.
+
+Deadline expiry prevents a late local response from becoming an admitted action
+and prevents later bundle steps from starting. Local cancellation/discard does
+not establish cancellation or termination at llama.cpp: remote terminal status
+is unknown unless independently verified. No general transport cancellation,
+live-model/network validation, or accepted live-support claim is provided by
+this incremental implementation.
 
 The native request contains the retained canonical context string in `state`
 and exactly one `questions.next_action` choice question. Choice IDs and criteria

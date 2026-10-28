@@ -79,6 +79,8 @@ class CoordinationRequest(StrictModel):
         alias="triggeringEventId",
         min_length=1,
     )
+    deadline_started_at: float | None = Field(default=None, alias="deadlineStartedAt")
+    deadline_seconds: float | None = Field(default=None, alias="deadlineSeconds", gt=0)
 
 
 class CoordinationIssue(StrictModel):
@@ -330,6 +332,15 @@ class CoordinationRuntime:
             payload=CoordinationIntentPayload(
                 intent=request.intent,
                 requestedAgentId=request.requested_agent_id,
+                metadata=(
+                    {
+                        "deadlineStartedAt": request.deadline_started_at,
+                        "deadlineSeconds": request.deadline_seconds,
+                    }
+                    if request.deadline_started_at is not None
+                    and request.deadline_seconds is not None
+                    else {}
+                ),
             ).model_dump(mode="json", by_alias=True),
         )
         messages = [root]
