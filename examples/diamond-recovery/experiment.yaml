@@ -7,135 +7,661 @@ substrate:
   driver: fake
   topology:
     addressing:
-      ipv4: {subnet: 10.0.0.0/24, strategy: sequential}
-      mac: {prefix: "02:00:00", strategy: sequential}
+      ipv4:
+        subnet: 10.0.0.0/24
+        strategy: sequential
+      mac:
+        prefix: 02:00:00
+        strategy: sequential
     resources:
-      - {name: network, kind: network}
-      - {name: h1, kind: host, parent: network, interfaces: [{name: h1-eth0, ipv4: 10.0.0.1/24, mac: "02:00:00:00:00:01"}]}
-      - {name: h2, kind: host, parent: network, interfaces: [{name: h2-eth0, ipv4: 10.0.0.2/24, mac: "02:00:00:00:00:02"}]}
-      - name: s1
-        kind: switch
-        parent: network
-        failMode: secure
-        datapath: kernel
-        protocols: [OpenFlow13]
-        labels: {diamond: recovery}
-        ports: [{name: s1-eth1, number: 1}, {name: s1-eth2, number: 2}, {name: s1-eth3, number: 3}]
-      - name: s2
-        kind: switch
-        parent: network
-        failMode: secure
-        datapath: kernel
-        protocols: [OpenFlow13]
-        labels: {diamond: recovery}
-        ports: [{name: s2-eth1, number: 1}, {name: s2-eth2, number: 2}]
-      - name: s3
-        kind: switch
-        parent: network
-        failMode: secure
-        datapath: kernel
-        protocols: [OpenFlow13]
-        labels: {diamond: recovery}
-        ports: [{name: s3-eth1, number: 1}, {name: s3-eth2, number: 2}]
-      - name: s4
-        kind: switch
-        parent: network
-        failMode: secure
-        datapath: kernel
-        protocols: [OpenFlow13]
-        labels: {diamond: recovery}
-        ports: [{name: s4-eth1, number: 1}, {name: s4-eth2, number: 2}, {name: s4-eth3, number: 3}]
+    - name: network
+      kind: network
+    - name: h1
+      kind: host
+      parent: network
+      interfaces:
+      - name: h1-eth0
+        ipv4: 10.0.0.1/24
+        mac: 02:00:00:00:00:01
+    - name: h2
+      kind: host
+      parent: network
+      interfaces:
+      - name: h2-eth0
+        ipv4: 10.0.0.2/24
+        mac: 02:00:00:00:00:02
+    - name: s1
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols:
+      - OpenFlow13
+      labels:
+        diamond: recovery
+      ports:
+      - name: s1-eth1
+        number: 1
+      - name: s1-eth2
+        number: 2
+      - name: s1-eth3
+        number: 3
+    - name: s2
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols:
+      - OpenFlow13
+      labels:
+        diamond: recovery
+      ports:
+      - name: s2-eth1
+        number: 1
+      - name: s2-eth2
+        number: 2
+    - name: s3
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols:
+      - OpenFlow13
+      labels:
+        diamond: recovery
+      ports:
+      - name: s3-eth1
+        number: 1
+      - name: s3-eth2
+        number: 2
+    - name: s4
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols:
+      - OpenFlow13
+      labels:
+        diamond: recovery
+      ports:
+      - name: s4-eth1
+        number: 1
+      - name: s4-eth2
+        number: 2
+      - name: s4-eth3
+        number: 3
     links:
-      - {name: h1-s1, endpoints: [{node: h1, adapter: h1-eth0}, {node: s1, adapter: s1-eth1}]}
-      - {name: s1-s2, endpoints: [{node: s1, adapter: s1-eth2}, {node: s2, adapter: s2-eth1}]}
-      - {name: s2-s4, endpoints: [{node: s2, adapter: s2-eth2}, {node: s4, adapter: s4-eth2}]}
-      - {name: s1-s3, endpoints: [{node: s1, adapter: s1-eth3}, {node: s3, adapter: s3-eth1}]}
-      - {name: s3-s4, endpoints: [{node: s3, adapter: s3-eth2}, {node: s4, adapter: s4-eth3}]}
-      - {name: s4-h2, endpoints: [{node: s4, adapter: s4-eth1}, {node: h2, adapter: h2-eth0}]}
+    - name: h1-s1
+      endpoints:
+      - node: h1
+        adapter: h1-eth0
+      - node: s1
+        adapter: s1-eth1
+    - name: s1-s2
+      endpoints:
+      - node: s1
+        adapter: s1-eth2
+      - node: s2
+        adapter: s2-eth1
+    - name: s2-s4
+      endpoints:
+      - node: s2
+        adapter: s2-eth2
+      - node: s4
+        adapter: s4-eth2
+    - name: s1-s3
+      endpoints:
+      - node: s1
+        adapter: s1-eth3
+      - node: s3
+        adapter: s3-eth1
+    - name: s3-s4
+      endpoints:
+      - node: s3
+        adapter: s3-eth2
+      - node: s4
+        adapter: s4-eth3
+    - name: s4-h2
+      endpoints:
+      - node: s4
+        adapter: s4-eth1
+      - node: h2
+        adapter: h2-eth0
 blueprints:
-  - apiVersion: mininet-ai/v1alpha5
-    kind: AgentBlueprint
-    metadata: {name: diamond-decision-maker}
-    implementation: {type: declarative}
-    execution: {kind: bounded-decision, scenario: diamond-recovery}
-    model:
-      provider: llamacpp-systemone
-      name: exploratory-model
-      parameters:
-        endpoint: http://127.0.0.1:8080
-        expectedIdentity: {repository: example/not-configured, revision: unpinned, artifact: not-configured.gguf, sha256: "0000000000000000000000000000000000000000000000000000000000000000"}
+- apiVersion: mininet-ai/v1alpha5
+  kind: AgentBlueprint
+  metadata:
+    name: diamond-decision-maker
+  implementation:
+    type: declarative
+  execution:
+    kind: bounded-decision
+    scenario: diamond-recovery
+  model:
+    provider: llamacpp-systemone
+    name: exploratory-model
+    parameters:
+      endpoint: http://127.0.0.1:8080
+      expectedIdentity:
+        repository: example/not-configured
+        revision: unpinned
+        artifact: not-configured.gguf
+        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
 capabilityDefinitions:
-  - apiVersion: mininet-ai/v1alpha4
-    kind: Capability
-    metadata: {name: openflow.flow.install, description: Install one fixed scenario-owned OpenFlow rule.}
-    targets: [switch]
-    layers: [data]
-    effects: [dataplane.write]
-    provider: fake.openflow
-    input-schema:
-      type: object
-      required: [match, actions, priority, cookie, hardTimeout]
-      properties:
-        match: {type: object}
-        actions: {type: array, items: {type: string}}
-        priority: {type: integer, const: 200}
-        cookie: {type: integer, minimum: 1}
-        hardTimeout: {type: integer, const: 0}
-      additionalProperties: false
+- apiVersion: mininet-ai/v1alpha4
+  kind: Capability
+  metadata:
+    name: openflow.flow.install
+    description: Install one fixed scenario-owned OpenFlow rule.
+  targets:
+  - switch
+  layers:
+  - data
+  effects:
+  - dataplane.write
+  provider: fake.openflow
+  input-schema:
+    type: object
+    required:
+    - match
+    - actions
+    - priority
+    - cookie
+    - idleTimeout
+    - hardTimeout
+    properties:
+      match:
+        type: object
+      actions:
+        type: string
+        minLength: 1
+      priority:
+        type: integer
+        const: 200
+      cookie:
+        type: integer
+        minimum: 1
+      idleTimeout:
+        type: integer
+        const: 0
+      hardTimeout:
+        type: integer
+        const: 0
+    additionalProperties: false
 agents:
-  - name: diamond-decision
-    blueprint: diamond-decision-maker
-    placement:
-      layer: data
-      targets: {kind: switch, matchLabels: {diamond: recovery}}
-      cardinality: per-group
-      groupBy: diamond
-      runtime: device-sidecar
-    observe: [ovs.port-counters, topology.neighbors, openflow.flows, tc.queue-occupancy]
-    decisionInputs:
-      pathProbes: ovs.port-counters
-      linkStates: topology.neighbors
-      policyState: openflow.flows
-      actionOutcomes: tc.queue-occupancy
-    capabilities: [openflow.flow.install]
-    triggers: [{type: interval, name: once-per-second, every: 1s}]
-    execution: {maxConcurrency: 1, overflow: coalesce, actionTimeout: 30s}
+- name: diamond-decision
+  blueprint: diamond-decision-maker
+  placement:
+    layer: data
+    targets:
+      kind: switch
+      matchLabels:
+        diamond: recovery
+    cardinality: per-group
+    groupBy: diamond
+    runtime: device-sidecar
+  observe:
+  - diamond.path-probes
+  - diamond.link-states
+  - diamond.policy-state
+  - diamond.action-outcomes
+  decisionInputs:
+    pathProbes: diamond.path-probes
+    linkStates: diamond.link-states
+    policyState: diamond.policy-state
+    actionOutcomes: diamond.action-outcomes
+  capabilities:
+  - openflow.flow.install
+  triggers:
+  - type: interval
+    name: once-per-second
+    every: 1s
+  execution:
+    maxConcurrency: 1
+    overflow: coalesce
+    actionTimeout: 30s
 decisionScenarios:
-  - apiVersion: mininet-ai/v1alpha5
-    kind: DecisionScenario
-    metadata: {name: diamond-recovery}
-    instructions: >-
-      Choose install_recovery only when policy is primary, three consecutive complete
-      fresh rounds show zero replies in both primary directions, a primary link was
-      down throughout those rounds, and both recovery-probe directions succeeded
-      throughout. Otherwise choose no_action. Missing, stale, conflicting, startup,
-      transient, failed-confirmation, or already recovered evidence means no_action.
-      Use only the supplied observations; never infer missing values.
-    choices:
-      - {id: no_action, description: Preserve the current policy, proposals: []}
-      - id: install_recovery
-        description: Install the fixed eight-rule recovery bundle.
-        proposals:
-          - {capability: openflow.flow.install, target: s3, arguments: {match: {in_port: 1, dl_type: 2048, nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: [output:2], priority: 200, cookie: 12201, hardTimeout: 0}}
-          - {capability: openflow.flow.install, target: s3, arguments: {match: {in_port: 2, dl_type: 2048, nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: [output:1], priority: 200, cookie: 12202, hardTimeout: 0}}
-          - {capability: openflow.flow.install, target: s4, arguments: {match: {in_port: 3, dl_type: 2048, nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: [output:1], priority: 200, cookie: 12203, hardTimeout: 0}}
-          - {capability: openflow.flow.install, target: s4, arguments: {match: {in_port: 1, dl_type: 2048, nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: [output:3], priority: 200, cookie: 12204, hardTimeout: 0}}
-          - {capability: openflow.flow.install, target: s1, arguments: {match: {in_port: 1, dl_type: 2048, nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: [output:3], priority: 200, cookie: 12205, hardTimeout: 0}}
-          - {capability: openflow.flow.install, target: s1, arguments: {match: {in_port: 3, dl_type: 2048, nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: [output:1], priority: 200, cookie: 12206, hardTimeout: 0}}
-          - {capability: openflow.flow.install, target: s2, arguments: {match: {in_port: 1, dl_type: 2048, nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: [drop], priority: 200, cookie: 12207, hardTimeout: 0}}
-          - {capability: openflow.flow.install, target: s2, arguments: {match: {in_port: 2, dl_type: 2048, nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: [drop], priority: 200, cookie: 12208, hardTimeout: 0}}
-    paths:
-      primary: [h1, s1, s2, s4, h2]
-      recovery: [h1, s1, s3, s4, h2]
-    observations:
-      pathProbes: pathProbes
-      linkStates: linkStates
-      policyState: policyState
-      actionOutcomes: actionOutcomes
-      historyRounds: 3
-      maxAge: 2s
-    timing: {cadence: 1s, decisionDeadline: 800ms}
-    policy:
-      initial: {failMode: secure, tableMiss: drop, controllerLearning: false, normalFallback: false, priority: 100, permanent: true}
-      recovery: {priority: 200, permanent: true, bundle: fixed-eight-rule}
-      probePolicy: {period: 1s, timeout: 1s, directions: [h1-to-h2, h2-to-h1]}
+- apiVersion: mininet-ai/v1alpha5
+  kind: DecisionScenario
+  metadata:
+    name: diamond-recovery
+  instructions: Choose install_recovery only when policy is primary, three consecutive complete fresh
+    rounds show zero replies in both primary directions, a primary link was down throughout those rounds,
+    and both recovery-probe directions succeeded throughout. Otherwise choose no_action. Missing, stale,
+    conflicting, startup, transient, failed-confirmation, or already recovered evidence means no_action.
+    Use only the supplied observations; never infer missing values.
+  choices:
+  - id: no_action
+    description: Preserve the current policy
+    proposals: []
+  - id: install_recovery
+    description: Install the fixed eight-rule recovery bundle.
+    proposals:
+    - capability: openflow.flow.install
+      target: s3
+      arguments:
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.1
+          nw_dst: 10.0.0.2
+        actions: output:2
+        priority: 200
+        cookie: 12201
+        hardTimeout: 0
+        idleTimeout: 0
+    - capability: openflow.flow.install
+      target: s3
+      arguments:
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.2
+          nw_dst: 10.0.0.1
+        actions: output:1
+        priority: 200
+        cookie: 12202
+        hardTimeout: 0
+        idleTimeout: 0
+    - capability: openflow.flow.install
+      target: s4
+      arguments:
+        match:
+          in_port: 3
+          dl_type: 2048
+          nw_src: 10.0.0.1
+          nw_dst: 10.0.0.2
+        actions: output:1
+        priority: 200
+        cookie: 12203
+        hardTimeout: 0
+        idleTimeout: 0
+    - capability: openflow.flow.install
+      target: s4
+      arguments:
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.2
+          nw_dst: 10.0.0.1
+        actions: output:3
+        priority: 200
+        cookie: 12204
+        hardTimeout: 0
+        idleTimeout: 0
+    - capability: openflow.flow.install
+      target: s1
+      arguments:
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.1
+          nw_dst: 10.0.0.2
+        actions: output:3
+        priority: 200
+        cookie: 12205
+        hardTimeout: 0
+        idleTimeout: 0
+    - capability: openflow.flow.install
+      target: s1
+      arguments:
+        match:
+          in_port: 3
+          dl_type: 2048
+          nw_src: 10.0.0.2
+          nw_dst: 10.0.0.1
+        actions: output:1
+        priority: 200
+        cookie: 12206
+        hardTimeout: 0
+        idleTimeout: 0
+    - capability: openflow.flow.install
+      target: s2
+      arguments:
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.1
+          nw_dst: 10.0.0.2
+        actions: drop
+        priority: 200
+        cookie: 12207
+        hardTimeout: 0
+        idleTimeout: 0
+    - capability: openflow.flow.install
+      target: s2
+      arguments:
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.2
+          nw_dst: 10.0.0.1
+        actions: drop
+        priority: 200
+        cookie: 12208
+        hardTimeout: 0
+        idleTimeout: 0
+  paths:
+    primary:
+    - h1
+    - s1
+    - s2
+    - s4
+    - h2
+    recovery:
+    - h1
+    - s1
+    - s3
+    - s4
+    - h2
+  observations:
+    pathProbes: pathProbes
+    linkStates: linkStates
+    policyState: policyState
+    actionOutcomes: actionOutcomes
+    historyRounds: 3
+    maxAge: 2s
+  timing:
+    cadence: 1s
+    decisionDeadline: 800ms
+  policy:
+    initial:
+      failMode: secure
+      tableMiss: drop
+      controllerLearning: false
+      normalFallback: false
+      priority: 100
+      permanent: true
+      rules:
+      - switch: s1
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.1
+          nw_dst: 10.0.0.2
+        actions:
+        - output:2
+        priority: 100
+        cookie: 11101
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h1-to-h2
+      - switch: s2
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.1
+          nw_dst: 10.0.0.2
+        actions:
+        - output:2
+        priority: 100
+        cookie: 11102
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h1-to-h2
+      - switch: s4
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.1
+          nw_dst: 10.0.0.2
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11103
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h1-to-h2
+      - switch: s4
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.2
+          nw_dst: 10.0.0.1
+        actions:
+        - output:2
+        priority: 100
+        cookie: 11104
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h2-to-h1
+      - switch: s2
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.2
+          nw_dst: 10.0.0.1
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11105
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h2-to-h1
+      - switch: s1
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.2
+          nw_dst: 10.0.0.1
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11106
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h2-to-h1
+      - switch: s1
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.11
+          nw_dst: 10.0.0.12
+        actions:
+        - output:2
+        priority: 100
+        cookie: 11107
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h1-to-h2
+      - switch: s2
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.11
+          nw_dst: 10.0.0.12
+        actions:
+        - output:2
+        priority: 100
+        cookie: 11108
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h1-to-h2
+      - switch: s4
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.11
+          nw_dst: 10.0.0.12
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11109
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h1-to-h2
+      - switch: s4
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.12
+          nw_dst: 10.0.0.11
+        actions:
+        - output:2
+        priority: 100
+        cookie: 11110
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h2-to-h1
+      - switch: s2
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.12
+          nw_dst: 10.0.0.11
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11111
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h2-to-h1
+      - switch: s1
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.12
+          nw_dst: 10.0.0.11
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11112
+        idleTimeout: 0
+        hardTimeout: 0
+        path: primary
+        direction: h2-to-h1
+      - switch: s1
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.21
+          nw_dst: 10.0.0.22
+        actions:
+        - output:3
+        priority: 100
+        cookie: 11113
+        idleTimeout: 0
+        hardTimeout: 0
+        path: recovery
+        direction: h1-to-h2
+      - switch: s3
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.21
+          nw_dst: 10.0.0.22
+        actions:
+        - output:2
+        priority: 100
+        cookie: 11114
+        idleTimeout: 0
+        hardTimeout: 0
+        path: recovery
+        direction: h1-to-h2
+      - switch: s4
+        match:
+          in_port: 3
+          dl_type: 2048
+          nw_src: 10.0.0.21
+          nw_dst: 10.0.0.22
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11115
+        idleTimeout: 0
+        hardTimeout: 0
+        path: recovery
+        direction: h1-to-h2
+      - switch: s4
+        match:
+          in_port: 1
+          dl_type: 2048
+          nw_src: 10.0.0.22
+          nw_dst: 10.0.0.21
+        actions:
+        - output:3
+        priority: 100
+        cookie: 11116
+        idleTimeout: 0
+        hardTimeout: 0
+        path: recovery
+        direction: h2-to-h1
+      - switch: s3
+        match:
+          in_port: 2
+          dl_type: 2048
+          nw_src: 10.0.0.22
+          nw_dst: 10.0.0.21
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11117
+        idleTimeout: 0
+        hardTimeout: 0
+        path: recovery
+        direction: h2-to-h1
+      - switch: s1
+        match:
+          in_port: 3
+          dl_type: 2048
+          nw_src: 10.0.0.22
+          nw_dst: 10.0.0.21
+        actions:
+        - output:1
+        priority: 100
+        cookie: 11118
+        idleTimeout: 0
+        hardTimeout: 0
+        path: recovery
+        direction: h2-to-h1
+      hostAddresses:
+        h1:
+          mac: 02:00:00:00:00:01
+          active: 10.0.0.1
+          primaryProbe: 10.0.0.11
+          recoveryProbe: 10.0.0.21
+        h2:
+          mac: 02:00:00:00:00:02
+          active: 10.0.0.2
+          primaryProbe: 10.0.0.12
+          recoveryProbe: 10.0.0.22
+      staticNeighbors:
+        h1:
+          10.0.0.2: 02:00:00:00:00:02
+          10.0.0.12: 02:00:00:00:00:02
+          10.0.0.22: 02:00:00:00:00:02
+        h2:
+          10.0.0.1: 02:00:00:00:00:01
+          10.0.0.11: 02:00:00:00:00:01
+          10.0.0.21: 02:00:00:00:00:01
+    recovery:
+      priority: 200
+      permanent: true
+      bundle: fixed-eight-rule
+    probePolicy:
+      period: 1s
+      timeout: 1s
+      directions:
+      - h1-to-h2
+      - h2-to-h1
+      diagnosticPairs:
+        primary:
+        - 10.0.0.11
+        - 10.0.0.12
+        recovery:
+        - 10.0.0.21
+        - 10.0.0.22
+      activeConfirmationPair:
+      - 10.0.0.1
+      - 10.0.0.2

@@ -41,6 +41,18 @@ def test_diamond_recovery_compiles_exact_recovery_bundle() -> None:
     assert plan.api_version == "mininet-ai/v1alpha5"
     assert len(plan.agents) == 1
     instance = plan.agents[0]
+    assert set(instance.observes) == {
+        "diamond.path-probes",
+        "diamond.link-states",
+        "diamond.policy-state",
+        "diamond.action-outcomes",
+    }
+    assert instance.decision_inputs == {
+        "pathProbes": "diamond.path-probes",
+        "linkStates": "diamond.link-states",
+        "policyState": "diamond.policy-state",
+        "actionOutcomes": "diamond.action-outcomes",
+    }
     scenario = instance.decision_scenario
     assert scenario is not None
     assert scenario["paths"] == {
@@ -60,14 +72,14 @@ def test_diamond_recovery_compiles_exact_recovery_bundle() -> None:
         )
         for rule in rules
     ] == [
-        ("s3", 1, ["output:2"]),
-        ("s3", 2, ["output:1"]),
-        ("s4", 3, ["output:1"]),
-        ("s4", 1, ["output:3"]),
-        ("s1", 1, ["output:3"]),
-        ("s1", 3, ["output:1"]),
-        ("s2", 1, ["drop"]),
-        ("s2", 2, ["drop"]),
+        ("s3", 1, "output:2"),
+        ("s3", 2, "output:1"),
+        ("s4", 3, "output:1"),
+        ("s4", 1, "output:3"),
+        ("s1", 1, "output:3"),
+        ("s1", 3, "output:1"),
+        ("s2", 1, "drop"),
+        ("s2", 2, "drop"),
     ]
     assert [rule["arguments"]["priority"] for rule in rules] == [200] * 8
     assert [rule["arguments"]["hardTimeout"] for rule in rules] == [0] * 8
@@ -93,6 +105,48 @@ def test_diamond_recovery_compiles_exact_recovery_bundle() -> None:
         "s4": {1, 2, 3},
     }
     assert plan.agents[0].attachment.targets == ("s1", "s2", "s3", "s4")
+    from examples.diamond_recovery import INITIAL_RULES, RECOVERY_RULES
+
+    assert scenario["policy"]["initial"]["rules"] == list(INITIAL_RULES)
+    assert scenario["policy"]["initial"]["tableMiss"] == "drop"
+    assert scenario["policy"]["initial"]["failMode"] == "secure"
+    assert scenario["policy"]["initial"]["controllerLearning"] is False
+    assert scenario["policy"]["initial"]["normalFallback"] is False
+    assert scenario["policy"]["initial"]["staticNeighbors"] == {
+        "h1": {
+            "10.0.0.2": "02:00:00:00:00:02",
+            "10.0.0.12": "02:00:00:00:00:02",
+            "10.0.0.22": "02:00:00:00:00:02",
+        },
+        "h2": {
+            "10.0.0.1": "02:00:00:00:00:01",
+            "10.0.0.11": "02:00:00:00:00:01",
+            "10.0.0.21": "02:00:00:00:00:01",
+        },
+    }
+    assert [rule["arguments"]["idleTimeout"] for rule in rules] == [0] * 8
+    assert [
+        {
+            "switch": rule["target"],
+            **rule["arguments"],
+        }
+        for rule in rules
+    ] == list(RECOVERY_RULES)
+    link_map = {
+        link["name"]: tuple(
+            (endpoint["node"], endpoint.get("adapter"))
+            for endpoint in link["endpoints"]
+        )
+        for link in plan.snapshot["substrate"]["topology"]["links"]
+    }
+    assert link_map == {
+        "h1-s1": (("h1", "h1-eth0"), ("s1", "s1-eth1")),
+        "s1-s2": (("s1", "s1-eth2"), ("s2", "s2-eth1")),
+        "s2-s4": (("s2", "s2-eth2"), ("s4", "s4-eth2")),
+        "s1-s3": (("s1", "s1-eth3"), ("s3", "s3-eth1")),
+        "s3-s4": (("s3", "s3-eth2"), ("s4", "s4-eth3")),
+        "s4-h2": (("s4", "s4-eth1"), ("h2", "h2-eth0")),
+    }
 
 
 def test_diamond_recovery_oracle_covers_required_decision_classes() -> None:
@@ -112,6 +166,7 @@ def test_diamond_recovery_oracle_covers_required_decision_classes() -> None:
         "missing-round",
         "conflicting-link-and-probe-evidence",
         "failed-recovery-probes",
+        "partial-or-unknown-policy",
         "post-recovery-restraint",
     } <= labels
     assert all(case["expected"] in {"no_action", "install_recovery"} for case in cases)
@@ -120,6 +175,165 @@ def test_diamond_recovery_oracle_covers_required_decision_classes() -> None:
         for case in cases
         if case["label"] != "sustained-primary-failure"
     )
+
+
+def test_diamond_initial_policy_and_probe_payload_use_independent_paths() -> None:
+    from examples.diamond_recovery import (
+        INITIAL_RULES,
+        PATHS,
+        collect_observation_round,
+        static_neighbors,
+    )
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class FakeDiamondSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__(run_id_factory=lambda: "diamond-fake")
+            self.probe_calls = []
+
+        def probe(self, source, destination, source_ip, destination_ip, timeout):
+            self.probe_calls.append(
+                (source, destination, source_ip, destination_ip, timeout)
+            )
+            return {
+                "sent": 1,
+                "received": 1,
+                "state": "success",
+                "observedAt": "2026-10-28T12:00:00Z",
+            }
+
+    assert len(INITIAL_RULES) == 18
+    assert {rule["priority"] for rule in INITIAL_RULES} == {100}
+    assert {rule["hardTimeout"] for rule in INITIAL_RULES} == {0}
+    assert [rule["cookie"] for rule in INITIAL_RULES] == list(range(11101, 11119))
+    assert [rule["path"] for rule in INITIAL_RULES].count("primary") == 12
+    assert [rule["path"] for rule in INITIAL_RULES].count("recovery") == 6
+    assert PATHS == {
+        "primary": ("h1", "s1", "s2", "s4", "h2"),
+        "recovery": ("h1", "s1", "s3", "s4", "h2"),
+    }
+    assert static_neighbors() == {
+        "h1": {
+            "10.0.0.2": "02:00:00:00:00:02",
+            "10.0.0.12": "02:00:00:00:00:02",
+            "10.0.0.22": "02:00:00:00:00:02",
+        },
+        "h2": {
+            "10.0.0.1": "02:00:00:00:00:01",
+            "10.0.0.11": "02:00:00:00:00:01",
+            "10.0.0.21": "02:00:00:00:00:01",
+        },
+    }
+
+    substrate = FakeDiamondSubstrate()
+    substrate.deploy(
+        compile_experiment(EXAMPLES_DIR / "diamond-recovery/experiment.yaml")
+    )
+
+    payload = collect_observation_round(
+        substrate.probe,
+        observed_at="2026-10-28T12:00:00Z",
+        link_states={"s1-s2": "up", "s1-s3": "up", "s2-s4": "up", "s3-s4": "up"},
+        policy_state="primary",
+        previous_outcomes=[],
+    )
+    assert (
+        len(substrate.probe_calls) == 6
+    )  # four diagnostics and two active confirmations
+    assert {call[2] for call in substrate.probe_calls} == {
+        "10.0.0.1",
+        "10.0.0.2",
+        "10.0.0.11",
+        "10.0.0.12",
+        "10.0.0.21",
+        "10.0.0.22",
+    }
+    assert all(call[-1] == 1 for call in substrate.probe_calls)
+    assert len(payload["pathProbes"]) == 4
+    assert len(payload["activeConfirmation"]) == 2
+    assert payload["paths"] == {
+        "primary": ["h1", "s1", "s2", "s4", "h2"],
+        "recovery": ["h1", "s1", "s3", "s4", "h2"],
+    }
+    assert all(
+        probe["observedAt"] == "2026-10-28T12:00:00Z" for probe in payload["pathProbes"]
+    )
+    assert payload["linkStates"] == {
+        "s1-s2": {"state": "up", "observedAt": "2026-10-28T12:00:00Z"},
+        "s1-s3": {"state": "up", "observedAt": "2026-10-28T12:00:00Z"},
+        "s2-s4": {"state": "up", "observedAt": "2026-10-28T12:00:00Z"},
+        "s3-s4": {"state": "up", "observedAt": "2026-10-28T12:00:00Z"},
+    }
+
+
+def test_diamond_history_requires_three_consecutive_complete_scheduled_rounds() -> None:
+    from examples.diamond_recovery import collect_observation_round
+
+    def successful_probe(*_args):
+        return {"sent": 1, "received": 1, "state": "success"}
+
+    link_states = {name: "up" for name in ("s1-s2", "s1-s3", "s2-s4", "s3-s4")}
+    first = collect_observation_round(
+        successful_probe,
+        observed_at="2026-10-28T12:00:00Z",
+        link_states=link_states,
+        policy_state="primary",
+        previous_outcomes=[],
+        round_number=1,
+        scheduled_at="2026-10-28T12:00:00Z",
+    )
+    assert len(first["history"]["completedRounds"]) == 1
+    assert first["history"]["gaps"] == [
+        {"code": "history.insufficient-complete-rounds", "required": 3, "available": 1}
+    ]
+    second = collect_observation_round(
+        successful_probe,
+        observed_at="2026-10-28T12:00:01Z",
+        link_states=link_states,
+        policy_state="primary",
+        previous_outcomes=[],
+        previous_rounds=(first,),
+        round_number=2,
+        scheduled_at="2026-10-28T12:00:01Z",
+    )
+    third = collect_observation_round(
+        successful_probe,
+        observed_at="2026-10-28T12:00:02Z",
+        link_states=link_states,
+        policy_state="primary",
+        previous_outcomes=[],
+        previous_rounds=(first, second),
+        round_number=3,
+        scheduled_at="2026-10-28T12:00:02Z",
+    )
+    assert [
+        round_data["roundNumber"] for round_data in third["history"]["completedRounds"]
+    ] == [1, 2, 3]
+    assert third["history"]["gaps"] == []
+    assert third["invocationSnapshot"]["scenario"] == "diamond-recovery"
+    assert third["invocationSnapshot"]["inputs"]["history"]["requiredRounds"] == 3
+    frozen_inputs = third["invocationSnapshot"]["inputs"]
+    third["policyState"] = "mutated-after-assembly"
+    assert frozen_inputs["policyState"] == "primary"
+
+    def incomplete_probe(source, _destination, _source_ip, _destination_ip, _timeout):
+        if source == "h1":
+            return {"sent": None, "received": None, "state": "unknown"}
+        return {"sent": 1, "received": 1, "state": "success"}
+
+    fourth = collect_observation_round(
+        incomplete_probe,
+        observed_at="2026-10-28T12:00:03Z",
+        link_states=link_states,
+        policy_state="primary",
+        previous_outcomes=[],
+        previous_rounds=(second, third),
+        round_number=4,
+        scheduled_at="2026-10-28T12:00:03Z",
+    )
+    assert len(fourth["history"]["completedRounds"]) == 2
+    assert any(gap["code"] == "round.incomplete" for gap in fourth["history"]["gaps"])
+    assert any(probe["sent"] is None for probe in fourth["pathProbes"])
 
 
 def test_examples_validate_and_plan() -> None:

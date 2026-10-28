@@ -11,6 +11,7 @@
     {"id": "missing", "label": "missing-round", "policy": "primary", "primaryReplies": [0, 0, null], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 2, "fresh": true, "expected": "no_action"},
     {"id": "conflicting", "label": "conflicting-link-and-probe-evidence", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": false, "completeRounds": 3, "fresh": true, "expected": "no_action"},
     {"id": "recovery-probe-failed", "label": "failed-recovery-probes", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [0, 2, 0], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
-    {"id": "post-recovery", "label": "post-recovery-restraint", "policy": "recovery", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"}
+    {"id": "post-recovery", "label": "post-recovery-restraint", "policy": "recovery", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
+    {"id": "partial-unknown", "label": "partial-or-unknown-policy", "policy": "partial", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"}
   ]
 }

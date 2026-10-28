@@ -34,6 +34,10 @@ _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
             "ovs.port-counters",
             "tc.queue-occupancy",
             "packets.samples",
+            "diamond.path-probes",
+            "diamond.link-states",
+            "diamond.policy-state",
+            "diamond.action-outcomes",
         }
     ),
     AttachmentLayer.HOST: frozenset(
