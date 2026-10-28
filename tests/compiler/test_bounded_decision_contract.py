@@ -16,7 +16,24 @@ from mininet_ai.compiler import (
 )
 from mininet_ai.sdk import ExecutionCatalog
 from mininet_ai.specification.models import AgentBlueprint, Experiment
+from mininet_ai.substrates import FakeSubstrateRuntime
 from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
+
+
+class EligibleFakeSubstrate(FakeSubstrateRuntime):
+    """Fake observations that positively establish recovery eligibility."""
+
+    def observe(self, run_id, query):
+        result = super().observe(run_id, query)
+        if query.name != "ovs.port-counters":
+            return result
+        return result.model_copy(
+            update={
+                "values": {
+                    target: {"eligible": True} for target in query.targets
+                }
+            }
+        )
 
 
 def bounded_blueprint():
@@ -424,7 +441,6 @@ def test_cancellation_revokes_action_authority_and_retains_remote_unknown(tmp_pa
     from mininet_ai.agents import register_builtin_providers
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     entered, release = Event(), Event()
 
@@ -447,7 +463,7 @@ def test_cancellation_revokes_action_authority_and_retains_remote_unknown(tmp_pa
 
     plan = compile_experiment(_source_for_compile(tmp_path))
 
-    class RecordingSubstrate(FakeSubstrateRuntime):
+    class RecordingSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.mutations = []
@@ -504,7 +520,6 @@ def test_recovery_selection_executes_fixed_bundle_and_retains_completion_evidenc
     from mininet_ai.agents import register_builtin_providers
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     class RecoveryTransport:
         def get_json(self, url, **kwargs):
@@ -522,7 +537,7 @@ def test_recovery_selection_executes_fixed_bundle_and_retains_completion_evidenc
                 }
             }
 
-    class RecordingSubstrate(FakeSubstrateRuntime):
+    class RecordingSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.mutations = []
@@ -582,7 +597,6 @@ def test_bounded_decision_records_trusted_primary_policy_inspection(tmp_path):
     from mininet_ai.agents import register_builtin_providers
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     class NoActionTransport:
         def get_json(self, url, **kwargs):
@@ -592,7 +606,7 @@ def test_bounded_decision_records_trusted_primary_policy_inspection(tmp_path):
             return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
 
     plan = compile_experiment(_source_for_compile(tmp_path))
-    substrate = FakeSubstrateRuntime()
+    substrate = EligibleFakeSubstrate()
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
     completed = Event()
@@ -757,7 +771,18 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
     assert restraint.action_results == ()
 
 
-def test_model_selected_retry_with_ineligible_current_evidence_is_refused(tmp_path):
+@pytest.mark.parametrize(
+    ("eligibility_shape", "expected_refusal"),
+    [
+        ("false", "ineligible-evidence"),
+        ("missing", "missing-eligibility"),
+        ("malformed", "malformed-eligibility"),
+        ("conflicting", "conflicting-eligibility"),
+    ],
+)
+def test_model_selected_retry_without_positive_current_eligibility_is_refused(
+    tmp_path, eligibility_shape, expected_refusal
+):
     from threading import Event
 
     from mininet_ai.agents import register_builtin_providers
@@ -795,11 +820,20 @@ def test_model_selected_retry_with_ineligible_current_evidence_is_refused(tmp_pa
             if query.name != "ovs.port-counters":
                 return result
             self.observation_round += 1
-            eligible = self.observation_round <= 2
+            if self.observation_round <= 2:
+                signal = {"eligible": True}
+            elif eligibility_shape == "false":
+                signal = {"eligible": False}
+            elif eligibility_shape == "missing":
+                signal = {"status": "path unavailable"}
+            elif eligibility_shape == "malformed":
+                signal = {"eligible": "yes"}
+            else:
+                signal = {"eligible": True, "details": {"eligible": False}}
             return result.model_copy(
                 update={
                     "values": {
-                        target: {"eligible": eligible}
+                        target: signal
                         for target in query.targets
                     }
                 }
@@ -841,9 +875,16 @@ def test_model_selected_retry_with_ineligible_current_evidence_is_refused(tmp_pa
 
     initial, _, refused = results
     retry_request = json.loads(transport.requests[2]["state"])
-    assert retry_request["latestObservations"]["pathProbes"]["value"]["s1"][
-        "eligible"
-    ] is False
+    retry_probe = retry_request["latestObservations"]["pathProbes"]["value"]["s1"]
+    if eligibility_shape == "false":
+        assert retry_probe["eligible"] is False
+    elif eligibility_shape == "missing":
+        assert "eligible" not in retry_probe
+    elif eligibility_shape == "malformed":
+        assert retry_probe["eligible"] == "yes"
+    else:
+        assert retry_probe["eligible"] is True
+        assert retry_probe["details"]["eligible"] is False
     assert initial.status.value == "failed"
     assert refused.status.value == "failed"
     assert refused.issue is not None
@@ -853,7 +894,7 @@ def test_model_selected_retry_with_ineligible_current_evidence_is_refused(tmp_pa
         "boundedDecision"
     ]
     assert evidence["selectedChoice"] == "install_recovery"
-    assert evidence["refusal"]["code"] == "ineligible-evidence"
+    assert evidence["refusal"]["code"] == expected_refusal
     assert evidence["reconciliation"]["policy"] == "partial"
     assert [request.id for request in substrate.mutations] == ["bounded-1"]
 
@@ -918,7 +959,6 @@ def test_unknown_or_wrong_scenario_rules_refuse_retry_with_correlated_evidence(
 def test_redundant_recovery_after_positive_verification_is_failure(tmp_path):
     from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     class InstallTransport:
         def get_json(self, url, **kwargs):
@@ -928,7 +968,7 @@ def test_redundant_recovery_after_positive_verification_is_failure(tmp_path):
             return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
 
     plan = compile_experiment(_source_for_compile(tmp_path))
-    substrate = FakeSubstrateRuntime()
+    substrate = EligibleFakeSubstrate()
     run = substrate.deploy(plan)
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
@@ -955,7 +995,6 @@ def test_redundant_recovery_after_positive_verification_is_failure(tmp_path):
 def test_completed_bundle_without_positive_full_verification_fails(tmp_path):
     from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     class InstallTransport:
         def get_json(self, url, **kwargs):
@@ -964,7 +1003,7 @@ def test_completed_bundle_without_positive_full_verification_fails(tmp_path):
         def post_json(self, url, payload, **kwargs):
             return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
 
-    class VerificationLostSubstrate(FakeSubstrateRuntime):
+    class VerificationLostSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.inspections = 0
@@ -1009,7 +1048,6 @@ def test_failed_recovery_step_stops_bundle_and_retains_partial_effects(tmp_path)
     from mininet_ai.errors import RuntimeOperationError
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     class RecoveryTransport:
         def get_json(self, url, **kwargs):
@@ -1022,7 +1060,7 @@ def test_failed_recovery_step_stops_bundle_and_retains_partial_effects(tmp_path)
                 }
             }
 
-    class FailingSubstrate(FakeSubstrateRuntime):
+    class FailingSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.mutations = []
@@ -1094,7 +1132,6 @@ def test_deadline_between_recovery_steps_preserves_started_effect_and_stops_next
     from mininet_ai.agents import register_builtin_providers
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     class ControlledClock:
         now = 0.0
@@ -1111,7 +1148,7 @@ def test_deadline_between_recovery_steps_preserves_started_effect_and_stops_next
 
     clock = ControlledClock()
 
-    class AdvancingSubstrate(FakeSubstrateRuntime):
+    class AdvancingSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.mutations = []
@@ -1169,7 +1206,6 @@ def test_cancellation_racing_started_action_revokes_only_future_steps(tmp_path):
     from mininet_ai.agents import register_builtin_providers
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     action_started, finish_action, cancel_returned = Event(), Event(), Event()
 
@@ -1180,7 +1216,7 @@ def test_cancellation_racing_started_action_revokes_only_future_steps(tmp_path):
         def post_json(self, url, payload, **kwargs):
             return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
 
-    class BlockingActionSubstrate(FakeSubstrateRuntime):
+    class BlockingActionSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.mutations = []
@@ -1471,7 +1507,6 @@ def test_bounded_admission_wait_consumes_original_deadline_before_action_start(
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
     from mininet_ai.sdk import ActionProposal, AgentResponse
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     holder_action_started, release_holder, bounded_response = Event(), Event(), Event()
 
@@ -1493,7 +1528,7 @@ def test_bounded_admission_wait_consumes_original_deadline_before_action_start(
             bounded_response.set()
             return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
 
-    class BlockingSubstrate(FakeSubstrateRuntime):
+    class BlockingSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.mutations = []
@@ -1721,7 +1756,6 @@ def test_runtime_conflict_rejection_is_retained_as_distinct_evidence(tmp_path):
     from mininet_ai.agents import register_builtin_providers
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     class RecoveryTransport:
         def __init__(self):
@@ -1742,7 +1776,7 @@ def test_runtime_conflict_rejection_is_retained_as_distinct_evidence(tmp_path):
                 }
             }
 
-    class RecordingSubstrate(FakeSubstrateRuntime):
+    class RecordingSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.mutations = []
@@ -1805,7 +1839,6 @@ def test_bounded_service_startup_failure_precedes_substrate_deploy(tmp_path):
     from mininet_ai.errors import AgentRuntimeError
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
-    from mininet_ai.substrates import FakeSubstrateRuntime
 
     class UnavailableTransport:
         def get_json(self, url, **kwargs):
@@ -1814,7 +1847,7 @@ def test_bounded_service_startup_failure_precedes_substrate_deploy(tmp_path):
         def post_json(self, url, payload, **kwargs):
             raise AssertionError("native probe must follow availability checks")
 
-    class RecordingSubstrate(FakeSubstrateRuntime):
+    class RecordingSubstrate(EligibleFakeSubstrate):
         deployed = False
 
         def deploy(self, plan):

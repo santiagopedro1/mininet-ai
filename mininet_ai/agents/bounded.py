@@ -63,18 +63,29 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _eligibility_signals(value: Any) -> list[bool]:
+def _eligibility_signals(value: Any) -> tuple[list[bool], bool]:
     signals: list[bool] = []
+    malformed = False
     if isinstance(value, Mapping):
         for key, child in value.items():
-            if key == "eligible" and isinstance(child, bool):
-                signals.append(child)
+            if key == "eligible":
+                if isinstance(child, bool):
+                    signals.append(child)
+                else:
+                    malformed = True
+                    nested_signals, nested_malformed = _eligibility_signals(child)
+                    signals.extend(nested_signals)
+                    malformed = malformed or nested_malformed
             else:
-                signals.extend(_eligibility_signals(child))
+                nested_signals, nested_malformed = _eligibility_signals(child)
+                signals.extend(nested_signals)
+                malformed = malformed or nested_malformed
     elif isinstance(value, (list, tuple)):
         for child in value:
-            signals.extend(_eligibility_signals(child))
-    return signals
+            nested_signals, nested_malformed = _eligibility_signals(child)
+            signals.extend(nested_signals)
+            malformed = malformed or nested_malformed
+    return signals, malformed
 
 
 def map_choice(
@@ -909,11 +920,56 @@ class BoundedDecisionAdapter:
             }
         probes_source = bindings.get("pathProbes")
         probe_values = refreshed.get(probes_source, {}).get("values", {})
-        eligibility = _eligibility_signals(probe_values)
+        targets = self.definition.instance.attachment.targets
+        eligibility_by_target: dict[str, list[bool]] = {}
+        malformed_targets: list[str] = []
+        missing_targets: list[str] = []
+        for target in targets:
+            if not isinstance(probe_values, Mapping) or target not in probe_values:
+                missing_targets.append(target)
+                continue
+            signals, malformed = _eligibility_signals(probe_values[target])
+            if malformed:
+                malformed_targets.append(target)
+            if not signals:
+                missing_targets.append(target)
+            eligibility_by_target[target] = signals
+        eligibility = [
+            signal
+            for target_signals in eligibility_by_target.values()
+            for signal in target_signals
+        ]
         self._reconciliation["retryEvidence"] = {
             "observations": refreshed,
             "eligibilitySignals": eligibility,
+            "eligibilityByTarget": eligibility_by_target,
         }
+        if malformed_targets:
+            return {
+                "eligible": False,
+                "refusalCode": "malformed-eligibility",
+                "message": "current recovery observations contain malformed eligibility evidence",
+                "observations": refreshed,
+                "eligibilitySignals": eligibility,
+                "malformedTargets": malformed_targets,
+            }
+        if missing_targets:
+            return {
+                "eligible": False,
+                "refusalCode": "missing-eligibility",
+                "message": "current recovery observations omit required eligibility evidence",
+                "observations": refreshed,
+                "eligibilitySignals": eligibility,
+                "missingTargets": missing_targets,
+            }
+        if len(set(eligibility)) > 1:
+            return {
+                "eligible": False,
+                "refusalCode": "conflicting-eligibility",
+                "message": "current recovery observations contain conflicting eligibility signals",
+                "observations": refreshed,
+                "eligibilitySignals": eligibility,
+            }
         if any(value is False for value in eligibility):
             return {
                 "eligible": False,
