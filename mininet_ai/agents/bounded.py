@@ -8,13 +8,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from threading import Lock, Thread
 from time import monotonic
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from mininet_ai.agents.bounded_contracts import (
     AgentExecutionRecord,
     BoundedDecisionRecord,
 )
+from mininet_ai.agents.reconciliation import reconcile_bundle
 from mininet_ai.errors import AgentRuntimeError
+from mininet_ai.substrates.runtime import ActionRequest
 
 
 @dataclass(frozen=True)
@@ -374,11 +376,29 @@ class BoundedDecisionAdapter:
         transport: DecisionTransport,
         startup: Mapping[str, Any] | None = None,
         monotonic_clock: Any = monotonic,
+        substrate: Any | None = None,
     ) -> None:
         self.definition = definition
         self.transport = transport
         self.startup = dict(startup or {})
         self._monotonic = monotonic_clock
+        self._substrate = substrate
+        self._reconciliation: dict[str, Any] = {}
+        self._bundle_requests = tuple(
+            ActionRequest(
+                id=f"bounded-{index + 1}",
+                name=proposal["capability"],
+                target=proposal["target"],
+                parameters=proposal["arguments"],
+            )
+            for index, proposal in enumerate(
+                next(
+                    choice["proposals"]
+                    for choice in definition.instance.decision_scenario["choices"]
+                    if choice["id"] == "install_recovery"
+                )
+            )
+        )
         model = definition.blueprint.model
         if not hasattr(model, "parameters") or model.provider != "llamacpp-systemone":
             raise AgentRuntimeError(
@@ -494,7 +514,13 @@ class BoundedDecisionAdapter:
                     "scheduled round history is not available from the agent-runtime contract"
                 ],
             },
-            "policy": self.scenario["policy"],
+            "policy": {
+                **self.scenario["policy"],
+                "current": self._inspect_policy(
+                    context.run_id,
+                    timeout_seconds=max(0.0, deadline - clock()),
+                ),
+            },
         }
         state = json.dumps(
             decision_context,
@@ -567,7 +593,54 @@ class BoundedDecisionAdapter:
                 agent_id=context.agent_id,
                 invocation_id=context.invocation_id,
             )
+        policy_state = self._reconciliation.get("policy", "unknown")
+        if result.choice_id == "install_recovery" and policy_state == "unknown":
+            self._retain_failure(
+                context,
+                "reconciliation-failed",
+                phase="reconciliation",
+                native_response=result.native_response or {},
+                selected_choice=result.choice_id,
+            )
+            assert self._failure_execution_record is not None
+            self._failure_execution_record["runtime"]["boundedDecision"][
+                "reconciliation"
+            ] = self._reconciliation
+            raise AgentRuntimeError(
+                "scenario-owned rule state is unknown; recovery retry refused",
+                code="agent.bounded-decision.reconciliation-failed",
+                agent_id=context.agent_id,
+                invocation_id=context.invocation_id,
+            )
+        if result.choice_id == "install_recovery" and policy_state == "verified-recovery":
+            self._retain_failure(
+                context,
+                "redundant-recovery",
+                phase="reconciliation",
+                native_response=result.native_response or {},
+                selected_choice=result.choice_id,
+            )
+            assert self._failure_execution_record is not None
+            self._failure_execution_record["runtime"]["boundedDecision"][
+                "reconciliation"
+            ] = self._reconciliation
+            raise AgentRuntimeError(
+                "recovery was selected after the full policy was already verified",
+                code="agent.bounded-decision.redundant-recovery",
+                agent_id=context.agent_id,
+                invocation_id=context.invocation_id,
+            )
         elapsed = max(0.0, completed_tick - inference_started)
+        present = set(self._reconciliation.get("presentIndexes", ()))
+        remaining_indices = tuple(
+            index for index in range(len(result.proposals)) if index not in present
+        ) if result.choice_id == "install_recovery" else ()
+        if result.choice_id == "install_recovery" and policy_state == "partial":
+            proposals = tuple(result.proposals[index] for index in remaining_indices)
+            proposal_ids = tuple(f"bounded-{index + 1}" for index in remaining_indices)
+        else:
+            proposals = result.proposals
+            proposal_ids = tuple(f"bounded-{index + 1}" for index in range(len(proposals)))
         record = BoundedDecisionRecord(
             runId=context.run_id,
             agentId=context.agent_id,
@@ -619,14 +692,16 @@ class BoundedDecisionAdapter:
                 "choice": result.choice_id,
                 "proposals": [
                     {
-                        "id": f"bounded-{index + 1}",
+                        "id": proposal_ids[index],
+                        "bundleStep": int(proposal_ids[index].split("-")[1]),
                         "capability": proposal["capability"],
                         "target": proposal["target"],
                         "arguments": proposal["arguments"],
                     }
-                    for index, proposal in enumerate(result.proposals)
+                    for index, proposal in enumerate(proposals)
                 ],
             },
+            reconciliation=self._reconciliation,
             authorization={"status": "pending" if result.proposals else "not-required"},
             admission={"status": "pending" if result.proposals else "not-required"},
             actionOutcomes=(),
@@ -653,12 +728,12 @@ class BoundedDecisionAdapter:
             message=f"bounded decision selected {result.choice_id}",
             proposals=tuple(
                 ActionProposal(
-                    id=f"bounded-{index + 1}",
+                    id=proposal_ids[index],
                     capability=proposal["capability"],
                     target=proposal["target"],
                     arguments=proposal["arguments"],
                 )
-                for index, proposal in enumerate(result.proposals)
+                for index, proposal in enumerate(proposals)
             ),
             metadata={
                 "executionKind": "bounded-decision",
@@ -673,6 +748,54 @@ class BoundedDecisionAdapter:
             runtime_data=execution_record,
             authority=self.authority,
         )
+
+    def _inspect_policy(
+        self, run_id: str, *, timeout_seconds: float | None = None
+    ) -> dict[str, Any]:
+        inspector = getattr(self._substrate, "inspect_scenario_actions", None)
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            states = tuple("unreadable" for _ in self._bundle_requests)
+            detail = "decision deadline expired before scenario rule inspection"
+            status = "expired"
+        elif not callable(inspector):
+            states = tuple("unknown" for _ in self._bundle_requests)
+            detail = "substrate does not provide trusted scenario rule inspection"
+            status = "unsupported"
+        else:
+            try:
+                states = cast(
+                    tuple[str, ...],
+                    tuple(
+                        cast(Any, inspector)(
+                            run_id,
+                            self._bundle_requests,
+                            timeout_seconds=timeout_seconds,
+                        )
+                    ),
+                )
+                if len(states) != len(self._bundle_requests):
+                    raise ValueError("inspection returned an incomplete rule state")
+                detail = None
+                status = "recorded"
+            except Exception as error:
+                states = tuple("unreadable" for _ in self._bundle_requests)
+                detail = f"{type(error).__name__}: {error}"
+                status = "unreadable"
+        reconciled = reconcile_bundle(states)
+        self._reconciliation = {
+            "identity": {
+                "runId": run_id,
+                "scenario": self.scenario["metadata"].get("name"),
+                "bundleRequestIds": [request.id for request in self._bundle_requests],
+            },
+            "inspectionStatus": status,
+            "policy": reconciled.policy,
+            "stepStates": list(states),
+            "presentIndexes": list(reconciled.present),
+            "missingIndexes": list(reconciled.missing),
+            "failure": detail,
+        }
+        return self._reconciliation
 
     def failure_response(self, error: Exception) -> Any | None:
         from mininet_ai.sdk import AgentResponse
@@ -701,6 +824,7 @@ class BoundedDecisionAdapter:
         phase: str,
         native_response: Mapping[str, Any] | None = None,
         late: bool = False,
+        selected_choice: str = "unavailable",
     ) -> None:
         from mininet_ai.agents.bounded_contracts import AgentExecutionRecord
 
@@ -722,7 +846,7 @@ class BoundedDecisionAdapter:
             },
             request=self._active_request or {},
             response=dict(native_response or {}),
-            selectedChoice="unavailable",
+            selectedChoice=selected_choice,
             modelProvenance={
                 "startup": self.startup,
                 "expectedIdentity": self.model.parameters["expectedIdentity"],
@@ -744,6 +868,7 @@ class BoundedDecisionAdapter:
             authorization={"status": "not-reached"},
             admission={"status": reason},
             actionOutcomes=(),
+            reconciliation=self._reconciliation,
             cancellationStatus="cancelled" if reason == "cancelled" else "not-requested",
             lateResultDiscarded=late,
             gaps=(
@@ -769,7 +894,6 @@ class BoundedDecisionAdapter:
     ) -> dict[str, Any] | None:
         # Results are recorded by Mininet after the standard authorization,
         # arbitration, execution, and completion lifecycle has run.
-        del context
         if not results:
             return None
         # The normalized execution record is carried through AgentResponse metadata.
@@ -886,4 +1010,19 @@ class BoundedDecisionAdapter:
             if result.status.value != "succeeded"
             or result.effects.value not in {"changed", "unchanged"}
         ]
+        if (
+            decision.get("selectedChoice") == "install_recovery"
+            and all(result.status.value == "succeeded" for result in results)
+        ):
+            after = self._inspect_policy(context.run_id)
+            decision["reconciliation"] = {
+                **decision.get("reconciliation", {}),
+                "afterActions": after,
+            }
+            if after.get("policy") != "verified-recovery":
+                record["outcome"] = "failed"
+                decision["correctnessFailure"] = {
+                    "code": "agent.bounded-decision.recovery-verification-failed",
+                    "message": "all recovery actions completed but exact full policy verification failed",
+                }
         return record

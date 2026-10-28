@@ -79,6 +79,11 @@
       "title": "Proposalmapping",
       "type": "object"
     },
+    "reconciliation": {
+      "additionalProperties": true,
+      "title": "Reconciliation",
+      "type": "object"
+    },
     "request": {
       "additionalProperties": true,
       "title": "Request",

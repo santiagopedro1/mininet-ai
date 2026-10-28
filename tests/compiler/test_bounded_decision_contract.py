@@ -2,6 +2,7 @@ import json
 import shutil
 from copy import deepcopy
 from threading import Event
+from typing import Any
 
 import pytest
 import yaml
@@ -296,7 +297,7 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
     register_builtin_providers(registries, substrate)
     audit_sink = MemoryAuditSink()
     completed = Event()
-    results = []
+    results: list[Any] = []
 
     def record_result(record):
         results.append(record.result)
@@ -539,6 +540,7 @@ def test_recovery_selection_executes_fixed_bundle_and_retains_completion_evidenc
     register_builtin_providers(registries, substrate)
     completed = Event()
     results = []
+
     runtime = ExperimentRuntime(
         plan,
         substrate,
@@ -574,6 +576,330 @@ def test_recovery_selection_executes_fixed_bundle_and_retains_completion_evidenc
     assert evidence["authorization"]["status"] == "authorized"
     assert evidence["admission"]["status"] == "completed"
     assert evidence["response"]["answers"]["next_action"]["confidence"] == 0.02
+
+
+def test_bounded_decision_records_trusted_primary_policy_inspection(tmp_path):
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class NoActionTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = FakeSubstrateRuntime()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    completed = Event()
+    results = []
+
+    def record_result(invocation):
+        results.append(invocation.result)
+        completed.set()
+
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=NoActionTransport(),
+        invocation_listener=record_result,
+    )
+    runtime.start()
+    try:
+        assert completed.wait(3)
+    finally:
+        runtime.stop()
+
+    decision = results[0].response.metadata["executionRecord"]["runtime"]["boundedDecision"]
+    assert decision["reconciliation"]["policy"] == "verified-primary"
+    assert decision["reconciliation"]["stepStates"] == ["missing", "missing"]
+
+
+@pytest.mark.parametrize("failed_step", ["bounded-1", "bounded-2"])
+def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
+    tmp_path, failed_step
+):
+    from threading import Event
+
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.errors import RuntimeOperationError
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    source = _source_for_compile(tmp_path)
+    plan = compile_experiment(source)
+
+    class RetryTransport:
+        def __init__(self):
+            self.requests = []
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            if payload.get("state") == "{}":
+                choice = "no_action"  # non-mutating startup interface probe
+            else:
+                self.requests.append(payload)
+                state = json.loads(payload["state"])
+                probe_state = state["latestObservations"]["pathProbes"]["value"]["s1"]
+                choice = (
+                    "install_recovery"
+                    if probe_state["eligible"]
+                    else "no_action"
+                )
+            return {"answers": {"next_action": {"type": "choice", "choice": choice}}}
+
+    class FailingSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.failed = False
+            self.mutations = []
+            self.observation_round = 0
+
+        def observe(self, run_id, query):
+            result = super().observe(run_id, query)
+            if query.name != "ovs.port-counters":
+                return result
+            self.observation_round += 1
+            eligible = self.observation_round != 2
+            return result.model_copy(
+                update={
+                    "values": {
+                        target: {"eligible": eligible}
+                        for target in query.targets
+                    }
+                }
+            )
+
+        def execute(self, run_id, request):
+            if request.id == failed_step and not self.failed:
+                self.failed = True
+                raise RuntimeOperationError("injected step failure", code="test.injected")
+            self.mutations.append(request)
+            return super().execute(run_id, request)
+
+    substrate = FailingSubstrate()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    results: list[Any] = []
+    completed = Event()
+
+    def record(invocation) -> None:
+        results.append(invocation.result)
+        completed.set()
+
+    transport = RetryTransport()
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=transport,
+        invocation_listener=record,
+    )
+    runtime.start()
+    try:
+        for expected_count in (1, 2, 3):
+            assert completed.wait(4), f"invocation {expected_count} did not complete"
+            completed.clear()
+    finally:
+        runtime.stop()
+
+    first, restraint, retry = results
+    assert first.status.value == "failed"
+    assert [action.request_id for action in first.action_results] == (
+        ["bounded-1", "bounded-2"]
+    )
+    assert [action.status.value for action in first.action_results] == (
+        ["failed", "rejected"]
+        if failed_step == "bounded-1"
+        else ["succeeded", "failed"]
+    )
+    assert restraint.status.value == "succeeded"
+    assert retry.status.value == "succeeded", (retry.issue, retry.response.metadata)
+    if failed_step == "bounded-1":
+        expected_retry_ids = ["bounded-1", "bounded-2"]
+        expected_partial = "verified-primary"
+    else:
+        expected_retry_ids = ["bounded-2"]
+        expected_partial = "partial"
+    retry_record = retry.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
+    assert [item["id"] for item in retry_record["proposalMapping"]["proposals"]] == expected_retry_ids
+    assert retry_record["reconciliation"]["policy"] == expected_partial
+    assert retry_record["reconciliation"]["afterActions"]["policy"] == "verified-recovery"
+    assert retry_record["authorization"]["status"] == "authorized"
+    assert retry_record["admission"]["status"] == "completed"
+    assert retry.shared_state_changes == ()
+    assert [item.id for item in substrate.mutations] == [
+        "bounded-1",
+        *expected_retry_ids,
+    ] if failed_step == "bounded-2" else expected_retry_ids
+
+    # The second invocation is a fresh model decision while recovery is partial;
+    # its no-action choice proves eligibility loss doesn't trigger an auto-retry.
+    restraint_state = json.loads(transport.requests[1]["state"])
+    assert restraint_state["policy"]["current"]["policy"] == expected_partial
+    assert restraint_state["latestObservations"]["pathProbes"]["value"]["s1"][
+        "eligible"
+    ] is False
+    assert restraint_state["policy"]["current"]["stepStates"] == (
+        ["missing", "missing"]
+        if failed_step == "bounded-1"
+        else ["present", "missing"]
+    )
+    assert restraint.action_results == ()
+
+
+@pytest.mark.parametrize("inspection", ["wrong", "conflicting", "unreadable"])
+def test_unknown_or_wrong_scenario_rules_refuse_retry_with_correlated_evidence(
+    tmp_path, inspection
+):
+    from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class InstallTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+
+    class UntrustedInspectionSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.mutations = []
+
+        def inspect_scenario_actions(
+            self, run_id, expected, *, timeout_seconds=None
+        ):
+            if inspection == "unreadable":
+                raise OSError("injected inspection read failure")
+            return ("present", inspection)
+
+        def execute(self, run_id, request):
+            self.mutations.append(request)
+            return super().execute(run_id, request)
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = UntrustedInspectionSubstrate()
+    run = substrate.deploy(plan)
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    runtime = OneShotAgentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=InstallTransport(),
+    )
+
+    result = runtime.invoke(run.id, plan.agents[0].id, "evaluate recovery")
+
+    assert result.status.value == "failed"
+    assert result.issue is not None
+    assert result.response is not None
+    assert result.issue.code == "agent.bounded-decision.reconciliation-failed"
+    assert substrate.mutations == []
+    decision = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
+    assert decision["selectedChoice"] == "install_recovery"
+    assert decision["reconciliation"]["policy"] == "unknown"
+    assert decision["runId"] == run.id
+    assert decision["correlationId"] == result.invocation_id
+
+
+def test_redundant_recovery_after_positive_verification_is_failure(tmp_path):
+    from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class InstallTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = FakeSubstrateRuntime()
+    run = substrate.deploy(plan)
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    runtime = OneShotAgentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=InstallTransport(),
+    )
+
+    recovered = runtime.invoke(run.id, plan.agents[0].id, "recover")
+    redundant = runtime.invoke(run.id, plan.agents[0].id, "recover again")
+
+    assert recovered.status.value == "succeeded"
+    assert recovered.response.metadata["executionRecord"]["runtime"]["boundedDecision"][
+        "reconciliation"
+    ]["afterActions"]["policy"] == "verified-recovery"
+    assert redundant.status.value == "failed"
+    assert redundant.issue is not None
+    assert redundant.issue.code == "agent.bounded-decision.redundant-recovery"
+    assert len(substrate._scenario_actions[run.id]) == 2
+
+
+def test_completed_bundle_without_positive_full_verification_fails(tmp_path):
+    from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class InstallTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+
+    class VerificationLostSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.inspections = 0
+
+        def inspect_scenario_actions(
+            self, run_id, expected, *, timeout_seconds=None
+        ):
+            self.inspections += 1
+            if self.inspections == 1:
+                return ("missing", "missing")
+            return ("present", "missing")
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = VerificationLostSubstrate()
+    run = substrate.deploy(plan)
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    runtime = OneShotAgentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=InstallTransport(),
+    )
+
+    result = runtime.invoke(run.id, plan.agents[0].id, "recover")
+
+    assert result.status.value == "failed"
+    assert result.issue is not None
+    assert result.response is not None
+    assert result.issue.code == "agent.bounded-decision.recovery-verification-failed"
+    decision = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
+    assert [action["stepStatus"] for action in decision["actionOutcomes"]] == [
+        "completed",
+        "completed",
+    ]
+    assert decision["reconciliation"]["afterActions"]["policy"] == "partial"
+    assert result.shared_state_changes == ()
 
 
 def test_failed_recovery_step_stops_bundle_and_retains_partial_effects(tmp_path):

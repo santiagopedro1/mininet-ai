@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from threading import Lock
 from time import monotonic
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -236,6 +236,7 @@ class OneShotAgentRuntime:
                 ),
                 self._bounded_startup.get(definition.instance.id),
                 monotonic_clock=self._monotonic,
+                substrate=self._substrate,
             )
         if self._agent_factory is None:
             self._agent_factory = AgnoAgentFactory()
@@ -372,10 +373,14 @@ class OneShotAgentRuntime:
                     context,
                     self._error_data(error),
                 )
-            failed_response = (
-                provider.failure_response(error)
+            failure_response = (
+                getattr(provider, "failure_response", None)
                 if provider is not None
-                and callable(getattr(provider, "failure_response", None))
+                else None
+            )
+            failed_response = (
+                cast(AgentResponse | None, failure_response(error))
+                if callable(failure_response)
                 else None
             )
             failed = self._failure(
@@ -611,11 +616,15 @@ class OneShotAgentRuntime:
                 state.context, action_results
             )
             if runtime_update is not None:
-                execution_record = dict(
-                    state.response.metadata.get("executionRecord", {})
+                update_data = cast(dict[str, Any], runtime_update)
+                execution_record = cast(
+                    dict[str, Any],
+                    dict(
+                        cast(Any, state.response.metadata).get("executionRecord", {})
+                    ),
                 )
-                execution_record["runtime"] = runtime_update.get("runtime", {})
-                execution_record["outcome"] = runtime_update.get(
+                execution_record["runtime"] = update_data.get("runtime", {})
+                execution_record["outcome"] = update_data.get(
                     "outcome", execution_record.get("outcome")
                 )
                 state.response = state.response.model_copy(
@@ -626,6 +635,29 @@ class OneShotAgentRuntime:
                         }
                     }
                 )
+                bounded_decision = cast(Any, execution_record).get("runtime", {}).get(
+                    "boundedDecision", {}
+                )
+                correctness_failure = bounded_decision.get("correctnessFailure")
+                if execution_record.get("outcome") == "failed" and correctness_failure:
+                    self._release_authority(state.context.agent_id, state.authority)
+                    return AgentInvocationResult(
+                        invocationId=state.context.invocation_id,
+                        runId=state.context.run_id,
+                        agentId=state.context.agent_id,
+                        status=InvocationStatus.FAILED,
+                        startedAt=state.started_at,
+                        completedAt=self._clock(),
+                        response=state.response,
+                        actionResults=action_results,
+                        sharedStateChanges=state.state_changes,
+                        timings=timings,
+                        issue=AgentRuntimeIssue(
+                            code=correctness_failure["code"],
+                            message=correctness_failure["message"],
+                            agentId=state.context.agent_id,
+                        ),
+                    )
         except Exception as error:
             if self._audit is not None:
                 self._audit.record(

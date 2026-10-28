@@ -122,6 +122,124 @@ class MininetOVSActions:
             ) from error
         return handler()
 
+    def inspect_scenario_actions(
+        self,
+        expected: tuple[ActionRequest, ...],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> tuple[str, ...]:
+        """Compare compiled scenario flows with a read-only OVS flow dump."""
+        dumps: dict[str, tuple[dict[str, Any], ...]] = {}
+        for request in expected:
+            if request.name != "openflow.flow.install":
+                raise ActionExecutionError(
+                    "scenario reconciliation only supports installed OpenFlow rules",
+                    code="runtime.reconciliation.unsupported",
+                    status=ActionStatus.FAILED,
+                )
+            if request.target not in dumps:
+                switch = cast(
+                    "PlannedSwitch",
+                    self._require_kind(request.target, ResourceKind.SWITCH),
+                )
+                command = ["ovs-ofctl"]
+                if switch.protocols:
+                    command.extend(["-O", switch.protocols[-1].value])
+                command.extend(["dump-flows", switch.name])
+                inspection_timeout = request.timeout_seconds
+                if timeout_seconds is not None:
+                    inspection_timeout = min(inspection_timeout, timeout_seconds)
+                output = self._run(command, timeout_seconds=inspection_timeout)
+                try:
+                    dumps[request.target] = self._parse_flow_dump(output.stdout)
+                except (TypeError, ValueError) as error:
+                    raise ActionExecutionError(
+                        f"could not parse scenario rule inspection for {switch.name!r}: {error}",
+                        code="runtime.reconciliation.invalid-output",
+                        status=ActionStatus.FAILED,
+                    ) from error
+        states = []
+        for request in expected:
+            expected_rule = self._parse_flow_expression(
+                self._flow_expression(request.parameters, require_actions=True)
+            )
+            candidates = [
+                flow
+                for flow in dumps[request.target]
+                if self._same_rule_identity(flow, expected_rule)
+            ]
+            if not candidates:
+                states.append("missing")
+            elif len(candidates) > 1:
+                states.append("conflicting")
+            elif candidates[0] == expected_rule:
+                states.append("present")
+            else:
+                states.append("wrong")
+        return tuple(states)
+
+    @classmethod
+    def _parse_flow_dump(cls, output: str) -> tuple[dict[str, Any], ...]:
+        flows = []
+        for line in output.splitlines():
+            if "cookie=" in line and "actions=" not in line:
+                raise ValueError("flow record is missing its actions field")
+            parsed = cls._parse_flow_expression(line)
+            if parsed:
+                flows.append(parsed)
+        return tuple(flows)
+
+    @staticmethod
+    def _parse_flow_expression(expression: str) -> dict[str, Any]:
+        import re
+
+        match = re.search(r"(?:,|\s)actions=(.*)$", expression.strip())
+        if match is None:
+            return {}
+        prefix = expression.strip()[: match.start()]
+        actions = match.group(1).strip()
+        result: dict[str, Any] = {"actions": actions}
+        ignored = {"duration", "n_packets", "n_bytes", "idle_age", "hard_age"}
+        for field in prefix.split(","):
+            token = field.strip()
+            if not token:
+                continue
+            if "=" in token:
+                name, value = token.split("=", 1)
+                name = name.strip()
+                if name in ignored:
+                    continue
+                result[name] = value.strip()
+            else:
+                result[token] = True
+        for name, default in (
+            ("cookie", "0"),
+            ("table", "0"),
+            ("priority", "32768"),
+            ("idle_timeout", "0"),
+            ("hard_timeout", "0"),
+        ):
+            result.setdefault(name, default)
+        for name in ("cookie", "table", "priority", "idle_timeout", "hard_timeout"):
+            value = result[name]
+            try:
+                result[name] = int(value, 0)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"invalid {name} value") from error
+        return result
+
+    @staticmethod
+    def _same_rule_identity(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
+        metadata = {"actions", "cookie", "table", "priority", "idle_timeout", "hard_timeout"}
+        expected_match = {key: value for key, value in expected.items() if key not in metadata}
+        actual_match = {key: value for key, value in actual.items() if key not in metadata}
+        cookie_matches = (
+            "cookie" in expected
+            and expected["cookie"] != 0
+            and actual.get("cookie") == expected["cookie"]
+        )
+        return cookie_matches or actual_match == expected_match
+
     def close(self) -> None:
         for process_id in tuple(self._processes):
             managed = self._processes[process_id]
