@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+from mininet_ai.agents.agno import AgnoAgentProvider
 from mininet_ai.audit import AuditEventType, AuditRecorder, MemoryAuditSink
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.errors import AgentRuntimeError
@@ -342,6 +343,35 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
         assert result.response is not None
         self.assertEqual(result.response.message, "from Python Agno factory")
         self.assertEqual(result.action_results, ())
+
+    def test_execution_construction_is_replaceable_without_replacing_runtime_ownership(
+        self,
+    ) -> None:
+        plan = configured_plan({"message": "through adapter"})
+        substrate = FakeSubstrateRuntime(run_id_factory=lambda: "adapter-run")
+        run = substrate.deploy(plan)
+        registries = ProviderRegistries()
+        register_builtin_providers(registries, substrate)
+        constructed = []
+
+        def execution_factory(definition):
+            constructed.append(definition.instance.id)
+            return AgnoAgentProvider(definition)
+
+        runtime = OneShotAgentRuntime(
+            plan,
+            substrate,
+            registries,
+            execution_factory=execution_factory,
+            invocation_id_factory=lambda: "adapter-invocation",
+        )
+
+        result = runtime.invoke(run.id, "switch-router@s1", "inspect")
+
+        self.assertEqual(constructed, ["switch-router@s1"])
+        self.assertEqual(result.status, InvocationStatus.SUCCEEDED)
+        assert result.response is not None
+        self.assertEqual(result.response.message, "through adapter")
 
     def test_run_must_be_running_and_match_the_compiled_plan(self) -> None:
         runtime, run, _ = self.runtime({"message": "done"})

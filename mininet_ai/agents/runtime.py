@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from threading import Lock
 from time import monotonic
+from typing import Protocol
 from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -69,6 +70,37 @@ MonotonicClock = Callable[[], float]
 _JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 
 
+class AgentExecutionAdapter(Protocol):
+    """Runtime-specific reasoning and persistence behind Mininet's lifecycle."""
+
+    def run(self, context: AgentContext) -> AgentExecution: ...
+
+    def record_action_results(
+        self,
+        context: AgentContext,
+        results: tuple[ActionResult, ...],
+    ) -> dict[str, JsonValue] | None: ...
+
+
+ExecutionFactory = Callable[[AgentExecutionDefinition], AgentExecutionAdapter]
+
+
+class AgentExecution(Protocol):
+    """Normalized execution details consumed by Mininet's shared lifecycle."""
+
+    @property
+    def response(self) -> AgentResponse: ...
+
+    @property
+    def model_queueing_seconds(self) -> float: ...
+
+    @property
+    def runtime_name(self) -> str: ...
+
+    @property
+    def runtime_data(self) -> dict[str, JsonValue]: ...
+
+
 def _utc_now() -> datetime:
     return datetime.now(UTC)
 
@@ -81,7 +113,7 @@ def _invocation_id() -> str:
 class _OneShotPreparation:
     context: AgentContext
     response: AgentResponse
-    provider: AgnoAgentProvider
+    provider: AgentExecutionAdapter
     started_at: datetime
     started_tick: float
     context_seconds: float
@@ -130,6 +162,7 @@ class OneShotAgentRuntime:
         *,
         audit: AuditRecorder | None = None,
         agent_factory: AgnoAgentFactory | None = None,
+        execution_factory: ExecutionFactory | None = None,
         shared_state: SharedStateStore | None = None,
         clock: Clock = _utc_now,
         monotonic_clock: MonotonicClock = monotonic,
@@ -139,6 +172,12 @@ class OneShotAgentRuntime:
         self._substrate = substrate
         self._audit = audit
         self._agent_factory = agent_factory or AgnoAgentFactory()
+        self._execution_factory = execution_factory or (
+            lambda definition: AgnoAgentProvider(
+                definition,
+                factory=self._agent_factory,
+            )
+        )
         self._shared_state = shared_state
         self._agent_instances = plan.agents
         if shared_state is None and any(
@@ -265,10 +304,7 @@ class OneShotAgentRuntime:
             )
         reasoning_tick = self._monotonic()
         try:
-            provider = AgnoAgentProvider(
-                definition,
-                factory=self._agent_factory,
-            )
+            provider = self._execution_factory(definition)
             execution = provider.run(context)
             response = execution.response
         except Exception as error:
@@ -291,18 +327,15 @@ class OneShotAgentRuntime:
             )
         reasoning_seconds = self._elapsed(reasoning_tick)
         if self._audit is not None:
-            execution_data = execution.model_dump(
-                mode="json",
-                by_alias=True,
-                exclude_none=True,
-            )
-            execution_data.pop("response")
             self._audit.record(
                 AuditEventType.AGENT_COMPLETED,
                 context,
                 {
                     "response": response.model_dump(mode="json", by_alias=True),
-                    "runtime": {"name": "agno", **execution_data},
+                    "runtime": {
+                        "name": execution.runtime_name,
+                        **execution.runtime_data,
+                    },
                 },
             )
 

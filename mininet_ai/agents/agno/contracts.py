@@ -84,3 +84,19 @@ class AgnoExecutionResult(StrictModel):
     response: AgentResponse
     metrics: AgentRunMetrics = Field(default_factory=AgentRunMetrics)
     memory: AgnoMemorySettings
+
+    @property
+    def runtime_name(self) -> str:
+        """Stable runtime label used by Mininet-owned audit records."""
+        return "agno"
+
+    @property
+    def runtime_data(self) -> dict[str, JsonValue]:
+        """Agno-specific fields without the normalized response."""
+        data = self.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            exclude={"response", "runtime_name", "runtime_data"},
+        )
+        return data
