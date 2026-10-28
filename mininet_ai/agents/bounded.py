@@ -900,11 +900,22 @@ class BoundedDecisionAdapter:
                 if observed.run_id != run_id or observed.query != query:
                     raise ValueError(f"observation {source_name!r} identity mismatch")
                 if age < 0 or age > max_age:
+                    stale_observation = {
+                        "source": source_name,
+                        "observedAt": observed.observed_at.isoformat(),
+                        "ageSeconds": age,
+                        "values": observed.values,
+                    }
+                    self._reconciliation["retryEvidence"] = {
+                        "observations": refreshed,
+                        "staleObservation": stale_observation,
+                    }
                     return {
                         "eligible": False,
                         "refusalCode": "stale-evidence",
                         "message": f"recovery observation {source_name!r} is stale or future-dated",
                         "observations": refreshed,
+                        "staleObservation": stale_observation,
                     }
                 refreshed[source_name] = {
                     "observedAt": observed.observed_at.isoformat(),

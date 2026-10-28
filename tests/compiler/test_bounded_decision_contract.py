@@ -778,11 +778,13 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
         ("missing", "missing-eligibility"),
         ("malformed", "malformed-eligibility"),
         ("conflicting", "conflicting-eligibility"),
+        ("stale", "stale-evidence"),
     ],
 )
 def test_model_selected_retry_without_positive_current_eligibility_is_refused(
     tmp_path, eligibility_shape, expected_refusal
 ):
+    from datetime import timedelta
     from threading import Event
 
     from mininet_ai.agents import register_builtin_providers
@@ -828,16 +830,16 @@ def test_model_selected_retry_without_positive_current_eligibility_is_refused(
                 signal = {"status": "path unavailable"}
             elif eligibility_shape == "malformed":
                 signal = {"eligible": "yes"}
-            else:
+            elif eligibility_shape == "conflicting":
                 signal = {"eligible": True, "details": {"eligible": False}}
-            return result.model_copy(
-                update={
-                    "values": {
-                        target: signal
-                        for target in query.targets
-                    }
-                }
-            )
+            else:
+                signal = {"eligible": True}
+            update = {
+                "values": {target: signal for target in query.targets}
+            }
+            if eligibility_shape == "stale" and self.observation_round >= 5:
+                update["observed_at"] = result.observed_at - timedelta(seconds=3)
+            return result.model_copy(update=update)
 
         def execute(self, run_id, request):
             if request.id == "bounded-2" and not self.failed_once:
@@ -882,9 +884,11 @@ def test_model_selected_retry_without_positive_current_eligibility_is_refused(
         assert "eligible" not in retry_probe
     elif eligibility_shape == "malformed":
         assert retry_probe["eligible"] == "yes"
-    else:
+    elif eligibility_shape == "conflicting":
         assert retry_probe["eligible"] is True
         assert retry_probe["details"]["eligible"] is False
+    else:
+        assert retry_probe["eligible"] is True
     assert initial.status.value == "failed"
     assert refused.status.value == "failed"
     assert refused.issue is not None
@@ -897,6 +901,10 @@ def test_model_selected_retry_without_positive_current_eligibility_is_refused(
     assert evidence["refusal"]["code"] == expected_refusal
     assert evidence["reconciliation"]["policy"] == "partial"
     assert [request.id for request in substrate.mutations] == ["bounded-1"]
+    if eligibility_shape == "stale":
+        stale_observation = evidence["refusal"]["evidence"]["staleObservation"]
+        assert stale_observation["ageSeconds"] > 2
+        assert stale_observation["source"] == "ovs.port-counters"
 
 
 @pytest.mark.parametrize("inspection", ["wrong", "conflicting", "unreadable"])
