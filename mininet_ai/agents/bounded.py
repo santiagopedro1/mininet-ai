@@ -1210,16 +1210,16 @@ class BoundedDecisionAdapter:
             if result.status.value != "succeeded"
             or result.effects.value not in {"changed", "unchanged"}
         ]
-        if (
-            decision.get("selectedChoice") == "install_recovery"
-            and all(result.status.value == "succeeded" for result in results)
-        ):
+        if decision.get("selectedChoice") == "install_recovery":
             after = self._inspect_policy(context.run_id)
             decision["reconciliation"] = {
                 **decision.get("reconciliation", {}),
                 "afterActions": after,
             }
-            if after.get("policy") != "verified-recovery":
+            if (
+                all(result.status.value == "succeeded" for result in results)
+                and after.get("policy") != "verified-recovery"
+            ):
                 record["outcome"] = "failed"
                 decision["correctnessFailure"] = {
                     "code": "agent.bounded-decision.recovery-verification-failed",

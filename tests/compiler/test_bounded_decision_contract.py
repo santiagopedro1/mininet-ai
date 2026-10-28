@@ -363,8 +363,16 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
         event
         for event in audit_sink.events
         if event.type == AuditEventType.AGENT_COMPLETED
+        and event.data.get("phase") != "lifecycle-finalized"
     ]
     assert len(completed_events) == 1
+    finalized_events = [
+        event
+        for event in audit_sink.events
+        if event.data.get("phase") == "lifecycle-finalized"
+    ]
+    assert len(finalized_events) == 1
+    assert finalized_events[0].data["status"] == "succeeded"
     assert (
         completed_events[0].data["runtime"]["runtime"]["boundedDecision"][
             "selectedChoice"
@@ -905,6 +913,149 @@ def test_model_selected_retry_without_positive_current_eligibility_is_refused(
         stale_observation = evidence["refusal"]["evidence"]["staleObservation"]
         assert stale_observation["ageSeconds"] > 2
         assert stale_observation["source"] == "ovs.port-counters"
+
+
+@pytest.mark.parametrize(
+    "scenario", ["success", "partial", "safe-retry", "unsafe-retry"]
+)
+def test_exported_ledger_contains_lifecycle_final_bounded_evidence(tmp_path, scenario):
+    from datetime import UTC, datetime
+
+    from mininet_ai.agents import OneShotAgentRuntime, register_builtin_providers
+    from mininet_ai.audit import AuditRecorder
+    from mininet_ai.compiler import compile_experiment
+    from mininet_ai.errors import RuntimeOperationError
+    from mininet_ai.exports import export_offline
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.runtime import LedgerAuditSink, RunManifest, SQLiteRunLedger
+
+    class RecoveryTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+
+    class EvidenceSubstrate(EligibleFakeSubstrate):
+        def __init__(self):
+            super().__init__()
+            self.probe_observations = 0
+            self.failed_once = False
+            self.mutations = []
+
+        def observe(self, run_id, query):
+            result = super().observe(run_id, query)
+            if query.name != "ovs.port-counters":
+                return result
+            self.probe_observations += 1
+            eligible = scenario != "unsafe-retry" or self.probe_observations <= 2
+            return result.model_copy(
+                update={
+                    "values": {
+                        target: {"eligible": eligible}
+                        for target in query.targets
+                    }
+                }
+            )
+
+        def execute(self, run_id, request):
+            if (
+                scenario in {"partial", "safe-retry", "unsafe-retry"}
+                and request.id == "bounded-2"
+                and not self.failed_once
+            ):
+                self.failed_once = True
+                raise RuntimeOperationError("injected partial effect", code="test.partial")
+            self.mutations.append(request)
+            return super().execute(run_id, request)
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = EvidenceSubstrate()
+    run = substrate.deploy(plan)
+    ledger_path = tmp_path / "ledger.sqlite3"
+    ledger = SQLiteRunLedger(ledger_path)
+    ledger.create_run(
+        RunManifest.from_plan(run.id, plan, created_at=datetime.now(UTC))
+    )
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    runtime = OneShotAgentRuntime(
+        plan,
+        substrate,
+        registries,
+        audit=AuditRecorder(LedgerAuditSink(ledger)),
+        decision_transport=RecoveryTransport(),
+    )
+
+    results = [runtime.invoke(run.id, plan.agents[0].id, "recover")]
+    if scenario in {"safe-retry", "unsafe-retry"}:
+        results.append(runtime.invoke(run.id, plan.agents[0].id, "retry recovery"))
+
+    ledger.close()
+    destination = tmp_path / "export"
+    export_offline(run.id, {"ledger": ledger_path}, destination)
+    exported = json.loads((destination / "ledger.json").read_text())
+    final_events = [
+        record
+        for record in exported["records"]
+        if record["data"]["data"].get("phase") == "lifecycle-finalized"
+    ]
+
+    assert len(final_events) == len(results)
+    for event, result in zip(final_events, results, strict=True):
+        event_data = event["data"]["data"]
+        assert event["runId"] == run.id
+        assert event["correlationId"] == result.invocation_id
+        assert event["data"]["runId"] == run.id
+        assert event["data"]["agentId"] == result.agent_id
+        assert event_data["invocationId"] == result.invocation_id
+        assert event_data["status"] == result.status.value
+        assert event["type"] == (
+            "agent.invocation.completed"
+            if result.status.value == "succeeded"
+            else "agent.invocation.failed"
+        )
+        assert event_data["executionRecord"]["executionKind"] == "bounded-decision"
+        assert "sharedStateChanges" in event_data
+        assert "sharedStateChanges" not in event_data["executionRecord"]
+
+    first_decision = final_events[0]["data"]["data"]["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    if scenario == "success":
+        assert first_decision["reconciliation"]["afterActions"]["policy"] == "verified-recovery"
+        assert [
+            item["effects"]
+            for item in final_events[0]["data"]["data"]["actionResults"]
+        ] == [
+            "changed",
+            "changed",
+        ]
+    else:
+        assert [item["stepStatus"] for item in first_decision["actionOutcomes"]] == [
+            "completed",
+            "failed",
+        ]
+        assert first_decision["reconciliation"]["afterActions"]["policy"] == "partial"
+    if scenario == "safe-retry":
+        retried = final_events[1]["data"]["data"]
+        retry_decision = retried["executionRecord"]["runtime"]["boundedDecision"]
+        assert retried["status"] == "succeeded"
+        assert retry_decision["reconciliation"]["policy"] == "partial"
+        assert retry_decision["reconciliation"]["afterActions"]["policy"] == "verified-recovery"
+        assert [
+            item["id"] for item in retry_decision["proposalMapping"]["proposals"]
+        ] == ["bounded-2"]
+    if scenario == "unsafe-retry":
+        refused = final_events[1]["data"]["data"]
+        decision = refused["executionRecord"]["runtime"]["boundedDecision"]
+        assert refused["actionResults"] == []
+        assert decision["selectedChoice"] == "install_recovery"
+        assert decision["refusal"]["code"] == "ineligible-evidence"
+        assert decision["refusal"]["message"]
+        assert decision["reconciliation"]["retryEvidence"]["eligibilitySignals"] == [
+            False
+        ]
 
 
 @pytest.mark.parametrize("inspection", ["wrong", "conflicting", "unreadable"])

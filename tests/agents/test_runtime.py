@@ -171,6 +171,7 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
                 AuditEventType.AGENT_COMPLETED,
                 AuditEventType.CAPABILITY_STARTED,
                 AuditEventType.CAPABILITY_COMPLETED,
+                AuditEventType.AGENT_COMPLETED,
             ),
         )
         completed = cast(dict[str, Any], sink.events[1].data)
@@ -303,7 +304,12 @@ class OneShotAgentRuntimeTests(unittest.TestCase):
             AuditEventType.SHARED_STATE_UPDATED,
             tuple(event.type for event in sink.events),
         )
-        self.assertEqual(sink.events[-1].type, AuditEventType.SHARED_STATE_FAILED)
+        self.assertEqual(sink.events[-2].type, AuditEventType.SHARED_STATE_FAILED)
+        self.assertEqual(sink.events[-1].type, AuditEventType.AGENT_FAILED)
+        self.assertEqual(
+            sink.events[-1].data["phase"],
+            "lifecycle-finalized",
+        )
 
     def test_model_failures_become_typed_invocation_results(self) -> None:
         runtime, run, sink = self.runtime({"metadata": {}})

@@ -394,6 +394,7 @@ class OneShotAgentRuntime:
                     reasoning_seconds=reasoning_seconds,
                 ),
             )
+            self._audit_finalized(context, failed)
             self._release_authority(agent_id, authority)
             return failed
         reasoning_seconds = self._elapsed(reasoning_tick)
@@ -609,6 +610,7 @@ class OneShotAgentRuntime:
                     error,
                     timings=timings,
                 ).model_copy(update={"action_results": action_results})
+                self._audit_finalized(state.context, failure)
                 self._release_authority(state.context.agent_id, state.authority)
                 return failure
         try:
@@ -640,8 +642,7 @@ class OneShotAgentRuntime:
                 )
                 correctness_failure = bounded_decision.get("correctnessFailure")
                 if execution_record.get("outcome") == "failed" and correctness_failure:
-                    self._release_authority(state.context.agent_id, state.authority)
-                    return AgentInvocationResult(
+                    failed_result = AgentInvocationResult(
                         invocationId=state.context.invocation_id,
                         runId=state.context.run_id,
                         agentId=state.context.agent_id,
@@ -658,6 +659,9 @@ class OneShotAgentRuntime:
                             agentId=state.context.agent_id,
                         ),
                     )
+                    self._audit_finalized(state.context, failed_result)
+                    self._release_authority(state.context.agent_id, state.authority)
+                    return failed_result
         except Exception as error:
             if self._audit is not None:
                 self._audit.record(
@@ -682,6 +686,7 @@ class OneShotAgentRuntime:
                     agentId=state.context.agent_id,
                 ),
             )
+            self._audit_finalized(state.context, failed)
             self._release_authority(state.context.agent_id, state.authority)
             return failed
         result = self._result(
@@ -692,8 +697,48 @@ class OneShotAgentRuntime:
             state.state_changes,
             timings,
         )
+        self._audit_finalized(state.context, result)
         self._release_authority(state.context.agent_id, state.authority)
         return result
+
+    def _audit_finalized(
+        self, context: AgentContext, result: AgentInvocationResult
+    ) -> None:
+        """Append lifecycle-complete details without changing audit envelopes."""
+        if self._audit is None:
+            return
+        response = (
+            result.response.model_dump(mode="json", by_alias=True)
+            if result.response is not None
+            else None
+        )
+        metadata = (
+            cast(Any, result.response.metadata) if result.response is not None else {}
+        )
+        execution_record = metadata.get("executionRecord")
+        data: dict[str, JsonValue] = {
+            "phase": "lifecycle-finalized",
+            "invocationId": result.invocation_id,
+            "status": result.status.value,
+            "response": response,
+            "executionRecord": execution_record,
+            "actionResults": [
+                action.model_dump(mode="json", by_alias=True)
+                for action in result.action_results
+            ],
+            "sharedStateChanges": [
+                change.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for change in result.shared_state_changes
+            ],
+        }
+        if result.issue is not None:
+            data["issue"] = result.issue.model_dump(mode="json", by_alias=True)
+        event_type = (
+            AuditEventType.AGENT_COMPLETED
+            if result.status == InvocationStatus.SUCCEEDED
+            else AuditEventType.AGENT_FAILED
+        )
+        self._audit.record(event_type, context, data)
 
     def cancel_bounded_decision(self, agent_id: str) -> bool:
         """Revoke local commitment authority; this does not prove remote stop."""

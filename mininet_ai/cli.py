@@ -181,6 +181,8 @@ class _RunProgress:
             self._audit(event)
 
     def _audit(self, event: AuditEvent) -> None:
+        if event.data.get("phase") == "lifecycle-finalized":
+            return
         message = (
             f"{event.type.value}: run={event.run_id} agent={event.agent_id} "
             f"invocation={event.invocation_id}"
