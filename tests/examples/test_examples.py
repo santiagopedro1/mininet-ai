@@ -177,6 +177,28 @@ def test_diamond_recovery_oracle_covers_required_decision_classes() -> None:
     )
 
 
+def test_diamond_oracle_carries_bidirectional_round_evidence_for_each_link() -> None:
+    fixture = (
+        EXAMPLES_DIR.parent
+        / "tests/fixtures/specifications/diamond-recovery/oracle.json"
+    )
+    cases = json.loads(fixture.read_text())["cases"]
+    sustained = [case for case in cases if case["label"] == "sustained-primary-failure"]
+
+    assert {case["failedLink"] for case in sustained} == {"s1-s2", "s2-s4"}
+    for case in cases:
+        assert len(case["rounds"]) == 3
+        assert (
+            sum(round_["complete"] for round_ in case["rounds"])
+            == case["completeRounds"]
+        )
+        for round_ in case["rounds"]:
+            assert set(round_["primary"]) == {"forward", "reverse"}
+            assert set(round_["recovery"]) == {"forward", "reverse"}
+            assert set(round_["links"]) == {"s1-s2", "s2-s4", "s1-s3", "s3-s4"}
+            assert "observedAt" in round_
+
+
 def test_diamond_initial_policy_and_probe_payload_use_independent_paths() -> None:
     from examples.diamond_recovery import (
         INITIAL_RULES,

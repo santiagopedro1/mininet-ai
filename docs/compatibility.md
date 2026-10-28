@@ -7,12 +7,13 @@ driver contract.
 
 ## Versioned contracts
 
-The project currently defines ten contract families:
+The project currently defines twelve contract families:
 
-- `mininet-ai/v1alpha4` covers `Experiment`, `AgentBlueprint`, and `Capability`
-  documents, plus the `DeploymentPlan` produced by the compiler. The deployment
-  plan JSON Schema uses the matching identifier
-  `urn:mininet-ai:schema:v1alpha4:deployment-plan`.
+- `mininet-ai/v1alpha5` is the current authoring and deployment-plan contract;
+  it covers `Experiment`, `AgentBlueprint`, `Capability`, and `DecisionScenario`
+  documents plus compiled `DeploymentPlan` records. Its schema identifier is
+  `urn:mininet-ai:schema:v1alpha5:deployment-plan`. Historical `v1alpha4` and
+  `v1alpha3` source and saved-plan compatibility is described below.
 - `mininet-ai/substrate/v1alpha1` covers the compile-time interface implemented
   by substrate drivers. It is versioned separately because driver integration
   can evolve without changing experiment documents.
@@ -24,17 +25,21 @@ The project currently defines ten contract families:
   record used to inspect and recover an interrupted Mininet/OVS run. It is
   versioned so a newer runtime never guesses how to clean up an incompatible
   record.
-- `mininet-ai/agent-runtime/v1alpha3` covers the current SDK seam used by agent,
+- `mininet-ai/agent-runtime/v1alpha4` covers the current SDK seam used by agent,
   capability, and model-provider adapters, including scoped invocation context,
   action proposals, normalized model responses, invocation results, versioned
   provider descriptors, registry semantics, and the JSON protocol used by
   external capability processes and services. Its generic agent and model
   provider portions are deprecated by
-  [ADR 0007](adr/0007-agno-runtime-and-action-authority.md) and will be replaced by
-  an Agno-centric runtime contract before v1. Scoped invocation, delegation,
+  [ADR 0007](adr/0007-agno-runtime-and-action-authority.md). Scoped invocation, delegation,
   action, result, and external capability concepts remain owned by Mininet AI.
   The agent-runtime contract is independent of experiment and substrate
   contract versions.
+- `mininet-ai/bounded-decision/v1alpha1` covers retained native decision
+  requests, choices, provenance, timing, outcomes, and explicit evidence gaps.
+- `mininet-ai/agent-execution/v1alpha1` discriminates runtime-specific execution
+  records, preserving Agno compatibility without manufacturing Agno fields for
+  bounded execution.
 - `mininet-ai/audit/v1alpha1` covers correlated JSON audit records for agent,
   model, and capability execution. It is versioned separately so storage and
   analysis tools can evolve without changing provider contracts.
@@ -130,7 +135,8 @@ The bounded `v1alpha3` compatibility policy below applies to the current release
 
 ### Public specification v1alpha3 to v1alpha4
 
-The current authoring and deployment-plan contract is `mininet-ai/v1alpha4`,
+At this transition, the authoring and deployment-plan contract was
+`mininet-ai/v1alpha4`,
 with schema ID `urn:mininet-ai:schema:v1alpha4:deployment-plan`. The version
 includes the combined reusable-model-configuration changes, including plan
 provenance and earlier construction validation. Inline model syntax and Python
@@ -194,7 +200,8 @@ apiVersion: mininet-ai/v1alpha4
 ```
 
 Run `validate` and `plan`, correct any current-rule errors, and review the newly
-compiled plan and digest. New compilations emit only `v1alpha4`; even unchanged
+compiled plan and digest. Compilations at that transition emitted only
+`v1alpha4`; even unchanged
 inline experiments acquire new version fields and therefore a new digest. No
 cross-version digest equality is promised.
 
@@ -207,6 +214,32 @@ definitions, without consulting experiment or model configuration files. Runtime
 environment selectors and installed Python factory code remain runtime
 dependencies; source independence is not environment independence. This reader
 also permits unchanged `v1alpha3` plans inside existing runtime-state envelopes.
+
+### Public specification v1alpha4 to v1alpha5
+
+`v1alpha5` adds explicit `agno` / `bounded-decision` execution selection,
+resolved `DecisionScenario` content and deployment observation bindings, and
+the bounded model configuration contract. New source compilation and plans use
+`mininet-ai/v1alpha5` and
+`urn:mininet-ai:schema:v1alpha5:deployment-plan`. Omitted execution selection
+continues to mean Agno. Existing `v1alpha3` and `v1alpha4` sources remain
+accepted under their own validation rules; they are not silently upgraded to
+bounded execution. New fields are not admitted under old document versions.
+
+Saved `v1alpha3`/`v1alpha4` plans are dispatched to their historical readers and
+retain their original embedded version, snapshot, validation boundary, and
+digest. Loading a saved plan does not re-read source scenario/model files. See
+the [bounded-decision offline acceptance inventory](implementation/bounded-decision-offline-acceptance.md)
+for nested execution/evidence consumers and its explicit unverified live gaps.
+
+`mininet-ai/agent-runtime/v1alpha4`,
+`mininet-ai/bounded-decision/v1alpha1`, and
+`mininet-ai/agent-execution/v1alpha1` are separate contract families. Runtime
+events, coordination messages/outcomes, audit, ledger, and substrate-runtime
+envelopes remain at their existing versions because bounded payloads use their
+existing extension/metadata slots. Consumers must dispatch on nested version
+and execution kind; they must not infer unavailable Agno identifiers/metrics or
+interpret absent evidence as success.
 
 The existing [Autonomous Network Operation Maintained Example](../examples/autonomous-operation/README.md)
 demonstrates sharing and a shallow response override without changing the scenario's

@@ -166,6 +166,17 @@ and an exact new `--destination` whose parent already exists. Offline mode also
 requires `--acknowledge-offline-consistency` and at least one explicit source.
 It records operator-supplied provenance rather than claiming managed verification.
 
+For bounded-decision runs, the ledger's existing envelope is unchanged: consumers
+must inspect the nested `mininet-ai/agent-execution/v1alpha1` discriminator and
+`mininet-ai/bounded-decision/v1alpha1` runtime payload. Bounded records have no
+Agno session/run identity or Agno metrics; these fields are unavailable, not
+zero-valued. Inspect the payload's `gaps`, provenance verification, action
+effects, cancellation and remote-terminal status before drawing conclusions.
+An exported bundle can be structurally complete while the decision record still
+contains explicit unknown provenance or replay limitations; neither export
+readability nor missing model evidence establishes live acceptance. See
+[bounded-decision offline acceptance](implementation/bounded-decision-offline-acceptance.md).
+
 - `manifest.json`: `schema_version`, `run_id`, `outcome`, `provenance`,
   `evidence_complete`, `missing_sources`, `excluded_sources`, effective `sources`
   and a `sha256` inventory (evidence payloads, not the manifest or marker itself).

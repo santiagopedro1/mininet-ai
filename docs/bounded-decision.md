@@ -16,12 +16,15 @@ valid recovery choice.
 
 The fixed bundle stops at the first rejection or execution failure. Evidence
 retains ordered action outcomes and mutation effects; partial or unknown effects
-are not reported as successful recovery or rolled back. Reconciliation and safe
-retry are not implemented. Scheduled bounded decisions carry one run-owned
-monotonic 800 ms deadline from their original interval tick through inference
-and each action-start check. Ticks received while that bounded lifecycle is
-active are dropped/coalesced rather than queued for catch-up. Already-started
-actions keep their configured action timeout and are not rolled back.
+are not reported as successful recovery or rolled back. Before a retry, runtime
+reconciliation verifies the exact scenario-owned rules and retries only safely
+known missing steps under fresh recovery eligibility and authorization. Unknown,
+conflicting, unreadable, or otherwise unsafe state is not retried. Scheduled
+bounded decisions carry one run-owned monotonic 800 ms deadline from their
+original interval tick through inference and each action-start check. Ticks
+received while that bounded lifecycle is active are dropped/coalesced rather
+than queued for catch-up. Already-started actions keep their configured action
+timeout and are not rolled back.
 
 Deadline expiry prevents a late local response from becoming an admitted action
 and prevents later bundle steps from starting. Call
@@ -97,3 +100,12 @@ Those gaps are not acceptance passes. Historical v1alpha3/v1alpha4 source
 continues to validate under its existing rules and newly compiled plans are
 v1alpha5; already-saved historical plans are loaded without snapshot or digest
 rewrites.
+
+## Offline acceptance boundary
+
+The integrated offline acceptance and its exact check results are tracked in
+[`implementation/bounded-decision-offline-acceptance.md`](implementation/bounded-decision-offline-acceptance.md).
+Scripted native transport and the Fake Substrate establish the execution
+contract, not candidate-model quality. No live llama.cpp inference, live network
+recovery, latency target, or remote inference termination is established by
+these tests.

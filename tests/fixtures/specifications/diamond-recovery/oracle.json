@@ -1,17 +1,971 @@
 {
   "description": "Expected model choices for offline diamond decision inputs; fixtures do not replace inference.",
   "cases": [
-    {"id": "healthy", "label": "healthy", "policy": "primary", "primaryReplies": [2, 2, 2], "recoveryReplies": [2, 2, 2], "primaryLinkDown": false, "completeRounds": 3, "fresh": true, "expected": "no_action"},
-    {"id": "startup", "label": "startup-insufficient-history", "policy": "primary", "primaryReplies": [], "recoveryReplies": [], "primaryLinkDown": false, "completeRounds": 0, "fresh": true, "expected": "no_action"},
-    {"id": "transient-one", "label": "one-round-transient-loss", "policy": "primary", "primaryReplies": [0, 2, 2], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
-    {"id": "transient-two", "label": "two-round-transient-loss", "policy": "primary", "primaryReplies": [0, 0, 2], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
-    {"id": "sustained-s1-s2", "label": "sustained-primary-failure", "failedLink": "s1-s2", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "install_recovery"},
-    {"id": "sustained-s2-s4", "label": "sustained-primary-failure", "failedLink": "s2-s4", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "install_recovery"},
-    {"id": "stale", "label": "stale-evidence", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": false, "expected": "no_action"},
-    {"id": "missing", "label": "missing-round", "policy": "primary", "primaryReplies": [0, 0, null], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 2, "fresh": true, "expected": "no_action"},
-    {"id": "conflicting", "label": "conflicting-link-and-probe-evidence", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": false, "completeRounds": 3, "fresh": true, "expected": "no_action"},
-    {"id": "recovery-probe-failed", "label": "failed-recovery-probes", "policy": "primary", "primaryReplies": [0, 0, 0], "recoveryReplies": [0, 2, 0], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
-    {"id": "post-recovery", "label": "post-recovery-restraint", "policy": "recovery", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"},
-    {"id": "partial-unknown", "label": "partial-or-unknown-policy", "policy": "partial", "primaryReplies": [0, 0, 0], "recoveryReplies": [2, 2, 2], "primaryLinkDown": true, "completeRounds": 3, "fresh": true, "expected": "no_action"}
+    {
+      "id": "healthy",
+      "label": "healthy",
+      "policy": "primary",
+      "primaryReplies": [
+        2,
+        2,
+        2
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": false,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "startup",
+      "label": "startup-insufficient-history",
+      "policy": "primary",
+      "primaryReplies": [],
+      "recoveryReplies": [],
+      "primaryLinkDown": false,
+      "completeRounds": 0,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": false,
+          "primary": {
+            "forward": null,
+            "reverse": null
+          },
+          "recovery": {
+            "forward": null,
+            "reverse": null
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": false,
+          "primary": {
+            "forward": null,
+            "reverse": null
+          },
+          "recovery": {
+            "forward": null,
+            "reverse": null
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": false,
+          "primary": {
+            "forward": null,
+            "reverse": null
+          },
+          "recovery": {
+            "forward": null,
+            "reverse": null
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "transient-one",
+      "label": "one-round-transient-loss",
+      "policy": "primary",
+      "primaryReplies": [
+        0,
+        2,
+        2
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "transient-two",
+      "label": "two-round-transient-loss",
+      "policy": "primary",
+      "primaryReplies": [
+        0,
+        0,
+        2
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "sustained-s1-s2",
+      "label": "sustained-primary-failure",
+      "failedLink": "s1-s2",
+      "policy": "primary",
+      "primaryReplies": [
+        0,
+        0,
+        0
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "install_recovery",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "sustained-s2-s4",
+      "label": "sustained-primary-failure",
+      "failedLink": "s2-s4",
+      "policy": "primary",
+      "primaryReplies": [
+        0,
+        0,
+        0
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "install_recovery",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "down",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "down",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "down",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "stale",
+      "label": "stale-evidence",
+      "policy": "primary",
+      "primaryReplies": [
+        0,
+        0,
+        0
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 3,
+      "fresh": false,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2020-01-01T00:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2020-01-01T00:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2020-01-01T00:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "missing",
+      "label": "missing-round",
+      "policy": "primary",
+      "primaryReplies": [
+        0,
+        0,
+        null
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 2,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": false,
+          "primary": {
+            "forward": null,
+            "reverse": null
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "conflicting",
+      "label": "conflicting-link-and-probe-evidence",
+      "policy": "primary",
+      "primaryReplies": [
+        0,
+        0,
+        0
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": false,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "up",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "recovery-probe-failed",
+      "label": "failed-recovery-probes",
+      "policy": "primary",
+      "primaryReplies": [
+        0,
+        0,
+        0
+      ],
+      "recoveryReplies": [
+        0,
+        2,
+        0
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "primary",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "post-recovery",
+      "label": "post-recovery-restraint",
+      "policy": "recovery",
+      "primaryReplies": [
+        0,
+        0,
+        0
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "recovery",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "recovery",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "recovery",
+          "actionOutcomes": []
+        }
+      ]
+    },
+    {
+      "id": "partial-unknown",
+      "label": "partial-or-unknown-policy",
+      "policy": "partial",
+      "primaryReplies": [
+        0,
+        0,
+        0
+      ],
+      "recoveryReplies": [
+        2,
+        2,
+        2
+      ],
+      "primaryLinkDown": true,
+      "completeRounds": 3,
+      "fresh": true,
+      "expected": "no_action",
+      "rounds": [
+        {
+          "observedAt": "2026-10-28T12:00:00Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "partial",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:01Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "partial",
+          "actionOutcomes": []
+        },
+        {
+          "observedAt": "2026-10-28T12:00:02Z",
+          "complete": true,
+          "primary": {
+            "forward": 0,
+            "reverse": 0
+          },
+          "recovery": {
+            "forward": 2,
+            "reverse": 2
+          },
+          "links": {
+            "s1-s2": "down",
+            "s2-s4": "up",
+            "s1-s3": "up",
+            "s3-s4": "up"
+          },
+          "policy": "partial",
+          "actionOutcomes": []
+        }
+      ]
+    }
   ]
 }
