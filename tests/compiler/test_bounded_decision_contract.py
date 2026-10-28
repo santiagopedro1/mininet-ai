@@ -497,7 +497,7 @@ def test_failed_recovery_step_stops_bundle_and_retains_partial_effects(tmp_path)
     ]
     assert evidence["actionOutcomes"][0]["effects"] == "unknown"
     assert evidence["authorization"]["status"] == "authorized"
-    assert evidence["admission"]["status"] == "completed"
+    assert evidence["admission"]["status"] == "failed"
 
 
 def test_compiler_rejects_fixed_recovery_arguments_that_fail_capability_schema(
@@ -511,6 +511,89 @@ def test_compiler_rejects_fixed_recovery_arguments_that_fail_capability_schema(
     source.write_text(yaml.safe_dump(document))
     with pytest.raises(CompilationError, match="invalid arguments"):
         compile_experiment(source)
+
+
+def test_runtime_conflict_rejection_is_retained_as_distinct_evidence(tmp_path):
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class RecoveryTransport:
+        def __init__(self):
+            self.inference_requests = 0
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            self.inference_requests += 1
+            return {
+                "answers": {
+                    "next_action": {
+                        "type": "choice",
+                        "choice": "install_recovery",
+                        "confidence": 0.01,
+                    }
+                }
+            }
+
+    class RecordingSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.mutations = []
+
+        def execute(self, run_id, request):
+            self.mutations.append(request)
+            return super().execute(run_id, request)
+
+    source = _source_for_compile(tmp_path)
+    document = yaml.safe_load(source.read_text())
+    document["policies"]["conflicting-actions"] = "reject"
+    source.write_text(yaml.safe_dump(document))
+    plan = compile_experiment(source)
+    transport = RecoveryTransport()
+    substrate = RecordingSubstrate()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    completed = Event()
+    results = []
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=transport,
+        invocation_listener=lambda record: (
+            results.append(record.result),
+            completed.set(),
+        ),
+    )
+    runtime.start()
+    try:
+        assert completed.wait(3), "conflicting recovery decision did not complete"
+    finally:
+        runtime.stop()
+
+    result = results[0]
+    serialized = result.model_dump(mode="json", by_alias=True)
+    evidence = serialized["response"]["metadata"]["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert transport.inference_requests == 2  # startup interface check plus decision
+    assert [request.parameters["match"]["step"] for request in substrate.mutations] == [
+        1
+    ]
+    assert result.status.value == "rejected"
+    assert result.issue.code == "coordination.conflict.rejected"
+    assert [step["stepStatus"] for step in evidence["actionOutcomes"]] == [
+        "completed",
+        "rejected",
+    ]
+    assert evidence["actionOutcomes"][1]["issue"]["code"] == (
+        "coordination.conflict.rejected"
+    )
+    assert evidence["authorization"]["status"] == "authorized"
+    assert evidence["admission"]["status"] == "rejected"
 
 
 def test_bounded_service_startup_failure_precedes_substrate_deploy(tmp_path):

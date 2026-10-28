@@ -532,17 +532,49 @@ class BoundedDecisionAdapter:
             }
             for result in results
         ]
+        authorization_results = []
+        for result in results:
+            issue_code = result.issue.code if result.issue is not None else None
+            authorization_status = (
+                "not-started"
+                if issue_code == "agent.bounded-decision.bundle-stopped"
+                else "rejected"
+                if result.status.value == "rejected"
+                and issue_code is not None
+                and issue_code.startswith("capability.")
+                else "authorized"
+            )
+            authorization_results.append(
+                {
+                    "requestId": result.request_id,
+                    "status": authorization_status,
+                    "issue": result.issue.model_dump(mode="json", by_alias=True)
+                    if result.issue
+                    else None,
+                }
+            )
         record["runtime"]["boundedDecision"]["authorization"] = {
-            "status": "authorized"
-            if all(
-                result.status.value != "rejected"
-                or (
+            "status": "rejected"
+            if any(item["status"] == "rejected" for item in authorization_results)
+            else "authorized",
+            "results": authorization_results,
+        }
+        admission_status = (
+            "rejected"
+            if any(
+                result.status.value == "rejected"
+                and not (
                     result.issue is not None
                     and result.issue.code == "agent.bounded-decision.bundle-stopped"
                 )
                 for result in results
             )
-            else "rejected",
+            else "failed"
+            if any(result.status.value == "failed" for result in results)
+            else "completed"
+        )
+        record["runtime"]["boundedDecision"]["admission"] = {
+            "status": admission_status,
             "results": [
                 {
                     "requestId": result.request_id,
@@ -551,13 +583,6 @@ class BoundedDecisionAdapter:
                     if result.issue
                     else None,
                 }
-                for result in results
-            ],
-        }
-        record["runtime"]["boundedDecision"]["admission"] = {
-            "status": "completed",
-            "results": [
-                {"requestId": result.request_id, "status": result.status.value}
                 for result in results
             ],
         }
