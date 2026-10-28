@@ -61,8 +61,6 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def map_choice(
     payload: str | bytes | Mapping[str, Any],
     choices: Mapping[str, Sequence[dict[str, Any]]],
-    *,
-    allow_non_no_action: bool = False,
 ) -> ChoiceResult:
     """Map only an exact native choice ID to its fixed, scenario-owned bundle."""
     response = parse_response(payload)
@@ -114,10 +112,10 @@ def map_choice(
             "native response contains a missing or unknown choice",
             code="agent.bounded-decision.invalid-output",
         )
-    if choice_id != "no_action" and not allow_non_no_action:
+    if choice_id not in {"no_action", "install_recovery"}:
         raise AgentRuntimeError(
-            f"choice {choice_id!r} is not supported by this runtime slice",
-            code="agent.bounded-decision.choice-not-supported",
+            f"choice {choice_id!r} is not part of the bounded-decision contract",
+            code="agent.bounded-decision.invalid-output",
         )
     if choice_id == "no_action" and choices[choice_id]:
         raise AgentRuntimeError(
@@ -169,7 +167,6 @@ class NativeSystemOneClient:
         criteria: Sequence[str],
         choices: Mapping[str, Sequence[dict[str, Any]]],
         timeout_seconds: float,
-        allow_non_no_action: bool = False,
     ) -> ChoiceResult:
         if tuple(choices) != tuple(criteria):
             raise AgentRuntimeError(
@@ -209,7 +206,7 @@ class NativeSystemOneClient:
                 f"native llama.cpp decision request failed: {error}",
                 code="agent.bounded-decision.service-unavailable",
             ) from error
-        return map_choice(response, choices, allow_non_no_action=allow_non_no_action)
+        return map_choice(response, choices)
 
     def verify_startup(
         self,
@@ -281,7 +278,6 @@ class NativeSystemOneClient:
                 criteria=criteria,
                 choices={key: () for key in criteria},
                 timeout_seconds=2.0,
-                allow_non_no_action=True,
             )
         except AgentRuntimeError as error:
             raise AgentRuntimeError(
@@ -404,7 +400,6 @@ class BoundedDecisionAdapter:
             criteria=criteria,
             choices=choices,
             timeout_seconds=remaining_budget,
-            allow_non_no_action=True,
         )
         if result.choice_id == "no_action" and result.proposals:
             raise AgentRuntimeError(

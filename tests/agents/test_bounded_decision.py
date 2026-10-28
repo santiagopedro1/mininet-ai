@@ -68,20 +68,6 @@ def test_invalid_native_choice_is_not_coerced_to_no_action(response):
         map_choice(response, {"no_action": (), "install_recovery": ()})
 
 
-def test_recovery_choice_is_explicitly_rejected_before_proposals_escape():
-    with pytest.raises(AgentRuntimeError, match="not supported") as error:
-        map_choice(
-            {
-                "answers": {
-                    "next_action": {"type": "choice", "choice": "install_recovery"}
-                }
-            },
-            {"no_action": (), "install_recovery": ({"capability": "flow.install"},)},
-        )
-
-    assert error.value.code == "agent.bounded-decision.choice-not-supported"
-
-
 def test_exact_recovery_choice_maps_fixed_bundle_even_at_low_confidence():
     bundle = (
         {
@@ -107,13 +93,26 @@ def test_exact_recovery_choice_maps_fixed_bundle_even_at_low_confidence():
             }
         },
         {"no_action": (), "install_recovery": bundle},
-        allow_non_no_action=True,
     )
 
     assert result.choice_id == "install_recovery"
     assert result.proposals == bundle
     assert result.probability == 0.01
     assert result.confidence == 0.02
+
+
+def test_map_choice_rejects_non_contract_choice_even_if_bundle_is_present():
+    with pytest.raises(AgentRuntimeError) as error:
+        map_choice(
+            {"answers": {"next_action": {"type": "choice", "choice": "emergency"}}},
+            {
+                "no_action": (),
+                "install_recovery": (),
+                "emergency": ({"capability": "fake"},),
+            },
+        )
+
+    assert error.value.code == "agent.bounded-decision.invalid-output"
 
 
 def test_no_action_cannot_carry_a_mutation_bundle():
