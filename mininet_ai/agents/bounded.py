@@ -83,7 +83,11 @@ def map_choice(
         if isinstance(usage, Mapping)
         else 0
     )
-    if isinstance(output_tokens, bool) or not isinstance(output_tokens, int) or output_tokens < 0:
+    if (
+        isinstance(output_tokens, bool)
+        or not isinstance(output_tokens, int)
+        or output_tokens < 0
+    ):
         raise AgentRuntimeError(
             "native response generated-token usage is invalid",
             code="agent.bounded-decision.invalid-output",
@@ -115,7 +119,7 @@ def map_choice(
             f"choice {choice_id!r} is not supported by this runtime slice",
             code="agent.bounded-decision.choice-not-supported",
         )
-    if choices[choice_id]:
+    if choice_id == "no_action" and choices[choice_id]:
         raise AgentRuntimeError(
             "the no_action choice must have no proposals",
             code="agent.bounded-decision.configuration-invalid",
@@ -285,7 +289,9 @@ class NativeSystemOneClient:
                 code="agent.bounded-decision.startup-interface-invalid",
             ) from error
         return {
-            "status": "verified" if len(observed_identity) == len(expected_identity) else "unverified",
+            "status": "verified"
+            if len(observed_identity) == len(expected_identity)
+            else "unverified",
             "expectedModel": model_name,
             "observedModel": observed_name,
             "expectedIdentity": dict(expected_identity),
@@ -308,7 +314,12 @@ class BoundedDecisionAdapter:
 
     contract_version = "mininet-ai/agent-runtime/v1alpha4"
 
-    def __init__(self, definition: Any, transport: DecisionTransport, startup: Mapping[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        definition: Any,
+        transport: DecisionTransport,
+        startup: Mapping[str, Any] | None = None,
+    ) -> None:
         self.definition = definition
         self.transport = transport
         self.startup = dict(startup or {})
@@ -329,7 +340,7 @@ class BoundedDecisionAdapter:
         self.client = NativeSystemOneClient(model.parameters["endpoint"], transport)
 
     def run(self, context: Any) -> BoundedExecutionResult:
-        from mininet_ai.sdk import AgentResponse
+        from mininet_ai.sdk import ActionProposal, AgentResponse
 
         started = monotonic()
         choices_list = self.scenario["choices"]
@@ -339,7 +350,9 @@ class BoundedDecisionAdapter:
         latest = {
             logical_name: {
                 "source": source_name,
-                "availability": "available" if source_name in context.observations else "missing",
+                "availability": "available"
+                if source_name in context.observations
+                else "missing",
                 "value": context.observations.get(source_name),
                 "observedAt": None,
             }
@@ -365,7 +378,9 @@ class BoundedDecisionAdapter:
             "history": {
                 "requiredRounds": 3,
                 "completedRounds": [],
-                "gaps": ["scheduled round history is not available from the agent-runtime contract"],
+                "gaps": [
+                    "scheduled round history is not available from the agent-runtime contract"
+                ],
             },
             "policy": self.scenario["policy"],
         }
@@ -389,13 +404,9 @@ class BoundedDecisionAdapter:
             criteria=criteria,
             choices=choices,
             timeout_seconds=remaining_budget,
+            allow_non_no_action=True,
         )
-        if result.choice_id != "no_action":
-            raise AgentRuntimeError(
-                f"choice {result.choice_id!r} is not supported by this runtime slice",
-                code="agent.bounded-decision.choice-not-supported",
-            )
-        if result.proposals:
+        if result.choice_id == "no_action" and result.proposals:
             raise AgentRuntimeError(
                 "no_action unexpectedly mapped to proposals",
                 code="agent.bounded-decision.native-contract-violation",
@@ -406,10 +417,23 @@ class BoundedDecisionAdapter:
             runId=context.run_id,
             agentId=context.agent_id,
             invocationId=context.invocation_id,
-            correlationId=(context.coordination.correlation_id if context.coordination else context.invocation_id),
+            correlationId=(
+                context.coordination.correlation_id
+                if context.coordination
+                else context.invocation_id
+            ),
             scenario=self.scenario,
-            effectiveConfiguration={"model": self.model.name, "provider": self.model.provider, "parameters": self.model.parameters},
-            request={"url": f"{self.client.endpoint}/v1/systemone", "state": state, "instructions": self.scenario["instructions"], "criteria": list(criteria)},
+            effectiveConfiguration={
+                "model": self.model.name,
+                "provider": self.model.provider,
+                "parameters": self.model.parameters,
+            },
+            request={
+                "url": f"{self.client.endpoint}/v1/systemone",
+                "state": state,
+                "instructions": self.scenario["instructions"],
+                "criteria": list(criteria),
+            },
             response=result.native_response or {},
             selectedChoice=result.choice_id,
             modelProvenance={
@@ -429,16 +453,31 @@ class BoundedDecisionAdapter:
                 "clockDomain": "process-monotonic",
                 "invokedAt": context.invoked_at.isoformat(),
             },
-            proposalMapping={"choice": result.choice_id, "proposals": []},
-            authorization={"status": "not-required", "reason": "no proposals"},
-            admission={"status": "not-required", "reason": "no proposals"},
+            proposalMapping={
+                "choice": result.choice_id,
+                "proposals": [
+                    {
+                        "id": f"bounded-{index + 1}",
+                        "capability": proposal["capability"],
+                        "target": proposal["target"],
+                        "arguments": proposal["arguments"],
+                    }
+                    for index, proposal in enumerate(result.proposals)
+                ],
+            },
+            authorization={"status": "pending" if result.proposals else "not-required"},
+            admission={"status": "pending" if result.proposals else "not-required"},
             actionOutcomes=(),
             gaps=(
                 "scheduled round history is not available from the agent-runtime contract",
                 "observation timestamps are unavailable from the agent-runtime contract",
                 "server build and hardware provenance are unavailable",
                 "full model artifact SHA-256 has not been independently verified",
-                *( () if self.startup.get("status") == "verified" else ("model/server identity is not fully verifiable",) ),
+                *(
+                    ()
+                    if self.startup.get("status") == "verified"
+                    else ("model/server identity is not fully verifiable",)
+                ),
             ),
         )
         execution_record = AgentExecutionRecord(
@@ -446,8 +485,18 @@ class BoundedDecisionAdapter:
             outcome="succeeded",
             runtime={"boundedDecision": record.model_dump(mode="json", by_alias=True)},
         ).model_dump(mode="json", by_alias=True)
+        self._last_execution_record = execution_record
         response = AgentResponse(
-            message="bounded decision selected no_action",
+            message=f"bounded decision selected {result.choice_id}",
+            proposals=tuple(
+                ActionProposal(
+                    id=f"bounded-{index + 1}",
+                    capability=proposal["capability"],
+                    target=proposal["target"],
+                    arguments=proposal["arguments"],
+                )
+                for index, proposal in enumerate(result.proposals)
+            ),
             metadata={
                 "executionKind": "bounded-decision",
                 "selectedChoice": result.choice_id,
@@ -461,9 +510,65 @@ class BoundedDecisionAdapter:
             runtime_data=execution_record,
         )
 
-    def record_action_results(self, context: Any, results: tuple[Any, ...]) -> None:
-        if results:
-            raise AgentRuntimeError(
-                "bounded no_action execution cannot have action results",
-                code="agent.bounded-decision.native-contract-violation",
+    def record_action_results(
+        self, context: Any, results: tuple[Any, ...]
+    ) -> dict[str, Any] | None:
+        # Results are recorded by Mininet after the standard authorization,
+        # arbitration, execution, and completion lifecycle has run.
+        del context
+        if not results:
+            return None
+        # The normalized execution record is carried through AgentResponse metadata.
+        # This mutable JSON payload is the existing public completion envelope.
+        record = self._last_execution_record
+        record["runtime"]["boundedDecision"]["actionOutcomes"] = [
+            {
+                **result.model_dump(mode="json", by_alias=True),
+                "stepStatus": (
+                    "not-started"
+                    if result.issue is not None
+                    and result.issue.code == "agent.bounded-decision.bundle-stopped"
+                    else "completed"
+                    if result.status.value == "succeeded"
+                    else "failed"
+                    if result.status.value == "failed"
+                    else "rejected"
+                ),
+            }
+            for result in results
+        ]
+        record["runtime"]["boundedDecision"]["authorization"] = {
+            "status": "authorized"
+            if all(
+                result.status.value != "rejected"
+                or (
+                    result.issue is not None
+                    and result.issue.code == "agent.bounded-decision.bundle-stopped"
+                )
+                for result in results
             )
+            else "rejected",
+            "results": [
+                {
+                    "requestId": result.request_id,
+                    "status": result.status.value,
+                    "issue": result.issue.model_dump(mode="json", by_alias=True)
+                    if result.issue
+                    else None,
+                }
+                for result in results
+            ],
+        }
+        record["runtime"]["boundedDecision"]["admission"] = {
+            "status": "completed",
+            "results": [
+                {"requestId": result.request_id, "status": result.status.value}
+                for result in results
+            ],
+        }
+        record["outcome"] = (
+            "succeeded"
+            if all(result.status.value == "succeeded" for result in results)
+            else "failed"
+        )
+        return record

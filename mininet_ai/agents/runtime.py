@@ -179,7 +179,9 @@ class OneShotAgentRuntime:
             or definition.blueprint.execution.kind == "agno"
             for agent_id in self._catalog.agent_ids
         )
-        self._agent_factory = agent_factory or (AgnoAgentFactory() if has_agno else None)
+        self._agent_factory = agent_factory or (
+            AgnoAgentFactory() if has_agno else None
+        )
         self._decision_transport = decision_transport
         self._bounded_startup = bounded_startup or {}
         self._execution_factory = execution_factory or self._create_execution_adapter
@@ -536,7 +538,25 @@ class OneShotAgentRuntime:
                     timings=timings,
                 ).model_copy(update={"action_results": action_results})
         try:
-            state.provider.record_action_results(state.context, action_results)
+            runtime_update = state.provider.record_action_results(
+                state.context, action_results
+            )
+            if runtime_update is not None:
+                execution_record = dict(
+                    state.response.metadata.get("executionRecord", {})
+                )
+                execution_record["runtime"] = runtime_update.get("runtime", {})
+                execution_record["outcome"] = runtime_update.get(
+                    "outcome", execution_record.get("outcome")
+                )
+                state.response = state.response.model_copy(
+                    update={
+                        "metadata": {
+                            **state.response.metadata,
+                            "executionRecord": execution_record,
+                        }
+                    }
+                )
         except Exception as error:
             if self._audit is not None:
                 self._audit.record(

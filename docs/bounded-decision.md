@@ -6,18 +6,27 @@ scenario-owned choice IDs to fixed proposals. They do not use chat completion,
 token generation, Agno, or hidden conversation memory. Mininet remains responsible
 for capability authorization and all network mutation.
 
-The first runtime tracer bullet is intentionally limited to successful
-`no_action`. A selected `install_recovery` currently fails with
-`agent.bounded-decision.choice-not-supported` before any proposal reaches the
-capability executor. This is a hard failure, never a successful no-action result.
-Do not claim cadence/deadline safety, recovery support, or live-model/network
-validation on the basis of this incremental implementation.
+The initial runtime tracer bullet was limited to successful `no_action`.
+`install_recovery` now maps only to the compiled scenario's exact ordered
+proposals and runs through Mininet's normal capability authorization, conflict
+arbitration, admission, execution, and completion lifecycle. Native output can
+select a choice only; supplied model action arguments are rejected. Low
+probability/confidence values are retained as diagnostics and never gate a
+valid recovery choice.
+
+The fixed bundle stops at the first rejection or execution failure. Evidence
+retains ordered action outcomes and mutation effects; partial or unknown effects
+are not reported as successful recovery or rolled back. Reconciliation and safe
+retry are not implemented. Cadence/deadline safety and live-model/network
+validation also remain unsupported; do not claim accepted live support from this
+incremental implementation.
 
 The native request contains the retained canonical context string in `state`
 and exactly one `questions.next_action` choice question. Choice IDs and criteria
 must be in the same stable order. The response parser rejects duplicate JSON
 keys, wrong question/type, and unknown choices; diagnostics are optional but
-validated when present. A successful no-action result has no proposals.
+validated when present. `no_action` has no proposals; `install_recovery` has
+only the scenario-owned fixed bundle.
 
 Bounded evidence uses `mininet-ai/bounded-decision/v1alpha1` and normalized
 execution records use `mininet-ai/agent-execution/v1alpha1`. Agno run/session IDs

@@ -17,11 +17,13 @@ Agno object, session, or fabricated Agno metrics. Agno factories and hooks remai
 Agno-only. ADRs 0008–0010 remain in force without change.
 
 This decision authorizes an incremental implementation. The initial tracer
-bullet supports the complete author/validate/compile/save/reload/run path for a
-successful `no_action` choice. The `install_recovery` branch is explicitly
-rejected before mutation until its complete admission, reconciliation, and
-partial-effect lifecycle is implemented. This is not a live-model or live-
-network support claim; skipped or unverified evaluation remains unverified.
+bullet supported the complete author/validate/compile/save/reload/run path for a
+successful `no_action` choice. The follow-on fixed-recovery slice maps
+`install_recovery` to the compiled ordered bundle and sends it through normal
+authorization, arbitration, admission, execution, and completion. Failed steps
+stop the remaining bundle and retain partial/unknown effects. Reconciliation,
+retry, cadence/deadline safety, and live-model/network acceptance remain
+unsupported; this incremental path is not a live-support claim.
 
 ## Consequences
 

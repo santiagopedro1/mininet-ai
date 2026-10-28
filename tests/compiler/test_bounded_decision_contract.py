@@ -112,9 +112,17 @@ def test_experiment_resolves_inline_decision_scenario_declaration():
                     "instructions": "Choose exactly one declared choice.",
                     "choices": [
                         {"id": "no_action", "description": "Restrain", "proposals": []},
-                        {"id": "install_recovery", "description": "Recover", "proposals": [
-                            {"capability": "openflow.flow.install", "target": "s1", "arguments": {"match": {}, "actions": []}}
-                        ]},
+                        {
+                            "id": "install_recovery",
+                            "description": "Recover",
+                            "proposals": [
+                                {
+                                    "capability": "openflow.flow.install",
+                                    "target": "s1",
+                                    "arguments": {"match": {}, "actions": []},
+                                }
+                            ],
+                        },
                     ],
                     "paths": {"primary": ["h1", "s1"], "recovery": ["h1", "s2"]},
                     "observations": {
@@ -149,7 +157,9 @@ def _source_for_compile(tmp_path):
             "execution": {"kind": "bounded-decision", "scenario": "diamond-policy"},
         }
     ]
-    deployment = next(item for item in source["agents"] if item["name"] == "switch-router")
+    deployment = next(
+        item for item in source["agents"] if item["name"] == "switch-router"
+    )
     source["agents"] = [deployment]
     deployment["blueprint"] = "decision-maker"
     deployment["placement"] = {
@@ -159,7 +169,9 @@ def _source_for_compile(tmp_path):
         "runtime": "device-sidecar",
     }
     deployment["observe"] = [
-        "ovs.port-counters", "tc.queue-occupancy", "topology.neighbors"
+        "ovs.port-counters",
+        "tc.queue-occupancy",
+        "topology.neighbors",
     ]
     deployment["decisionInputs"] = {
         "pathProbes": "ovs.port-counters",
@@ -183,20 +195,33 @@ def _source_for_compile(tmp_path):
                         {
                             "capability": "openflow.flow.install",
                             "target": "s1",
-                            "arguments": {"match": {}, "actions": []},
-                        }
+                            "arguments": {"match": {"step": 1}, "actions": []},
+                        },
+                        {
+                            "capability": "openflow.flow.install",
+                            "target": "s1",
+                            "arguments": {"match": {"step": 2}, "actions": []},
+                        },
                     ],
                 },
             ],
-            "paths": {"primary": ["h1", "s1", "s2", "h2"], "recovery": ["h1", "s1", "s2", "h2"]},
+            "paths": {
+                "primary": ["h1", "s1", "s2", "h2"],
+                "recovery": ["h1", "s1", "s2", "h2"],
+            },
             "observations": {
-                "pathProbes": "probes", "linkStates": "links", "policyState": "policy",
-                "actionOutcomes": "outcomes", "historyRounds": 3, "maxAge": "2s",
+                "pathProbes": "probes",
+                "linkStates": "links",
+                "policyState": "policy",
+                "actionOutcomes": "outcomes",
+                "historyRounds": 3,
+                "maxAge": "2s",
             },
             "timing": {"cadence": "1s", "decisionDeadline": "800ms"},
             "policy": {"initial": {}, "recovery": {}, "probePolicy": {}},
         }
     ]
+    source["policies"]["conflicting-actions"] = "serialize"
     path = tmp_path / "experiment.yaml"
     path.write_text(yaml.safe_dump(source))
     return path
@@ -210,13 +235,18 @@ def test_v1alpha5_source_compiles_saves_and_reloads_with_embedded_scenario(tmp_p
 
     assert restored.api_version == "mininet-ai/v1alpha5"
     assert restored.digest == compiled.digest
-    assert restored.snapshot["decisionScenarios"][0]["metadata"]["name"] == "diamond-policy"
+    assert (
+        restored.snapshot["decisionScenarios"][0]["metadata"]["name"]
+        == "diamond-policy"
+    )
     definition = ExecutionCatalog(restored).resolve(restored.agents[0].id)
     assert definition.blueprint.execution.kind == "bounded-decision"
     assert restored.agents[0].decision_scenario["choices"][0]["id"] == "no_action"
 
 
-def test_inline_and_document_scenario_references_compile_to_same_embedded_content(tmp_path):
+def test_inline_and_document_scenario_references_compile_to_same_embedded_content(
+    tmp_path,
+):
     source = _source_for_compile(tmp_path)
     inline = compile_experiment(source)
     document = yaml.safe_load(source.read_text())
@@ -227,11 +257,15 @@ def test_inline_and_document_scenario_references_compile_to_same_embedded_conten
 
     referenced = compile_experiment(source)
 
-    assert referenced.snapshot["decisionScenarios"] == inline.snapshot["decisionScenarios"]
+    assert (
+        referenced.snapshot["decisionScenarios"] == inline.snapshot["decisionScenarios"]
+    )
     assert referenced.agents[0].decision_scenario == inline.agents[0].decision_scenario
 
 
-def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(tmp_path, monkeypatch):
+def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
+    tmp_path, monkeypatch
+):
     import importlib
 
     from mininet_ai import experiment as experiment_module
@@ -248,7 +282,9 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(tmp_path,
         def post_json(self, url, payload, **kwargs):
             assert url.endswith("/v1/systemone")
             assert tuple(payload["questions"]) == ("next_action",)
-            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
 
     source = _source_for_compile(tmp_path)
     plan = compile_experiment(source)
@@ -270,7 +306,9 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(tmp_path,
 
     monkeypatch.setattr(experiment_module, "AgnoAgentFactory", forbidden_agno_factory)
     agent_runtime_module = importlib.import_module("mininet_ai.agents.runtime")
-    monkeypatch.setattr(agent_runtime_module, "AgnoAgentFactory", forbidden_agno_factory)
+    monkeypatch.setattr(
+        agent_runtime_module, "AgnoAgentFactory", forbidden_agno_factory
+    )
     runtime = ExperimentRuntime(
         restored,
         substrate,
@@ -289,23 +327,36 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(tmp_path,
     assert result.status.value == "succeeded"
     assert result.response is not None and result.response.proposals == ()
     assert result.response.metadata["selectedChoice"] == "no_action"
-    assert result.response.metadata["executionRecord"]["executionKind"] == "bounded-decision"
+    assert (
+        result.response.metadata["executionRecord"]["executionKind"]
+        == "bounded-decision"
+    )
     evidence = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
     assert evidence["selectedChoice"] == "no_action"
     assert evidence["request"]["url"].endswith("/v1/systemone")
     decision_context = json.loads(evidence["request"]["state"])
-    assert decision_context["apiVersion"] == "mininet-ai/bounded-decision-context/v1alpha1"
+    assert (
+        decision_context["apiVersion"] == "mininet-ai/bounded-decision-context/v1alpha1"
+    )
     assert decision_context["history"]["requiredRounds"] == 3
     assert "intent" not in decision_context and "sharedState" not in decision_context
-    completed_events = [event for event in audit_sink.events if event.type == AuditEventType.AGENT_COMPLETED]
+    completed_events = [
+        event
+        for event in audit_sink.events
+        if event.type == AuditEventType.AGENT_COMPLETED
+    ]
     assert len(completed_events) == 1
     assert (
-        completed_events[0].data["runtime"]["runtime"]["boundedDecision"]["selectedChoice"]
+        completed_events[0].data["runtime"]["runtime"]["boundedDecision"][
+            "selectedChoice"
+        ]
         == "no_action"
     )
 
 
-def test_recovery_selection_fails_before_capability_mutation(tmp_path):
+def test_recovery_selection_executes_fixed_bundle_and_retains_completion_evidence(
+    tmp_path,
+):
     from mininet_ai.agents import register_builtin_providers
     from mininet_ai.experiment import ExperimentRuntime
     from mininet_ai.plugins import ProviderRegistries
@@ -316,7 +367,16 @@ def test_recovery_selection_fails_before_capability_mutation(tmp_path):
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+            return {
+                "answers": {
+                    "next_action": {
+                        "type": "choice",
+                        "choice": "install_recovery",
+                        "probability": 0.01,
+                        "confidence": 0.02,
+                    }
+                }
+            }
 
     class RecordingSubstrate(FakeSubstrateRuntime):
         def __init__(self):
@@ -341,7 +401,10 @@ def test_recovery_selection_fails_before_capability_mutation(tmp_path):
         substrate,
         registries,
         decision_transport=RecoveryTransport(),
-        invocation_listener=lambda record: (results.append(record.result), completed.set()),
+        invocation_listener=lambda record: (
+            results.append(record.result),
+            completed.set(),
+        ),
     )
     runtime.start()
     try:
@@ -349,9 +412,105 @@ def test_recovery_selection_fails_before_capability_mutation(tmp_path):
     finally:
         runtime.stop()
 
-    assert results[0].status.value == "failed"
-    assert results[0].issue.code == "agent.bounded-decision.choice-not-supported"
-    assert substrate.mutations == []
+    assert results[0].status.value == "succeeded", results[0].issue
+    assert [item.parameters["match"]["step"] for item in substrate.mutations] == [1, 2]
+    assert [item.target for item in substrate.mutations] == ["s1", "s1"]
+    assert all(item.name == "openflow.flow.install" for item in substrate.mutations)
+    evidence = results[0].response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert evidence["selectedChoice"] == "install_recovery"
+    assert evidence["proposalMapping"]["proposals"][1]["arguments"] == {
+        "match": {"step": 2},
+        "actions": [],
+    }
+    assert [item["status"] for item in evidence["actionOutcomes"]] == [
+        "succeeded",
+        "succeeded",
+    ]
+    assert evidence["authorization"]["status"] == "authorized"
+    assert evidence["admission"]["status"] == "completed"
+    assert evidence["response"]["answers"]["next_action"]["confidence"] == 0.02
+
+
+def test_failed_recovery_step_stops_bundle_and_retains_partial_effects(tmp_path):
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.errors import RuntimeOperationError
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class RecoveryTransport:
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            return {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            }
+
+    class FailingSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.mutations = []
+
+        def execute(self, run_id, request):
+            self.mutations.append(request)
+            if request.parameters["match"]["step"] == 1:
+                raise RuntimeOperationError(
+                    "simulated partial mutation failure", code="test.step.failed"
+                )
+            return super().execute(run_id, request)
+
+    source = _source_for_compile(tmp_path)
+    plan = compile_experiment(source)
+    substrate = FailingSubstrate()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    completed = Event()
+    results = []
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=RecoveryTransport(),
+        invocation_listener=lambda record: (
+            results.append(record.result),
+            completed.set(),
+        ),
+    )
+    runtime.start()
+    try:
+        assert completed.wait(3), "failed recovery decision did not complete"
+    finally:
+        runtime.stop()
+
+    result = results[0]
+    assert result.status.value == "failed"
+    assert len(substrate.mutations) == 1
+    evidence = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
+    assert [item["stepStatus"] for item in evidence["actionOutcomes"]] == [
+        "failed",
+        "not-started",
+    ]
+    assert evidence["actionOutcomes"][0]["effects"] == "unknown"
+    assert evidence["authorization"]["status"] == "authorized"
+    assert evidence["admission"]["status"] == "completed"
+
+
+def test_compiler_rejects_fixed_recovery_arguments_that_fail_capability_schema(
+    tmp_path,
+):
+    from mininet_ai.errors import CompilationError
+
+    source = _source_for_compile(tmp_path)
+    document = yaml.safe_load(source.read_text())
+    document["decisionScenarios"][0]["choices"][1]["proposals"][0]["arguments"] = {}
+    source.write_text(yaml.safe_dump(document))
+    with pytest.raises(CompilationError, match="invalid arguments"):
+        compile_experiment(source)
 
 
 def test_bounded_service_startup_failure_precedes_substrate_deploy(tmp_path):

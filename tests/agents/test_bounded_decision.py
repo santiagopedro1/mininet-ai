@@ -52,6 +52,15 @@ def test_present_native_diagnostics_must_be_valid_numbers(field, value):
         {"answers": {}},
         {"answers": {"next_action": {"type": "choice", "choice": "other"}}},
         {"answers": {"next_action": {"type": "text", "choice": "no_action"}}},
+        {
+            "answers": {
+                "next_action": {
+                    "type": "choice",
+                    "choice": "install_recovery",
+                    "proposals": [{"capability": "invented"}],
+                }
+            }
+        },
     ],
 )
 def test_invalid_native_choice_is_not_coerced_to_no_action(response):
@@ -62,11 +71,49 @@ def test_invalid_native_choice_is_not_coerced_to_no_action(response):
 def test_recovery_choice_is_explicitly_rejected_before_proposals_escape():
     with pytest.raises(AgentRuntimeError, match="not supported") as error:
         map_choice(
-            {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}},
+            {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            },
             {"no_action": (), "install_recovery": ({"capability": "flow.install"},)},
         )
 
     assert error.value.code == "agent.bounded-decision.choice-not-supported"
+
+
+def test_exact_recovery_choice_maps_fixed_bundle_even_at_low_confidence():
+    bundle = (
+        {
+            "capability": "openflow.flow.install",
+            "target": "s1",
+            "arguments": {"rule": 1},
+        },
+        {
+            "capability": "openflow.flow.install",
+            "target": "s2",
+            "arguments": {"rule": 2},
+        },
+    )
+    result = map_choice(
+        {
+            "answers": {
+                "next_action": {
+                    "type": "choice",
+                    "choice": "install_recovery",
+                    "probability": 0.01,
+                    "confidence": 0.02,
+                }
+            }
+        },
+        {"no_action": (), "install_recovery": bundle},
+        allow_non_no_action=True,
+    )
+
+    assert result.choice_id == "install_recovery"
+    assert result.proposals == bundle
+    assert result.probability == 0.01
+    assert result.confidence == 0.02
 
 
 def test_no_action_cannot_carry_a_mutation_bundle():
@@ -81,7 +128,9 @@ def test_native_client_posts_one_question_and_retains_canonical_state():
     class Transport:
         def post_json(self, url, payload, **kwargs):
             self.call = (url, payload, kwargs)
-            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
 
     transport = Transport()
     client = NativeSystemOneClient("http://localhost:8080/", transport)
@@ -89,7 +138,10 @@ def test_native_client_posts_one_question_and_retains_canonical_state():
         state='{"observations":[],"rounds":3}',
         instructions="Choose only from the declared choices.",
         criteria=("no_action", "install_recovery"),
-        choices={"no_action": (), "install_recovery": ({"capability": "flow.install"},)},
+        choices={
+            "no_action": (),
+            "install_recovery": ({"capability": "flow.install"},),
+        },
         timeout_seconds=0.8,
     )
 
@@ -98,7 +150,10 @@ def test_native_client_posts_one_question_and_retains_canonical_state():
     assert url == "http://localhost:8080/v1/systemone"
     assert payload["state"] == '{"observations":[],"rounds":3}'
     assert tuple(payload["questions"]) == ("next_action",)
-    assert payload["questions"]["next_action"]["criteria"] == ["no_action", "install_recovery"]
+    assert payload["questions"]["next_action"]["criteria"] == [
+        "no_action",
+        "install_recovery",
+    ]
     assert kwargs["timeout_seconds"] == 0.8
 
 
@@ -151,13 +206,20 @@ def test_startup_distinguishes_unverifiable_identity_from_service_interface_fail
             return {"status": "ok"} if url.endswith("/health") else self.props
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
 
     transport = Transport()
     client = NativeSystemOneClient("http://127.0.0.1:8080", transport)
     result = client.verify_startup(
         model_name="expected-model",
-        expected_identity={"repository": "org/model", "revision": "rev", "artifact": "model.gguf", "sha256": "0" * 64},
+        expected_identity={
+            "repository": "org/model",
+            "revision": "rev",
+            "artifact": "model.gguf",
+            "sha256": "0" * 64,
+        },
         instructions="Choose a fixed action.",
         criteria=("no_action", "install_recovery"),
         choices={"no_action": (), "install_recovery": ()},
@@ -169,7 +231,12 @@ def test_startup_distinguishes_unverifiable_identity_from_service_interface_fail
     with pytest.raises(AgentRuntimeError) as error:
         client.verify_startup(
             model_name="expected-model",
-            expected_identity={"repository": "org/model", "revision": "rev", "artifact": "model.gguf", "sha256": "0" * 64},
+            expected_identity={
+                "repository": "org/model",
+                "revision": "rev",
+                "artifact": "model.gguf",
+                "sha256": "0" * 64,
+            },
             instructions="Choose a fixed action.",
             criteria=("no_action", "install_recovery"),
             choices={"no_action": (), "install_recovery": ()},
