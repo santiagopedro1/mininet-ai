@@ -29,6 +29,7 @@ class BoundedDecisionRecord(StrictModel):
     timings: dict[str, Any]
     proposal_mapping: dict[str, Any] = Field(alias="proposalMapping")
     reconciliation: dict[str, Any] = Field(default_factory=dict)
+    refusal: dict[str, Any] = Field(default_factory=dict)
     authorization: dict[str, Any]
     admission: dict[str, Any]
     action_outcomes: tuple[dict[str, Any], ...] = Field(alias="actionOutcomes")

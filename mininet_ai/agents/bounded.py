@@ -6,6 +6,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from threading import Lock, Thread
 from time import monotonic
 from typing import Any, Protocol, cast
@@ -16,7 +17,8 @@ from mininet_ai.agents.bounded_contracts import (
 )
 from mininet_ai.agents.reconciliation import reconcile_bundle
 from mininet_ai.errors import AgentRuntimeError
-from mininet_ai.substrates.runtime import ActionRequest
+from mininet_ai.specification.models import duration_seconds
+from mininet_ai.substrates.runtime import ActionRequest, ObservationQuery
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,20 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError(f"duplicate JSON key: {key}")
         result[key] = value
     return result
+
+
+def _eligibility_signals(value: Any) -> list[bool]:
+    signals: list[bool] = []
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            if key == "eligible" and isinstance(child, bool):
+                signals.append(child)
+            else:
+                signals.extend(_eligibility_signals(child))
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            signals.extend(_eligibility_signals(child))
+    return signals
 
 
 def map_choice(
@@ -630,6 +646,57 @@ class BoundedDecisionAdapter:
                 agent_id=context.agent_id,
                 invocation_id=context.invocation_id,
             )
+        if result.choice_id == "install_recovery":
+            retry_evidence = self._recheck_recovery_evidence(
+                context.run_id,
+                timeout_seconds=max(0.0, deadline - clock()),
+            )
+            completed_tick = clock()
+            revoked = self.authority.validate_response()
+            if revoked is not None or completed_tick >= deadline:
+                reason = revoked or "timeout"
+                self.authority.revoke(reason)
+                self._retain_failure(
+                    context,
+                    reason,
+                    phase="reconciliation",
+                    native_response=result.native_response or {},
+                    late=True,
+                    selected_choice=result.choice_id,
+                )
+                raise AgentRuntimeError(
+                    "bounded decision deadline or cancellation occurred during recovery evidence recheck",
+                    code=(
+                        "agent.bounded-decision.cancelled"
+                        if reason == "cancelled"
+                        else "agent.bounded-decision.timeout"
+                    ),
+                    agent_id=context.agent_id,
+                    invocation_id=context.invocation_id,
+                )
+            if retry_evidence["eligible"] is not True:
+                refusal_code = str(retry_evidence["refusalCode"])
+                self._retain_failure(
+                    context,
+                    "retry-ineligible",
+                    phase="reconciliation",
+                    native_response=result.native_response or {},
+                    selected_choice=result.choice_id,
+                )
+                assert self._failure_execution_record is not None
+                decision = self._failure_execution_record["runtime"]["boundedDecision"]
+                decision["reconciliation"] = self._reconciliation
+                decision["refusal"] = {
+                    "code": refusal_code,
+                    "message": retry_evidence["message"],
+                    "evidence": retry_evidence,
+                }
+                raise AgentRuntimeError(
+                    str(retry_evidence["message"]),
+                    code="agent.bounded-decision.retry-ineligible",
+                    agent_id=context.agent_id,
+                    invocation_id=context.invocation_id,
+                )
         elapsed = max(0.0, completed_tick - inference_started)
         present = set(self._reconciliation.get("presentIndexes", ()))
         remaining_indices = tuple(
@@ -796,6 +863,72 @@ class BoundedDecisionAdapter:
             "failure": detail,
         }
         return self._reconciliation
+
+    def _recheck_recovery_evidence(
+        self, run_id: str, *, timeout_seconds: float
+    ) -> dict[str, Any]:
+        """Refresh bound observations after inference; unknown/stale evidence refuses admission."""
+        if timeout_seconds <= 0 or self._substrate is None:
+            return {
+                "eligible": False,
+                "refusalCode": "evidence-unavailable",
+                "message": "recovery evidence cannot be refreshed before admission",
+                "observations": {},
+            }
+        bindings = self.definition.instance.decision_inputs
+        refreshed: dict[str, Any] = {}
+        max_age = duration_seconds(self.scenario["observations"]["maxAge"])
+        try:
+            for source_name in dict.fromkeys(bindings.values()):
+                query = ObservationQuery(
+                    name=source_name,
+                    targets=self.definition.instance.attachment.targets,
+                )
+                observed = self._substrate.observe(run_id, query)
+                age = (datetime.now(UTC) - observed.observed_at).total_seconds()
+                if observed.run_id != run_id or observed.query != query:
+                    raise ValueError(f"observation {source_name!r} identity mismatch")
+                if age < 0 or age > max_age:
+                    return {
+                        "eligible": False,
+                        "refusalCode": "stale-evidence",
+                        "message": f"recovery observation {source_name!r} is stale or future-dated",
+                        "observations": refreshed,
+                    }
+                refreshed[source_name] = {
+                    "observedAt": observed.observed_at.isoformat(),
+                    "ageSeconds": age,
+                    "values": observed.values,
+                }
+        except Exception as error:
+            return {
+                "eligible": False,
+                "refusalCode": "evidence-unavailable",
+                "message": f"recovery evidence refresh failed: {error}",
+                "observations": refreshed,
+            }
+        probes_source = bindings.get("pathProbes")
+        probe_values = refreshed.get(probes_source, {}).get("values", {})
+        eligibility = _eligibility_signals(probe_values)
+        self._reconciliation["retryEvidence"] = {
+            "observations": refreshed,
+            "eligibilitySignals": eligibility,
+        }
+        if any(value is False for value in eligibility):
+            return {
+                "eligible": False,
+                "refusalCode": "ineligible-evidence",
+                "message": "current recovery observations report ineligible retry evidence",
+                "observations": refreshed,
+                "eligibilitySignals": eligibility,
+            }
+        return {
+            "eligible": True,
+            "refusalCode": "",
+            "message": "fresh current recovery evidence permits retry admission",
+            "observations": refreshed,
+            "eligibilitySignals": eligibility,
+        }
 
     def failure_response(self, error: Exception) -> Any | None:
         from mininet_ai.sdk import AgentResponse

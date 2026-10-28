@@ -638,6 +638,7 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
     class RetryTransport:
         def __init__(self):
             self.requests = []
+            self.decisions = 0
 
         def get_json(self, url, **kwargs):
             return {"status": "ok"} if url.endswith("/health") else {}
@@ -668,7 +669,7 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
             if query.name != "ovs.port-counters":
                 return result
             self.observation_round += 1
-            eligible = self.observation_round != 2
+            eligible = self.observation_round != 3
             return result.model_copy(
                 update={
                     "values": {
@@ -754,6 +755,107 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
         else ["present", "missing"]
     )
     assert restraint.action_results == ()
+
+
+def test_model_selected_retry_with_ineligible_current_evidence_is_refused(tmp_path):
+    from threading import Event
+
+    from mininet_ai.agents import register_builtin_providers
+    from mininet_ai.errors import RuntimeOperationError
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class AlwaysRecoverTransport:
+        def __init__(self):
+            self.requests = []
+            self.decisions = 0
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else {}
+
+        def post_json(self, url, payload, **kwargs):
+            if payload.get("state") == "{}":
+                choice = "no_action"
+            else:
+                self.requests.append(payload)
+                self.decisions += 1
+                choice = "no_action" if self.decisions == 2 else "install_recovery"
+            return {"answers": {"next_action": {"type": "choice", "choice": choice}}}
+
+    class IneligibleRetrySubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__()
+            self.observation_round = 0
+            self.failed_once = False
+            self.mutations = []
+
+        def observe(self, run_id, query):
+            result = super().observe(run_id, query)
+            if query.name != "ovs.port-counters":
+                return result
+            self.observation_round += 1
+            eligible = self.observation_round <= 2
+            return result.model_copy(
+                update={
+                    "values": {
+                        target: {"eligible": eligible}
+                        for target in query.targets
+                    }
+                }
+            )
+
+        def execute(self, run_id, request):
+            if request.id == "bounded-2" and not self.failed_once:
+                self.failed_once = True
+                raise RuntimeOperationError("injected step failure", code="test.injected")
+            self.mutations.append(request)
+            return super().execute(run_id, request)
+
+    plan = compile_experiment(_source_for_compile(tmp_path))
+    substrate = IneligibleRetrySubstrate()
+    registries = ProviderRegistries()
+    register_builtin_providers(registries, substrate)
+    results: list[Any] = []
+    completed = Event()
+
+    def record(invocation) -> None:
+        results.append(invocation.result)
+        completed.set()
+
+    transport = AlwaysRecoverTransport()
+    runtime = ExperimentRuntime(
+        plan,
+        substrate,
+        registries,
+        decision_transport=transport,
+        invocation_listener=record,
+    )
+    runtime.start()
+    try:
+        for invocation_number in range(3):
+            assert completed.wait(4), f"invocation {invocation_number + 1} did not complete"
+            completed.clear()
+    finally:
+        runtime.stop()
+
+    initial, _, refused = results
+    retry_request = json.loads(transport.requests[2]["state"])
+    assert retry_request["latestObservations"]["pathProbes"]["value"]["s1"][
+        "eligible"
+    ] is False
+    assert initial.status.value == "failed"
+    assert refused.status.value == "failed"
+    assert refused.issue is not None
+    assert refused.issue.code == "agent.bounded-decision.retry-ineligible"
+    assert len(transport.requests) == 3
+    evidence = refused.response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert evidence["selectedChoice"] == "install_recovery"
+    assert evidence["refusal"]["code"] == "ineligible-evidence"
+    assert evidence["reconciliation"]["policy"] == "partial"
+    assert [request.id for request in substrate.mutations] == ["bounded-1"]
 
 
 @pytest.mark.parametrize("inspection", ["wrong", "conflicting", "unreadable"])

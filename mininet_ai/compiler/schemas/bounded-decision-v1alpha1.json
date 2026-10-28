@@ -84,6 +84,11 @@
       "title": "Reconciliation",
       "type": "object"
     },
+    "refusal": {
+      "additionalProperties": true,
+      "title": "Refusal",
+      "type": "object"
+    },
     "request": {
       "additionalProperties": true,
       "title": "Request",
