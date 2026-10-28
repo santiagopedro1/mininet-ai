@@ -122,8 +122,11 @@ def map_choice(
         )
     diagnostics: dict[str, float | None] = {}
     for field, maximum in (("probability", 1.0), ("confidence", 1.0)):
-        value = answer.get(field)
-        if value is not None and (
+        if field not in answer:
+            diagnostics[field] = None
+            continue
+        value = answer[field]
+        if (
             isinstance(value, bool)
             or not isinstance(value, (int, float))
             or not math.isfinite(value)
@@ -133,7 +136,7 @@ def map_choice(
                 f"native response {field} must be finite and between 0 and 1",
                 code="agent.bounded-decision.invalid-output",
             )
-        diagnostics[field] = float(value) if value is not None else None
+        diagnostics[field] = float(value)
     return ChoiceResult(
         choice_id=choice_id,
         proposals=tuple(choices[choice_id]),

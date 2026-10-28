@@ -18,6 +18,34 @@ def test_exact_no_action_choice_maps_to_no_proposals():
     assert result.proposals == ()
 
 
+def test_omitted_native_diagnostics_remain_unavailable():
+    result = map_choice(
+        {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}},
+        {"no_action": (), "install_recovery": ()},
+    )
+
+    assert result.probability is None
+    assert result.confidence is None
+
+
+@pytest.mark.parametrize("field", ["probability", "confidence"])
+@pytest.mark.parametrize(
+    "value", [None, True, "0.5", -0.01, 1.01, float("nan"), float("inf")]
+)
+def test_present_native_diagnostics_must_be_valid_numbers(field, value):
+    response = {
+        "answers": {
+            "next_action": {"type": "choice", "choice": "no_action", field: value}
+        }
+    }
+
+    with pytest.raises(AgentRuntimeError) as error:
+        map_choice(response, {"no_action": (), "install_recovery": ()})
+
+    assert error.value.code == "agent.bounded-decision.invalid-output"
+    assert field in str(error.value)
+
+
 @pytest.mark.parametrize(
     "response",
     [
