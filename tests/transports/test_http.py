@@ -62,6 +62,16 @@ class HttpxJsonTransportTests(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             self.post(httpx.MockTransport(timeout))
 
+    def test_duplicate_json_keys_are_rejected(self) -> None:
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, content=b'{"answers":{"next_action":{},"next_action":{}}}'
+            )
+        )
+        with self.assertRaises(HttpTransportError) as error:
+            self.post(transport)
+        self.assertEqual(error.exception.code, "invalid-json")
+
 
 if __name__ == "__main__":
     unittest.main()

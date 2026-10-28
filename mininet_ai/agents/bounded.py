@@ -6,8 +6,13 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from time import monotonic
 from typing import Any, Protocol
 
+from mininet_ai.agents.bounded_contracts import (
+    AgentExecutionRecord,
+    BoundedDecisionRecord,
+)
 from mininet_ai.errors import AgentRuntimeError
 
 
@@ -17,6 +22,7 @@ class ChoiceResult:
     proposals: tuple[dict[str, Any], ...]
     probability: float | None = None
     confidence: float | None = None
+    native_response: dict[str, Any] | None = None
 
 
 def parse_response(payload: str | bytes | Mapping[str, Any]) -> Mapping[str, Any]:
@@ -55,14 +61,47 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def map_choice(
     payload: str | bytes | Mapping[str, Any],
     choices: Mapping[str, Sequence[dict[str, Any]]],
+    *,
+    allow_non_no_action: bool = False,
 ) -> ChoiceResult:
     """Map only an exact native choice ID to its fixed, scenario-owned bundle."""
     response = parse_response(payload)
     answers = response.get("answers")
+    if not isinstance(answers, Mapping) or set(answers) != {"next_action"}:
+        raise AgentRuntimeError(
+            "native response choice must answer exactly next_action",
+            code="agent.bounded-decision.invalid-output",
+        )
+    usage = response.get("usage")
+    if usage is not None and not isinstance(usage, Mapping):
+        raise AgentRuntimeError(
+            "native response usage must be an object",
+            code="agent.bounded-decision.invalid-output",
+        )
+    output_tokens = (
+        usage.get("output_tokens", usage.get("outputTokens", 0))
+        if isinstance(usage, Mapping)
+        else 0
+    )
+    if isinstance(output_tokens, bool) or not isinstance(output_tokens, int) or output_tokens < 0:
+        raise AgentRuntimeError(
+            "native response generated-token usage is invalid",
+            code="agent.bounded-decision.invalid-output",
+        )
+    if output_tokens != 0:
+        raise AgentRuntimeError(
+            "native choice contract must not generate output tokens",
+            code="agent.bounded-decision.native-contract-violation",
+        )
     answer = answers.get("next_action") if isinstance(answers, Mapping) else None
     if not isinstance(answer, Mapping) or answer.get("type") != "choice":
         raise AgentRuntimeError(
             "native response must contain answers.next_action of type choice",
+            code="agent.bounded-decision.invalid-output",
+        )
+    if set(answer) - {"type", "choice", "probability", "confidence"}:
+        raise AgentRuntimeError(
+            "native choice answer contains unsupported fields",
             code="agent.bounded-decision.invalid-output",
         )
     choice_id = answer.get("choice")
@@ -71,7 +110,7 @@ def map_choice(
             "native response contains a missing or unknown choice",
             code="agent.bounded-decision.invalid-output",
         )
-    if choice_id != "no_action":
+    if choice_id != "no_action" and not allow_non_no_action:
         raise AgentRuntimeError(
             f"choice {choice_id!r} is not supported by this runtime slice",
             code="agent.bounded-decision.choice-not-supported",
@@ -98,12 +137,14 @@ def map_choice(
     return ChoiceResult(
         choice_id=choice_id,
         proposals=tuple(choices[choice_id]),
+        native_response=dict(response),
         **diagnostics,
     )
 
 
 class DecisionTransport(Protocol):
     def post_json(self, url: str, payload: Mapping[str, Any], **kwargs: Any) -> Any: ...
+    def get_json(self, url: str, **kwargs: Any) -> Any: ...
 
 
 class NativeSystemOneClient:
@@ -121,6 +162,7 @@ class NativeSystemOneClient:
         criteria: Sequence[str],
         choices: Mapping[str, Sequence[dict[str, Any]]],
         timeout_seconds: float,
+        allow_non_no_action: bool = False,
     ) -> ChoiceResult:
         if tuple(choices) != tuple(criteria):
             raise AgentRuntimeError(
@@ -146,8 +188,279 @@ class NativeSystemOneClient:
                 max_response_bytes=1_048_576,
             )
         except Exception as error:
+            if isinstance(error, TimeoutError):
+                raise AgentRuntimeError(
+                    f"native llama.cpp decision request timed out: {error}",
+                    code="agent.bounded-decision.timeout",
+                ) from error
+            if getattr(error, "code", None) == "invalid-json":
+                raise AgentRuntimeError(
+                    f"native choice response is malformed: {error}",
+                    code="agent.bounded-decision.invalid-output",
+                ) from error
             raise AgentRuntimeError(
                 f"native llama.cpp decision request failed: {error}",
                 code="agent.bounded-decision.service-unavailable",
             ) from error
-        return map_choice(response, choices)
+        return map_choice(response, choices, allow_non_no_action=allow_non_no_action)
+
+    def verify_startup(
+        self,
+        *,
+        model_name: str,
+        expected_identity: Mapping[str, Any],
+        instructions: str,
+        criteria: Sequence[str],
+        choices: Mapping[str, Sequence[dict[str, Any]]],
+    ) -> dict[str, Any]:
+        """Verify availability, observable identity and native interface without mutation."""
+        try:
+            health = self.transport.get_json(
+                f"{self.endpoint}/health",
+                headers={"Accept": "application/json"},
+                timeout_seconds=2.0,
+                max_response_bytes=65536,
+            )
+            props = self.transport.get_json(
+                f"{self.endpoint}/props",
+                headers={"Accept": "application/json"},
+                timeout_seconds=2.0,
+                max_response_bytes=65536,
+            )
+        except Exception as error:
+            raise AgentRuntimeError(
+                f"bounded decision startup service check failed: {error}",
+                code="agent.bounded-decision.startup-unavailable",
+            ) from error
+        if not isinstance(health, Mapping) or not isinstance(props, Mapping):
+            raise AgentRuntimeError(
+                "bounded decision startup endpoints returned invalid documents",
+                code="agent.bounded-decision.startup-interface-invalid",
+            )
+        if health.get("status") not in {"ok", "ready"}:
+            raise AgentRuntimeError(
+                "bounded decision service is not ready",
+                code="agent.bounded-decision.startup-unavailable",
+            )
+        observed_name = props.get("model_alias") or props.get("model")
+        if observed_name is not None and observed_name != model_name:
+            raise AgentRuntimeError(
+                f"bounded decision served model {observed_name!r} does not match expected {model_name!r}",
+                code="agent.bounded-decision.startup-identity-mismatch",
+            )
+        observable_fields = {
+            "serverVersion": "version",
+            "serverCommit": "commit",
+            "artifact": "model_path",
+            "sha256": "model_sha256",
+            "revision": "model_revision",
+            "repository": "model_repository",
+        }
+        observed_identity = {}
+        for expected_key, props_key in observable_fields.items():
+            expected = expected_identity.get(expected_key)
+            observed = props.get(props_key)
+            if expected is not None and observed is not None:
+                if expected != observed:
+                    raise AgentRuntimeError(
+                        f"bounded decision startup identity mismatch for {expected_key}",
+                        code="agent.bounded-decision.startup-identity-mismatch",
+                    )
+                observed_identity[expected_key] = observed
+        try:
+            self.decide(
+                state="{}",
+                instructions=instructions,
+                criteria=criteria,
+                choices={key: () for key in criteria},
+                timeout_seconds=2.0,
+                allow_non_no_action=True,
+            )
+        except AgentRuntimeError as error:
+            raise AgentRuntimeError(
+                f"bounded decision native interface check failed: {error}",
+                code="agent.bounded-decision.startup-interface-invalid",
+            ) from error
+        return {
+            "status": "verified" if len(observed_identity) == len(expected_identity) else "unverified",
+            "expectedModel": model_name,
+            "observedModel": observed_name,
+            "expectedIdentity": dict(expected_identity),
+            "observedIdentity": observed_identity,
+            "interface": "verified",
+            "health": dict(health),
+        }
+
+
+@dataclass(frozen=True)
+class BoundedExecutionResult:
+    response: Any
+    model_queueing_seconds: float
+    runtime_name: str
+    runtime_data: dict[str, Any]
+
+
+class BoundedDecisionAdapter:
+    """Run one explicitly compiled bounded decision without constructing Agno."""
+
+    contract_version = "mininet-ai/agent-runtime/v1alpha4"
+
+    def __init__(self, definition: Any, transport: DecisionTransport, startup: Mapping[str, Any] | None = None) -> None:
+        self.definition = definition
+        self.transport = transport
+        self.startup = dict(startup or {})
+        model = definition.blueprint.model
+        if not hasattr(model, "parameters") or model.provider != "llamacpp-systemone":
+            raise AgentRuntimeError(
+                "bounded execution requires a resolved llamacpp-systemone model",
+                code="agent.bounded-decision.configuration-invalid",
+            )
+        self.model = model
+        scenario = definition.instance.decision_scenario
+        if not isinstance(scenario, Mapping):
+            raise AgentRuntimeError(
+                "bounded execution plan has no embedded decision scenario",
+                code="agent.bounded-decision.configuration-invalid",
+            )
+        self.scenario = dict(scenario)
+        self.client = NativeSystemOneClient(model.parameters["endpoint"], transport)
+
+    def run(self, context: Any) -> BoundedExecutionResult:
+        from mininet_ai.sdk import AgentResponse
+
+        started = monotonic()
+        choices_list = self.scenario["choices"]
+        choices = {item["id"]: tuple(item["proposals"]) for item in choices_list}
+        criteria = tuple(item["id"] for item in choices_list)
+        observation_bindings = self.definition.instance.decision_inputs
+        latest = {
+            logical_name: {
+                "source": source_name,
+                "availability": "available" if source_name in context.observations else "missing",
+                "value": context.observations.get(source_name),
+                "observedAt": None,
+            }
+            for logical_name, source_name in observation_bindings.items()
+        }
+        tick_id = (
+            context.coordination.correlation_id
+            if context.coordination is not None
+            else context.invocation_id
+        )
+        decision_context = {
+            "apiVersion": "mininet-ai/bounded-decision-context/v1alpha1",
+            "scenario": self.scenario["metadata"],
+            "identity": {
+                "runId": context.run_id,
+                "agentId": context.agent_id,
+                "invocationId": context.invocation_id,
+                "tickId": tick_id,
+                "invokedAt": context.invoked_at.isoformat(),
+            },
+            "paths": self.scenario["paths"],
+            "latestObservations": latest,
+            "history": {
+                "requiredRounds": 3,
+                "completedRounds": [],
+                "gaps": ["scheduled round history is not available from the agent-runtime contract"],
+            },
+            "policy": self.scenario["policy"],
+        }
+        state = json.dumps(
+            decision_context,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        remaining_budget = 0.8 - max(0.0, monotonic() - started)
+        if remaining_budget <= 0:
+            raise AgentRuntimeError(
+                "bounded decision deadline expired during input assembly",
+                code="agent.bounded-decision.timeout",
+                agent_id=context.agent_id,
+                invocation_id=context.invocation_id,
+            )
+        inference_started = monotonic()
+        result = self.client.decide(
+            state=state,
+            instructions=self.scenario["instructions"],
+            criteria=criteria,
+            choices=choices,
+            timeout_seconds=remaining_budget,
+        )
+        if result.choice_id != "no_action":
+            raise AgentRuntimeError(
+                f"choice {result.choice_id!r} is not supported by this runtime slice",
+                code="agent.bounded-decision.choice-not-supported",
+            )
+        if result.proposals:
+            raise AgentRuntimeError(
+                "no_action unexpectedly mapped to proposals",
+                code="agent.bounded-decision.native-contract-violation",
+            )
+        completed_tick = monotonic()
+        elapsed = max(0.0, completed_tick - inference_started)
+        record = BoundedDecisionRecord(
+            runId=context.run_id,
+            agentId=context.agent_id,
+            invocationId=context.invocation_id,
+            correlationId=(context.coordination.correlation_id if context.coordination else context.invocation_id),
+            scenario=self.scenario,
+            effectiveConfiguration={"model": self.model.name, "provider": self.model.provider, "parameters": self.model.parameters},
+            request={"url": f"{self.client.endpoint}/v1/systemone", "state": state, "instructions": self.scenario["instructions"], "criteria": list(criteria)},
+            response=result.native_response or {},
+            selectedChoice=result.choice_id,
+            modelProvenance={
+                "startup": self.startup,
+                "expectedIdentity": self.model.parameters["expectedIdentity"],
+                "verification": self.startup.get("status", "unverified"),
+                "artifactVerification": "unverified",
+                "serverBuild": "unavailable",
+                "hardware": "unavailable",
+            },
+            timings={
+                "decisionSeconds": elapsed,
+                "inputAssemblySeconds": max(0.0, inference_started - started),
+                "startedTick": started,
+                "completedTick": completed_tick,
+                "deadlineTick": started + 0.8,
+                "clockDomain": "process-monotonic",
+                "invokedAt": context.invoked_at.isoformat(),
+            },
+            proposalMapping={"choice": result.choice_id, "proposals": []},
+            authorization={"status": "not-required", "reason": "no proposals"},
+            admission={"status": "not-required", "reason": "no proposals"},
+            actionOutcomes=(),
+            gaps=(
+                "scheduled round history is not available from the agent-runtime contract",
+                "observation timestamps are unavailable from the agent-runtime contract",
+                "server build and hardware provenance are unavailable",
+                "full model artifact SHA-256 has not been independently verified",
+                *( () if self.startup.get("status") == "verified" else ("model/server identity is not fully verifiable",) ),
+            ),
+        )
+        execution_record = AgentExecutionRecord(
+            executionKind="bounded-decision",
+            outcome="succeeded",
+            runtime={"boundedDecision": record.model_dump(mode="json", by_alias=True)},
+        ).model_dump(mode="json", by_alias=True)
+        response = AgentResponse(
+            message="bounded decision selected no_action",
+            metadata={
+                "executionKind": "bounded-decision",
+                "selectedChoice": result.choice_id,
+                "executionRecord": execution_record,
+            },
+        )
+        return BoundedExecutionResult(
+            response=response,
+            model_queueing_seconds=0.0,
+            runtime_name="bounded-decision",
+            runtime_data=execution_record,
+        )
+
+    def record_action_results(self, context: Any, results: tuple[Any, ...]) -> None:
+        if results:
+            raise AgentRuntimeError(
+                "bounded no_action execution cannot have action results",
+                code="agent.bounded-decision.native-contract-violation",
+            )

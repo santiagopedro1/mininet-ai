@@ -29,7 +29,12 @@ from mininet_ai.audit import (
     AuditEventType,
     AuditRecorder,
 )
-from mininet_ai.compiler import DeploymentPlan, compile_experiment
+from mininet_ai.compiler import (
+    DeploymentPlan,
+    compile_experiment,
+    load_deployment_plan,
+    save_deployment_plan,
+)
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
 from mininet_ai.dependency_logging import RunDiagnostics
 from mininet_ai.errors import MininetAIError, describe_failure
@@ -403,6 +408,19 @@ def _compile_or_exit(path: Path) -> DeploymentPlan:
         raise typer.Exit(code=1) from error
 
 
+def _load_plan_or_compile_or_exit(path: Path) -> DeploymentPlan:
+    try:
+        if not path.exists():
+            return _compile_or_exit(path)
+        content = path.read_text(encoding="utf-8")
+        if '"kind"' in content and '"DeploymentPlan"' in content:
+            return load_deployment_plan(path)
+        return compile_experiment(path)
+    except (MininetAIError, OSError) as error:
+        error_console.print(f"[bold red]Error:[/bold red] {error}", soft_wrap=True)
+        raise typer.Exit(code=1) from error
+
+
 def _runtime_or_exit(substrate: str) -> SubstrateRuntime:
     try:
         return create_substrate_runtime(substrate)
@@ -516,10 +534,20 @@ def plan(
     output_format: Annotated[
         OutputFormat, typer.Option("--format", "-f", help="Output format.")
     ] = OutputFormat.TEXT,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Save the immutable DeploymentPlan JSON."),
+    ] = None,
 ) -> None:
     """Compile an experiment into an inspectable deployment plan."""
 
     deployment_plan = _compile_or_exit(experiment)
+    if output is not None:
+        try:
+            save_deployment_plan(deployment_plan, output)
+        except OSError as error:
+            error_console.print(f"[bold red]Error:[/bold red] cannot save plan: {error}")
+            raise typer.Exit(code=1) from error
     if output_format == OutputFormat.JSON:
         _print_json(deployment_plan)
     else:
@@ -617,7 +645,7 @@ def run(
 ) -> None:
     """Own a complete continuous experiment until interrupted or stopped."""
 
-    deployment_plan = _compile_or_exit(experiment)
+    deployment_plan = _load_plan_or_compile_or_exit(experiment)
     if dry_run:
         if output_format == OutputFormat.JSON:
             _print_json(deployment_plan)
@@ -813,6 +841,16 @@ def run(
             if stop_after_intents
             else None
         )
+        has_agno_agents = any(
+            agent.decision_scenario is None for agent in deployment_plan.agents
+        )
+        agno_factory = (
+            _operation_or_exit(
+                lambda: AgnoAgentFactory(database_path=agno_db)
+            )
+            if has_agno_agents
+            else None
+        )
         owner = ExperimentRuntime(
             deployment_plan,
             substrate,
@@ -824,9 +862,7 @@ def run(
                     on_failure=stop_latch.request_stop,
                 )
             ),
-            agent_factory=_operation_or_exit(
-                lambda: AgnoAgentFactory(database_path=agno_db)
-            ),
+            agent_factory=agno_factory,
             shared_state=state_store,
             ledger=ledger,
             plugins=tuple(

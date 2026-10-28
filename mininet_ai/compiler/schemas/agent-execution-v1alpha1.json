@@ -1,0 +1,56 @@
+{
+  "$id": "urn:mininet-ai:schema:agent-execution:v1alpha1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agnoRunId": {
+      "default": null,
+      "title": "Agnorunid",
+      "type": "null"
+    },
+    "apiVersion": {
+      "const": "mininet-ai/agent-execution/v1alpha1",
+      "default": "mininet-ai/agent-execution/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "executionKind": {
+      "enum": [
+        "agno",
+        "bounded-decision"
+      ],
+      "title": "Executionkind",
+      "type": "string"
+    },
+    "metrics": {
+      "default": null,
+      "title": "Metrics",
+      "type": "null"
+    },
+    "outcome": {
+      "enum": [
+        "succeeded",
+        "failed"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "runtime": {
+      "additionalProperties": true,
+      "title": "Runtime",
+      "type": "object"
+    },
+    "sessionId": {
+      "default": null,
+      "title": "Sessionid",
+      "type": "null"
+    }
+  },
+  "required": [
+    "executionKind",
+    "outcome",
+    "runtime"
+  ],
+  "title": "AgentExecutionRecord",
+  "type": "object"
+}

@@ -1,0 +1,134 @@
+{
+  "$defs": {
+    "DecisionChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "proposals": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Proposals",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "description"
+      ],
+      "title": "DecisionChoice",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    }
+  },
+  "$id": "urn:mininet-ai:schema:v1alpha5:decision-scenario",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "mininet-ai/v1alpha5"
+    },
+    "choices": {
+      "items": {
+        "$ref": "#/$defs/DecisionChoice"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Choices",
+      "type": "array"
+    },
+    "instructions": {
+      "minLength": 1,
+      "title": "Instructions",
+      "type": "string"
+    },
+    "kind": {
+      "const": "DecisionScenario",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "observations": {
+      "additionalProperties": true,
+      "title": "Observations",
+      "type": "object"
+    },
+    "paths": {
+      "additionalProperties": true,
+      "title": "Paths",
+      "type": "object"
+    },
+    "policy": {
+      "additionalProperties": true,
+      "title": "Policy",
+      "type": "object"
+    },
+    "timing": {
+      "additionalProperties": true,
+      "title": "Timing",
+      "type": "object"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "instructions",
+    "choices",
+    "paths",
+    "observations",
+    "timing",
+    "policy"
+  ],
+  "title": "DecisionScenario",
+  "type": "object"
+}

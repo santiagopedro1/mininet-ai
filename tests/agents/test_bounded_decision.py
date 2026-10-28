@@ -95,6 +95,10 @@ def test_bounded_evidence_is_versioned_without_agno_identity_or_metrics():
         selectedChoice="no_action",
         modelProvenance={"verification": "unverified"},
         timings={"decision": 0.01},
+        proposalMapping={"choice": "no_action", "proposals": []},
+        authorization={"status": "not-required"},
+        admission={"status": "not-required"},
+        actionOutcomes=(),
         gaps=("server build unavailable",),
     )
     execution = AgentExecutionRecord(
@@ -108,3 +112,38 @@ def test_bounded_evidence_is_versioned_without_agno_identity_or_metrics():
     assert dumped["agnoRunId"] is None
     assert dumped["sessionId"] is None
     assert dumped["metrics"] is None
+
+
+def test_startup_distinguishes_unverifiable_identity_from_service_interface_failure():
+    class Transport:
+        def __init__(self):
+            self.props = {}
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else self.props
+
+        def post_json(self, url, payload, **kwargs):
+            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+
+    transport = Transport()
+    client = NativeSystemOneClient("http://127.0.0.1:8080", transport)
+    result = client.verify_startup(
+        model_name="expected-model",
+        expected_identity={"repository": "org/model", "revision": "rev", "artifact": "model.gguf", "sha256": "0" * 64},
+        instructions="Choose a fixed action.",
+        criteria=("no_action", "install_recovery"),
+        choices={"no_action": (), "install_recovery": ()},
+    )
+    assert result["status"] == "unverified"
+    assert result["interface"] == "verified"
+
+    transport.props = {"model_alias": "different-model"}
+    with pytest.raises(AgentRuntimeError) as error:
+        client.verify_startup(
+            model_name="expected-model",
+            expected_identity={"repository": "org/model", "revision": "rev", "artifact": "model.gguf", "sha256": "0" * 64},
+            instructions="Choose a fixed action.",
+            criteria=("no_action", "install_recovery"),
+            choices={"no_action": (), "install_recovery": ()},
+        )
+    assert error.value.code == "agent.bounded-decision.startup-identity-mismatch"

@@ -1,0 +1,430 @@
+{
+  "$defs": {
+    "AgentExecutionSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "agno",
+            "bounded-decision"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "AgentExecutionSelection",
+      "type": "object"
+    },
+    "ConversationMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxMessages": {
+          "default": 50,
+          "minimum": 1,
+          "title": "Maxmessages",
+          "type": "integer"
+        },
+        "summaries": {
+          "default": false,
+          "title": "Summaries",
+          "type": "boolean"
+        }
+      },
+      "title": "ConversationMemoryConfiguration",
+      "type": "object"
+    },
+    "Implementation": {
+      "additionalProperties": false,
+      "properties": {
+        "entrypoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entrypoint"
+        },
+        "type": {
+          "default": "declarative",
+          "enum": [
+            "declarative",
+            "python"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Implementation",
+      "type": "object"
+    },
+    "LearnedMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "automatic",
+          "enum": [
+            "automatic",
+            "agentic"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "scope": {
+          "default": "run",
+          "enum": [
+            "run",
+            "agent"
+          ],
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "title": "LearnedMemoryConfiguration",
+      "type": "object"
+    },
+    "LocalMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxEntries": {
+          "default": 1000,
+          "minimum": 1,
+          "title": "Maxentries",
+          "type": "integer"
+        }
+      },
+      "title": "LocalMemoryConfiguration",
+      "type": "object"
+    },
+    "LoopConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "phases": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          },
+          "title": "Phases",
+          "type": "array"
+        }
+      },
+      "title": "LoopConfiguration",
+      "type": "object"
+    },
+    "MemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConversationMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "learned": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LearnedMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "local": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shared": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SharedMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "MemoryConfiguration",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "ModelConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "name"
+      ],
+      "title": "ModelConfiguration",
+      "type": "object"
+    },
+    "ModelOverrides": {
+      "additionalProperties": false,
+      "description": "Only supplied keys exist: omission inherits, explicit null is not omission.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "title": "ModelOverrides",
+      "type": "object"
+    },
+    "ModelReference": {
+      "additionalProperties": false,
+      "properties": {
+        "entry": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Entry",
+          "type": "string"
+        },
+        "file": {
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        },
+        "overrides": {
+          "$ref": "#/$defs/ModelOverrides"
+        }
+      },
+      "required": [
+        "file",
+        "entry"
+      ],
+      "title": "ModelReference",
+      "type": "object"
+    },
+    "ReasoningConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instructions"
+        },
+        "output-schema": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output-Schema"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "title": "ReasoningConfiguration",
+      "type": "object"
+    },
+    "SharedMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxEntries": {
+          "default": 1000,
+          "minimum": 1,
+          "title": "Maxentries",
+          "type": "integer"
+        },
+        "scopes": {
+          "items": {
+            "enum": [
+              "deployment",
+              "run"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Scopes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scopes"
+      ],
+      "title": "SharedMemoryConfiguration",
+      "type": "object"
+    }
+  },
+  "$id": "urn:mininet-ai:schema:v1alpha5:agent-blueprint",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "mininet-ai/v1alpha5"
+    },
+    "execution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentExecutionSelection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "implementation": {
+      "$ref": "#/$defs/Implementation"
+    },
+    "kind": {
+      "const": "AgentBlueprint",
+      "title": "Kind",
+      "type": "string"
+    },
+    "loop": {
+      "$ref": "#/$defs/LoopConfiguration"
+    },
+    "memory": {
+      "$ref": "#/$defs/MemoryConfiguration"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModelConfiguration"
+        },
+        {
+          "$ref": "#/$defs/ModelReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "reasoning": {
+      "$ref": "#/$defs/ReasoningConfiguration"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata"
+  ],
+  "title": "AgentBlueprint",
+  "type": "object"
+}

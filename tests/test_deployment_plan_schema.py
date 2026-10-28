@@ -23,10 +23,10 @@ class DeploymentPlanSchemaTests(unittest.TestCase):
             schema["$schema"], "https://json-schema.org/draft/2020-12/schema"
         )
         self.assertEqual(schema["$id"], DEPLOYMENT_PLAN_SCHEMA_ID)
-        self.assertEqual(schema["$id"], "urn:mininet-ai:schema:v1alpha4:deployment-plan")
+        self.assertEqual(schema["$id"], "urn:mininet-ai:schema:v1alpha5:deployment-plan")
         self.assertEqual(
-            schema["properties"]["apiVersion"]["const"],
-            "mininet-ai/v1alpha4",
+            schema["properties"]["apiVersion"]["enum"],
+            ["mininet-ai/v1alpha4", "mininet-ai/v1alpha5"],
         )
         self.assertEqual(schema["properties"]["kind"]["const"], "DeploymentPlan")
         self.assertIn("PlannedController", schema["$defs"])

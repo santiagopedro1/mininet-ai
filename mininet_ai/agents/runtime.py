@@ -13,6 +13,7 @@ from uuid import uuid4
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from mininet_ai.agents.agno import AgnoAgentFactory, AgnoAgentProvider
+from mininet_ai.agents.bounded import BoundedDecisionAdapter
 from mininet_ai.audit import (
     AuditedCapabilityExecutor,
     AuditEventType,
@@ -163,6 +164,8 @@ class OneShotAgentRuntime:
         audit: AuditRecorder | None = None,
         agent_factory: AgnoAgentFactory | None = None,
         execution_factory: ExecutionFactory | None = None,
+        decision_transport: object | None = None,
+        bounded_startup: dict[str, dict[str, JsonValue]] | None = None,
         shared_state: SharedStateStore | None = None,
         clock: Clock = _utc_now,
         monotonic_clock: MonotonicClock = monotonic,
@@ -171,13 +174,15 @@ class OneShotAgentRuntime:
         self._catalog = ExecutionCatalog(plan)
         self._substrate = substrate
         self._audit = audit
-        self._agent_factory = agent_factory or AgnoAgentFactory()
-        self._execution_factory = execution_factory or (
-            lambda definition: AgnoAgentProvider(
-                definition,
-                factory=self._agent_factory,
-            )
+        has_agno = any(
+            (definition := self._catalog.resolve(agent_id)).blueprint.execution is None
+            or definition.blueprint.execution.kind == "agno"
+            for agent_id in self._catalog.agent_ids
         )
+        self._agent_factory = agent_factory or (AgnoAgentFactory() if has_agno else None)
+        self._decision_transport = decision_transport
+        self._bounded_startup = bounded_startup or {}
+        self._execution_factory = execution_factory or self._create_execution_adapter
         self._shared_state = shared_state
         self._agent_instances = plan.agents
         if shared_state is None and any(
@@ -205,6 +210,22 @@ class OneShotAgentRuntime:
             if audit is not None
             else capability_engine
         )
+
+    def _create_execution_adapter(
+        self, definition: AgentExecutionDefinition
+    ) -> AgentExecutionAdapter:
+        selection = definition.blueprint.execution
+        if selection is not None and selection.kind == "bounded-decision":
+            from mininet_ai.transports.http import HttpxJsonTransport
+
+            return BoundedDecisionAdapter(
+                definition,
+                self._decision_transport or HttpxJsonTransport(),
+                self._bounded_startup.get(definition.instance.id),
+            )
+        if self._agent_factory is None:
+            self._agent_factory = AgnoAgentFactory()
+        return AgnoAgentProvider(definition, factory=self._agent_factory)
 
     def invoke(
         self,

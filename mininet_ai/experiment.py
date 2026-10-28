@@ -11,11 +11,12 @@ from uuid import uuid4
 from pydantic import Field, JsonValue
 
 from mininet_ai.agents.agno import AgnoAgentFactory
+from mininet_ai.agents.bounded import NativeSystemOneClient
 from mininet_ai.agents.runtime import OneShotAgentRuntime
 from mininet_ai.audit import AuditRecorder
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.coordination import CoordinationRuntime
-from mininet_ai.errors import MininetAIError, describe_failure
+from mininet_ai.errors import AgentRuntimeError, MininetAIError, describe_failure
 from mininet_ai.outcomes import CleanupOutcome, OperationFailure, OperationOutcome
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.runtime.continuous import ContinuousAgentRuntime, ContinuousRuntimeState
@@ -38,6 +39,7 @@ from mininet_ai.runtime.ledger import (
 )
 from mininet_ai.runtime.state import SharedStateStore
 from mininet_ai.runtime.telemetry import TelemetryPipeline, TelemetryPipelineState
+from mininet_ai.sdk import ExecutionCatalog
 from mininet_ai.specification.models import StrictModel
 from mininet_ai.substrates import RunInfo, SubstrateRuntime, TeardownResult
 
@@ -108,12 +110,19 @@ class ExperimentRuntime:
         clock: Clock = _utc_now,
         event_id_factory: EventIdFactory = _event_id,
         invocation_listener: Callable[[ContinuousInvocationRecord], None] | None = None,
+        decision_transport: object | None = None,
     ) -> None:
         self._plan = plan
         self._substrate = substrate
         self._registries = registries
         self._audit = audit
-        self._agent_factory = agent_factory or AgnoAgentFactory()
+        self._agent_factory = agent_factory or (
+            AgnoAgentFactory()
+            if any(agent.decision_scenario is None for agent in plan.agents)
+            else None
+        )
+        self._decision_transport = decision_transport
+        self._bounded_startup: dict[str, dict[str, JsonValue]] = {}
         self._shared_state = shared_state
         self._ledger = ledger
         self._plugins = plugins
@@ -191,6 +200,7 @@ class ExperimentRuntime:
                 )
             self._state = ExperimentRuntimeState.STARTING
         try:
+            self._verify_bounded_startup()
             run = self._substrate.deploy(self._plan)
             self._run = run
             self._create_manifest(run)
@@ -208,6 +218,8 @@ class ExperimentRuntime:
                 audit=self._audit,
                 agent_factory=self._agent_factory,
                 shared_state=self._shared_state,
+                decision_transport=self._decision_transport,
+                bounded_startup=self._bounded_startup,
             )
             coordinator = CoordinationRuntime(self._plan, invoker)
             continuous = ContinuousAgentRuntime(
@@ -256,6 +268,38 @@ class ExperimentRuntime:
             ).with_cleanup(
                 self._cleanup, teardown_error=self._teardown_error
             ) from error
+
+    def _verify_bounded_startup(self) -> None:
+        bounded = [agent for agent in self._plan.agents if agent.decision_scenario is not None]
+        if not bounded:
+            return
+        from mininet_ai.transports.http import HttpxJsonTransport
+
+        transport = self._decision_transport or HttpxJsonTransport()
+        catalog = ExecutionCatalog(self._plan)
+        for agent in bounded:
+            definition = catalog.resolve(agent.id)
+            model = definition.blueprint.model
+            if model is None or not hasattr(model, "parameters"):
+                raise AgentRuntimeError(
+                    "bounded startup requires resolved model settings",
+                    code="agent.bounded-decision.startup-configuration-invalid",
+                    agent_id=agent.id,
+                )
+            scenario = agent.decision_scenario
+            choices = {item["id"]: tuple(item["proposals"]) for item in scenario["choices"]}
+            client = NativeSystemOneClient(model.parameters["endpoint"], transport)
+            try:
+                self._bounded_startup[agent.id] = client.verify_startup(
+                    model_name=model.name,
+                    expected_identity=model.parameters["expectedIdentity"],
+                    instructions=scenario["instructions"],
+                    criteria=tuple(choices),
+                    choices=choices,
+                )
+            except AgentRuntimeError as error:
+                error.agent_id = agent.id
+                raise
 
     def submit_intent(
         self,
@@ -504,7 +548,8 @@ class ExperimentRuntime:
     ) -> TeardownResult | None:
         self._teardown_error = None
         try:
-            self._agent_factory.close()
+            if self._agent_factory is not None:
+                self._agent_factory.close()
         except Exception as error:
             issues.append(self._issue("agents", error))
         if self._run is None:

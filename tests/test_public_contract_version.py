@@ -23,7 +23,7 @@ from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
 
 class PublicContractVersionTests(unittest.TestCase):
-    def test_cli_schemas_and_constant_use_v1alpha4(self) -> None:
+    def test_cli_schemas_accept_supported_source_and_compiled_versions(self) -> None:
         self.assertEqual(API_VERSION, "mininet-ai/v1alpha4")
         for name in ("experiment", "agent-blueprint", "capability", "deployment-plan"):
             with self.subTest(schema=name):
@@ -31,7 +31,8 @@ class PublicContractVersionTests(unittest.TestCase):
                 self.assertEqual(result.exit_code, 0, result.output)
                 schema = json.loads(result.output)
                 self.assertEqual(
-                    schema["properties"]["apiVersion"]["const"], "mininet-ai/v1alpha4"
+                    schema["properties"]["apiVersion"]["enum"],
+                    ["mininet-ai/v1alpha4", "mininet-ai/v1alpha5"],
                 )
 
     def test_public_models_reject_older_documents(self) -> None:

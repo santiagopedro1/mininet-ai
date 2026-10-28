@@ -33,7 +33,7 @@ from mininet_ai.specification.models import (
     Trigger,
 )
 
-DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha4:deployment-plan"
+DEPLOYMENT_PLAN_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha5:deployment-plan"
 
 
 class PlannedResourceBase(StrictModel):
@@ -143,6 +143,12 @@ class AgentInstance(StrictModel):
     execution: ExecutionConfiguration = Field(
         default_factory=ExecutionConfiguration
     )
+    decision_scenario: dict[str, Any] | None = Field(
+        default=None, alias="decisionScenario", exclude_if=lambda value: value is None
+    )
+    decision_inputs: dict[str, str] = Field(
+        default_factory=dict, alias="decisionInputs", exclude_if=lambda value: not value
+    )
 
 
 class CoordinationEdge(StrictModel):
@@ -173,7 +179,7 @@ class DeploymentPlan(StrictModel):
         },
     )
 
-    api_version: Literal["mininet-ai/v1alpha4"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha4", "mininet-ai/v1alpha5"] = Field(alias="apiVersion")
     kind: Literal["DeploymentPlan"] = "DeploymentPlan"
     metadata: Metadata
     source: str = Field(min_length=1)

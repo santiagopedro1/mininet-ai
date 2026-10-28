@@ -20,6 +20,7 @@ from mininet_ai.specification._yaml_locations import (
 from mininet_ai.specification.models import (
     AgentBlueprint,
     CapabilityDefinition,
+    DecisionScenario,
     Experiment,
     ModelConfiguration,
     ModelReference,
@@ -41,6 +42,7 @@ class LoadedExperiment:
     topology: Topology
     blueprints: tuple[AgentBlueprint, ...]
     capabilities: tuple[CapabilityDefinition, ...]
+    decision_scenarios: tuple[DecisionScenario, ...] = ()
     blueprint_sources: tuple[Path, ...] = ()
     blueprint_locations: tuple[dict[str, str], ...] = ()
 
@@ -272,6 +274,9 @@ def _resolve_experiment(
         blueprints=tuple(item.blueprint for item in blueprints),
         capabilities=_load_references(
             experiment.capability_definitions, CapabilityDefinition, base
+        ),
+        decision_scenarios=_load_references(
+            experiment.decision_scenarios, DecisionScenario, base
         ),
         blueprint_sources=tuple(item.source for item in blueprints),
         blueprint_locations=tuple(item.locations for item in blueprints),

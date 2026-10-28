@@ -27,6 +27,14 @@ class BoundedDecisionRecord(StrictModel):
     selected_choice: str = Field(alias="selectedChoice", min_length=1)
     model_provenance: dict[str, Any] = Field(alias="modelProvenance")
     timings: dict[str, Any]
+    proposal_mapping: dict[str, Any] = Field(alias="proposalMapping")
+    authorization: dict[str, Any]
+    admission: dict[str, Any]
+    action_outcomes: tuple[dict[str, Any], ...] = Field(alias="actionOutcomes")
+    cancellation_status: Literal["not-requested", "cancelled"] = Field(
+        default="not-requested", alias="cancellationStatus"
+    )
+    late_result_discarded: bool = Field(default=False, alias="lateResultDiscarded")
     gaps: tuple[str, ...] = ()
 
 
