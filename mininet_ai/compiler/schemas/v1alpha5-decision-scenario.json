@@ -89,6 +89,15 @@
       "title": "Instructions",
       "type": "string"
     },
+    "inputMode": {
+      "default": "recovery-history",
+      "enum": [
+        "recovery-history",
+        "current-only"
+      ],
+      "title": "Input Mode",
+      "type": "string"
+    },
     "kind": {
       "const": "DecisionScenario",
       "title": "Kind",

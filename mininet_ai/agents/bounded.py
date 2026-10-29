@@ -32,6 +32,22 @@ class ChoiceResult:
     native_response: dict[str, Any] | None = None
 
 
+def _current_only_context(
+    *,
+    scenario: Mapping[str, Any],
+    identity: Mapping[str, Any],
+    targets: Sequence[str],
+    diagnosis: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build the runtime's local-only state envelope, with no history fields."""
+    return {
+        "apiVersion": "mininet-ai/bounded-decision-context/v1alpha1",
+        "scenario": dict(scenario),
+        "identity": dict(identity),
+        "switch": {"targets": list(targets), "diagnosis": dict(diagnosis)},
+    }
+
+
 def parse_response(payload: str | bytes | Mapping[str, Any]) -> Mapping[str, Any]:
     """Parse a native response while rejecting duplicate keys and invalid JSON."""
     if isinstance(payload, (str, bytes)):
@@ -148,11 +164,6 @@ def map_choice(
     if not isinstance(choice_id, str) or choice_id not in choices:
         raise AgentRuntimeError(
             "native response contains a missing or unknown choice",
-            code="agent.bounded-decision.invalid-output",
-        )
-    if choice_id not in {"no_action", "install_recovery"}:
-        raise AgentRuntimeError(
-            f"choice {choice_id!r} is not part of the bounded-decision contract",
             code="agent.bounded-decision.invalid-output",
         )
     if choice_id == "no_action" and choices[choice_id]:
@@ -544,11 +555,15 @@ class BoundedDecisionAdapter:
             if context.coordination is not None
             else {}
         )
+        configured_deadline = duration_seconds(
+            self.scenario["timing"]["decisionDeadline"]
+        )
         scheduled_tick = metadata.get("deadlineStartedAt")
         deadline = (
-            float(scheduled_tick) + float(metadata.get("deadlineSeconds", 0.8))
+            float(scheduled_tick)
+            + configured_deadline
             if scheduled_tick is not None
-            else clock() + 0.8
+            else clock() + configured_deadline
         )
         if self.authority is None:
             self.authority = DecisionAuthority(deadline, clock)
@@ -569,9 +584,12 @@ class BoundedDecisionAdapter:
         latest = {
             logical_name: {
                 "source": source_name,
-                "availability": "available"
-                if source_name in context.observations
-                else "missing",
+                "availability": (
+                    "available"
+                    if source_name in context.observations
+                    and context.observations[source_name] is not None
+                    else "missing"
+                ),
                 "value": context.observations.get(source_name),
                 "observedAt": None,
             }
@@ -582,33 +600,42 @@ class BoundedDecisionAdapter:
             if context.coordination is not None
             else context.invocation_id
         )
-        decision_context = {
-            "apiVersion": "mininet-ai/bounded-decision-context/v1alpha1",
-            "scenario": self.scenario["metadata"],
-            "identity": {
-                "runId": context.run_id,
-                "agentId": context.agent_id,
-                "invocationId": context.invocation_id,
-                "tickId": tick_id,
-                "invokedAt": context.invoked_at.isoformat(),
-            },
-            "paths": self.scenario["paths"],
-            "latestObservations": latest,
-            "history": {
-                "requiredRounds": 3,
-                "completedRounds": [],
-                "gaps": [
-                    "scheduled round history is not available from the agent-runtime contract"
-                ],
-            },
-            "policy": {
-                **self.scenario["policy"],
-                "current": self._inspect_policy(
-                    context.run_id,
-                    timeout_seconds=max(0.0, deadline - clock()),
-                ),
-            },
+        identity = {
+            "runId": context.run_id,
+            "agentId": context.agent_id,
+            "invocationId": context.invocation_id,
+            "tickId": tick_id,
+            "invokedAt": context.invoked_at.isoformat(),
         }
+        if self.scenario.get("inputMode") == "current-only":
+            decision_context = _current_only_context(
+                scenario=self.scenario["metadata"],
+                identity=identity,
+                targets=self.definition.instance.attachment.targets,
+                diagnosis=latest,
+            )
+        else:
+            decision_context = {
+                "apiVersion": "mininet-ai/bounded-decision-context/v1alpha1",
+                "scenario": self.scenario["metadata"],
+                "identity": identity,
+                "paths": self.scenario["paths"],
+                "latestObservations": latest,
+                "history": {
+                    "requiredRounds": 3,
+                    "completedRounds": [],
+                    "gaps": [
+                        "scheduled round history is not available from the agent-runtime contract"
+                    ],
+                },
+                "policy": {
+                    **self.scenario["policy"],
+                    "current": self._inspect_policy(
+                        context.run_id,
+                        timeout_seconds=max(0.0, deadline - clock()),
+                    ),
+                },
+            }
         state = json.dumps(
             decision_context,
             sort_keys=True,

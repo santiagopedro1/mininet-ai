@@ -31,6 +31,7 @@ from mininet_ai.capabilities import (
 )
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.coordination.routing import PreparedAgentInvocation
+from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import AgentRuntimeError
 from mininet_ai.plugins import (
     ProviderKind,
@@ -346,12 +347,16 @@ class OneShotAgentRuntime:
             if definition.instance.decision_scenario is not None:
                 metadata = coordination.metadata if coordination is not None else {}
                 scheduled_tick = metadata.get("deadlineStartedAt")
-                deadline_seconds = metadata.get("deadlineSeconds")
+                configured_deadline = duration_seconds(
+                    definition.instance.decision_scenario["timing"][
+                        "decisionDeadline"
+                    ]
+                )
                 deadline = (
-                    float(scheduled_tick) + float(deadline_seconds)
+                    float(scheduled_tick) + configured_deadline
                     if isinstance(scheduled_tick, (int, float))
-                    and isinstance(deadline_seconds, (int, float))
-                    else self._monotonic() + 0.8
+                    else self._monotonic()
+                    + configured_deadline
                 )
                 authority = DecisionAuthority(deadline, self._monotonic)
                 bind_authority = getattr(provider, "bind_authority", None)

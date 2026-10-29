@@ -1,11 +1,13 @@
-# Diamond recovery (exploratory Maintained Example)
+# Diamond switch diagnosis (exploratory Maintained Example)
 
-**Primary Goal:** both feature demonstration and realistic scenario. Planning
-uses the `fake` Substrate; a separate opt-in Mininet/OVS harness provides actual
-network setup and probes. Neither a live model run nor a live network acceptance
-run is claimed. The harness retains round snapshots as JSONL and does not feed
-them into the current bounded-agent runtime; model execution remains exploratory
-and gated on the separate integration/evaluation work.
+**Primary Goal:** demonstrate one native System 1 diagnosis agent per switch.
+Planning uses the `fake` Substrate; the opt-in Mininet/OVS harness provides a
+real four-switch topology. Each agent is scoped to one switch and receives only
+its current local flow and port-counter observations. No observation history,
+conversation memory, or network-wide state is part of the model request. Choices
+are diagnostic (`healthy` / `degraded`) and carry no action proposals. Live model
+evaluation remains exploratory; no network recovery is claimed. The live-network
+support verdict is recorded in the [live-network evaluation report](../../docs/implementation/bounded-decision-live-network-evaluation.md).
 
 ## Prerequisites and plan
 
@@ -19,10 +21,9 @@ uv run mininet-ai validate examples/diamond-recovery/experiment.yaml
 uv run mininet-ai plan examples/diamond-recovery/experiment.yaml
 ```
 
-The source and resulting plan retain the paths, observation bindings, choice
-criteria, materialized initial policies, and fixed ordered recovery proposal bundle. One grouped singleton
-decision-maker is scoped to the four labeled switches, so normal capability
-authorization still checks the target against the compiled scope.
+The source and resulting plan contain four per-target bounded agents, one for
+each switch. Each is bound to current `openflow.flows` and `ovs.port-counters`
+observations, with diagnosis-only choices and no capabilities.
 
 ## Topology contract
 
@@ -38,16 +39,11 @@ controller-free, fail-secure OVS network and verifies actual interface/port
 mapping, table-miss drop, and absence of `NORMAL` forwarding. The `fake`
 Substrate plan itself does not deploy these settings.
 
-Initial active and diagnostic flow rules are priority 100 with permanent
-timeouts: active and primary probe pairs use the primary path, recovery probes
-use the recovery path, all with exact IPv4 src/dst and ingress-port matches in
-both directions. Each one-second observation round contains independent primary
-and recovery probes in each direction (one-second timeout, sent/received counts
-and timestamp), all four inter-switch link states, current policy and previous
-action outcomes. Keep three completed rounds, explicit gaps/missing values and
-timestamps; freeze each invocation snapshot. Only distinct active-address
-end-to-end probes confirm recovery. The scenario has no hidden chat memory or
-oracle-inserted diagnosis.
+The network harness still configures the diamond and records its probe rounds
+for topology diagnostics, but those rounds are not sent to System 1. A switch
+agent request is current-only: its target switch identity, latest local port
+state/counters, and latest local flow state. Missing or unavailable fields stay
+explicit; agents must not infer the condition of other switches.
 
 ## Trial lifecycle ownership
 
@@ -77,11 +73,13 @@ authorized recovery action has changed the live network. The harness refuses to
 replace existing bridges/interfaces and reports cleanup as unverified if owned
 interfaces or bridges remain.
 
-The offline fixtures in `tests/fixtures/specifications/diamond-recovery/` label
-expected decisions for healthy/startup, transient, sustained, stale/missing/
-conflicting, failed recovery-probe, partial/unknown and post-recovery cases.
-They are oracle inputs, not an alternate deterministic model gate. Fake
-Substrate tests assert probe payloads and the embedded rule contract. Offline
-mechanics and planning are separate from pinned-model/server evaluation and
-live-network acceptance. The opt-in harness has not been run in this
-environment; neither live gate is passed or claimed.
+The prior network-recovery oracle fixtures remain historical tests and are not
+the current agent's decision contract. Current acceptance labels local switch
+states (healthy, degraded, and unavailable/missing local evidence) independently
+for each target switch; unavailable required evidence is classified as degraded
+because health cannot be confirmed. Any down local port or missing expected local
+flow entry takes precedence over healthy signals. Model evaluation does not require
+a pinned artifact or build; provenance is recorded when available. The example's
+5-second decision deadline is an operational scenario setting, not a universal
+latency acceptance target. Report warm and cold latency distributions separately.
+The opt-in harness has not been run in this environment.

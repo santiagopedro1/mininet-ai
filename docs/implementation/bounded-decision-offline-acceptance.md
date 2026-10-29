@@ -68,6 +68,9 @@ claim:
 
 ## Explicitly unverified live gaps
 
+The complete live-network handoff and blocking verdict are recorded in the
+[live-network evaluation report](bounded-decision-live-network-evaluation.md).
+
 - Pinned llama.cpp build/server behavior, full artifact SHA-256 verification,
   native choice correctness, generated-token behavior, and inference latency.
 - Live Mininet/OVS action behavior, recovery for either failed primary link,

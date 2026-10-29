@@ -1,6 +1,10 @@
 import pytest
 
-from mininet_ai.agents.bounded import NativeSystemOneClient, map_choice
+from mininet_ai.agents.bounded import (
+    NativeSystemOneClient,
+    _current_only_context,
+    map_choice,
+)
 from mininet_ai.agents.bounded_contracts import (
     AgentExecutionRecord,
     BoundedDecisionRecord,
@@ -16,6 +20,43 @@ def test_exact_no_action_choice_maps_to_no_proposals():
 
     assert result.choice_id == "no_action"
     assert result.proposals == ()
+
+
+def test_current_only_diagnosis_choice_maps_without_action_proposals():
+    result = map_choice(
+        {"answers": {"next_action": {"type": "choice", "choice": "degraded"}}},
+        {"healthy": (), "degraded": ()},
+    )
+
+    assert result.choice_id == "degraded"
+    assert result.proposals == ()
+
+
+def test_current_only_state_matches_runtime_wire_shape_without_history():
+    context = _current_only_context(
+        scenario={"name": "switch-current-diagnosis"},
+        identity={"runId": "run-1", "agentId": "switch@s2"},
+        targets=("s2",),
+        diagnosis={
+            "flowState": {
+                "source": "openflow.flows",
+                "availability": "available",
+                "value": {"s2": {"entries": 4}},
+                "observedAt": None,
+            },
+            "portState": {
+                "source": "ovs.port-counters",
+                "availability": "available",
+                "value": {"s2": {"port1": "down"}},
+                "observedAt": None,
+            },
+        },
+    )
+
+    assert set(context) == {"apiVersion", "scenario", "identity", "switch"}
+    assert context["switch"]["targets"] == ["s2"]
+    assert set(context["switch"]["diagnosis"]) == {"flowState", "portState"}
+    assert "history" not in context
 
 
 def test_omitted_native_diagnostics_remain_unavailable():
@@ -142,14 +183,13 @@ def test_exact_recovery_choice_maps_fixed_bundle_even_at_low_confidence():
     assert result.confidence == 0.02
 
 
-def test_map_choice_rejects_non_contract_choice_even_if_bundle_is_present():
+def test_map_choice_rejects_choice_not_declared_by_scenario():
     with pytest.raises(AgentRuntimeError) as error:
         map_choice(
             {"answers": {"next_action": {"type": "choice", "choice": "emergency"}}},
             {
                 "no_action": (),
                 "install_recovery": (),
-                "emergency": ({"capability": "fake"},),
             },
         )
 

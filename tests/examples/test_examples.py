@@ -35,63 +35,38 @@ EXAMPLE_NAMES = [
 ]
 
 
-def test_diamond_recovery_compiles_exact_recovery_bundle() -> None:
-    """The maintained diamond plan embeds its complete fixed recovery policy."""
+def test_diamond_example_compiles_one_current_only_agent_per_switch() -> None:
+    """The maintained example plans local diagnosis without history or actions."""
     plan = compile_experiment(EXAMPLES_DIR / "diamond-recovery/experiment.yaml")
     assert plan.api_version == "mininet-ai/v1alpha5"
-    assert len(plan.agents) == 1
+    assert len(plan.agents) == 4
+    assert {instance.attachment.targets[0] for instance in plan.agents} == {
+        "s1", "s2", "s3", "s4"
+    }
+    assert all(instance.attachment.targets == (instance.attachment.targets[0],) for instance in plan.agents)
+    assert all(set(instance.observes) == {"openflow.flows", "ovs.port-counters"} for instance in plan.agents)
+    assert all(
+        instance.decision_inputs == {
+            "flowState": "openflow.flows",
+            "portState": "ovs.port-counters",
+        }
+        for instance in plan.agents
+    )
     instance = plan.agents[0]
-    assert set(instance.observes) == {
-        "diamond.path-probes",
-        "diamond.link-states",
-        "diamond.policy-state",
-        "diamond.action-outcomes",
-    }
-    assert instance.decision_inputs == {
-        "pathProbes": "diamond.path-probes",
-        "linkStates": "diamond.link-states",
-        "policyState": "diamond.policy-state",
-        "actionOutcomes": "diamond.action-outcomes",
-    }
     scenario = instance.decision_scenario
     assert scenario is not None
-    assert scenario["paths"] == {
-        "primary": ["h1", "s1", "s2", "s4", "h2"],
-        "recovery": ["h1", "s1", "s3", "s4", "h2"],
-    }
     choices = scenario["choices"]
-    assert [choice["id"] for choice in choices] == ["no_action", "install_recovery"]
-    assert choices[0]["proposals"] == []
-    rules = choices[1]["proposals"]
-    assert len(rules) == 8
-    assert [
-        (
-            rule["target"],
-            rule["arguments"]["match"]["in_port"],
-            rule["arguments"]["actions"],
-        )
-        for rule in rules
-    ] == [
-        ("s3", 1, "output:2"),
-        ("s3", 2, "output:1"),
-        ("s4", 3, "output:1"),
-        ("s4", 1, "output:3"),
-        ("s1", 1, "output:3"),
-        ("s1", 3, "output:1"),
-        ("s2", 1, "drop"),
-        ("s2", 2, "drop"),
-    ]
-    assert [rule["arguments"]["priority"] for rule in rules] == [200] * 8
-    assert [rule["arguments"]["hardTimeout"] for rule in rules] == [0] * 8
-    assert [rule["arguments"]["cookie"] for rule in rules] == list(range(12201, 12209))
-    assert all(
-        rule["arguments"]["match"]["dl_type"] == 2048
-        and rule["arguments"]["match"]["nw_src"] in {"10.0.0.1", "10.0.0.2"}
-        and rule["arguments"]["match"]["nw_dst"] in {"10.0.0.1", "10.0.0.2"}
-        for rule in rules
-    )
-    assert scenario["observations"]["historyRounds"] == 3
-    assert scenario["timing"] == {"cadence": "1s", "decisionDeadline": "800ms"}
+    assert scenario["inputMode"] == "current-only"
+    assert [choice["id"] for choice in choices] == ["healthy", "degraded"]
+    assert all(choice["proposals"] == [] for choice in choices)
+    assert "history" not in scenario
+    assert scenario["paths"] == {}
+    assert scenario["policy"] == {}
+    assert scenario["observations"] == {
+        "flowState": "openflow.flows",
+        "portState": "ovs.port-counters",
+    }
+    assert scenario["timing"] == {"cadence": "1s", "decisionDeadline": "5s"}
     resources = plan.snapshot["substrate"]["topology"]["resources"]
     switch_ports = {
         resource["name"]: {port["number"] for port in resource["ports"]}
@@ -104,34 +79,9 @@ def test_diamond_recovery_compiles_exact_recovery_bundle() -> None:
         "s3": {1, 2},
         "s4": {1, 2, 3},
     }
-    assert plan.agents[0].attachment.targets == ("s1", "s2", "s3", "s4")
-    from examples.diamond_recovery import INITIAL_RULES, RECOVERY_RULES
-
-    assert scenario["policy"]["initial"]["rules"] == list(INITIAL_RULES)
-    assert scenario["policy"]["initial"]["tableMiss"] == "drop"
-    assert scenario["policy"]["initial"]["failMode"] == "secure"
-    assert scenario["policy"]["initial"]["controllerLearning"] is False
-    assert scenario["policy"]["initial"]["normalFallback"] is False
-    assert scenario["policy"]["initial"]["staticNeighbors"] == {
-        "h1": {
-            "10.0.0.2": "02:00:00:00:00:02",
-            "10.0.0.12": "02:00:00:00:00:02",
-            "10.0.0.22": "02:00:00:00:00:02",
-        },
-        "h2": {
-            "10.0.0.1": "02:00:00:00:00:01",
-            "10.0.0.11": "02:00:00:00:00:01",
-            "10.0.0.21": "02:00:00:00:00:01",
-        },
+    assert {target for agent in plan.agents for target in agent.attachment.targets} == {
+        "s1", "s2", "s3", "s4"
     }
-    assert [rule["arguments"]["idleTimeout"] for rule in rules] == [0] * 8
-    assert [
-        {
-            "switch": rule["target"],
-            **rule["arguments"],
-        }
-        for rule in rules
-    ] == list(RECOVERY_RULES)
     link_map = {
         link["name"]: tuple(
             (endpoint["node"], endpoint.get("adapter"))

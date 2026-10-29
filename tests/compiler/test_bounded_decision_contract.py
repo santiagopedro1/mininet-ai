@@ -294,12 +294,15 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
     from mininet_ai.plugins import ProviderRegistries
     from mininet_ai.substrates import FakeSubstrateRuntime
 
+    observed_timeouts: list[float] = []
+
     class NativeTransport:
         def get_json(self, url, **kwargs):
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
             assert url.endswith("/v1/systemone")
+            observed_timeouts.append(kwargs["timeout_seconds"])
             assert tuple(payload["questions"]) == ("next_action",)
             assert payload["questions"]["next_action"]["criteria"] == {
                 choice["id"]: choice["description"]
@@ -313,6 +316,9 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
             }
 
     source = _source_for_compile(tmp_path)
+    source_document = yaml.safe_load(source.read_text())
+    source_document["decisionScenarios"][0]["timing"]["decisionDeadline"] = "3s"
+    source.write_text(yaml.safe_dump(source_document))
     plan = compile_experiment(source)
     saved = save_deployment_plan(plan, tmp_path / "saved-plan.json")
     restored = load_deployment_plan(saved)
@@ -350,6 +356,8 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
         runtime.stop()
 
     result = results[0]
+    assert observed_timeouts
+    assert 2.5 < observed_timeouts[-1] <= 3.0
     assert result.status.value == "succeeded"
     assert result.response is not None and result.response.proposals == ()
     assert result.response.metadata["selectedChoice"] == "no_action"

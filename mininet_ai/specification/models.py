@@ -520,6 +520,9 @@ class DecisionScenario(VersionedDocument):
     )
     kind: Literal["DecisionScenario"]
     metadata: Metadata
+    input_mode: Literal["recovery-history", "current-only"] = Field(
+        default="recovery-history", alias="inputMode"
+    )
     instructions: str = Field(min_length=1)
     choices: tuple[DecisionChoice, ...] = Field(min_length=2, max_length=2)
     paths: dict[str, Any]
@@ -529,6 +532,23 @@ class DecisionScenario(VersionedDocument):
 
     @model_validator(mode="after")
     def bounded_scenario_contract(self) -> DecisionScenario:
+        if self.input_mode == "current-only":
+            if len({choice.id for choice in self.choices}) != 2:
+                raise ValueError("current-only diagnosis choices must have unique IDs")
+            if any(choice.proposals for choice in self.choices):
+                raise ValueError("current-only diagnosis choices cannot contain proposals")
+            if self.paths or self.policy:
+                raise ValueError("current-only diagnosis cannot declare network paths or policy")
+            if not self.observations or any(
+                not isinstance(key, str)
+                or not key
+                or not isinstance(value, str)
+                or not value
+                for key, value in self.observations.items()
+            ):
+                raise ValueError("current-only diagnosis requires named current observation bindings")
+            self._validate_timing()
+            return self
         if tuple(choice.id for choice in self.choices) != (
             "no_action",
             "install_recovery",
@@ -549,9 +569,19 @@ class DecisionScenario(VersionedDocument):
             raise ValueError("decision scenario historyRounds and maxAge are fixed at 3 and 2s")
         if set(self.policy) != {"initial", "recovery", "probePolicy"}:
             raise ValueError("decision scenario requires initial, recovery, and probePolicy")
-        if self.timing != {"cadence": "1s", "decisionDeadline": "800ms"}:
-            raise ValueError("decision scenario cadence and decisionDeadline are fixed")
+        self._validate_timing()
         return self
+
+    def _validate_timing(self) -> None:
+        if (
+            set(self.timing) != {"cadence", "decisionDeadline"}
+            or self.timing.get("cadence") != "1s"
+            or not isinstance(self.timing.get("decisionDeadline"), str)
+            or duration_seconds(self.timing["decisionDeadline"]) <= 0
+        ):
+            raise ValueError(
+                "decision scenario requires a 1s cadence and positive decisionDeadline"
+            )
 
 
 class AgentBlueprint(VersionedDocument):
@@ -583,8 +613,10 @@ class AgentBlueprint(VersionedDocument):
                 raise ValueError("bounded-decision does not support chat reasoning instructions or output schemas")
             if self.loop.phases:
                 raise ValueError("bounded-decision does not support chat loop phases")
-            if self.reasoning.timeout is not None and duration_seconds(self.reasoning.timeout) != 0.8:
-                raise ValueError("bounded-decision deadline is fixed at 800ms")
+            if self.reasoning.timeout is not None:
+                raise ValueError(
+                    "bounded-decision timing is scenario-owned; reasoning.timeout is not applicable"
+                )
         return self
 
 

@@ -765,7 +765,13 @@ class ContinuousAgentRuntime:
                 deadlineStartedAt=(
                     item.scheduled_tick if self._bounded_tick(item) else None
                 ),
-                deadlineSeconds=(0.8 if self._bounded_tick(item) else None),
+                deadlineSeconds=(
+                    duration_seconds(
+                        item.agent.decision_scenario["timing"]["decisionDeadline"]
+                    )
+                    if self._bounded_tick(item)
+                    else None
+                ),
             )
             outcome = (
                 self._invoker.coordinate(

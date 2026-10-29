@@ -629,7 +629,12 @@ def _compile_instances(
                 for node in path_nodes
             ):
                 raise CompilationError("decision scenario paths reference undeclared topology nodes")
-            required_inputs = {"pathProbes", "linkStates", "policyState", "actionOutcomes"}
+            current_only = scenario.input_mode == "current-only"
+            required_inputs = (
+                set(scenario.observations)
+                if current_only
+                else {"pathProbes", "linkStates", "policyState", "actionOutcomes"}
+            )
             if set(deployment.decision_inputs) != required_inputs:
                 raise CompilationError(
                     f"agent {deployment.name!r} decisionInputs must bind exactly {sorted(required_inputs)}"
@@ -641,12 +646,16 @@ def _compile_instances(
                 )
             if deployment.execution.max_concurrency != 1:
                 raise CompilationError("bounded-decision requires maxConcurrency=1")
-            if deployment.placement.cardinality not in {
-                Cardinality.SINGLETON,
-                Cardinality.PER_GROUP,
-            }:
+            allowed_cardinalities = (
+                {Cardinality.PER_TARGET}
+                if current_only
+                else {Cardinality.SINGLETON, Cardinality.PER_GROUP}
+            )
+            if deployment.placement.cardinality not in allowed_cardinalities:
                 raise CompilationError(
-                    "bounded-decision requires one singleton or one grouped placement"
+                    "current-only diagnosis requires per-target placement"
+                    if current_only
+                    else "bounded-decision requires one singleton or one grouped placement"
                 )
             if (
                 len(deployment.triggers) != 1
@@ -685,7 +694,11 @@ def _compile_instances(
                 f"observer agent {deployment.name!r} cannot have capabilities"
             )
         target_groups = _target_groups(deployment, selected)
-        if scenario is not None and len(target_groups) != 1:
+        if (
+            scenario is not None
+            and scenario.input_mode != "current-only"
+            and len(target_groups) != 1
+        ):
             raise CompilationError("bounded-decision must compile to exactly one agent instance")
         for instance_id, targets in target_groups:
             if scenario is not None:

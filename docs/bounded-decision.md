@@ -20,11 +20,12 @@ are not reported as successful recovery or rolled back. Before a retry, runtime
 reconciliation verifies the exact scenario-owned rules and retries only safely
 known missing steps under fresh recovery eligibility and authorization. Unknown,
 conflicting, unreadable, or otherwise unsafe state is not retried. Scheduled
-bounded decisions carry one run-owned monotonic 800 ms deadline from their
-original interval tick through inference and each action-start check. Ticks
-received while that bounded lifecycle is active are dropped/coalesced rather
-than queued for catch-up. Already-started actions keep their configured action
-timeout and are not rolled back.
+bounded decisions carry the scenario-declared positive operational deadline,
+measured from their original interval tick through inference and each
+action-start check. This deadline is not a universal model-latency acceptance
+threshold. Ticks received while that bounded lifecycle is active are
+dropped/coalesced rather than queued for catch-up. Already-started actions keep
+their configured action timeout and are not rolled back.
 
 Deadline expiry prevents a late local response from becoming an admitted action
 and prevents later bundle steps from starting. Call
