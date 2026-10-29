@@ -276,3 +276,67 @@ def test_startup_distinguishes_unverifiable_identity_from_service_interface_fail
             choices={"no_action": (), "install_recovery": ()},
         )
     assert error.value.code == "agent.bounded-decision.startup-identity-mismatch"
+
+
+def test_startup_verifies_observable_llama_props_without_claiming_provenance():
+    class Transport:
+        def __init__(self):
+            self.props = {
+                "model_alias": "expected-model",
+                "model_path": "/models/model.gguf",
+                "model_ftype": 15,
+                "build_info": "b5000",
+                "default_generation_settings": {},
+                "total_slots": 1,
+                "endpoint_slots": True,
+                "endpoint_metrics": True,
+            }
+            self.request = None
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else self.props
+
+        def post_json(self, url, payload, **kwargs):
+            self.request = (url, payload)
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
+
+    transport = Transport()
+    client = NativeSystemOneClient("http://127.0.0.1:8080", transport)
+    expected_identity = {
+        "repository": "org/model",
+        "revision": "rev",
+        "artifact": "model.gguf",
+        "sha256": "0" * 64,
+    }
+    criteria = {
+        "no_action": "Preserve policy",
+        "install_recovery": "Install recovery",
+    }
+    result = client.verify_startup(
+        model_name="expected-model",
+        expected_identity=expected_identity,
+        instructions="Choose a fixed action.",
+        criteria=criteria,
+        choices={"no_action": (), "install_recovery": ()},
+    )
+
+    assert result["status"] == "unverified"
+    assert result["expectedIdentity"] == expected_identity
+    assert result["observedIdentity"] == {"artifact": "/models/model.gguf"}
+    assert result["expectedModel"] == "expected-model"
+    assert result["observedModel"] == "expected-model"
+    assert transport.request is not None
+    assert transport.request[1]["questions"]["next_action"]["criteria"] == criteria
+
+    transport.props["model_path"] = "/models/different.gguf"
+    with pytest.raises(AgentRuntimeError) as error:
+        client.verify_startup(
+            model_name="expected-model",
+            expected_identity=expected_identity,
+            instructions="Choose a fixed action.",
+            criteria=criteria,
+            choices={"no_action": (), "install_recovery": ()},
+        )
+    assert error.value.code == "agent.bounded-decision.startup-identity-mismatch"

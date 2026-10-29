@@ -7,6 +7,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import PurePath
 from threading import Lock, Thread
 from time import monotonic
 from typing import Any, Protocol, cast
@@ -342,7 +343,10 @@ class NativeSystemOneClient:
             expected = expected_identity.get(expected_key)
             observed = props.get(props_key)
             if expected is not None and observed is not None:
-                if expected != observed:
+                matches = expected == observed
+                if expected_key == "artifact" and isinstance(observed, str):
+                    matches = matches or PurePath(observed).name == expected
+                if not matches:
                     raise AgentRuntimeError(
                         f"bounded decision startup identity mismatch for {expected_key}",
                         code="agent.bounded-decision.startup-identity-mismatch",
