@@ -19,7 +19,8 @@ or bypass capability authorization.
 | --- | --- |
 | Offline contract and planning | Passed; see [offline acceptance](bounded-decision-offline-acceptance.md) |
 | Native live-model evaluation | Partial pass, integration unverified; see [live-model report](bounded-decision-live-model-evaluation.md) |
-| Real Mininet/OVS diagnosis run | Not run |
+| Compiled runtime against native service | 15 successful invocations using the fake substrate; real telemetry unverified |
+| Real Mininet/OVS diagnosis run | Blocked: `sudo` requires an interactive password in this environment |
 | Diamond recovery run | Not applicable to the amended initial scope; historical fixtures retained |
 | Trial reset and cleanup verification | Not measured |
 | Remote request termination/isolation | Unknown; no live-network trial was started |
@@ -31,6 +32,11 @@ establish a usable native service with retained model/server/build/backend and
 hardware provenance. A short smoke response or constructed-fixture matrix is
 not evidence of live telemetry integration. If any required provenance or
 runtime evidence remains unavailable, the result must stay unverified.
+
+The installed Mininet/OVS binaries were detected, but the harness could not be
+started here because the current session has no passwordless root access. Run
+the documented harness command from a disposable root-capable host, or run it
+interactively with the required administrator password.
 
 When the prerequisite is satisfied, use a new configuration/run and retain:
 

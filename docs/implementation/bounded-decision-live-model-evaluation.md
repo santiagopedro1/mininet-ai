@@ -88,6 +88,20 @@ claims below are not requirements for this evaluation; provenance gaps remain
 as recorded. Offline results are recorded in the [offline acceptance
 report](bounded-decision-offline-acceptance.md).
 
+## Runtime/native follow-up (2026-10-29)
+
+After fixing the diagnosis adapter's empty action bundle, the compiled
+`ExperimentRuntime` was exercised against the live service on port 8080 using
+the observed model alias and a temporary configuration. Fifteen bounded
+invocations completed successfully; intervening one-second ticks were recorded
+as coalesced while the one-slot server was busy. The run evidence is retained
+at `/tmp/opencode/diamond-diagnosis-run/runtime-evidence.json`.
+
+This run used the `FakeSubstrateRuntime`, so it verifies runtime-to-native
+transport wiring and retained decision records, not real OVS telemetry. The
+12-case native matrix above remains the labelled correctness result; real
+Mininet/OVS diagnosis is still unverified.
+
 ## Pinned candidate and observed provenance
 
 | Item | Required / observed value | Status |

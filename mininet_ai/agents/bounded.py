@@ -482,6 +482,20 @@ class BoundedDecisionAdapter:
         self._monotonic = monotonic_clock
         self._substrate = substrate
         self._reconciliation: dict[str, Any] = {}
+        scenario = definition.instance.decision_scenario
+        if not isinstance(scenario, Mapping):
+            raise AgentRuntimeError(
+                "bounded execution plan has no embedded decision scenario",
+                code="agent.bounded-decision.configuration-invalid",
+            )
+        action_choice = next(
+            (
+                choice
+                for choice in scenario["choices"]
+                if choice["id"] == "install_recovery"
+            ),
+            {"proposals": ()},
+        )
         self._bundle_requests = tuple(
             ActionRequest(
                 id=f"bounded-{index + 1}",
@@ -490,11 +504,7 @@ class BoundedDecisionAdapter:
                 parameters=proposal["arguments"],
             )
             for index, proposal in enumerate(
-                next(
-                    choice["proposals"]
-                    for choice in definition.instance.decision_scenario["choices"]
-                    if choice["id"] == "install_recovery"
-                )
+                action_choice["proposals"]
             )
         )
         model = definition.blueprint.model
@@ -504,12 +514,6 @@ class BoundedDecisionAdapter:
                 code="agent.bounded-decision.configuration-invalid",
             )
         self.model = model
-        scenario = definition.instance.decision_scenario
-        if not isinstance(scenario, Mapping):
-            raise AgentRuntimeError(
-                "bounded execution plan has no embedded decision scenario",
-                code="agent.bounded-decision.configuration-invalid",
-            )
         self.scenario = dict(scenario)
         self.client = NativeSystemOneClient(model.parameters["endpoint"], transport)
         self.authority: DecisionAuthority | None = None
