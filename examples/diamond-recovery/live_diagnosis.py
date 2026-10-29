@@ -127,62 +127,80 @@ def run(args: argparse.Namespace) -> int:
                 harness.readiness()
             inspection = harness.inspect()
             for switch_name in SWITCHES:
-                observations = _local_observation(
-                    harness, switch_name, inspection["flows"][switch_name]
-                )
-                state = _current_only_context(
-                    scenario=scenario["metadata"],
-                    identity={
-                        "runId": f"live-diagnosis-{run_started}",
-                        "agentId": f"diamond-decision@{switch_name}",
-                        "invocationId": f"{trial}-{switch_name}-{time.time_ns()}",
-                        "tickId": f"{trial}-{switch_name}",
-                        "invokedAt": _now(),
-                    },
-                    targets=[switch_name],
-                    diagnosis=observations,
-                )
-                expected = (
-                    "degraded"
-                    if any(port["state"] == "down" for port in observations["portState"]["ports"])
-                    else "healthy"
-                )
-                started = time.monotonic()
-                record: dict[str, Any] = {
-                    "observedAt": _now(),
-                    "trial": trial,
-                    "switch": switch_name,
-                    "expected": expected,
-                    "request": state,
-                }
-                try:
-                    result = client.decide(
-                        state=json.dumps(state, sort_keys=True, separators=(",", ":")),
-                        instructions=scenario["instructions"],
-                        criteria=criteria,
-                        choices=choices,
-                        timeout_seconds=5.0,
-                        request_id=state["identity"]["invocationId"],
+                availability_cases = ("available",)
+                if args.include_unavailable and trial == "healthy":
+                    availability_cases = ("available", "unavailable")
+                for availability in availability_cases:
+                    observations = _local_observation(
+                        harness, switch_name, inspection["flows"][switch_name]
                     )
-                    record.update(
-                        {
-                            "status": "succeeded",
-                            "observed": result.choice_id,
-                            "nativeResponse": result.native_response,
-                            "probabilities": result.probabilities,
-                            "confidence": result.confidence,
+                    if availability == "unavailable":
+                        observations["portState"] = {
+                            "switch": switch_name,
+                            "available": False,
+                            "value": None,
+                            "observedAt": _now(),
                         }
+                    state = _current_only_context(
+                        scenario=scenario["metadata"],
+                        identity={
+                            "runId": f"live-diagnosis-{run_started}",
+                            "agentId": f"diamond-decision@{switch_name}",
+                            "invocationId": f"{trial}-{switch_name}-{time.time_ns()}",
+                            "tickId": f"{trial}-{switch_name}-{availability}",
+                            "invokedAt": _now(),
+                        },
+                        targets=[switch_name],
+                        diagnosis=observations,
                     )
-                except Exception as error:
-                    record.update(
-                        {
-                            "status": "failed",
-                            "error": f"{type(error).__name__}: {error}",
-                        }
-                    )
-                record["elapsedSeconds"] = time.monotonic() - started
-                _write_jsonl(decisions_path, record)
-                print(json.dumps(record, sort_keys=True))
+                    expected = "degraded"
+                    if availability == "available" and not any(
+                        port["state"] == "down"
+                        for port in observations["portState"]["ports"]
+                    ):
+                        expected = "healthy"
+                    started = time.monotonic()
+                    record: dict[str, Any] = {
+                        "observedAt": _now(),
+                        "trial": (
+                            trial
+                            if availability == "available"
+                            else f"{trial}-unavailable"
+                        ),
+                        "switch": switch_name,
+                        "expected": expected,
+                        "request": state,
+                    }
+                    try:
+                        result = client.decide(
+                            state=json.dumps(
+                                state, sort_keys=True, separators=(",", ":")
+                            ),
+                            instructions=scenario["instructions"],
+                            criteria=criteria,
+                            choices=choices,
+                            timeout_seconds=5.0,
+                            request_id=state["identity"]["invocationId"],
+                        )
+                        record.update(
+                            {
+                                "status": "succeeded",
+                                "observed": result.choice_id,
+                                "nativeResponse": result.native_response,
+                                "probabilities": result.probabilities,
+                                "confidence": result.confidence,
+                            }
+                        )
+                    except Exception as error:
+                        record.update(
+                            {
+                                "status": "failed",
+                                "error": f"{type(error).__name__}: {error}",
+                            }
+                        )
+                    record["elapsedSeconds"] = time.monotonic() - started
+                    _write_jsonl(decisions_path, record)
+                    print(json.dumps(record, sort_keys=True))
             if trial != "s2-s4":
                 harness.reset()
                 harness.readiness()
@@ -213,6 +231,11 @@ def main() -> int:
         "--evidence",
         type=Path,
         default=Path("/tmp/diamond-live-diagnosis"),
+    )
+    parser.add_argument(
+        "--include-unavailable",
+        action="store_true",
+        help="add one explicit unavailable-local-evidence case per switch",
     )
     return run(parser.parse_args())
 
