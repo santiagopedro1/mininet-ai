@@ -92,6 +92,7 @@ def run(args: argparse.Namespace) -> int:
         readiness = harness.readiness()
         props = client.transport.get_json(
             f"{args.endpoint.rstrip('/')}/props",
+            headers={"Accept": "application/json"},
             timeout_seconds=5.0,
             max_response_bytes=1_048_576,
         )
