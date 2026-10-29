@@ -6,6 +6,13 @@ scenario-owned choice IDs to fixed proposals. They do not use chat completion,
 token generation, Agno, or hidden conversation memory. Mininet remains responsible
 for capability authorization and all network mutation.
 
+**Initial slice (amended #116):** one current-only local diagnosis agent per
+switch, `healthy` / `degraded` choices, and no action proposals. The Maintained
+Example declares a 5-second operational deadline, not a universal model-latency
+gate. Recovery/history behavior described below is historical regression
+coverage, not the initial live acceptance target. Deployed-runtime acceptance
+remains blocked; see the [final review](implementation/bounded-decision-final-review.md).
+
 The initial runtime tracer bullet was limited to successful `no_action`.
 `install_recovery` now maps only to the compiled scenario's exact ordered
 proposals and runs through Mininet's normal capability authorization, conflict
@@ -61,7 +68,7 @@ apiVersion: mininet-ai/v1alpha5
 kind: AgentBlueprint
 metadata: {name: decision-maker}
 implementation: {type: declarative}
-execution: {kind: bounded-decision, scenario: diamond-policy}
+execution: {kind: bounded-decision, scenario: switch-diagnosis}
 model:
   provider: llamacpp-systemone
   name: expected-served-model
@@ -74,15 +81,22 @@ model:
       sha256: 7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da
 ```
 
-The named `DecisionScenario` supplies `instructions`, exactly ordered
-`no_action` / `install_recovery` choices, paths, observation declarations,
-fixed timing, and inspectable policy. It can be inline under
-`decisionScenarios` or referenced from a separate versioned document. The agent
-deployment declares one singleton instance, one 1-second interval trigger, the
-required capabilities, and `decisionInputs` mapping `pathProbes`, `linkStates`,
-`policyState`, and `actionOutcomes` to observations it declares in `observe`.
-Compilation resolves those references and embeds the scenario and effective
-model configuration in the immutable plan snapshot.
+The named `DecisionScenario` can be inline under `decisionScenarios` or
+referenced from a separate versioned document. Current-only diagnosis uses
+`inputMode: current-only`, instructions, two named diagnosis choices with empty
+proposal lists, named current observation bindings, empty `paths`/`policy`, and
+positive scenario timing. Per-target deployment instantiates one agent per
+switch with a 1-second interval trigger and concurrency one per agent.
+`decisionInputs` maps logical inputs to observations declared in `observe`.
+Compilation embeds the resolved scenario and effective model configuration in
+the immutable plan snapshot. The current example's port-counter binding does
+not yet provide the required operational port state; see the review before
+attempting deployed-runtime acceptance.
+
+Historical recovery scenarios instead use `no_action` / `install_recovery`,
+fixed proposals, paths/policy, and the three-round `pathProbes`, `linkStates`,
+`policyState`, and `actionOutcomes` bindings. They are not the amended initial
+example or live-support target.
 
 Compile and save with `mininet-ai plan experiment.yaml --format json --output
 plan.json`; `mininet-ai run plan.json` loads the saved DeploymentPlan directly,

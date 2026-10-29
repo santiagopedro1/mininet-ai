@@ -1,16 +1,17 @@
 # Bounded-decision live-network evaluation
 
-## Verdict: PARTIAL PASS / DIAGNOSIS INTEGRATION UNVERIFIED
+## Verdict: DIRECT-CLIENT TELEMETRY PASS / DEPLOYED RUNTIME UNVERIFIED
 
 The real Mininet/OVS topology and both isolated primary-link fault conditions
 were exercised successfully. The harness evidence is retained at
 `/tmp/diamond-recovery-evidence/harness.jsonl` and
 `/tmp/diamond-recovery-evidence/rounds.jsonl`.
 
-This establishes topology, link-state, probe, reset, and cleanup evidence. It
-does not yet establish bounded-model diagnosis support because the harness does
-not feed its live observations into the decision runtime. No recovery or model
-support claim is made.
+This establishes topology, link-state, probe, reset, and cleanup evidence. A
+later direct-client diagnosis runner also supplied live local observations to
+the native model, as recorded below. Neither runner feeds those observations
+through the deployed four-agent `ExperimentRuntime`. No recovery or accepted
+deployed-runtime support claim is made.
 
 The initial Maintained Example scope was amended to current-only local switch
 diagnosis. Consequently, the historical diamond recovery matrix is not an
@@ -23,20 +24,35 @@ or bypass capability authorization.
 | Evidence | Result |
 | --- | --- |
 | Offline contract and planning | Passed; see [offline acceptance](bounded-decision-offline-acceptance.md) |
-| Native live-model evaluation | Partial pass, integration unverified; see [live-model report](bounded-decision-live-model-evaluation.md) |
+| Native live-model evaluation | 12/12 runtime-shaped constructed fixtures correct; see [live-model report](bounded-decision-live-model-evaluation.md) |
 | Compiled runtime against native service | 15 successful invocations using the fake substrate |
-| Real Mininet/OVS diagnosis run | **16/16 correct** across healthy, both isolated faults, and unavailable evidence |
+| Direct native client with real Mininet/OVS observations | **16/16 correct** against the runner's port-state labels across healthy, both isolated faults, and unavailable evidence |
+| Four deployed agents with real Substrate telemetry | Unverified; direct-client runner bypasses continuous runtime |
 | Diamond recovery run | Not applicable to the amended initial scope; historical fixtures retained |
-| Trial reset and cleanup verification | Not measured |
-| Remote request termination/isolation | Unknown; no live-network trial was started |
+| Trial reset and cleanup verification | Recorded as verified for the topology and direct-client trials |
+| Remote request termination/isolation | Completed native responses recorded for the successful matrix; cancellation/late-result containment not exercised by this matrix |
 
-## Blocking prerequisites
+## Remaining acceptance blockers (reviewed 2026-10-29)
 
-Before a live evaluation can be accepted, review the live-model report and
-establish a usable native service with retained model/server/build/backend and
-hardware provenance. A short smoke response or constructed-fixture matrix is
-not evidence of live telemetry integration. If any required provenance or
-runtime evidence remains unavailable, the result must stay unverified.
+The service was usable and model/server provenance was recorded for the
+successful matrix. This is exploratory evaluation, not pinned-build support;
+unavailable provenance must remain explicit. Final code review identified:
+
+- `live_diagnosis.py` calls `NativeSystemOneClient.decide()` sequentially using
+  the first compiled scenario and manually assembled observations. It does not
+  exercise the four deployed agents, coordination, scheduled deadlines, or
+  normalized retained Run Evidence.
+- The Maintained Example binds `portState` to `ovs.port-counters`, whose real
+  collector supplies traffic counters, not operational up/down state. The
+  direct runner instead uses `interface.isUp()`, masking that missing input.
+- Instructions require detecting missing expected flows, but do not declare
+  an inspectable local expected-flow set. The runner's correctness labels
+  consider only port availability/state; missing-flow correctness is untested.
+
+Resolve these gaps and evaluate the actual continuous runtime with real local
+telemetry before accepting deployed diagnosis support. See the
+[final review](bounded-decision-final-review.md). No live inference or network
+trial was repeated during this documentation/check refresh.
 
 The installed Mininet/OVS binaries were detected, but the harness could not be
 started by this agent because the session has no passwordless root access; the
@@ -50,11 +66,12 @@ The observed matrix was:
 | 1 | `s1-s2` down | Three rounds timed out in both directions | Successful in both directions | Verified |
 | 2 | `s2-s4` down | Three rounds timed out in both directions | Successful in both directions | Verified |
 
-The integrated run completed successfully using the documented runner. Its
+The direct-client telemetry run completed using the documented runner. Its
 final evidence is retained at
 `/tmp/diamond-live-diagnosis-final-20261029T190536Z` and includes 16 decision
 records: four healthy, four explicit unavailable-evidence, four `s1-s2` fault,
-and four `s2-s4` fault cases. All expected labels matched the observed choices.
+and four `s2-s4` fault cases. All runner labels matched the observed choices;
+those labels do not independently test forwarding-rule completeness.
 Decision latency was **1.173–1.486 s**, mean **1.352 s**, n=16; output tokens
 were zero. A separate fresh-server first inference using the documented launch
 command completed in **0.834 s** (n=1), returned `healthy`, and generated zero
@@ -79,7 +96,7 @@ server build was `b11429-d812350493`. The cold run used:
 `llama-server -hf ggml-org/Kev-4B-GGUF -hff Kev-4B-Q8_0.gguf --ctx-size 8192
 --parallel 1`.
 
-When the prerequisite is satisfied, use a new configuration/run and retain:
+For the pending deployed-runtime evaluation, use a new configuration/run and retain:
 
 - readiness, actual switch/port mapping, baseline policy, and probe evidence;
 - current-only local inputs for each target switch, including explicit missing

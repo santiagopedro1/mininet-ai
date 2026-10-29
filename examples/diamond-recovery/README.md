@@ -103,7 +103,15 @@ sudo env PYTHONPATH=. .venv/bin/python \
 
 Decision records are written to `decisions.jsonl`; setup, fault, probe, reset,
 and cleanup records remain in the harness JSONL files in the same directory.
-The completed live run produced 16/16 expected diagnoses, including explicit
-unavailable-evidence cases. The local artifact hash and server build were
-recorded. A fresh server first-inference sample completed in 0.834 seconds;
-the single cold sample is retained separately from the warm distribution.
+The completed direct-client live run produced 16/16 expected diagnoses against
+port-state labels, including explicit unavailable-evidence cases. The local
+artifact hash and server build were recorded. A fresh server first-inference
+sample completed in 0.834 seconds; the single cold sample is retained separately
+from the warm distribution.
+
+**Acceptance limitation:** this runner calls the native client directly, not
+the four deployed agents in `ExperimentRuntime`. Its `interface.isUp()` inputs
+also differ from the experiment's `ovs.port-counters` source, which currently
+does not supply operational up/down state. Missing expected flows are not
+covered by its label oracle. These are outstanding #116/#125 blockers, not a
+completed deployed-runtime acceptance result; see the live-network report.

@@ -99,10 +99,12 @@ at `/tmp/opencode/diamond-diagnosis-run/runtime-evidence.json`.
 
 This run used the `FakeSubstrateRuntime`, so it verifies runtime-to-native
 transport wiring and retained decision records, not real OVS telemetry. The
-12-case native matrix above remains the labelled correctness result; real
-Mininet/OVS diagnosis is still unverified.
+12-case native matrix above remains the constructed-fixture correctness result.
+The later direct-client Mininet/OVS telemetry run is recorded in the
+live-network report; deployed-runtime diagnosis with real telemetry remains
+unverified.
 
-## Pinned candidate and observed provenance
+## Historical pinned attempt and observed provenance
 
 | Item | Required / observed value | Status |
 | --- | --- | --- |
@@ -219,7 +221,11 @@ non-success status before reading the response body, and `NativeSystemOneClient`
 maps this HTTP 400 to `service-unavailable`. That classification hides both the
 actual status and the useful context-limit diagnostic.
 
-## Decision matrix and remaining measurements
+## Historical recovery matrix and measurements (superseded scope)
+
+The counts below describe only the original recovery attempts, not the later
+12-case diagnosis matrix or 16-case direct-client live-telemetry run. Recovery
+acceptance and the universal 800 ms gate were superseded by #116's amendments.
 
 - Labelled oracle cases: 12 planned; first case attempted once and rejected
   with HTTP 400, then replayed once after context increase and timed out; 11
@@ -236,8 +242,8 @@ actual status and the useful context-limit diagnostic.
   late-response discard remain **unmeasured**.
 - Context 8,192 replay: server cancellation and slot release observed after
   the 800 ms client timeout; no response was captured.
-- Live network recovery and recovery time: **not run**; separate acceptance
-  remains required.
+- Live network recovery and recovery time: **not run**; out of scope for the
+  amended initial diagnosis slice.
 
 The port-8081 startup request/timeout diagnostic is retained in
 `/home/pedro/.cache/mininet-ai/kev-evaluation/startup-evidence.json`. The
@@ -248,15 +254,20 @@ These local cache files are evaluation evidence, not committed repository
 artifacts. The port-8081 server log is
 `/home/pedro/.cache/mininet-ai/kev-evaluation/server.log`.
 
-## Resume conditions
+## Current remaining conditions
 
-The server logs confirm cancellation/slot release for the earlier timed-out
-requests. To continue, evaluate the exact runtime-generated per-switch request
-with the scenario-declared deadline (currently 5 seconds), and retain every
-request/failure. Report latency distributions and deadline outcomes; there is
-no universal latency pass threshold. Do not retry a timeout until server-side
-termination/release is confirmed. A full runtime-shaped labelled matrix and
-runtime/telemetry integration evidence remain necessary for diagnosis
-acceptance; prior direct-prompt matrix results do not establish them.
+The runtime-shaped constructed-fixture matrix is complete (12/12), as recorded
+above. A subsequent direct-client live-telemetry matrix recorded 16/16 matches
+against port-state labels and a separate cold first-inference sample; see the
+[live-network report](bounded-decision-live-network-evaluation.md). These do
+not establish the deployed four-agent runtime with real Substrate telemetry.
+The final review identified missing operational port-state inputs and an
+undefined expected-flow oracle. Those integration gaps remain acceptance
+blockers, not a requirement to repeat the superseded recovery matrix.
+
+For further evaluation, retain exact runtime requests/responses, labels,
+provenance gaps, scenario-declared deadline outcomes, and separate cold/warm
+conditions. Do not retry a timeout until remote termination/release is
+independently confirmed. There is no universal model-latency pass threshold.
 
 No confidence gate or model-support promotion is authorized by this report.

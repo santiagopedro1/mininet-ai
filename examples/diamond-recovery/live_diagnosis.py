@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Run current-only bounded diagnosis against a live diamond network.
 
 This is an opt-in evaluation runner. It performs no model-selected network
@@ -16,10 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from live_harness import DiamondLiveHarness
+
 from mininet_ai.agents.bounded import NativeSystemOneClient, _current_only_context
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.transports.http import HttpxJsonTransport
-
 
 SWITCHES = ("s1", "s2", "s3", "s4")
 TRIALS = ("healthy", "s1-s2", "s2-s4")
