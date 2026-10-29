@@ -152,7 +152,7 @@ class DiagnosisCleanupObserver:
             self.gaps.append(f"boot identity unavailable: {error}")
         processes = self._processes()
         own = processes.get(os.getpid())
-        if own is None:
+        if own is None or own.namespace is None:
             self.gaps.append("runner process namespace/group could not be established")
         nodes = [*network.hosts, *network.switches, *network.controllers]
         if {node.name for node in nodes} != self.nodes:
@@ -168,10 +168,15 @@ class DiagnosisCleanupObserver:
                 self.gaps.append(f"unverifiable owned shell identity for {node.name}")
                 continue
             self.roots[item.pid] = item.started
+            if item.namespace is None:
+                self.gaps.append(
+                    f"owned namespace identity unavailable for {node.name}"
+                )
             if own is not None and item.group != own.group:
                 self.groups.add(item.group)
             if (
                 own is not None
+                and own.namespace is not None
                 and item.namespace is not None
                 and item.namespace != own.namespace
             ):

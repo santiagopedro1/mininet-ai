@@ -120,6 +120,31 @@ def test_unreadable_process_inventory_is_not_verified(owned):
     assert observer.verify().status.value == "unknown"
 
 
+@pytest.mark.parametrize("which", ["owned-node", "runner"])
+def test_missing_initial_namespace_identity_cannot_verify_cleanup(
+    owned, tmp_path, which
+):
+    plan, proc, nodes, executor, _ = owned
+    pid = nodes[0].pid if which == "owned-node" else os.getpid()
+    (proc / str(pid) / "ns/net").unlink()
+    observer = DiagnosisCleanupObserver(
+        plan, tmp_path / "missing-namespace", proc=proc, executor=executor
+    )
+    observer.attach(
+        SimpleNamespace(hosts=nodes[:2], switches=nodes[2:], controllers=[])
+    )
+    observer.capture()
+    for node in nodes:
+        entry = proc / str(node.pid)
+        (entry / "stat").unlink()
+        (entry / "ns/net").unlink(missing_ok=True)
+        (entry / "ns").rmdir()
+        entry.rmdir()
+    outcome = observer.verify()
+    assert outcome.status.value == "unknown"
+    assert any("namespace" in gap for gap in outcome.evidence_gaps)
+
+
 @pytest.mark.parametrize(
     "kind", ["interface", "bridge", "unreadable", "missing-capture"]
 )
