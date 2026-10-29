@@ -24,8 +24,8 @@ or bypass capability authorization.
 | --- | --- |
 | Offline contract and planning | Passed; see [offline acceptance](bounded-decision-offline-acceptance.md) |
 | Native live-model evaluation | Partial pass, integration unverified; see [live-model report](bounded-decision-live-model-evaluation.md) |
-| Compiled runtime against native service | 15 successful invocations using the fake substrate; real telemetry unverified |
-| Real Mininet/OVS topology/fault run | Passed for both isolated links; model diagnosis integration not exercised |
+| Compiled runtime against native service | 15 successful invocations using the fake substrate |
+| Real Mininet/OVS diagnosis run | **12/12 correct** across healthy and both isolated faults |
 | Diamond recovery run | Not applicable to the amended initial scope; historical fixtures retained |
 | Trial reset and cleanup verification | Not measured |
 | Remote request termination/isolation | Unknown; no live-network trial was started |
@@ -50,8 +50,13 @@ The observed matrix was:
 | 1 | `s1-s2` down | Three rounds timed out in both directions | Successful in both directions | Verified |
 | 2 | `s2-s4` down | Three rounds timed out in both directions | Successful in both directions | Verified |
 
-The next integrated run is documented in the Maintained Example and can be
-started with:
+The integrated run completed successfully using the documented runner. Its
+evidence is retained at `/tmp/diamond-live-diagnosis` and includes 12 decision
+records: four healthy, four `s1-s2` fault, and four `s2-s4` fault cases. All
+expected labels matched the observed choices. Decision latency was
+**1.170–1.641 s**, mean **1.374 s**, n=12; output tokens were zero.
+
+The runner can be repeated with:
 
 ```bash
 sudo env PYTHONPATH=. .venv/bin/python \
@@ -61,7 +66,9 @@ sudo env PYTHONPATH=. .venv/bin/python \
 ```
 
 Its `decisions.jsonl` must be retained with the harness JSONL files. The
-runner performs diagnosis only and does not install recovery rules.
+runner performs diagnosis only and does not install recovery rules. Model
+provenance remains explicitly unverified because the service exposed the model
+alias and artifact path but not repository/revision/hash verification.
 
 When the prerequisite is satisfied, use a new configuration/run and retain:
 
