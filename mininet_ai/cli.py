@@ -548,7 +548,9 @@ def plan(
         try:
             save_deployment_plan(deployment_plan, output)
         except OSError as error:
-            error_console.print(f"[bold red]Error:[/bold red] cannot save plan: {error}")
+            error_console.print(
+                f"[bold red]Error:[/bold red] cannot save plan: {error}"
+            )
             raise typer.Exit(code=1) from error
     if output_format == OutputFormat.JSON:
         _print_json(deployment_plan)
@@ -847,9 +849,7 @@ def run(
             agent.decision_scenario is None for agent in deployment_plan.agents
         )
         agno_factory = (
-            _operation_or_exit(
-                lambda: AgnoAgentFactory(database_path=agno_db)
-            )
+            _operation_or_exit(lambda: AgnoAgentFactory(database_path=agno_db))
             if has_agno_agents
             else None
         )

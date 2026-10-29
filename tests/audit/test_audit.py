@@ -97,9 +97,7 @@ class RejectingExecutor:
         del context, proposal
         return None
 
-    def execute(
-        self, context: AgentContext, proposal: ActionProposal
-    ) -> ActionResult:
+    def execute(self, context: AgentContext, proposal: ActionProposal) -> ActionResult:
         return ActionResult(
             run_id=context.run_id,
             request_id=proposal.id,

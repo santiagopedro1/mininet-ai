@@ -464,11 +464,7 @@ class MininetOVSRuntime:
         try:
             return cast(
                 tuple[str, ...],
-                tuple(
-                    cast(Any, inspector)(
-                        expected, timeout_seconds=timeout_seconds
-                    )
-                ),
+                tuple(cast(Any, inspector)(expected, timeout_seconds=timeout_seconds)),
             )
         except Exception as error:
             raise RuntimeOperationError(

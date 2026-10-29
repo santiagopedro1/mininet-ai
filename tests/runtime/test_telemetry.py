@@ -131,12 +131,10 @@ class TelemetryPipelineTests(unittest.TestCase):
                     clock=lambda: NOW + timedelta(seconds=20),
                 )
 
-                pipeline.sample_once(
-                    "switch-router@s1", "tc.queue-occupancy"
-                )
-                event = pipeline.sample_once(
-                    "switch-router@s1", "tc.queue-occupancy"
-                )[0]
+                pipeline.sample_once("switch-router@s1", "tc.queue-occupancy")
+                event = pipeline.sample_once("switch-router@s1", "tc.queue-occupancy")[
+                    0
+                ]
 
                 values = cast(dict[str, Any], event.payload["values"])
                 self.assertEqual(values["s1"]["queue"]["depth"], expected)
@@ -176,15 +174,9 @@ class TelemetryPipelineTests(unittest.TestCase):
             event_id_factory=lambda: next(event_ids),
         )
 
-        first = pipeline.sample_once(
-            "switch-router@s1", "tc.queue-occupancy"
-        )
-        second = pipeline.sample_once(
-            "switch-router@s1", "tc.queue-occupancy"
-        )
-        third = pipeline.sample_once(
-            "switch-router@s1", "tc.queue-occupancy"
-        )
+        first = pipeline.sample_once("switch-router@s1", "tc.queue-occupancy")
+        second = pipeline.sample_once("switch-router@s1", "tc.queue-occupancy")
+        third = pipeline.sample_once("switch-router@s1", "tc.queue-occupancy")
 
         self.assertEqual(len(first), 1)
         self.assertEqual(len(second), 2)
@@ -221,10 +213,7 @@ class TelemetryPipelineTests(unittest.TestCase):
             ],
         )
         substrate = SequenceSubstrate(
-            [
-                {"s1": {"queue": {"depth": value}}}
-                for value in (10, 10, 10, 20)
-            ],
+            [{"s1": {"queue": {"depth": value}}} for value in (10, 10, 10, 20)],
             [NOW + timedelta(seconds=index) for index in range(4)],
         )
         publisher = RecordingPublisher()
@@ -237,12 +226,8 @@ class TelemetryPipelineTests(unittest.TestCase):
         )
 
         for _ in range(3):
-            pipeline.sample_once(
-                "switch-router@s1", "tc.queue-occupancy"
-            )
-        emitted = pipeline.sample_once(
-            "switch-router@s1", "tc.queue-occupancy"
-        )
+            pipeline.sample_once("switch-router@s1", "tc.queue-occupancy")
+        emitted = pipeline.sample_once("switch-router@s1", "tc.queue-occupancy")
 
         self.assertEqual(len(emitted), 2)
         details = emitted[1].payload_as(DetectorEventPayload)
@@ -289,9 +274,7 @@ class TelemetryPipelineTests(unittest.TestCase):
 
         event = None
         for _ in range(4):
-            event = pipeline.sample_once(
-                "switch-router@s1", "tc.queue-occupancy"
-            )[0]
+            event = pipeline.sample_once("switch-router@s1", "tc.queue-occupancy")[0]
         assert event is not None
         self.assertEqual(event.payload["sampleCount"], 3)
 

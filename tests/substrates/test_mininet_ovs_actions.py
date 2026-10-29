@@ -169,13 +169,19 @@ class MininetOVSActionsTests(unittest.TestCase):
             )
         )
 
-    def test_hierarchical_client_template_uses_distinct_managed_process_ids(self) -> None:
+    def test_hierarchical_client_template_uses_distinct_managed_process_ids(
+        self,
+    ) -> None:
         plan = compile_experiment(
             Path(__file__).parents[2] / "examples/hierarchical-routing/experiment.yaml"
         )
-        instructions = ExecutionCatalog(plan).resolve("host-traffic@h1").blueprint.reasoning.instructions
+        instructions = (
+            ExecutionCatalog(plan)
+            .resolve("host-traffic@h1")
+            .blueprint.reasoning.instructions
+        )
         assert instructions is not None
-        template = instructions[instructions.index("{"):]
+        template = instructions[instructions.index("{") :]
         process_ids = set()
         for index, host in enumerate(("h1", "h2", "h1")):
             rendered = template.replace("<targets[0]>", host).replace(
@@ -287,7 +293,9 @@ class MininetOVSActionsTests(unittest.TestCase):
         )
         self.assertEqual(self.executor.calls[-1][0][3:5], ["--strict", "del-flows"])
 
-    def test_inspects_exact_scenario_flow_rules_and_reports_wrong_or_missing(self) -> None:
+    def test_inspects_exact_scenario_flow_rules_and_reports_wrong_or_missing(
+        self,
+    ) -> None:
         expected = (
             ActionRequest(
                 id="bounded-1",

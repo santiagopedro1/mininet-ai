@@ -225,9 +225,7 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
         )
 
     def test_draining_stop_releases_a_paused_agent(self) -> None:
-        plan = configured_plan(
-            triggers=[{"type": "manual", "name": "operator"}]
-        )
+        plan = configured_plan(triggers=[{"type": "manual", "name": "operator"}])
         invoker = RecordingInvoker()
         runtime = ContinuousAgentRuntime(plan, "run-1", invoker)
         runtime.start()
@@ -245,9 +243,7 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
         )
 
     def test_timed_out_stop_can_be_retried_after_worker_finishes(self) -> None:
-        plan = configured_plan(
-            triggers=[{"type": "manual", "name": "operator"}]
-        )
+        plan = configured_plan(triggers=[{"type": "manual", "name": "operator"}])
         invoker = RecordingInvoker(blocked=True)
         runtime = ContinuousAgentRuntime(plan, "run-1", invoker)
         runtime.start()
@@ -366,10 +362,9 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
                 runtime.publish(manual_event("event-2", sequence=2))
                 runtime.publish(manual_event("event-3", sequence=3))
                 wait_until(
-                    lambda runtime=runtime, counter=counter: getattr(
-                        runtime.report(), counter
+                    lambda runtime=runtime, counter=counter: (
+                        getattr(runtime.report(), counter) == 1
                     )
-                    == 1
                 )
                 invoker.release.set()
 
@@ -482,9 +477,7 @@ class ContinuousAgentRuntimeTests(unittest.TestCase):
         self.assertEqual(not_running.exception.code, "runtime.lifecycle.not-running")
 
         runtime.start()
-        wrong = manual_event("wrong", sequence=1).model_copy(
-            update={"run_id": "run-2"}
-        )
+        wrong = manual_event("wrong", sequence=1).model_copy(update={"run_id": "run-2"})
         with self.assertRaises(ContinuousRuntimeError) as mismatch:
             runtime.publish(wrong)
         self.assertEqual(mismatch.exception.code, "runtime.event.run-mismatch")

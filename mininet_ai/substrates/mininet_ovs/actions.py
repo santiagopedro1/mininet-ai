@@ -229,10 +229,23 @@ class MininetOVSActions:
         return result
 
     @staticmethod
-    def _same_rule_identity(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
-        metadata = {"actions", "cookie", "table", "priority", "idle_timeout", "hard_timeout"}
-        expected_match = {key: value for key, value in expected.items() if key not in metadata}
-        actual_match = {key: value for key, value in actual.items() if key not in metadata}
+    def _same_rule_identity(
+        actual: Mapping[str, Any], expected: Mapping[str, Any]
+    ) -> bool:
+        metadata = {
+            "actions",
+            "cookie",
+            "table",
+            "priority",
+            "idle_timeout",
+            "hard_timeout",
+        }
+        expected_match = {
+            key: value for key, value in expected.items() if key not in metadata
+        }
+        actual_match = {
+            key: value for key, value in actual.items() if key not in metadata
+        }
         cookie_matches = (
             "cookie" in expected
             and expected["cookie"] != 0
@@ -265,9 +278,7 @@ class MininetOVSActions:
                 self._terminate(managed.process, timeout_seconds=2)
             del self._processes[process_id]
 
-    def _set_link_state(
-        self, request: ActionRequest, *, up: bool
-    ) -> ActionOutcome:
+    def _set_link_state(self, request: ActionRequest, *, up: bool) -> ActionOutcome:
         self._require_no_parameters(request)
         link = self._require_kind(request.target, ResourceKind.LINK)
         interfaces = self._link_interfaces(cast("PlannedLink", link))
@@ -387,12 +398,9 @@ class MininetOVSActions:
         arguments = request.parameters.get("arguments", [])
         if not isinstance(command, str) or not command or "\x00" in command:
             self._reject("command must be a non-empty string")
-        if (
-            not isinstance(arguments, list)
-            or any(
-                not isinstance(argument, str) or "\x00" in argument
-                for argument in arguments
-            )
+        if not isinstance(arguments, list) or any(
+            not isinstance(argument, str) or "\x00" in argument
+            for argument in arguments
         ):
             self._reject("arguments must be a list of strings")
         if request.id in self._processes:
@@ -445,9 +453,7 @@ class MininetOVSActions:
                 code="runtime.action.process-unknown",
             ) from error
         if managed.host != request.target:
-            self._reject(
-                f"process {process_id!r} belongs to host {managed.host!r}"
-            )
+            self._reject(f"process {process_id!r} belongs to host {managed.host!r}")
         running = managed.process.poll() is None
         if running:
             self._terminate(
@@ -505,9 +511,7 @@ class MininetOVSActions:
                         code="runtime.action.timeout",
                         status=ActionStatus.FAILED,
                     )
-                time.sleep(
-                    min(0.05, max(0, kill_deadline - time.monotonic()))
-                )
+                time.sleep(min(0.05, max(0, kill_deadline - time.monotonic())))
         except ActionExecutionError:
             raise
         except subprocess.TimeoutExpired:
@@ -570,9 +574,7 @@ class MininetOVSActions:
             cookie_value = self._flow_integer("cookie", cookie, maximum=2**64 - 1)
             cookie_field = f"cookie={cookie_value:#x}"
             if cookie_mask is not None:
-                mask = self._flow_integer(
-                    "cookieMask", cookie_mask, maximum=2**64 - 1
-                )
+                mask = self._flow_integer("cookieMask", cookie_mask, maximum=2**64 - 1)
                 cookie_field += f"/{mask:#x}"
             fields.append(cookie_field)
         integer_fields = (
@@ -680,9 +682,7 @@ class MininetOVSActions:
             "max_queue_size": parameters["maxQueueSize"],
         }
 
-    def _link_interfaces(
-        self, link: PlannedLink
-    ) -> list[tuple[str, Any, Any]]:
+    def _link_interfaces(self, link: PlannedLink) -> list[tuple[str, Any, Any]]:
         by_name = {
             interface.name: interface
             for live_link in self._network.links
@@ -782,9 +782,7 @@ class MininetOVSActions:
             except ValueError:
                 MininetOVSActions._reject(f"{name} must be an integer")
         if not isinstance(value, int) or not 0 <= value <= maximum:
-            MininetOVSActions._reject(
-                f"{name} must be between 0 and {maximum}"
-            )
+            MininetOVSActions._reject(f"{name} must be between 0 and {maximum}")
         return value
 
     @staticmethod

@@ -17,9 +17,11 @@ from mininet_ai.substrates import (
 )
 
 if TYPE_CHECKING:
+
     class _TestCase(unittest.TestCase):
         pass
 else:
+
     class _TestCase:
         pass
 
@@ -33,9 +35,7 @@ class SubstrateDriverContract(_TestCase):
 
         self.assertIsInstance(driver, SubstrateDriver)
         self.assertEqual(driver.name, driver.manifest.name)
-        self.assertEqual(
-            driver.manifest.contract_version, SUBSTRATE_CONTRACT_VERSION
-        )
+        self.assertEqual(driver.manifest.contract_version, SUBSTRATE_CONTRACT_VERSION)
 
     def test_manifest_has_usable_capabilities(self) -> None:
         manifest = self.make_driver().manifest

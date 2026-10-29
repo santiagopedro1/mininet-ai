@@ -48,8 +48,12 @@ def test_native_inline_source_compiles_serializes_and_reconstructs(tmp_path):
 
     assert restored.api_version == "mininet-ai/v1alpha5"
     assert restored.snapshot["apiVersion"] == "mininet-ai/v1alpha5"
-    assert {item["apiVersion"] for item in restored.snapshot["blueprints"]} == {"mininet-ai/v1alpha5"}
-    assert {item["apiVersion"] for item in restored.snapshot["capabilityDefinitions"]} == {"mininet-ai/v1alpha5"}
+    assert {item["apiVersion"] for item in restored.snapshot["blueprints"]} == {
+        "mininet-ai/v1alpha5"
+    }
+    assert {
+        item["apiVersion"] for item in restored.snapshot["capabilityDefinitions"]
+    } == {"mininet-ai/v1alpha5"}
     model = ExecutionCatalog(restored).resolve("switch-router@s1").blueprint.model
     from mininet_ai.specification.models import ModelConfiguration
 

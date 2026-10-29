@@ -93,7 +93,7 @@ def test_native_probabilities_must_only_name_allowed_choices():
                 "probabilities": {"invented": 0.5},
             },
             {"no_action": (), "install_recovery": ()},
-    )
+        )
 
 
 def test_llama_native_answer_probabilities_are_retained():
@@ -223,7 +223,10 @@ def test_native_client_posts_one_question_and_retains_canonical_state():
     result = client.decide(
         state='{"observations":[],"rounds":3}',
         instructions="Choose only from the declared choices.",
-        criteria={"no_action": "Preserve policy", "install_recovery": "Install exact recovery"},
+        criteria={
+            "no_action": "Preserve policy",
+            "install_recovery": "Install exact recovery",
+        },
         choices={
             "no_action": (),
             "install_recovery": ({"capability": "flow.install"},),
@@ -316,7 +319,10 @@ def test_startup_distinguishes_unverifiable_identity_from_service_interface_fail
             "sha256": "0" * 64,
         },
         instructions="Choose a fixed action.",
-        criteria={"no_action": "Preserve policy", "install_recovery": "Install recovery"},
+        criteria={
+            "no_action": "Preserve policy",
+            "install_recovery": "Install recovery",
+        },
         choices={"no_action": (), "install_recovery": ()},
     )
     assert result["status"] == "unverified"
@@ -333,7 +339,10 @@ def test_startup_distinguishes_unverifiable_identity_from_service_interface_fail
                 "sha256": "0" * 64,
             },
             instructions="Choose a fixed action.",
-            criteria={"no_action": "Preserve policy", "install_recovery": "Install recovery"},
+            criteria={
+                "no_action": "Preserve policy",
+                "install_recovery": "Install recovery",
+            },
             choices={"no_action": (), "install_recovery": ()},
         )
     assert error.value.code == "agent.bounded-decision.startup-identity-mismatch"

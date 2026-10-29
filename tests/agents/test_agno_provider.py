@@ -83,9 +83,7 @@ class AgnoAgentProviderTests(unittest.TestCase):
     def memory_definition(self, memory: MemoryConfiguration):
         return replace(
             self.definition,
-            blueprint=self.definition.blueprint.model_copy(
-                update={"memory": memory}
-            ),
+            blueprint=self.definition.blueprint.model_copy(update={"memory": memory}),
         )
 
     def test_declarative_blueprint_runs_as_native_agno_agent(self) -> None:
@@ -134,9 +132,7 @@ class AgnoAgentProviderTests(unittest.TestCase):
         model = StaticModel()
         provider = AgnoAgentProvider(
             self.definition,
-            factory=AgnoAgentFactory(
-                model_resolver=lambda configuration: model
-            ),
+            factory=AgnoAgentFactory(model_resolver=lambda configuration: model),
         )
         invalid = self.context.model_copy(update={"targets": ("s2",)})
 
@@ -484,9 +480,7 @@ class AgnoAgentProviderTests(unittest.TestCase):
         assert model is not None
         blueprint = self.definition.blueprint.model_copy(
             update={
-                "model": model.model_copy(
-                    update={"parameters": {"temperature": 0.2}}
-                )
+                "model": model.model_copy(update={"parameters": {"temperature": 0.2}})
             }
         )
         definition = replace(self.definition, blueprint=blueprint)

@@ -348,15 +348,12 @@ class OneShotAgentRuntime:
                 metadata = coordination.metadata if coordination is not None else {}
                 scheduled_tick = metadata.get("deadlineStartedAt")
                 configured_deadline = duration_seconds(
-                    definition.instance.decision_scenario["timing"][
-                        "decisionDeadline"
-                    ]
+                    definition.instance.decision_scenario["timing"]["decisionDeadline"]
                 )
                 deadline = (
                     float(scheduled_tick) + configured_deadline
                     if isinstance(scheduled_tick, (int, float))
-                    else self._monotonic()
-                    + configured_deadline
+                    else self._monotonic() + configured_deadline
                 )
                 authority = DecisionAuthority(deadline, self._monotonic)
                 bind_authority = getattr(provider, "bind_authority", None)
@@ -626,9 +623,7 @@ class OneShotAgentRuntime:
                 update_data = cast(dict[str, Any], runtime_update)
                 execution_record = cast(
                     dict[str, Any],
-                    dict(
-                        cast(Any, state.response.metadata).get("executionRecord", {})
-                    ),
+                    dict(cast(Any, state.response.metadata).get("executionRecord", {})),
                 )
                 execution_record["runtime"] = update_data.get("runtime", {})
                 execution_record["outcome"] = update_data.get(
@@ -642,8 +637,10 @@ class OneShotAgentRuntime:
                         }
                     }
                 )
-                bounded_decision = cast(Any, execution_record).get("runtime", {}).get(
-                    "boundedDecision", {}
+                bounded_decision = (
+                    cast(Any, execution_record)
+                    .get("runtime", {})
+                    .get("boundedDecision", {})
                 )
                 correctness_failure = bounded_decision.get("correctnessFailure")
                 if execution_record.get("outcome") == "failed" and correctness_failure:

@@ -109,9 +109,7 @@ class TelemetryPipeline:
             for agent in plan.agents
             for index, policy in enumerate(agent.observation_policies)
         )
-        self._by_agent_observation: dict[
-            tuple[str, str], list[_PolicyBinding]
-        ] = {}
+        self._by_agent_observation: dict[tuple[str, str], list[_PolicyBinding]] = {}
         for binding in self._bindings:
             self._by_agent_observation.setdefault(
                 (binding.agent.id, binding.policy.observation), []

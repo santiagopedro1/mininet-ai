@@ -57,9 +57,7 @@ class RecordingProvider:
         *,
         timeout_seconds,
     ):
-        self.rollback_calls.append(
-            (context, proposal, outcome, timeout_seconds)
-        )
+        self.rollback_calls.append((context, proposal, outcome, timeout_seconds))
         if isinstance(self.rollback_result, Exception):
             raise self.rollback_result
         return self.rollback_result
@@ -169,9 +167,7 @@ class CapabilityEngineTests(unittest.TestCase):
             }
         ]
         capability["rollback"] = {"timeout": "3s"}
-        catalog = ExecutionCatalog(
-            self.plan.model_copy(update={"snapshot": snapshot})
-        )
+        catalog = ExecutionCatalog(self.plan.model_copy(update={"snapshot": snapshot}))
         verifier = PostconditionVerifier(
             observer,
             clock=lambda: NOW,
@@ -240,9 +236,7 @@ class CapabilityEngineTests(unittest.TestCase):
 
     def test_postcondition_polls_until_the_effect_is_visible(self) -> None:
         manual_time = ManualTime()
-        observer = RecordingObserver(
-            [{"installed": False}, {"installed": True}]
-        )
+        observer = RecordingObserver([{"installed": False}, {"installed": True}])
         engine = self.verification_engine(observer, manual_time)
 
         result = engine.execute(self.context(), self.proposal())
@@ -475,9 +469,7 @@ class CapabilityEngineTests(unittest.TestCase):
         capabilities = [dict(item) for item in snapshot["capabilityDefinitions"]]
         capabilities[0]["provider"] = None
         snapshot["capabilityDefinitions"] = capabilities
-        catalog = ExecutionCatalog(
-            self.plan.model_copy(update={"snapshot": snapshot})
-        )
+        catalog = ExecutionCatalog(self.plan.model_copy(update={"snapshot": snapshot}))
         engine = CapabilityEngine(
             catalog,
             self.registries.capabilities,

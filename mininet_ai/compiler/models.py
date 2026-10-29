@@ -132,17 +132,13 @@ class AgentInstance(StrictModel):
     capabilities: tuple[str, ...] = ()
     privileges: tuple[str, ...] = ()
     priority: int = 0
-    triggers: tuple[Trigger, ...] = Field(
-        default_factory=lambda: (ManualTrigger(),)
-    )
+    triggers: tuple[Trigger, ...] = Field(default_factory=lambda: (ManualTrigger(),))
     observation_policies: tuple[ObservationPolicy, ...] = Field(
         default=(),
         alias="observationPolicies",
     )
     memory: MemoryConfiguration = Field(default_factory=MemoryConfiguration)
-    execution: ExecutionConfiguration = Field(
-        default_factory=ExecutionConfiguration
-    )
+    execution: ExecutionConfiguration = Field(default_factory=ExecutionConfiguration)
     decision_scenario: dict[str, Any] | None = Field(
         default=None, alias="decisionScenario", exclude_if=lambda value: value is None
     )
@@ -179,7 +175,9 @@ class DeploymentPlan(StrictModel):
         },
     )
 
-    api_version: Literal["mininet-ai/v1alpha4", "mininet-ai/v1alpha5"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha4", "mininet-ai/v1alpha5"] = Field(
+        alias="apiVersion"
+    )
     kind: Literal["DeploymentPlan"] = "DeploymentPlan"
     metadata: Metadata
     source: str = Field(min_length=1)

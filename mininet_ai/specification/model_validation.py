@@ -74,10 +74,16 @@ def validate_model_configuration(
         if configuration.provider != "llamacpp-systemone":
             fail(".provider", "bounded-decision requires llamacpp-systemone")
         if set(configuration.parameters) != {"endpoint", "expectedIdentity"}:
-            fail(".parameters", "bounded-decision requires only endpoint and expectedIdentity")
+            fail(
+                ".parameters",
+                "bounded-decision requires only endpoint and expectedIdentity",
+            )
         return
     if configuration.provider == "llamacpp-systemone":
-        fail(".provider", "llamacpp-systemone requires explicit bounded-decision execution")
+        fail(
+            ".provider",
+            "llamacpp-systemone requires explicit bounded-decision execution",
+        )
     if bundled and configuration.provider != "ollama":
         fail(".provider", "the bundled factory requires an Ollama model")
     if configuration.provider == "ollama":

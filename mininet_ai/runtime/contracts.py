@@ -48,9 +48,7 @@ class ObservationRecordedPayload(StrictModel):
     targets: tuple[str, ...] = Field(min_length=1)
     values: dict[str, JsonValue] = Field(default_factory=dict)
     agent_id: str | None = Field(default=None, alias="agentId", min_length=1)
-    aggregation: Literal["latest", "minimum", "maximum", "mean", "sum"] | None = (
-        None
-    )
+    aggregation: Literal["latest", "minimum", "maximum", "mean", "sum"] | None = None
     sample_count: int | None = Field(default=None, alias="sampleCount", ge=1)
     window_started_at: AwareDatetime | None = Field(
         default=None,

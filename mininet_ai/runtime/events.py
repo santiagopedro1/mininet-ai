@@ -99,9 +99,7 @@ class InMemoryRuntimeEventBus:
         if timeout_seconds is not None and timeout_seconds < 0:
             raise ValueError("event receive timeout cannot be negative")
         deadline = (
-            None
-            if timeout_seconds is None
-            else time.monotonic() + timeout_seconds
+            None if timeout_seconds is None else time.monotonic() + timeout_seconds
         )
         with self._condition:
             while not self._events:

@@ -65,9 +65,7 @@ class AgentSupervisorTests(unittest.TestCase):
             nonlocal calls
             calls += 1
             status = (
-                InvocationStatus.FAILED
-                if calls == 1
-                else InvocationStatus.SUCCEEDED
+                InvocationStatus.FAILED if calls == 1 else InvocationStatus.SUCCEEDED
             )
             return result(status, calls)
 
@@ -138,9 +136,7 @@ class AgentSupervisorTests(unittest.TestCase):
         self.assertEqual(supervisor.state("agent-1"), AgentLifecycleState.RUNNING)
 
     def test_pause_blocks_new_work_until_resume(self) -> None:
-        supervisor = AgentSupervisor(
-            {"agent-1": RestartConfiguration()}
-        )
+        supervisor = AgentSupervisor({"agent-1": RestartConfiguration()})
         supervisor.start()
         supervisor.pause("agent-1")
         entered = threading.Event()
@@ -164,9 +160,7 @@ class AgentSupervisorTests(unittest.TestCase):
         self.assertTrue(entered.is_set())
 
     def test_invalid_lifecycle_and_unknown_agent_are_typed(self) -> None:
-        supervisor = AgentSupervisor(
-            {"agent-1": RestartConfiguration()}
-        )
+        supervisor = AgentSupervisor({"agent-1": RestartConfiguration()})
         supervisor.start()
 
         with self.assertRaises(AgentSupervisionError) as lifecycle:

@@ -218,7 +218,9 @@ def test_keyboard_interrupt_during_service_start_cleans_network(tmp_path):
     assert "failed" in (tmp_path / "output/run-interrupted/logs/run.log").read_text()
 
 
-def test_unreserved_registered_adapter_can_use_explicit_paths(tmp_path, control_directory):
+def test_unreserved_registered_adapter_can_use_explicit_paths(
+    tmp_path, control_directory
+):
     from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 
     runtime = FakeSubstrateRuntime(run_id_factory=lambda: "custom-run")
@@ -269,7 +271,9 @@ def test_two_cli_runs_have_separate_saved_output(tmp_path, control_directory):
         assert (directory / "dbs/agno.sqlite3").is_file()
 
 
-def test_start_failure_retains_diagnostics_and_cleans_network(tmp_path, control_directory):
+def test_start_failure_retains_diagnostics_and_cleans_network(
+    tmp_path, control_directory
+):
     from mininet_ai.substrates import FakeSubstrateRuntime, RunState
 
     runtime = FakeSubstrateRuntime(run_id_factory=lambda: "run-failed")

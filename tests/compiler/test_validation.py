@@ -30,7 +30,9 @@ class CompilerReferenceTests(unittest.TestCase):
         resources = snapshot["substrate"]["topology"]["resources"]
         named(resources, "h1")["parent"] = "missing-parent"
 
-        with self.assertRaisesRegex(CompilationError, "unknown parent 'missing-parent'"):
+        with self.assertRaisesRegex(
+            CompilationError, "unknown parent 'missing-parent'"
+        ):
             compile_experiment(experiment_from(snapshot))
 
     def test_unknown_link_endpoint_node_is_rejected(self) -> None:

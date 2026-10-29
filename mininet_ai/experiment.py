@@ -296,7 +296,9 @@ class ExperimentRuntime:
             ) from error
 
     def _verify_bounded_startup(self) -> None:
-        bounded = [agent for agent in self._plan.agents if agent.decision_scenario is not None]
+        bounded = [
+            agent for agent in self._plan.agents if agent.decision_scenario is not None
+        ]
         if not bounded:
             return
         from mininet_ai.transports.http import HttpxJsonTransport
@@ -323,14 +325,18 @@ class ExperimentRuntime:
                     agent_id=agent.id,
                 )
             model = cast(Any, model)
-            choices = {item["id"]: tuple(item["proposals"]) for item in scenario["choices"]}
+            choices = {
+                item["id"]: tuple(item["proposals"]) for item in scenario["choices"]
+            }
             client = NativeSystemOneClient(model.parameters["endpoint"], transport)
             try:
                 self._bounded_startup[agent.id] = client.verify_startup(
                     model_name=model.name,
                     expected_identity=model.parameters["expectedIdentity"],
                     instructions=scenario["instructions"],
-                    criteria={item["id"]: item["description"] for item in scenario["choices"]},
+                    criteria={
+                        item["id"]: item["description"] for item in scenario["choices"]
+                    },
                     choices=choices,
                 )
             except AgentRuntimeError as error:

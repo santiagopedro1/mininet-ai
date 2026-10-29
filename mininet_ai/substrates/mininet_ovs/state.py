@@ -33,9 +33,7 @@ class StateLockHeld(StateStoreError):
 
 
 def _boot_id() -> str:
-    return Path("/proc/sys/kernel/random/boot_id").read_text(
-        encoding="utf-8"
-    ).strip()
+    return Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
 
 
 def _process_start_ticks(pid: int) -> int:
@@ -67,7 +65,7 @@ class ProcessOwner(StrictModel):
                 self.boot_id == _boot_id()
                 and self.start_ticks == _process_start_ticks(self.pid)
             )
-        except (OSError, IndexError, ValueError):
+        except OSError, IndexError, ValueError:
             return False
 
 
@@ -79,9 +77,7 @@ class PersistedRun(StrictModel):
     run: RunInfo
     owner: ProcessOwner
     plan: dict[str, Any]
-    process_groups: tuple[ProcessOwner, ...] = Field(
-        default=(), alias="processGroups"
-    )
+    process_groups: tuple[ProcessOwner, ...] = Field(default=(), alias="processGroups")
 
 
 class PersistedStoppedRun(StrictModel):
@@ -144,7 +140,7 @@ class RunStateStore:
     def __del__(self) -> None:
         try:
             self.release()
-        except (OSError, ValueError):
+        except OSError, ValueError:
             pass
 
     def read(self) -> PersistedRun | None:
@@ -226,9 +222,7 @@ class RunStateStore:
     def clear(self) -> None:
         self._require_lock()
         try:
-            for temporary in self.state_directory.glob(
-                ".mininet-ovs.*.tmp"
-            ):
+            for temporary in self.state_directory.glob(".mininet-ovs.*.tmp"):
                 temporary.unlink()
             self.state_path.unlink(missing_ok=True)
             self.state_directory.rmdir()

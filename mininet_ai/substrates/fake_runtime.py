@@ -136,7 +136,10 @@ class FakeSubstrateRuntime:
                 if item.name == request.name
                 and item.target == request.target
                 and (
-                    (expected_cookie is not None and item.parameters.get("cookie") == expected_cookie)
+                    (
+                        expected_cookie is not None
+                        and item.parameters.get("cookie") == expected_cookie
+                    )
                     or item.parameters.get("match") == expected_match
                 )
             ]
