@@ -25,7 +25,7 @@ or bypass capability authorization.
 | Offline contract and planning | Passed; see [offline acceptance](bounded-decision-offline-acceptance.md) |
 | Native live-model evaluation | Partial pass, integration unverified; see [live-model report](bounded-decision-live-model-evaluation.md) |
 | Compiled runtime against native service | 15 successful invocations using the fake substrate |
-| Real Mininet/OVS diagnosis run | **12/12 correct** across healthy and both isolated faults |
+| Real Mininet/OVS diagnosis run | **16/16 correct** across healthy, both isolated faults, and unavailable evidence |
 | Diamond recovery run | Not applicable to the amended initial scope; historical fixtures retained |
 | Trial reset and cleanup verification | Not measured |
 | Remote request termination/isolation | Unknown; no live-network trial was started |
@@ -51,10 +51,12 @@ The observed matrix was:
 | 2 | `s2-s4` down | Three rounds timed out in both directions | Successful in both directions | Verified |
 
 The integrated run completed successfully using the documented runner. Its
-evidence is retained at `/tmp/diamond-live-diagnosis` and includes 12 decision
-records: four healthy, four `s1-s2` fault, and four `s2-s4` fault cases. All
-expected labels matched the observed choices. Decision latency was
-**1.170–1.641 s**, mean **1.374 s**, n=12; output tokens were zero.
+final evidence is retained at
+`/tmp/diamond-live-diagnosis-final-20261029T190536Z` and includes 16 decision
+records: four healthy, four explicit unavailable-evidence, four `s1-s2` fault,
+and four `s2-s4` fault cases. All expected labels matched the observed choices.
+Decision latency was **1.173–1.486 s**, mean **1.352 s**, n=16; output tokens
+were zero.
 
 The runner can be repeated with:
 
@@ -66,9 +68,11 @@ sudo env PYTHONPATH=. .venv/bin/python \
 ```
 
 Its `decisions.jsonl` must be retained with the harness JSONL files. The
-runner performs diagnosis only and does not install recovery rules. Model
-provenance remains explicitly unverified because the service exposed the model
-alias and artifact path but not repository/revision/hash verification.
+runner performs diagnosis only and does not install recovery rules. The local
+artifact hash was independently recorded as
+`7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da`; the
+server build was `b11429-d812350493`. Cold-start latency was not measured
+because the running service was not restarted; warm latency is reported above.
 
 When the prerequisite is satisfied, use a new configuration/run and retain:
 

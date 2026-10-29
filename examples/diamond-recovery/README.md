@@ -103,7 +103,7 @@ sudo env PYTHONPATH=. .venv/bin/python \
 
 Decision records are written to `decisions.jsonl`; setup, fault, probe, reset,
 and cleanup records remain in the harness JSONL files in the same directory.
-The completed live run produced 12/12 expected diagnoses: healthy switches in
-the baseline and unaffected branches, and degraded diagnoses on both ends of
-each failed primary link. The recorded model/server identity remains
-unverified where the service did not expose full provenance.
+The completed live run produced 16/16 expected diagnoses, including explicit
+unavailable-evidence cases. The local artifact hash and server build were
+recorded; cold-start latency was not measured because the running service was
+not restarted.
