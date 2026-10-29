@@ -362,6 +362,47 @@ mock/conformance success does not establish them.
 
 ## Changes allowed within a contract version
 
+### Discoverable results: breaking alpha CLI change
+
+The owning-run interface changes without changing persisted runtime/status or
+ledger contracts. Update scripts before upgrading:
+
+| Removed selector | Replacement |
+| --- | --- |
+| `run --artifact-root ROOT` | `run --results-dir ROOT` |
+| `run --log-file PATH` | `log_file: PATH` in `run --storage-config FILE` |
+| `run --ledger-db PATH` | `ledger_db: PATH` in that YAML |
+| `run --shared-state-db PATH` | `shared_state_db: PATH` in that YAML |
+| `run --agno-db PATH` | `agno_db: PATH` in that YAML |
+| `invoke --agno-db` / `invoke --shared-state-db` | Select storage on the owning `run` |
+
+There are no deprecated aliases: removed selectors fail with replacement
+guidance, including when mixed with new selectors. Unrelated `export` and
+`export-offline` root/source flags remain unchanged. The YAML accepts exactly
+four optional nonempty path strings; relative paths are configuration-relative,
+not working-directory-relative. Each supplied key overrides only its corresponding
+default. Unknown/duplicate keys, invalid values and unreadable files fail. No
+configuration discovery or new environment variables are added.
+
+`--results-dir` selects a parent live-storage root with private children, not the exact child
+or an export destination. The root may contain a private `memory/` area and is
+not necessarily safe to share or place on a VM shared filesystem. Control-directory
+selection remains independent. Default progress is concise stderr; verbose adds
+routine activity while saved diagnostics remain detailed. `--format` controls
+stdout independently; JSON is not an event stream or guaranteed for every error.
+
+Built-in runs advertise identity/location at startup and again in final reporting
+where possible. Private derived `summary.md`, equivalent `summary.json` and
+`evidence/ledger.json` are generated only through safely reached end reporting.
+They distinguish execution, cleanup, interruption, evidence and view availability
+from experiment success, retain unknowns and population coverage, and link actual
+sources. Recorded structured responses are retained, not just terminal excerpts;
+inspection does not add raw payload capture. There is no automatic retrofit of old
+runs, source repair, source movement, bundle mutation or new lifecycle guarantee.
+Exports remain separate, acknowledged publications with unchanged eligibility and
+completion safeguards, not persistence backups or Agno session/memory exports.
+See [the inspection journey](run-logs.md#private-results-inspection).
+
 ### Cross-terminal CLI intent submission
 
 `invoke RUN_ID AGENT_ID --intent TEXT` submits a manual event to
@@ -389,10 +430,11 @@ requests without a request kind are interpreted as submissions. Run identity,
 private-directory ownership, socket ownership, and peer-user checks remain in
 force. This change does not alter any versioned public document contract.
 
-The old `invoke --audit-log`, `--agno-db`, `--shared-state-db`, and
-`--discover-plugins` options remain accepted but are deprecated and ignored with
-a warning on stderr: session, state, audit, and plugin configuration belongs to
-the owner. Set database and plugin options on `run`.
+The old `invoke --audit-log` and `--discover-plugins` options remain accepted but
+are deprecated and ignored with a warning on stderr. The invocation database
+selectors are now removed as described above. Session, state, audit, and plugin
+configuration belongs to the owner; select storage through `run --storage-config`
+and plugin options on `run`.
 Use the same OS user on the same machine. Defaults are working-directory
 independent: root uses `/run/mininet-ai/control`, non-root uses a validated
 `$XDG_RUNTIME_DIR/mininet-ai/control` or `/tmp/mininet-ai-<uid>/control` if unset.
@@ -413,25 +455,27 @@ Mininet/OVS adapters using their existing `run_id_factory` constructors. The
 runtime/provider protocols and all serialized contract versions are unchanged.
 The reserved identity is used unchanged for deployment, ledger, and sessions.
 Registered third-party adapters retain their zero-argument factory/runtime
-contracts and can still execute with explicit `--log-file`, `--ledger-db`,
-`--shared-state-db`, and `--agno-db`. Automatic per-run defaults are currently
+contracts and can still execute with all four explicit paths in
+`--storage-config FILE`. Automatic per-run defaults are currently
 limited to the two built-ins: assigning identities to other adapters would
 require a separately reviewed reservation contract, not an implicit protocol
-change. Missing file options fail before deployment for such adapters.
+change. Missing configured paths fail before deployment for such adapters;
+no reserved identity or inspection availability is invented for them.
 Saved output defaults now use effective-user persistent local state:
 `/var/lib/mininet-ai` for root, absolute `$XDG_STATE_HOME/mininet-ai` or
 `~/.local/state/mininet-ai` otherwise, with `<root>/<run-id>/logs` and `dbs`; explicit
-file options still take precedence, and existing artifacts remain untouched.
-`--artifact-root` is independent of live endpoint discovery. A failed start
+YAML path selections still take precedence, and existing artifacts remain untouched.
+`--results-dir` is independent of live endpoint discovery. A failed start
 retains diagnostic output rather than renaming or deleting active SQLite files.
 Agno currently routes sessions and learned memory through one `Agent.db`; when
 agent-scoped memory is requested, that entire store defaults to the stable
-`<artifact-root>/memory/agno.sqlite3`. Run-qualified session IDs isolate sessions;
-agent-qualified user IDs retain learned memory. An explicit shared `--agno-db`
+`<results-root>/memory/agno.sqlite3`. Run-qualified session IDs isolate sessions;
+agent-qualified user IDs retain learned memory. An explicit shared YAML `agno_db`
 also preserves memory; separate per-run shared-state databases remain isolated.
-If a legacy `<artifact-root>/agno.sqlite3` exists and agent-scoped memory is
-requested, choose `--agno-db` explicitly. Point it at the legacy store to retain
+If a legacy `<results-root>/agno.sqlite3` exists and agent-scoped memory is
+requested, select `agno_db` explicitly through `--storage-config`. Point it at the legacy store to retain
 learning; no automatic migration or silent switch to empty memory is performed.
+Selecting an old store starts a new run, not an old Agent Session.
 Other roots are not scanned for learning; the selected path and non-import policy
 are announced. Existing project-local data remains untouched. Stop all writers
 before preparing consistent private offline backups or transferring complete

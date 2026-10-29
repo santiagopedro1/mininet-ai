@@ -34,11 +34,14 @@ experiment boundaries. Operators must select a separate store when independent
 learning populations are required; changing a model is not a memory reset.
 
 Agno uses one database for sessions and learning. By default, any request for
-Agent-Scoped Learned Memory selects `<artifact-root>/memory/agno.sqlite3` for the
+Agent-Scoped Learned Memory selects `<results-root>/memory/agno.sqlite3` for the
 Agno store; otherwise it is run-local. Sessions remain run-qualified even in the
 shared store. Explicit database selection overrides this default; other storage
 roots are not automatically searched or merged, and legacy stores require
-explicit selection. Shared Operational State and ledgers remain separate.
+explicit selection. The CLI selects that parent root with `run --results-dir`;
+explicit `agno_db` in `--storage-config FILE` overrides it. Selecting an existing
+store starts a new run with new run-qualified sessions, not a resumed session.
+Shared Operational State and ledgers remain separate.
 
 ## Evidence and accepted trade-offs
 

@@ -14,6 +14,7 @@ import pytest
 
 from mininet_ai.artifacts import default_artifact_root
 from mininet_ai.runtime import SQLiteRunLedger, SQLiteSharedStateStore
+from tests.storage_fixtures import storage_args
 
 
 def test_storage_defaults_follow_effective_user_not_project(monkeypatch, tmp_path):
@@ -97,7 +98,7 @@ def run_fake(tmp_path, extra_args=(), expected_returncode=0):
             str(Path(sys.executable).parent / "mininet-ai"),
             "run",
             str(specification),
-            "--artifact-root",
+            "--results-dir",
             str(root),
             "--control-dir",
             str(control),
@@ -280,8 +281,12 @@ def test_managed_export_filters_an_explicit_log_shared_across_runs(tmp_path):
     from mininet_ai.cli import app
 
     log = tmp_path / "shared.log"
-    _, first = run_fake(tmp_path / "first", ["--log-file", str(log)])
-    root, second = run_fake(tmp_path / "second", ["--log-file", str(log)])
+    _, first = run_fake(
+        tmp_path / "first", storage_args(tmp_path / "first", log_file=log)
+    )
+    root, second = run_fake(
+        tmp_path / "second", storage_args(tmp_path / "second", log_file=log)
+    )
     with log.open("a") as stream:
         stream.write(
             f"2026-10-08 14:32:00,000 ERROR run_id={json.dumps(second.name)} legacy-error\n"
@@ -622,7 +627,7 @@ def test_cleaned_start_failure_exports_explicitly_incomplete_evidence(
     runner = CliRunner()
     root = tmp_path / "runs"
     failure = runner.invoke(
-        app, ["run", str(specification), "--artifact-root", str(root)]
+        app, ["run", str(specification), "--results-dir", str(root)]
     )
     assert failure.exit_code != 0
     metadata = json.loads((root / "run-failed/run.json").read_text())

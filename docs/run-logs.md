@@ -1,22 +1,26 @@
-# Inspecting run logs
+# Inspecting run results and logs
 
 Every live CLI run writes progress to `logs/run.log` in its run artifact
 directory (`/var/lib/mininet-ai/<run-id>/` for root; the effective user's local
-state directory otherwise). `--log-file` overrides that
-path. Logging does not require `--verbose`. Default stderr progress shows run
-milestones, every completed agent's summary, successful network changes, and
-warnings/errors. `--verbose` adds invocation/model starts and completions,
+state directory otherwise). Select the parent with `run --results-dir ROOT`;
+`log_file` in an explicit `--storage-config FILE` overrides the log path.
+Logging does not require `--verbose`. Default stderr progress shows run
+milestones, applied network changes, and warnings/errors, not routine agent
+reasoning. `--verbose` adds invocation/model starts and completions,
 capability starts and all results (including no-ops), and shared-state updates.
 Neither mode changes command results or `--format json` stdout. Saved diagnostic
-detail does not depend on terminal verbosity; repeated summaries and failures
-are not suppressed.
+detail does not depend on terminal verbosity. Default identical warnings are
+grouped by source, agent, code and message (not invocation): the first is immediate,
+repeat totals appear at most every 30 seconds while repetition continues, and
+remaining totals flush at shutdown. Changed warnings and every error are immediate;
+verbose stderr and saved diagnostics retain every occurrence.
 
 Terminal progress uses local time, a four-character severity column, and a
 source label:
 
 ```text
 14:32:02 INFO [Run] Network ready
-14:32:06 INFO [Agent:monitor-1] Congestion detected; proposed a link update
+14:32:06 INFO [Agent:monitor-1] Applied network change
 14:32:08 ERR  [Mininet] Link update failed agent=monitor-1
 14:32:09 WARN [Run] Agno dependency warning diagnostic dependency=agno agent=unknown
 ```
@@ -32,22 +36,27 @@ warning/error severity is yellow/red. `NO_COLOR` or non-TTY output disables
 styling. Message markup is literal, terminal controls are escaped, and each
 multiline continuation receives its own prefix.
 
-The artifact root is a shared container: an existing directory such as
+The results root is a shared container: an existing directory such as
 `/run/mininet-ai` may have permissions like 0755. It is not chmodded or required
 to be owner-only. Private permissions are enforced on the run directories,
 `memory/` (when used), and `control/`, rather than their shared parent. For
-example, `--artifact-root /run/mininet-ai` produces:
+example, `--results-dir /run/mininet-ai` produces:
 
 ```text
 /run/mininet-ai/                  # existing shared parent left unchanged
-  mn-<run-id>/                    # 0700
+  <run-directory>/               # 0700, safe run ID or disjoint hashed name
     run.json                     # private versioned source/lifecycle bookkeeping
+    summary.md                   # 0600, when safely generated at end reporting
+    summary.json                 # 0600, equivalent facts for scripts
+    evidence/ledger.json         # private readable recorded ledger, when available
     logs/run.log                 # 0600
     dbs/                         # 0700, database files 0600
     artifacts/                   # 0700
   memory/agno.sqlite3             # optional private agent-scoped memory
-  control/<run-id-hash>/control.sock  # private default root-user control endpoint
 ```
+
+The independently selected control base is `/run/mininet-ai/control` for root;
+it is not moved by `--results-dir`.
 
 Existing output is not moved or deleted. Directory symlinks are still rejected,
 and existing private children with unsafe permissions still fail validation.
@@ -83,6 +92,49 @@ are not dumped into the text log; the run ledger retains the full audit records.
 
 Treat logs as sensitive: intents and agent responses can contain private data.
 Log files retain owner-only permissions (0600).
+
+## Private results inspection
+
+1. Find the **recorded run ID and absolute results directory** on startup stderr
+   and again in final reporting where possible. Startup reserves a location; it
+   does not claim that final files already exist. A failure before reservation may
+   have only diagnostics, without a usable run handle or final report.
+2. Open `summary.md` for what happened, what remains uncertain and where evidence
+   lives. Its embedded facts match `summary.json`. Execution/operation, observed
+   interruption, cleanup, evidence finalization/completeness, inspection
+   availability, export completion and experiment success are separate facts.
+   Clean shutdown or file presence is not experimental success: generic inspection
+   does not evaluate workload success criteria and independent measurements.
+3. Follow `evidence/ledger.json` for the existing versioned ledger representation,
+   manifest/provenance, ordered records and **complete recorded structured agent
+   responses**. Proposals are not applied actions; applied actions are not verified
+   recovery. Optional prompts, observations and raw Provider payloads are available
+   only if already explicitly recorded. Inspection adds no capture and never
+   manufactures omitted material.
+4. Follow the actual diagnostic and workload artifact/measurement paths in the
+   summary, including external overrides. Count entries name their populations,
+   references and complete/partial/unknown coverage. Unknown totals are null, not
+   zero; observed failures need not establish a complete population. Workload
+   populations, clocks and measurement contracts remain unchanged.
+
+Failed or interrupted runs can have safely generated views, but crashes need not
+produce any. Client interruption does not prove remote Provider termination or
+pending-work completion. Missing/malformed/conflicting sources leave affected
+conclusions unknown while independently supported facts remain. Missing summaries
+mean unavailable inspection, not absent evidence or success. A failed view write
+identifies that view and surviving sources on stderr where possible; it does not
+rewrite execution, cleanup or existing exit-status rules. Summary publication is
+confirmed separately on stderr; attempted writes are not advertised as available.
+Ledger coverage describes validated records, not overall evidence completeness.
+
+These files remain private, potentially sensitive live results, **not export
+bundles** or persistence backups. No database queries or export are needed to read
+available views. Old saved runs are not backfilled, existing sources are not moved
+or repaired, and certified bundles are not modified. Root changes do not search,
+import, merge, reset or promote Learned Memory. Explicit legacy `agno_db` selection
+through the storage YAML starts a new run, not an old session; existing session
+identities, memory scopes and reuse boundaries remain unchanged. See
+[alpha migration and storage configuration](compatibility.md#discoverable-results-breaking-alpha-cli-change).
 
 ## Dependency diagnostic boundaries
 
@@ -150,7 +202,7 @@ Cooperating writers retain shared lifetime locks in the fixed private local
 exclusive locks through source reading. Physical aliases are deduplicated and
 locks acquired in deterministic order. Standalone ledger/state/Agno stores also
 participate. Lock files are not removed during normal cleanup; namespace or path
-replacement is an error. The namespace is independent of artifact-root and XDG.
+replacement is an error. The namespace is independent of results-root selection and XDG.
 These guarantees do not cover hostile same-user/root edits or arbitrary external
 writers. Runs with Python agents, plugins/custom providers, or arbitrary process
 launch capabilities require operator-prepared offline snapshots instead.
