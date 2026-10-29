@@ -694,7 +694,9 @@ class ContinuousAgentRuntime:
             with self._condition:
                 self._active_requests -= 1
                 if self._bounded_tick(item):
-                    self._bounded_active.discard(self._execution_agent_id(item.agent.id))
+                    self._bounded_active.discard(
+                        self._execution_agent_id(item.agent.id)
+                    )
                 self._condition.notify_all()
 
     def _process_item(
@@ -770,6 +772,7 @@ class ContinuousAgentRuntime:
                         item.agent.decision_scenario["timing"]["decisionDeadline"]
                     )
                     if self._bounded_tick(item)
+                    and item.agent.decision_scenario is not None
                     else None
                 ),
             )
@@ -800,7 +803,9 @@ class ContinuousAgentRuntime:
 
     @staticmethod
     def _bounded_tick(item: _WorkItem) -> bool:
-        return item.scheduled_tick is not None and item.agent.decision_scenario is not None
+        return (
+            item.scheduled_tick is not None and item.agent.decision_scenario is not None
+        )
 
     @staticmethod
     def _root_result(outcome: CoordinationOutcome) -> AgentInvocationResult:

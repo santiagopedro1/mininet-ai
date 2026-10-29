@@ -180,6 +180,35 @@ class DiamondLiveHarness:
 
         return self._run("setup", apply)
 
+    def attach(self, network: Any) -> None:
+        """Initialize a network owned and torn down by the real Substrate."""
+        if self.net is not None:
+            raise RuntimeError("harness already attached")
+        self.net = network
+        self._run(
+            "runtime-owned-setup",
+            lambda: (self._configure_hosts(), self._install_baseline()),
+        )
+
+    def remove_local_flow(self, switch: str) -> None:
+        rule = next(rule for rule in INITIAL_RULES if rule["switch"] == switch)
+        self._run(
+            "missing-flow-injection",
+            lambda: self._root_command(
+                [
+                    "ovs-ofctl",
+                    "-O",
+                    "OpenFlow13",
+                    "del-flows",
+                    switch,
+                    f"cookie={rule['cookie']:#x}/0xffffffffffffffff",
+                ]
+            ),
+        )
+
+    def record_telemetry_outage(self, source: str) -> None:
+        self._event("telemetry-outage-injection", "succeeded", source=source)
+
     def _configure_hosts(self) -> None:
         assert self.net is not None
         for host_name in ("h1", "h2"):

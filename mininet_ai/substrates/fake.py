@@ -25,13 +25,19 @@ _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
         {"topology.resources", "topology.neighbors", "controller.events"}
     ),
     AttachmentLayer.CONTROL: frozenset(
-        {"topology.resources", "topology.neighbors", "controller.events", "openflow.flows"}
+        {
+            "topology.resources",
+            "topology.neighbors",
+            "controller.events",
+            "openflow.flows",
+        }
     ),
     AttachmentLayer.DATA: frozenset(
         {
             "topology.neighbors",
             "openflow.flows",
             "ovs.port-counters",
+            "ovs.port-state",
             "tc.queue-occupancy",
             "packets.samples",
             "diamond.path-probes",

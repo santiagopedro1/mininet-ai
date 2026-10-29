@@ -15,7 +15,7 @@ from mininet_ai.compiler import (
     save_deployment_plan,
 )
 from mininet_ai.sdk import ExecutionCatalog
-from mininet_ai.specification.models import AgentBlueprint, Experiment
+from mininet_ai.specification.models import AgentBlueprint, DecisionScenario, Experiment
 from mininet_ai.substrates import FakeSubstrateRuntime
 from tests.specification_fixtures import COMPILER_MULTILAYER_SPECIFICATION
 
@@ -28,12 +28,18 @@ class EligibleFakeSubstrate(FakeSubstrateRuntime):
         if query.name != "ovs.port-counters":
             return result
         return result.model_copy(
-            update={
-                "values": {
-                    target: {"eligible": True} for target in query.targets
-                }
-            }
+            update={"values": {target: {"eligible": True} for target in query.targets}}
         )
+
+
+def _json_object(value: Any) -> dict[str, Any]:
+    assert isinstance(value, dict)
+    return value
+
+
+def _append_and_signal(records, record, completed) -> None:
+    records.append(record.result)
+    completed.set()
 
 
 def bounded_blueprint():
@@ -62,6 +68,7 @@ def bounded_blueprint():
 def test_explicit_bounded_blueprint_requires_native_model_identity_and_scenario():
     blueprint = AgentBlueprint.model_validate(bounded_blueprint())
 
+    assert blueprint.execution is not None
     assert blueprint.execution.kind == "bounded-decision"
     assert blueprint.execution.scenario == "diamond-policy"
 
@@ -160,6 +167,7 @@ def test_experiment_resolves_inline_decision_scenario_declaration():
     )
 
     assert experiment.api_version == "mininet-ai/v1alpha5"
+    assert isinstance(experiment.decision_scenarios[0], DecisionScenario)
     assert experiment.decision_scenarios[0].metadata.name == "diamond-policy"
 
 
@@ -259,6 +267,8 @@ def test_v1alpha5_source_compiles_saves_and_reloads_with_embedded_scenario(tmp_p
         == "diamond-policy"
     )
     definition = ExecutionCatalog(restored).resolve(restored.agents[0].id)
+    assert definition.blueprint.execution is not None
+    assert restored.agents[0].decision_scenario is not None
     assert definition.blueprint.execution.kind == "bounded-decision"
     assert restored.agents[0].decision_scenario["choices"][0]["id"] == "no_action"
 
@@ -304,6 +314,7 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
             assert url.endswith("/v1/systemone")
             observed_timeouts.append(kwargs["timeout_seconds"])
             assert tuple(payload["questions"]) == ("next_action",)
+            assert plan.agents[0].decision_scenario is not None
             assert payload["questions"]["next_action"]["criteria"] == {
                 choice["id"]: choice["description"]
                 for choice in plan.agents[0].decision_scenario["choices"]
@@ -394,7 +405,7 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
     assert len(finalized_events) == 1
     assert finalized_events[0].data["status"] == "succeeded"
     assert (
-        completed_events[0].data["runtime"]["runtime"]["boundedDecision"][
+        _json_object(completed_events[0].data["runtime"])["runtime"]["boundedDecision"][
             "selectedChoice"
         ]
         == "no_action"
@@ -530,9 +541,7 @@ def test_cancellation_revokes_action_authority_and_retains_remote_unknown(tmp_pa
     result = results[0]
     assert result.status.value == "failed"
     assert result.response is not None
-    evidence = result.response.metadata["executionRecord"]["runtime"][
-        "boundedDecision"
-    ]
+    evidence = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
     assert evidence["cancellationStatus"] == "cancelled"
     assert evidence["lateResultDiscarded"] is True
     assert evidence["remoteTerminalStatus"] == "unknown"
@@ -589,9 +598,8 @@ def test_recovery_selection_executes_fixed_bundle_and_retains_completion_evidenc
         substrate,
         registries,
         decision_transport=RecoveryTransport(),
-        invocation_listener=lambda record: (
-            results.append(record.result),
-            completed.set(),
+        invocation_listener=lambda record: _append_and_signal(
+            results, record, completed
         ),
     )
     runtime.start()
@@ -631,7 +639,9 @@ def test_bounded_decision_records_trusted_primary_policy_inspection(tmp_path):
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
 
     plan = compile_experiment(_source_for_compile(tmp_path))
     substrate = EligibleFakeSubstrate()
@@ -657,7 +667,9 @@ def test_bounded_decision_records_trusted_primary_policy_inspection(tmp_path):
     finally:
         runtime.stop()
 
-    decision = results[0].response.metadata["executionRecord"]["runtime"]["boundedDecision"]
+    decision = results[0].response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
     assert decision["reconciliation"]["policy"] == "verified-primary"
     assert decision["reconciliation"]["stepStates"] == ["missing", "missing"]
 
@@ -692,11 +704,7 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
                 self.requests.append(payload)
                 state = json.loads(payload["state"])
                 probe_state = state["latestObservations"]["pathProbes"]["value"]["s1"]
-                choice = (
-                    "install_recovery"
-                    if probe_state["eligible"]
-                    else "no_action"
-                )
+                choice = "install_recovery" if probe_state["eligible"] else "no_action"
             return {"answers": {"next_action": {"type": "choice", "choice": choice}}}
 
     class FailingSubstrate(FakeSubstrateRuntime):
@@ -715,8 +723,7 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
             return result.model_copy(
                 update={
                     "values": {
-                        target: {"eligible": eligible}
-                        for target in query.targets
+                        target: {"eligible": eligible} for target in query.targets
                     }
                 }
             )
@@ -724,7 +731,9 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
         def execute(self, run_id, request):
             if request.id == failed_step and not self.failed:
                 self.failed = True
-                raise RuntimeOperationError("injected step failure", code="test.injected")
+                raise RuntimeOperationError(
+                    "injected step failure", code="test.injected"
+                )
             self.mutations.append(request)
             return super().execute(run_id, request)
 
@@ -772,29 +781,39 @@ def test_partial_recovery_is_reconciled_and_only_fresh_remaining_steps_retry(
     else:
         expected_retry_ids = ["bounded-2"]
         expected_partial = "partial"
-    retry_record = retry.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
-    assert [item["id"] for item in retry_record["proposalMapping"]["proposals"]] == expected_retry_ids
+    retry_record = retry.response.metadata["executionRecord"]["runtime"][
+        "boundedDecision"
+    ]
+    assert [
+        item["id"] for item in retry_record["proposalMapping"]["proposals"]
+    ] == expected_retry_ids
     assert retry_record["reconciliation"]["policy"] == expected_partial
-    assert retry_record["reconciliation"]["afterActions"]["policy"] == "verified-recovery"
+    assert (
+        retry_record["reconciliation"]["afterActions"]["policy"] == "verified-recovery"
+    )
     assert retry_record["authorization"]["status"] == "authorized"
     assert retry_record["admission"]["status"] == "completed"
     assert retry.shared_state_changes == ()
-    assert [item.id for item in substrate.mutations] == [
-        "bounded-1",
-        *expected_retry_ids,
-    ] if failed_step == "bounded-2" else expected_retry_ids
+    assert (
+        [item.id for item in substrate.mutations]
+        == [
+            "bounded-1",
+            *expected_retry_ids,
+        ]
+        if failed_step == "bounded-2"
+        else expected_retry_ids
+    )
 
     # The second invocation is a fresh model decision while recovery is partial;
     # its no-action choice proves eligibility loss doesn't trigger an auto-retry.
     restraint_state = json.loads(transport.requests[1]["state"])
     assert restraint_state["policy"]["current"]["policy"] == expected_partial
-    assert restraint_state["latestObservations"]["pathProbes"]["value"]["s1"][
-        "eligible"
-    ] is False
+    assert (
+        restraint_state["latestObservations"]["pathProbes"]["value"]["s1"]["eligible"]
+        is False
+    )
     assert restraint_state["policy"]["current"]["stepStates"] == (
-        ["missing", "missing"]
-        if failed_step == "bounded-1"
-        else ["present", "missing"]
+        ["missing", "missing"] if failed_step == "bounded-1" else ["present", "missing"]
     )
     assert restraint.action_results == ()
 
@@ -862,7 +881,7 @@ def test_model_selected_retry_without_positive_current_eligibility_is_refused(
                 signal = {"eligible": True, "details": {"eligible": False}}
             else:
                 signal = {"eligible": True}
-            update = {
+            update: dict[str, Any] = {
                 "values": {target: signal for target in query.targets}
             }
             if eligibility_shape == "stale" and self.observation_round >= 5:
@@ -872,7 +891,9 @@ def test_model_selected_retry_without_positive_current_eligibility_is_refused(
         def execute(self, run_id, request):
             if request.id == "bounded-2" and not self.failed_once:
                 self.failed_once = True
-                raise RuntimeOperationError("injected step failure", code="test.injected")
+                raise RuntimeOperationError(
+                    "injected step failure", code="test.injected"
+                )
             self.mutations.append(request)
             return super().execute(run_id, request)
 
@@ -898,7 +919,9 @@ def test_model_selected_retry_without_positive_current_eligibility_is_refused(
     runtime.start()
     try:
         for invocation_number in range(3):
-            assert completed.wait(4), f"invocation {invocation_number + 1} did not complete"
+            assert completed.wait(4), (
+                f"invocation {invocation_number + 1} did not complete"
+            )
             completed.clear()
     finally:
         runtime.stop()
@@ -954,7 +977,11 @@ def test_exported_ledger_contains_lifecycle_final_bounded_evidence(tmp_path, sce
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+            return {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            }
 
     class EvidenceSubstrate(EligibleFakeSubstrate):
         def __init__(self):
@@ -972,8 +999,7 @@ def test_exported_ledger_contains_lifecycle_final_bounded_evidence(tmp_path, sce
             return result.model_copy(
                 update={
                     "values": {
-                        target: {"eligible": eligible}
-                        for target in query.targets
+                        target: {"eligible": eligible} for target in query.targets
                     }
                 }
             )
@@ -985,7 +1011,9 @@ def test_exported_ledger_contains_lifecycle_final_bounded_evidence(tmp_path, sce
                 and not self.failed_once
             ):
                 self.failed_once = True
-                raise RuntimeOperationError("injected partial effect", code="test.partial")
+                raise RuntimeOperationError(
+                    "injected partial effect", code="test.partial"
+                )
             self.mutations.append(request)
             return super().execute(run_id, request)
 
@@ -994,9 +1022,7 @@ def test_exported_ledger_contains_lifecycle_final_bounded_evidence(tmp_path, sce
     run = substrate.deploy(plan)
     ledger_path = tmp_path / "ledger.sqlite3"
     ledger = SQLiteRunLedger(ledger_path)
-    ledger.create_run(
-        RunManifest.from_plan(run.id, plan, created_at=datetime.now(UTC))
-    )
+    ledger.create_run(RunManifest.from_plan(run.id, plan, created_at=datetime.now(UTC)))
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
     runtime = OneShotAgentRuntime(
@@ -1043,10 +1069,12 @@ def test_exported_ledger_contains_lifecycle_final_bounded_evidence(tmp_path, sce
         "boundedDecision"
     ]
     if scenario == "success":
-        assert first_decision["reconciliation"]["afterActions"]["policy"] == "verified-recovery"
+        assert (
+            first_decision["reconciliation"]["afterActions"]["policy"]
+            == "verified-recovery"
+        )
         assert [
-            item["effects"]
-            for item in final_events[0]["data"]["data"]["actionResults"]
+            item["effects"] for item in final_events[0]["data"]["data"]["actionResults"]
         ] == [
             "changed",
             "changed",
@@ -1062,7 +1090,10 @@ def test_exported_ledger_contains_lifecycle_final_bounded_evidence(tmp_path, sce
         retry_decision = retried["executionRecord"]["runtime"]["boundedDecision"]
         assert retried["status"] == "succeeded"
         assert retry_decision["reconciliation"]["policy"] == "partial"
-        assert retry_decision["reconciliation"]["afterActions"]["policy"] == "verified-recovery"
+        assert (
+            retry_decision["reconciliation"]["afterActions"]["policy"]
+            == "verified-recovery"
+        )
         assert [
             item["id"] for item in retry_decision["proposalMapping"]["proposals"]
         ] == ["bounded-2"]
@@ -1091,16 +1122,18 @@ def test_unknown_or_wrong_scenario_rules_refuse_retry_with_correlated_evidence(
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+            return {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            }
 
     class UntrustedInspectionSubstrate(FakeSubstrateRuntime):
         def __init__(self):
             super().__init__()
             self.mutations = []
 
-        def inspect_scenario_actions(
-            self, run_id, expected, *, timeout_seconds=None
-        ):
+        def inspect_scenario_actions(self, run_id, expected, *, timeout_seconds=None):
             if inspection == "unreadable":
                 raise OSError("injected inspection read failure")
             return ("present", inspection)
@@ -1128,7 +1161,9 @@ def test_unknown_or_wrong_scenario_rules_refuse_retry_with_correlated_evidence(
     assert result.response is not None
     assert result.issue.code == "agent.bounded-decision.reconciliation-failed"
     assert substrate.mutations == []
-    decision = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
+    decision = _json_object(result.response.metadata["executionRecord"])["runtime"][
+        "boundedDecision"
+    ]
     assert decision["selectedChoice"] == "install_recovery"
     assert decision["reconciliation"]["policy"] == "unknown"
     assert decision["runId"] == run.id
@@ -1144,7 +1179,11 @@ def test_redundant_recovery_after_positive_verification_is_failure(tmp_path):
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+            return {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            }
 
     plan = compile_experiment(_source_for_compile(tmp_path))
     substrate = EligibleFakeSubstrate()
@@ -1162,9 +1201,13 @@ def test_redundant_recovery_after_positive_verification_is_failure(tmp_path):
     redundant = runtime.invoke(run.id, plan.agents[0].id, "recover again")
 
     assert recovered.status.value == "succeeded"
-    assert recovered.response.metadata["executionRecord"]["runtime"]["boundedDecision"][
-        "reconciliation"
-    ]["afterActions"]["policy"] == "verified-recovery"
+    assert recovered.response is not None
+    assert (
+        _json_object(recovered.response.metadata["executionRecord"])["runtime"][
+            "boundedDecision"
+        ]["reconciliation"]["afterActions"]["policy"]
+        == "verified-recovery"
+    )
     assert redundant.status.value == "failed"
     assert redundant.issue is not None
     assert redundant.issue.code == "agent.bounded-decision.redundant-recovery"
@@ -1180,16 +1223,18 @@ def test_completed_bundle_without_positive_full_verification_fails(tmp_path):
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+            return {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            }
 
     class VerificationLostSubstrate(EligibleFakeSubstrate):
         def __init__(self):
             super().__init__()
             self.inspections = 0
 
-        def inspect_scenario_actions(
-            self, run_id, expected, *, timeout_seconds=None
-        ):
+        def inspect_scenario_actions(self, run_id, expected, *, timeout_seconds=None):
             self.inspections += 1
             if self.inspections == 1:
                 return ("missing", "missing")
@@ -1213,7 +1258,9 @@ def test_completed_bundle_without_positive_full_verification_fails(tmp_path):
     assert result.issue is not None
     assert result.response is not None
     assert result.issue.code == "agent.bounded-decision.recovery-verification-failed"
-    decision = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
+    decision = _json_object(result.response.metadata["executionRecord"])["runtime"][
+        "boundedDecision"
+    ]
     assert [action["stepStatus"] for action in decision["actionOutcomes"]] == [
         "completed",
         "completed",
@@ -1264,9 +1311,8 @@ def test_failed_recovery_step_stops_bundle_and_retains_partial_effects(tmp_path)
         substrate,
         registries,
         decision_transport=RecoveryTransport(),
-        invocation_listener=lambda record: (
-            results.append(record.result),
-            completed.set(),
+        invocation_listener=lambda record: _append_and_signal(
+            results, record, completed
         ),
     )
     runtime.start()
@@ -1286,10 +1332,9 @@ def test_failed_recovery_step_stops_bundle_and_retains_partial_effects(tmp_path)
     assert evidence["actionOutcomes"][0]["effects"] == "unknown"
     assert evidence["authorization"]["status"] == "authorized"
     assert evidence["admission"]["status"] == "failed"
-    assert [
-        phase["phase"]
-        for phase in evidence["timings"]["phaseTransitions"]
-    ].count("action-start") == 1
+    assert [phase["phase"] for phase in evidence["timings"]["phaseTransitions"]].count(
+        "action-start"
+    ) == 1
     assert evidence["incompleteEffects"] == [
         {
             "requestId": "bounded-1",
@@ -1323,7 +1368,11 @@ def test_deadline_between_recovery_steps_preserves_started_effect_and_stops_next
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+            return {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            }
 
     clock = ControlledClock()
 
@@ -1365,9 +1414,7 @@ def test_deadline_between_recovery_steps_preserves_started_effect_and_stops_next
     result = results[0]
     assert result.status.value == "failed"
     assert len(substrate.mutations) == 1
-    evidence = result.response.metadata["executionRecord"]["runtime"][
-        "boundedDecision"
-    ]
+    evidence = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
     assert [step["stepStatus"] for step in evidence["actionOutcomes"]] == [
         "completed",
         "not-started",
@@ -1393,7 +1440,11 @@ def test_cancellation_racing_started_action_revokes_only_future_steps(tmp_path):
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+            return {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            }
 
     class BlockingActionSubstrate(EligibleFakeSubstrate):
         def __init__(self):
@@ -1446,9 +1497,7 @@ def test_cancellation_racing_started_action_revokes_only_future_steps(tmp_path):
     result = results[0]
     assert result.status.value == "failed"
     assert len(substrate.mutations) == 1
-    evidence = result.response.metadata["executionRecord"]["runtime"][
-        "boundedDecision"
-    ]
+    evidence = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
     assert [item["stepStatus"] for item in evidence["actionOutcomes"]] == [
         "completed",
         "not-started",
@@ -1492,7 +1541,11 @@ def test_active_bounded_tick_is_coalesced_and_next_work_waits_for_next_cadence(
 
         def post_json(self, url, payload, **kwargs):
             if kwargs["timeout_seconds"] > 0.8:
-                return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+                return {
+                    "answers": {
+                        "next_action": {"type": "choice", "choice": "no_action"}
+                    }
+                }
             with calls_lock:
                 self.decision_calls += 1
                 call_number = self.decision_calls
@@ -1501,7 +1554,9 @@ def test_active_bounded_tick_is_coalesced_and_next_work_waits_for_next_cadence(
                 assert release_first.wait(4)
             else:
                 second_entered.set()
-            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
 
     plan = compile_experiment(_source_for_compile(tmp_path))
     substrate = FakeSubstrateRuntime()
@@ -1528,8 +1583,12 @@ def test_active_bounded_tick_is_coalesced_and_next_work_waits_for_next_cadence(
         assert transport.decision_calls == 1
         release_first.set()
         clock.now = 0.1
-        assert not second_entered.wait(0.1), "coalesced tick caused an immediate catch-up invocation"
-        assert second_entered.wait(2), "fresh work did not start on a later cadence tick"
+        assert not second_entered.wait(0.1), (
+            "coalesced tick caused an immediate catch-up invocation"
+        )
+        assert second_entered.wait(2), (
+            "fresh work did not start on a later cadence tick"
+        )
     finally:
         release_first.set()
         runtime.stop()
@@ -1571,7 +1630,9 @@ def test_queued_bounded_tick_keeps_scheduled_deadline_while_capacity_is_occupied
         def post_json(self, url, payload, **kwargs):
             if kwargs["timeout_seconds"] <= 0.8:
                 self.inference_calls += 1
-            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
 
     class WaitingAgent(Agent):
         async def arun(self, input=None, **options):
@@ -1622,8 +1683,12 @@ def test_queued_bounded_tick_keeps_scheduled_deadline_while_capacity_is_occupied
     mixed_path.write_text(yaml.safe_dump(source))
     plan = compile_experiment(mixed_path)
     assert plan.resource_limits.max_concurrent_invocations == 1
-    holder_id = next(agent.id for agent in plan.agents if agent.decision_scenario is None)
-    bounded_id = next(agent.id for agent in plan.agents if agent.decision_scenario is not None)
+    holder_id = next(
+        agent.id for agent in plan.agents if agent.decision_scenario is None
+    )
+    bounded_id = next(
+        agent.id for agent in plan.agents if agent.decision_scenario is not None
+    )
     substrate = FakeSubstrateRuntime()
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
@@ -1654,7 +1719,9 @@ def test_queued_bounded_tick_keeps_scheduled_deadline_while_capacity_is_occupied
         runtime.submit_intent(holder_id, "occupy the only invocation slot")
         assert occupied.wait(2), "capacity-holder did not acquire invocation capacity"
         assert coalesced.wait(3), "bounded tick was not observed queued behind capacity"
-        assert transport.inference_calls == 0, "queued bounded tick started inference while capacity was held"
+        assert transport.inference_calls == 0, (
+            "queued bounded tick started inference while capacity was held"
+        )
         clock.now = 30.8
         release.set()
         assert bounded_failed.wait(3), "expired queued bounded work did not complete"
@@ -1703,9 +1770,17 @@ def test_bounded_admission_wait_consumes_original_deadline_before_action_start(
 
         def post_json(self, url, payload, **kwargs):
             if kwargs["timeout_seconds"] > 0.8:
-                return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+                return {
+                    "answers": {
+                        "next_action": {"type": "choice", "choice": "no_action"}
+                    }
+                }
             bounded_response.set()
-            return {"answers": {"next_action": {"type": "choice", "choice": "install_recovery"}}}
+            return {
+                "answers": {
+                    "next_action": {"type": "choice", "choice": "install_recovery"}
+                }
+            }
 
     class BlockingSubstrate(EligibleFakeSubstrate):
         def __init__(self):
@@ -1771,8 +1846,12 @@ def test_bounded_admission_wait_consumes_original_deadline_before_action_start(
     mixed_path = tmp_path / "admission.yaml"
     mixed_path.write_text(yaml.safe_dump(source))
     plan = compile_experiment(mixed_path)
-    holder_id = next(agent.id for agent in plan.agents if agent.decision_scenario is None)
-    bounded_id = next(agent.id for agent in plan.agents if agent.decision_scenario is not None)
+    holder_id = next(
+        agent.id for agent in plan.agents if agent.decision_scenario is None
+    )
+    bounded_id = next(
+        agent.id for agent in plan.agents if agent.decision_scenario is not None
+    )
     substrate = BlockingSubstrate()
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
@@ -1796,7 +1875,9 @@ def test_bounded_admission_wait_consumes_original_deadline_before_action_start(
     runtime.start()
     try:
         runtime.submit_intent(holder_id, "hold the conflicting flow admission")
-        assert holder_action_started.wait(2), f"conflicting action did not start: {results}"
+        assert holder_action_started.wait(2), (
+            f"conflicting action did not start: {results}"
+        )
         assert bounded_response.wait(2), "bounded decision did not return its choice"
         clock.now = 40.8
         release_holder.set()
@@ -1835,7 +1916,11 @@ def test_unrelated_agno_agent_progresses_while_bounded_inference_is_in_flight(
     from mininet_ai.sdk import AgentResponse
     from mininet_ai.substrates import FakeSubstrateRuntime
 
-    inference_started, release_inference, unrelated_completed = Event(), Event(), Event()
+    inference_started, release_inference, unrelated_completed = (
+        Event(),
+        Event(),
+        Event(),
+    )
 
     class BlockingTransport:
         def get_json(self, url, **kwargs):
@@ -1845,7 +1930,9 @@ def test_unrelated_agno_agent_progresses_while_bounded_inference_is_in_flight(
             if kwargs["timeout_seconds"] <= 0.8:
                 inference_started.set()
                 assert release_inference.wait(3)
-            return {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
 
     class StaticAgent(Agent):
         async def arun(self, input=None, **options):
@@ -1891,7 +1978,9 @@ def test_unrelated_agno_agent_progresses_while_bounded_inference_is_in_flight(
     mixed_path = tmp_path / "mixed.yaml"
     mixed_path.write_text(yaml.safe_dump(source))
     plan = compile_experiment(mixed_path)
-    unrelated_id = next(agent.id for agent in plan.agents if agent.decision_scenario is None)
+    unrelated_id = next(
+        agent.id for agent in plan.agents if agent.decision_scenario is None
+    )
     substrate = FakeSubstrateRuntime()
     registries = ProviderRegistries()
     register_builtin_providers(registries, substrate)
@@ -1912,7 +2001,9 @@ def test_unrelated_agno_agent_progresses_while_bounded_inference_is_in_flight(
     try:
         assert inference_started.wait(2), "bounded inference did not start"
         runtime.submit_intent(unrelated_id, "make unrelated progress")
-        assert unrelated_completed.wait(1), "unrelated agent was blocked by bounded inference"
+        assert unrelated_completed.wait(1), (
+            "unrelated agent was blocked by bounded inference"
+        )
     finally:
         release_inference.set()
         runtime.stop()
@@ -1980,9 +2071,8 @@ def test_runtime_conflict_rejection_is_retained_as_distinct_evidence(tmp_path):
         substrate,
         registries,
         decision_transport=transport,
-        invocation_listener=lambda record: (
-            results.append(record.result),
-            completed.set(),
+        invocation_listener=lambda record: _append_and_signal(
+            results, record, completed
         ),
     )
     runtime.start()

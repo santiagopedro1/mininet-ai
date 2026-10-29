@@ -584,18 +584,22 @@ def _compile_instances(
         "agent deployment",
         lambda deployment: deployment.name,
     )
-    scenarios = {scenario.metadata.name: scenario for scenario in loaded.decision_scenarios}
+    scenarios = {
+        scenario.metadata.name: scenario for scenario in loaded.decision_scenarios
+    }
     if len(scenarios) != len(loaded.decision_scenarios):
         raise CompilationError("decision scenario names must be unique")
     bounded_deployments = [
         deployment
         for deployment in loaded.experiment.agents
         if deployment.blueprint in blueprints
-        and blueprints[deployment.blueprint].execution is not None
-        and blueprints[deployment.blueprint].execution.kind == "bounded-decision"
+        and (execution := blueprints[deployment.blueprint].execution) is not None
+        and execution.kind == "bounded-decision"
     ]
     if len(bounded_deployments) > 1:
-        raise CompilationError("this bounded-decision slice requires a singleton decision-maker")
+        raise CompilationError(
+            "this bounded-decision slice requires a singleton decision-maker"
+        )
     instances: list[AgentInstance] = []
     seen_ids: set[str] = set()
 
@@ -616,7 +620,9 @@ def _compile_instances(
         scenario = None
         if selection is not None and selection.kind == "bounded-decision":
             if loaded.experiment.api_version != "mininet-ai/v1alpha5":
-                raise CompilationError("bounded-decision requires mininet-ai/v1alpha5 source")
+                raise CompilationError(
+                    "bounded-decision requires mininet-ai/v1alpha5 source"
+                )
             scenario = scenarios.get(selection.scenario or "")
             if scenario is None:
                 raise CompilationError(
@@ -628,7 +634,9 @@ def _compile_instances(
                 for path_nodes in scenario.paths.values()
                 for node in path_nodes
             ):
-                raise CompilationError("decision scenario paths reference undeclared topology nodes")
+                raise CompilationError(
+                    "decision scenario paths reference undeclared topology nodes"
+                )
             current_only = scenario.input_mode == "current-only"
             required_inputs = (
                 set(scenario.observations)
@@ -639,7 +647,9 @@ def _compile_instances(
                 raise CompilationError(
                     f"agent {deployment.name!r} decisionInputs must bind exactly {sorted(required_inputs)}"
                 )
-            undeclared_sources = set(deployment.decision_inputs.values()) - set(deployment.observe)
+            undeclared_sources = set(deployment.decision_inputs.values()) - set(
+                deployment.observe
+            )
             if undeclared_sources:
                 raise CompilationError(
                     f"agent {deployment.name!r} decisionInputs reference undeclared observation {min(undeclared_sources)!r}"
@@ -659,12 +669,19 @@ def _compile_instances(
                 )
             if (
                 len(deployment.triggers) != 1
-                or getattr(deployment.triggers[0], "type", None) != "interval"
+                or deployment.triggers[0].type != "interval"
                 or duration_seconds(deployment.triggers[0].every) != 1
             ):
-                raise CompilationError("bounded-decision requires one 1s interval trigger")
-            if not isinstance(blueprint.model, ModelConfiguration) or blueprint.model.provider != "llamacpp-systemone":
-                raise CompilationError("bounded-decision requires resolved llamacpp-systemone settings")
+                raise CompilationError(
+                    "bounded-decision requires one 1s interval trigger"
+                )
+            if (
+                not isinstance(blueprint.model, ModelConfiguration)
+                or blueprint.model.provider != "llamacpp-systemone"
+            ):
+                raise CompilationError(
+                    "bounded-decision requires resolved llamacpp-systemone settings"
+                )
         policy_observations = [
             policy.observation for policy in deployment.observation_policies
         ]
@@ -699,22 +716,53 @@ def _compile_instances(
             and scenario.input_mode != "current-only"
             and len(target_groups) != 1
         ):
-            raise CompilationError("bounded-decision must compile to exactly one agent instance")
+            raise CompilationError(
+                "bounded-decision must compile to exactly one agent instance"
+            )
         for instance_id, targets in target_groups:
             if scenario is not None:
+                if scenario.local_expectations:
+                    expected_targets = {
+                        target.name for group in target_groups for target in group[1]
+                    }
+                    if set(scenario.local_expectations) != expected_targets:
+                        raise CompilationError(
+                            "localExpectations must cover exactly the deployed switches"
+                        )
+                    for target in targets:
+                        expected_ports = scenario.local_expectations[target.name][
+                            "ports"
+                        ]
+                        actual_ports = {
+                            resource.name
+                            for resource in resources
+                            if resource.kind == ResourceKind.PORT
+                            and resource.parent == target.name
+                        }
+                        if set(expected_ports) != actual_ports:
+                            raise CompilationError(
+                                "localExpectations ports must match the target's declared ports"
+                            )
                 for choice in scenario.choices:
                     for proposal in choice.proposals:
                         capability = capabilities.get(proposal["capability"])
-                        if capability is None or proposal["capability"] not in deployment.capabilities:
+                        if (
+                            capability is None
+                            or proposal["capability"] not in deployment.capabilities
+                        ):
                             raise CompilationError(
                                 f"decision proposal capability {proposal['capability']!r} is not granted"
                             )
-                        if proposal["target"] not in {target.name for target in targets}:
+                        if proposal["target"] not in {
+                            target.name for target in targets
+                        }:
                             raise CompilationError(
                                 f"decision proposal target {proposal['target']!r} is outside the singleton placement"
                             )
                         try:
-                            Draft202012Validator(capability.input_schema).validate(proposal["arguments"])
+                            Draft202012Validator(capability.input_schema).validate(
+                                proposal["arguments"]
+                            )
                         except Exception as error:
                             detail = getattr(error, "message", str(error))
                             raise CompilationError(
@@ -799,7 +847,11 @@ def _compile_instances(
                     observationPolicies=tuple(deployment.observation_policies),
                     memory=blueprints[deployment.blueprint].memory,
                     execution=deployment.execution,
-                    decisionScenario=(scenario.model_dump(by_alias=True, mode="json") if scenario else None),
+                    decisionScenario=(
+                        scenario.model_dump(by_alias=True, mode="json")
+                        if scenario
+                        else None
+                    ),
                     decisionInputs=deployment.decision_inputs if scenario else {},
                 )
             )
@@ -901,16 +953,24 @@ def _snapshot(loaded: LoadedExperiment) -> dict[str, object]:
         by_alias=True, mode="json"
     )
     experiment["blueprints"] = [
-        {**blueprint.model_dump(by_alias=True, mode="json"), "apiVersion": "mininet-ai/v1alpha5"}
+        {
+            **blueprint.model_dump(by_alias=True, mode="json"),
+            "apiVersion": "mininet-ai/v1alpha5",
+        }
         for blueprint in sorted(loaded.blueprints, key=lambda item: item.metadata.name)
     ]
     if loaded.decision_scenarios:
         experiment["decisionScenarios"] = [
             scenario.model_dump(by_alias=True, mode="json")
-            for scenario in sorted(loaded.decision_scenarios, key=lambda item: item.metadata.name)
+            for scenario in sorted(
+                loaded.decision_scenarios, key=lambda item: item.metadata.name
+            )
         ]
     experiment["capabilityDefinitions"] = [
-        {**capability.model_dump(by_alias=True, mode="json"), "apiVersion": "mininet-ai/v1alpha5"}
+        {
+            **capability.model_dump(by_alias=True, mode="json"),
+            "apiVersion": "mininet-ai/v1alpha5",
+        }
         for capability in sorted(
             loaded.capabilities, key=lambda item: item.metadata.name
         )
@@ -1011,4 +1071,6 @@ def load_deployment_plan(source: str | Path) -> DeploymentPlan:
     try:
         return DeploymentPlan.model_validate_json(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
-        raise CompilationError(f"cannot load saved DeploymentPlan {path}: {error}") from error
+        raise CompilationError(
+            f"cannot load saved DeploymentPlan {path}: {error}"
+        ) from error

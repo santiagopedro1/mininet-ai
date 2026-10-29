@@ -160,10 +160,10 @@ agents:
     runtime: device-sidecar
   observe:
   - openflow.flows
-  - ovs.port-counters
+  - ovs.port-state
   decisionInputs:
     flowState: openflow.flows
-    portState: ovs.port-counters
+    portState: ovs.port-state
   triggers:
   - type: interval
     name: once-per-second
@@ -188,6 +188,11 @@ decisionScenarios:
     required local evidence is available, every reported port is up, and all
     expected local entries are present. Do not infer other switches,
     network-wide reachability, or values for missing observations.
+    Compare only this switch's supplied expectations against current observations.
+    Every expected port must be present and up (unknown is degraded). Every
+    expected flow must match cookie, table, priority, match fields, and actions;
+    packet counts and duration are not health conditions. Extra flows alone do
+    not establish or disprove health. Missing required entries imply degraded.
   choices:
   - id: healthy
     description: All required current local evidence is available; every port is up and every expected local flow entry is present.
@@ -198,8 +203,43 @@ decisionScenarios:
   paths: {}
   observations:
     flowState: openflow.flows
-    portState: ovs.port-counters
+    portState: ovs.port-state
   timing:
     cadence: 1s
     decisionDeadline: 5s
   policy: {}
+  localExpectations:
+    s1:
+      ports: [s1-eth1, s1-eth2, s1-eth3]
+      flows:
+      - {cookie: '0x1100', table: 0, priority: 0, match: {}, actions: drop}
+      - {cookie: '0x2b5d', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: 'output:2'}
+      - {cookie: '0x2b62', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: 'output:1'}
+      - {cookie: '0x2b63', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.11, nw_dst: 10.0.0.12}, actions: 'output:2'}
+      - {cookie: '0x2b68', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.12, nw_dst: 10.0.0.11}, actions: 'output:1'}
+      - {cookie: '0x2b69', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.21, nw_dst: 10.0.0.22}, actions: 'output:3'}
+      - {cookie: '0x2b6e', table: 0, priority: 100, match: {ip: true, in_port: '3', nw_src: 10.0.0.22, nw_dst: 10.0.0.21}, actions: 'output:1'}
+    s2:
+      ports: [s2-eth1, s2-eth2]
+      flows:
+      - {cookie: '0x1100', table: 0, priority: 0, match: {}, actions: drop}
+      - {cookie: '0x2b5e', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: 'output:2'}
+      - {cookie: '0x2b61', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: 'output:1'}
+      - {cookie: '0x2b64', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.11, nw_dst: 10.0.0.12}, actions: 'output:2'}
+      - {cookie: '0x2b67', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.12, nw_dst: 10.0.0.11}, actions: 'output:1'}
+    s3:
+      ports: [s3-eth1, s3-eth2]
+      flows:
+      - {cookie: '0x1100', table: 0, priority: 0, match: {}, actions: drop}
+      - {cookie: '0x2b6a', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.21, nw_dst: 10.0.0.22}, actions: 'output:2'}
+      - {cookie: '0x2b6d', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.22, nw_dst: 10.0.0.21}, actions: 'output:1'}
+    s4:
+      ports: [s4-eth1, s4-eth2, s4-eth3]
+      flows:
+      - {cookie: '0x1100', table: 0, priority: 0, match: {}, actions: drop}
+      - {cookie: '0x2b5f', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: 'output:1'}
+      - {cookie: '0x2b60', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: 'output:2'}
+      - {cookie: '0x2b65', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.11, nw_dst: 10.0.0.12}, actions: 'output:1'}
+      - {cookie: '0x2b66', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.12, nw_dst: 10.0.0.11}, actions: 'output:2'}
+      - {cookie: '0x2b6b', table: 0, priority: 100, match: {ip: true, in_port: '3', nw_src: 10.0.0.21, nw_dst: 10.0.0.22}, actions: 'output:1'}
+      - {cookie: '0x2b6c', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.22, nw_dst: 10.0.0.21}, actions: 'output:3'}

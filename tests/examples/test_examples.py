@@ -41,14 +41,24 @@ def test_diamond_example_compiles_one_current_only_agent_per_switch() -> None:
     assert plan.api_version == "mininet-ai/v1alpha5"
     assert len(plan.agents) == 4
     assert {instance.attachment.targets[0] for instance in plan.agents} == {
-        "s1", "s2", "s3", "s4"
+        "s1",
+        "s2",
+        "s3",
+        "s4",
     }
-    assert all(instance.attachment.targets == (instance.attachment.targets[0],) for instance in plan.agents)
-    assert all(set(instance.observes) == {"openflow.flows", "ovs.port-counters"} for instance in plan.agents)
     assert all(
-        instance.decision_inputs == {
+        instance.attachment.targets == (instance.attachment.targets[0],)
+        for instance in plan.agents
+    )
+    assert all(
+        set(instance.observes) == {"openflow.flows", "ovs.port-state"}
+        for instance in plan.agents
+    )
+    assert all(
+        instance.decision_inputs
+        == {
             "flowState": "openflow.flows",
-            "portState": "ovs.port-counters",
+            "portState": "ovs.port-state",
         }
         for instance in plan.agents
     )
@@ -64,7 +74,7 @@ def test_diamond_example_compiles_one_current_only_agent_per_switch() -> None:
     assert scenario["policy"] == {}
     assert scenario["observations"] == {
         "flowState": "openflow.flows",
-        "portState": "ovs.port-counters",
+        "portState": "ovs.port-state",
     }
     assert scenario["timing"] == {"cadence": "1s", "decisionDeadline": "5s"}
     resources = plan.snapshot["substrate"]["topology"]["resources"]
@@ -80,7 +90,10 @@ def test_diamond_example_compiles_one_current_only_agent_per_switch() -> None:
         "s4": {1, 2, 3},
     }
     assert {target for agent in plan.agents for target in agent.attachment.targets} == {
-        "s1", "s2", "s3", "s4"
+        "s1",
+        "s2",
+        "s3",
+        "s4",
     }
     link_map = {
         link["name"]: tuple(

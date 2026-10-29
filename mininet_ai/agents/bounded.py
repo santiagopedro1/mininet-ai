@@ -38,14 +38,18 @@ def _current_only_context(
     identity: Mapping[str, Any],
     targets: Sequence[str],
     diagnosis: Mapping[str, Any],
+    expectations: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the runtime's local-only state envelope, with no history fields."""
-    return {
+    context = {
         "apiVersion": "mininet-ai/bounded-decision-context/v1alpha1",
         "scenario": dict(scenario),
         "identity": dict(identity),
         "switch": {"targets": list(targets), "diagnosis": dict(diagnosis)},
     }
+    if expectations:
+        context["switch"]["expectations"] = dict(expectations)
+    return context
 
 
 def parse_response(payload: str | bytes | Mapping[str, Any]) -> Mapping[str, Any]:
@@ -302,6 +306,16 @@ class NativeSystemOneClient:
                     f"native choice response is malformed: {error}",
                     code="agent.bounded-decision.invalid-output",
                 ) from error
+            status = getattr(error, "status_code", None)
+            if (
+                isinstance(status, int)
+                and 400 <= status < 500
+                and status not in {408, 429}
+            ):
+                raise AgentRuntimeError(
+                    f"native llama.cpp rejected the decision request (HTTP {status})",
+                    code="agent.bounded-decision.request-rejected",
+                ) from error
             raise AgentRuntimeError(
                 f"native llama.cpp decision request failed: {error}",
                 code="agent.bounded-decision.service-unavailable",
@@ -503,9 +517,7 @@ class BoundedDecisionAdapter:
                 target=proposal["target"],
                 parameters=proposal["arguments"],
             )
-            for index, proposal in enumerate(
-                action_choice["proposals"]
-            )
+            for index, proposal in enumerate(action_choice["proposals"])
         )
         model = definition.blueprint.model
         if not hasattr(model, "parameters") or model.provider != "llamacpp-systemone":
@@ -534,6 +546,7 @@ class BoundedDecisionAdapter:
             self.authority.revoke("cancelled")
         cancel = getattr(self.transport, "cancel_request", None)
         if callable(cancel):
+
             def attempt_transport_cancel() -> None:
                 try:
                     cancel(request_id)
@@ -555,17 +568,14 @@ class BoundedDecisionAdapter:
 
         clock = self._monotonic
         metadata = (
-            context.coordination.metadata
-            if context.coordination is not None
-            else {}
+            context.coordination.metadata if context.coordination is not None else {}
         )
         configured_deadline = duration_seconds(
             self.scenario["timing"]["decisionDeadline"]
         )
         scheduled_tick = metadata.get("deadlineStartedAt")
         deadline = (
-            float(scheduled_tick)
-            + configured_deadline
+            float(scheduled_tick) + configured_deadline
             if scheduled_tick is not None
             else clock() + configured_deadline
         )
@@ -592,6 +602,14 @@ class BoundedDecisionAdapter:
                     "available"
                     if source_name in context.observations
                     and context.observations[source_name] is not None
+                    and (
+                        self.scenario.get("inputMode") != "current-only"
+                        or not isinstance(context.observations[source_name], dict)
+                        or all(
+                            context.observations[source_name].get(target) is not None
+                            for target in self.definition.instance.attachment.targets
+                        )
+                    )
                     else "missing"
                 ),
                 "value": context.observations.get(source_name),
@@ -617,6 +635,9 @@ class BoundedDecisionAdapter:
                 identity=identity,
                 targets=self.definition.instance.attachment.targets,
                 diagnosis=latest,
+                expectations=self.scenario.get("localExpectations", {}).get(
+                    self.definition.instance.attachment.targets[0]
+                ),
             )
         else:
             decision_context = {
@@ -730,7 +751,10 @@ class BoundedDecisionAdapter:
                 agent_id=context.agent_id,
                 invocation_id=context.invocation_id,
             )
-        if result.choice_id == "install_recovery" and policy_state == "verified-recovery":
+        if (
+            result.choice_id == "install_recovery"
+            and policy_state == "verified-recovery"
+        ):
             self._retain_failure(
                 context,
                 "redundant-recovery",
@@ -801,15 +825,21 @@ class BoundedDecisionAdapter:
                 )
         elapsed = max(0.0, completed_tick - inference_started)
         present = set(self._reconciliation.get("presentIndexes", ()))
-        remaining_indices = tuple(
-            index for index in range(len(result.proposals)) if index not in present
-        ) if result.choice_id == "install_recovery" else ()
+        remaining_indices = (
+            tuple(
+                index for index in range(len(result.proposals)) if index not in present
+            )
+            if result.choice_id == "install_recovery"
+            else ()
+        )
         if result.choice_id == "install_recovery" and policy_state == "partial":
             proposals = tuple(result.proposals[index] for index in remaining_indices)
             proposal_ids = tuple(f"bounded-{index + 1}" for index in remaining_indices)
         else:
             proposals = result.proposals
-            proposal_ids = tuple(f"bounded-{index + 1}" for index in range(len(proposals)))
+            proposal_ids = tuple(
+                f"bounded-{index + 1}" for index in range(len(proposals))
+            )
         record = BoundedDecisionRecord(
             runId=context.run_id,
             agentId=context.agent_id,
@@ -1098,6 +1128,14 @@ class BoundedDecisionAdapter:
             "code": getattr(error, "code", "agent.bounded-decision.failed"),
             "message": str(error) or type(error).__name__,
         }
+        cause = error.__cause__
+        if getattr(cause, "status_code", None) is not None:
+            record["runtime"]["boundedDecision"]["response"] = {
+                "transportError": {
+                    "httpStatus": getattr(cause, "status_code", None),
+                    "bodyUtf8": getattr(cause, "response_body", None),
+                }
+            }
         return AgentResponse(
             message="bounded decision failed before action admission",
             metadata={
@@ -1160,7 +1198,9 @@ class BoundedDecisionAdapter:
             admission={"status": reason},
             actionOutcomes=(),
             reconciliation=self._reconciliation,
-            cancellationStatus="cancelled" if reason == "cancelled" else "not-requested",
+            cancellationStatus="cancelled"
+            if reason == "cancelled"
+            else "not-requested",
             lateResultDiscarded=late,
             gaps=(
                 "remote inference terminal status is unknown",
@@ -1173,7 +1213,9 @@ class BoundedDecisionAdapter:
             runtime={
                 "boundedDecision": {
                     **decision.model_dump(mode="json", by_alias=True),
-                    "timeoutStatus": "expired" if reason == "timeout" else "not-expired",
+                    "timeoutStatus": "expired"
+                    if reason == "timeout"
+                    else "not-expired",
                     "remoteTerminalStatus": "unknown",
                     "localCancellationStatus": self._local_cancellation_status,
                 }

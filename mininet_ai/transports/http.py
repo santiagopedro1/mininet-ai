@@ -12,9 +12,18 @@ from pydantic import JsonValue
 
 
 class HttpTransportError(Exception):
-    def __init__(self, message: str, *, code: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+        status_code: int | None = None,
+        response_body: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
+        self.status_code = status_code
+        self.response_body = response_body
 
 
 @runtime_checkable
@@ -27,20 +36,8 @@ class JsonHttpTransport(Protocol):
         headers: Mapping[str, str],
         timeout_seconds: float,
         max_response_bytes: int,
-        request_id: str | None = None,
     ) -> JsonValue:
         """POST a JSON document and return a bounded JSON response."""
-        ...
-
-    def get_json(
-        self,
-        url: str,
-        *,
-        headers: Mapping[str, str],
-        timeout_seconds: float,
-        max_response_bytes: int,
-    ) -> JsonValue:
-        """GET a bounded JSON document."""
         ...
 
 
@@ -89,19 +86,7 @@ class HttpxJsonTransport:
                     json=payload,
                     headers=headers,
                 ) as response:
-                    if not 200 <= response.status_code < 300:
-                        raise HttpTransportError(
-                            f"HTTP endpoint returned status {response.status_code}",
-                            code="http-status",
-                        )
-                    body = bytearray()
-                    for chunk in response.iter_bytes():
-                        body.extend(chunk)
-                        if len(body) > max_response_bytes:
-                            raise HttpTransportError(
-                                "HTTP response exceeded the configured size limit",
-                                code="response-too-large",
-                            )
+                    return _read_json_response(response, max_response_bytes)
             finally:
                 if request_id is not None:
                     with self._active_lock:
@@ -118,18 +103,6 @@ class HttpxJsonTransport:
                 code="request-failed",
             ) from error
 
-        try:
-            return json.loads(
-                body.decode("utf-8"),
-                object_pairs_hook=_unique_json_object,
-                parse_constant=_reject_json_constant,
-            )
-        except (UnicodeDecodeError, ValueError) as error:
-            raise HttpTransportError(
-                f"HTTP endpoint returned invalid JSON: {error}",
-                code="invalid-json",
-            ) from error
-
     def get_json(
         self,
         url: str,
@@ -141,24 +114,15 @@ class HttpxJsonTransport:
         if timeout_seconds <= 0 or max_response_bytes <= 0:
             raise ValueError("HTTP timeout and response limit must be positive")
         try:
-            with httpx.Client(
-                transport=self._transport,
-                follow_redirects=False,
-                timeout=timeout_seconds,
-            ) as client, client.stream("GET", url, headers=headers) as response:
-                if not 200 <= response.status_code < 300:
-                    raise HttpTransportError(
-                        f"HTTP endpoint returned status {response.status_code}",
-                        code="http-status",
-                    )
-                body = bytearray()
-                for chunk in response.iter_bytes():
-                    body.extend(chunk)
-                    if len(body) > max_response_bytes:
-                        raise HttpTransportError(
-                            "HTTP response exceeded the configured size limit",
-                            code="response-too-large",
-                        )
+            with (
+                httpx.Client(
+                    transport=self._transport,
+                    follow_redirects=False,
+                    timeout=timeout_seconds,
+                ) as client,
+                client.stream("GET", url, headers=headers) as response,
+            ):
+                return _read_json_response(response, max_response_bytes)
         except httpx.TimeoutException as error:
             raise TimeoutError("HTTP request timed out") from error
         except HttpTransportError:
@@ -167,16 +131,35 @@ class HttpxJsonTransport:
             raise HttpTransportError(
                 f"HTTP request failed: {error}", code="request-failed"
             ) from error
-        try:
-            return json.loads(
-                body.decode("utf-8"),
-                object_pairs_hook=_unique_json_object,
-                parse_constant=_reject_json_constant,
-            )
-        except (UnicodeDecodeError, ValueError) as error:
+
+
+def _read_json_response(response: httpx.Response, limit: int) -> JsonValue:
+    body = bytearray()
+    for chunk in response.iter_bytes():
+        body.extend(chunk)
+        if len(body) > limit:
             raise HttpTransportError(
-                f"HTTP endpoint returned invalid JSON: {error}", code="invalid-json"
-            ) from error
+                "HTTP response exceeded the configured size limit",
+                code="response-too-large",
+                status_code=response.status_code,
+            )
+    if not 200 <= response.status_code < 300:
+        raise HttpTransportError(
+            f"HTTP endpoint returned status {response.status_code}",
+            code="http-status",
+            status_code=response.status_code,
+            response_body=body.decode("utf-8", errors="replace"),
+        )
+    try:
+        return json.loads(
+            body.decode("utf-8"),
+            object_pairs_hook=_unique_json_object,
+            parse_constant=_reject_json_constant,
+        )
+    except (UnicodeDecodeError, ValueError) as error:
+        raise HttpTransportError(
+            f"HTTP endpoint returned invalid JSON: {error}", code="invalid-json"
+        ) from error
 
 
 def _reject_json_constant(value: str) -> None:

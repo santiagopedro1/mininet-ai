@@ -710,6 +710,28 @@
           "title": "Instructions",
           "type": "string"
         },
+        "inputMode": {
+          "default": "recovery-history",
+          "enum": ["recovery-history", "current-only"],
+          "type": "string"
+        },
+        "localExpectations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false,
+            "required": ["ports", "flows"],
+            "properties": {
+              "ports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+              "flows": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["cookie", "table", "priority", "match", "actions"], "properties": {
+                "cookie": {"type": "string", "pattern": "^0x[0-9a-fA-F]+$"},
+                "table": {"type": "integer", "minimum": 0},
+                "priority": {"type": "integer", "minimum": 0, "maximum": 65535},
+                "match": {"type": "object", "additionalProperties": {"type": ["string", "boolean"]}},
+                "actions": {"type": "string", "minLength": 1}
+              }}}
+            }
+          }
+        },
         "kind": {
           "const": "DecisionScenario",
           "title": "Kind",

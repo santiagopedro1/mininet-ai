@@ -73,6 +73,29 @@ class HttpxJsonTransportTests(unittest.TestCase):
             self.post(transport)
         self.assertEqual(error.exception.code, "invalid-json")
 
+    def test_get_and_post_retain_bounded_http_rejection_diagnostics(self) -> None:
+        for method in ("get_json", "post_json"):
+            adapter = HttpxJsonTransport(
+                httpx.MockTransport(
+                    lambda request: httpx.Response(
+                        400, json={"error": "context limit exceeded"}
+                    )
+                )
+            )
+            with self.assertRaises(HttpTransportError) as caught:
+                call = getattr(adapter, method)
+                args = ({},) if method == "post_json" else ()
+                call(
+                    "http://localhost/test",
+                    *args,
+                    headers={},
+                    timeout_seconds=1,
+                    max_response_bytes=1024,
+                )
+            assert caught.exception.status_code == 400
+            assert caught.exception.response_body is not None
+            assert "context limit exceeded" in caught.exception.response_body
+
     def test_cancel_request_closes_only_the_matching_local_client(self) -> None:
         entered, release = Event(), Event()
         result = []
