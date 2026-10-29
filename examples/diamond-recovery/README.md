@@ -82,6 +82,7 @@ flow entry takes precedence over healthy signals. Model evaluation does not requ
 a pinned artifact or build; provenance is recorded when available. The example's
 5-second decision deadline is an operational scenario setting, not a universal
 latency acceptance target. Report warm and cold latency distributions separately.
-The opt-in harness was not run in this session because `sudo` requires an
-interactive password. Mininet and OVS are installed; run the command above on
-a disposable root-capable host and retain its evidence directory.
+The opt-in harness was run from a root-capable shell. Both isolated primary
+link faults (`s1-s2` and `s2-s4`) produced three rounds of bidirectional
+primary timeouts with recovery-path probe success, and reset/cleanup were
+verified. Evidence is retained at `/tmp/diamond-recovery-evidence`.
