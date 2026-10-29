@@ -21,6 +21,7 @@ import yaml
 from live_harness import DiamondLiveHarness
 
 from examples.diamond_recovery import LINK_ENDPOINTS
+from examples.diamond_recovery.cleanup import DiagnosisCleanupObserver
 from examples.diamond_recovery.diagnosis import evaluate_runtime
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates.mininet_ovs.observations import MininetOVSObservations
@@ -59,13 +60,22 @@ def require_idle(endpoint: str, evidence: Path) -> None:
 class TrialObservations(MininetOVSObservations):
     """Real collectors with recorded, trial-scoped trusted fault injection."""
 
-    def __init__(self, plan, network: Any, *, trial: str, harness: DiamondLiveHarness):
+    def __init__(
+        self,
+        plan,
+        network: Any,
+        *,
+        trial: str,
+        harness: DiamondLiveHarness,
+        cleanup: DiagnosisCleanupObserver,
+    ):
         super().__init__(plan, network)
         self.trial = trial
         self.harness = harness
         self.injected = False
         self.injection_error: str | None = None
         self.injection_lock = Lock()
+        cleanup.attach(network)
         harness.attach(network)
         for name, endpoints in LINK_ENDPOINTS.items():
             matches = [
@@ -157,15 +167,19 @@ def run(args: argparse.Namespace) -> int:
     for trial in TRIALS:
         require_idle(args.endpoint, root / f"remote-before-{trial}.json")
         harness = DiamondLiveHarness(root / f"{trial}-harness")
+        cleanup = DiagnosisCleanupObserver(plan, root / f"{trial}-harness")
 
         substrate = MininetOVSRuntime(
-            observation_factory=partial(TrialObservations, trial=trial, harness=harness)
+            observation_factory=partial(
+                TrialObservations, trial=trial, harness=harness, cleanup=cleanup
+            )
         )
         summary = evaluate_runtime(
             plan,
             substrate,
             root / trial,
             timeout_seconds=args.trial_timeout,
+            cleanup_observer=cleanup,
         )
         # The real Substrate, not the harness, owns and verifies teardown.
         harness.net = None

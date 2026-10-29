@@ -12,6 +12,7 @@ from pathlib import Path
 from threading import Condition
 from typing import Any
 
+from examples.diamond_recovery.cleanup import DiagnosisCleanupObserver
 from mininet_ai.agents import register_builtin_providers
 from mininet_ai.compiler import DeploymentPlan, save_deployment_plan
 from mininet_ai.experiment import ExperimentRuntime
@@ -67,6 +68,7 @@ def evaluate_runtime(
     *,
     timeout_seconds: float = 30,
     decision_transport: Any = None,
+    cleanup_observer: DiagnosisCleanupObserver | None = None,
 ) -> dict[str, Any]:
     """Run all compiled agents on cadence, retain normalized records, then drain."""
     evidence.mkdir(parents=True, exist_ok=False)
@@ -153,22 +155,40 @@ def evaluate_runtime(
                     lambda: set(runtime.agent_ids).issubset(completed), timeout_seconds
                 )
         finally:
-            report = runtime.stop(timeout_seconds=30)
+            try:
+                if cleanup_observer is not None:
+                    cleanup_observer.capture()
+            finally:
+                report = runtime.stop(timeout_seconds=30)
             (evidence / "runtime-report.json").write_text(
                 report.model_dump_json(by_alias=True, indent=2) + "\n"
             )
+        cleanup = (
+            cleanup_observer.verify()
+            if cleanup_observer is not None
+            else report.cleanup
+        )
         summary = {
             "allAgentsCompleted": all_completed,
             "samples": len(evaluations),
             "correct": sum(item["correct"] for item in evaluations),
             "evaluations": evaluations,
             "operation": report.operation.value,
-            "cleanup": report.cleanup.model_dump(mode="json", by_alias=True),
+            "cleanup": cleanup.model_dump(mode="json", by_alias=True),
+            "runtimeCleanup": report.cleanup.model_dump(mode="json", by_alias=True),
+            "cleanupSource": "independent trusted-diagnosis observer"
+            if cleanup_observer is not None
+            else "Substrate runtime",
             "passed": all_completed
             and bool(evaluations)
             and all(item["correct"] for item in evaluations)
             and report.operation.value == "succeeded"
-            and report.cleanup.verified,
+            and all(
+                issue.phase == "cleanup"
+                and issue.code == "experiment.cleanup.unverified"
+                for issue in report.issues
+            )
+            and cleanup.verified,
         }
         (evidence / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         return summary
