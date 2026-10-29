@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from threading import Lock
 from time import monotonic
-from typing import cast
+from typing import Any, cast
 from uuid import uuid4
 
 from pydantic import Field, JsonValue
@@ -316,6 +316,13 @@ class ExperimentRuntime:
                     agent_id=agent.id,
                 )
             scenario = agent.decision_scenario
+            if scenario is None:
+                raise AgentRuntimeError(
+                    "bounded startup requires a decision scenario",
+                    code="agent.bounded-decision.startup-configuration-invalid",
+                    agent_id=agent.id,
+                )
+            model = cast(Any, model)
             choices = {item["id"]: tuple(item["proposals"]) for item in scenario["choices"]}
             client = NativeSystemOneClient(model.parameters["endpoint"], transport)
             try:
@@ -323,7 +330,7 @@ class ExperimentRuntime:
                     model_name=model.name,
                     expected_identity=model.parameters["expectedIdentity"],
                     instructions=scenario["instructions"],
-                    criteria=tuple(choices),
+                    criteria={item["id"]: item["description"] for item in scenario["choices"]},
                     choices=choices,
                 )
             except AgentRuntimeError as error:

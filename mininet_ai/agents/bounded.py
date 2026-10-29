@@ -25,6 +25,7 @@ from mininet_ai.substrates.runtime import ActionRequest, ObservationQuery
 class ChoiceResult:
     choice_id: str
     proposals: tuple[dict[str, Any], ...]
+    probabilities: dict[str, float] | None = None
     probability: float | None = None
     confidence: float | None = None
     native_response: dict[str, Any] | None = None
@@ -152,28 +153,69 @@ def map_choice(
             "the no_action choice must have no proposals",
             code="agent.bounded-decision.configuration-invalid",
         )
-    diagnostics: dict[str, float | None] = {}
-    for field, maximum in (("probability", 1.0), ("confidence", 1.0)):
-        if field not in answer:
-            diagnostics[field] = None
-            continue
-        value = answer[field]
-        if (
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not math.isfinite(value)
-            or not 0 <= value <= maximum
-        ):
+    probabilities = response.get("probabilities")
+    if "probabilities" in response:
+        if not isinstance(probabilities, Mapping):
             raise AgentRuntimeError(
-                f"native response {field} must be finite and between 0 and 1",
+                "native response probabilities must be an object",
                 code="agent.bounded-decision.invalid-output",
             )
-        diagnostics[field] = float(value)
+        if not set(probabilities).issubset(choices):
+            raise AgentRuntimeError(
+                "native response probabilities contain an unknown choice",
+                code="agent.bounded-decision.invalid-output",
+            )
+        normalized_probabilities: dict[str, float] = {}
+        for key, value in probabilities.items():
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or not 0 <= value <= 1
+            ):
+                raise AgentRuntimeError(
+                    "native response probabilities must be finite and between 0 and 1",
+                    code="agent.bounded-decision.invalid-output",
+                )
+            normalized_probabilities[str(key)] = float(value)
+        probabilities = normalized_probabilities
+    confidence = response.get("confidence", answer.get("confidence"))
+    if "confidence" in response or "confidence" in answer:
+        if (
+            isinstance(confidence, bool)
+            or not isinstance(confidence, (int, float))
+            or not math.isfinite(confidence)
+            or not 0 <= confidence <= 1
+        ):
+            raise AgentRuntimeError(
+                "native response confidence must be finite and between 0 and 1",
+                code="agent.bounded-decision.invalid-output",
+            )
+        confidence = float(confidence)
+    else:
+        confidence = None
+    probability = answer.get("probability")
+    if "probability" in answer:
+        if (
+            isinstance(probability, bool)
+            or not isinstance(probability, (int, float))
+            or not math.isfinite(probability)
+            or not 0 <= probability <= 1
+        ):
+            raise AgentRuntimeError(
+                "native response probability must be finite and between 0 and 1",
+                code="agent.bounded-decision.invalid-output",
+            )
+        probability = float(probability)
+    else:
+        probability = None
     return ChoiceResult(
         choice_id=choice_id,
         proposals=tuple(choices[choice_id]),
         native_response=dict(response),
-        **diagnostics,
+        probabilities=probabilities,
+        probability=probability,
+        confidence=confidence,
     )
 
 
@@ -194,12 +236,15 @@ class NativeSystemOneClient:
         *,
         state: str,
         instructions: str,
-        criteria: Sequence[str],
+        criteria: Mapping[str, str],
         choices: Mapping[str, Sequence[dict[str, Any]]],
         timeout_seconds: float,
         request_id: str | None = None,
     ) -> ChoiceResult:
-        if tuple(choices) != tuple(criteria):
+        if tuple(choices) != tuple(criteria) or not all(
+            isinstance(key, str) and isinstance(value, str) and value
+            for key, value in criteria.items()
+        ):
             raise AgentRuntimeError(
                 "scenario choice IDs and native criteria must have identical stable order",
                 code="agent.bounded-decision.configuration-invalid",
@@ -210,7 +255,7 @@ class NativeSystemOneClient:
                 "next_action": {
                     "type": "choice",
                     "instructions": instructions,
-                    "criteria": list(criteria),
+                    "criteria": dict(criteria),
                 }
             },
         }
@@ -246,7 +291,7 @@ class NativeSystemOneClient:
         model_name: str,
         expected_identity: Mapping[str, Any],
         instructions: str,
-        criteria: Sequence[str],
+        criteria: Mapping[str, str],
         choices: Mapping[str, Sequence[dict[str, Any]]],
     ) -> dict[str, Any]:
         """Verify availability, observable identity and native interface without mutation."""
@@ -504,7 +549,7 @@ class BoundedDecisionAdapter:
         )
         choices_list = self.scenario["choices"]
         choices = {item["id"]: tuple(item["proposals"]) for item in choices_list}
-        criteria = tuple(item["id"] for item in choices_list)
+        criteria = {item["id"]: item["description"] for item in choices_list}
         observation_bindings = self.definition.instance.decision_inputs
         latest = {
             logical_name: {
@@ -558,7 +603,7 @@ class BoundedDecisionAdapter:
             "url": f"{self.client.endpoint}/v1/systemone",
             "state": state,
             "instructions": self.scenario["instructions"],
-            "criteria": list(criteria),
+            "criteria": criteria,
         }
         remaining_budget = deadline - clock()
         if remaining_budget <= 0:
@@ -738,7 +783,7 @@ class BoundedDecisionAdapter:
                 "url": f"{self.client.endpoint}/v1/systemone",
                 "state": state,
                 "instructions": self.scenario["instructions"],
-                "criteria": list(criteria),
+                "criteria": criteria,
             },
             response=result.native_response or {},
             selectedChoice=result.choice_id,

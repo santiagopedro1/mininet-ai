@@ -26,24 +26,44 @@ def test_omitted_native_diagnostics_remain_unavailable():
 
     assert result.probability is None
     assert result.confidence is None
+    assert result.probabilities is None
 
 
-@pytest.mark.parametrize("field", ["probability", "confidence"])
+@pytest.mark.parametrize("field", ["confidence", "probabilities"])
 @pytest.mark.parametrize(
     "value", [None, True, "0.5", -0.01, 1.01, float("nan"), float("inf")]
 )
 def test_present_native_diagnostics_must_be_valid_numbers(field, value):
-    response = {
-        "answers": {
-            "next_action": {"type": "choice", "choice": "no_action", field: value}
-        }
-    }
+    response = {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+    response[field] = {"no_action": value} if field == "probabilities" else value
 
     with pytest.raises(AgentRuntimeError) as error:
         map_choice(response, {"no_action": (), "install_recovery": ()})
 
     assert error.value.code == "agent.bounded-decision.invalid-output"
     assert field in str(error.value)
+
+
+def test_native_probabilities_must_only_name_allowed_choices():
+    with pytest.raises(AgentRuntimeError, match="unknown choice"):
+        map_choice(
+            {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}},
+                "probabilities": {"invented": 0.5},
+            },
+            {"no_action": (), "install_recovery": ()},
+        )
+
+
+def test_native_choice_rejects_generated_output_tokens():
+    with pytest.raises(AgentRuntimeError, match="must not generate output tokens"):
+        map_choice(
+            {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}},
+                "usage": {"output_tokens": 1},
+            },
+            {"no_action": (), "install_recovery": ()},
+        )
 
 
 @pytest.mark.parametrize(
@@ -87,17 +107,17 @@ def test_exact_recovery_choice_maps_fixed_bundle_even_at_low_confidence():
                 "next_action": {
                     "type": "choice",
                     "choice": "install_recovery",
-                    "probability": 0.01,
-                    "confidence": 0.02,
                 }
-            }
+            },
+            "probabilities": {"no_action": 0.99, "install_recovery": 0.01},
+            "confidence": 0.02,
         },
         {"no_action": (), "install_recovery": bundle},
     )
 
     assert result.choice_id == "install_recovery"
     assert result.proposals == bundle
-    assert result.probability == 0.01
+    assert result.probabilities == {"no_action": 0.99, "install_recovery": 0.01}
     assert result.confidence == 0.02
 
 
@@ -125,10 +145,16 @@ def test_no_action_cannot_carry_a_mutation_bundle():
 
 def test_native_client_posts_one_question_and_retains_canonical_state():
     class Transport:
+        def get_json(self, url, **kwargs):
+            return {}
+
         def post_json(self, url, payload, **kwargs):
             self.call = (url, payload, kwargs)
             return {
-                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}},
+                "probabilities": {"no_action": 0.8, "install_recovery": 0.2},
+                "confidence": 0.8,
+                "usage": {"output_tokens": 0},
             }
 
     transport = Transport()
@@ -136,7 +162,7 @@ def test_native_client_posts_one_question_and_retains_canonical_state():
     result = client.decide(
         state='{"observations":[],"rounds":3}',
         instructions="Choose only from the declared choices.",
-        criteria=("no_action", "install_recovery"),
+        criteria={"no_action": "Preserve policy", "install_recovery": "Install exact recovery"},
         choices={
             "no_action": (),
             "install_recovery": ({"capability": "flow.install"},),
@@ -145,14 +171,23 @@ def test_native_client_posts_one_question_and_retains_canonical_state():
     )
 
     assert result.choice_id == "no_action"
+    assert result.probabilities == {"no_action": 0.8, "install_recovery": 0.2}
+    assert result.confidence == 0.8
     url, payload, kwargs = transport.call
     assert url == "http://localhost:8080/v1/systemone"
-    assert payload["state"] == '{"observations":[],"rounds":3}'
-    assert tuple(payload["questions"]) == ("next_action",)
-    assert payload["questions"]["next_action"]["criteria"] == [
-        "no_action",
-        "install_recovery",
-    ]
+    assert payload == {
+        "state": '{"observations":[],"rounds":3}',
+        "questions": {
+            "next_action": {
+                "type": "choice",
+                "instructions": "Choose only from the declared choices.",
+                "criteria": {
+                    "no_action": "Preserve policy",
+                    "install_recovery": "Install exact recovery",
+                },
+            }
+        },
+    }
     assert kwargs["timeout_seconds"] == 0.8
 
 
@@ -220,7 +255,7 @@ def test_startup_distinguishes_unverifiable_identity_from_service_interface_fail
             "sha256": "0" * 64,
         },
         instructions="Choose a fixed action.",
-        criteria=("no_action", "install_recovery"),
+        criteria={"no_action": "Preserve policy", "install_recovery": "Install recovery"},
         choices={"no_action": (), "install_recovery": ()},
     )
     assert result["status"] == "unverified"
@@ -237,7 +272,7 @@ def test_startup_distinguishes_unverifiable_identity_from_service_interface_fail
                 "sha256": "0" * 64,
             },
             instructions="Choose a fixed action.",
-            criteria=("no_action", "install_recovery"),
+            criteria={"no_action": "Preserve policy", "install_recovery": "Install recovery"},
             choices={"no_action": (), "install_recovery": ()},
         )
     assert error.value.code == "agent.bounded-decision.startup-identity-mismatch"

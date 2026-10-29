@@ -301,8 +301,15 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
         def post_json(self, url, payload, **kwargs):
             assert url.endswith("/v1/systemone")
             assert tuple(payload["questions"]) == ("next_action",)
+            assert payload["questions"]["next_action"]["criteria"] == {
+                choice["id"]: choice["description"]
+                for choice in plan.agents[0].decision_scenario["choices"]
+            }
             return {
-                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}},
+                "probabilities": {"no_action": 0.9, "install_recovery": 0.1},
+                "confidence": 0.9,
+                "usage": {"output_tokens": 0},
             }
 
     source = _source_for_compile(tmp_path)
@@ -352,6 +359,11 @@ def test_saved_plan_runs_native_no_action_through_experiment_lifecycle(
     )
     evidence = result.response.metadata["executionRecord"]["runtime"]["boundedDecision"]
     assert evidence["selectedChoice"] == "no_action"
+    assert evidence["response"]["probabilities"] == {
+        "no_action": 0.9,
+        "install_recovery": 0.1,
+    }
+    assert evidence["response"]["confidence"] == 0.9
     assert evidence["request"]["url"].endswith("/v1/systemone")
     decision_context = json.loads(evidence["request"]["state"])
     assert (
