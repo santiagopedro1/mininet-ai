@@ -3,7 +3,7 @@
 **Primary Goal:** demonstrate one native System 1 diagnosis agent per switch.
 Planning uses the `fake` Substrate; the opt-in Mininet/OVS harness provides a
 real four-switch topology. Each agent is scoped to one switch and receives only
-its current local flow and port-counter observations. No observation history,
+its current local flow and operational port-state observations. No observation history,
 conversation memory, or network-wide state is part of the model request. Choices
 are diagnostic (`healthy` / `degraded`) and carry no action proposals. Live model
 evaluation remains exploratory; no network recovery is claimed. The live-network
@@ -22,7 +22,7 @@ uv run mininet-ai plan examples/diamond-recovery/experiment.yaml
 ```
 
 The source and resulting plan contain four per-target bounded agents, one for
-each switch. Each is bound to current `openflow.flows` and `ovs.port-counters`
+each switch. Each is bound to current `openflow.flows` and `ovs.port-state`
 observations, with diagnosis-only choices and no capabilities.
 
 ## Topology contract
@@ -33,8 +33,10 @@ s2-s4(2), s3-s4(2), s4-h2(1). Hosts use MACs
 `02:00:00:00:00:01`/`02:00:00:00:00:02` and active addresses
 `10.0.0.1`/`10.0.0.2`. Diagnostic aliases are primary `.11`/`.12` and recovery
 `.21`/`.22`; install explicit peer static neighbors for all six host addresses
-before probing. The scenario embeds the exact aliases, static-neighbor map and
-initial/probe policy. The opt-in harness applies these to a fresh
+before probing. The trusted harness module declares the aliases, static-neighbor
+map and initial/probe policy. The scenario embeds only per-switch local port
+and flow expectations; it does not send network-wide policy/topology to the
+model. The opt-in harness applies setup to a fresh
 controller-free, fail-secure OVS network and verifies actual interface/port
 mapping, table-miss drop, and absence of `NORMAL` forwarding. The `fake`
 Substrate plan itself does not deploy these settings.
@@ -42,7 +44,7 @@ Substrate plan itself does not deploy these settings.
 The network harness still configures the diamond and records its probe rounds
 for topology diagnostics, but those rounds are not sent to System 1. A switch
 agent request is current-only: its target switch identity, latest local port
-state/counters, and latest local flow state. Missing or unavailable fields stay
+operational state, and latest local flow state. Missing or unavailable fields stay
 explicit; agents must not infer the condition of other switches.
 
 ## Trial lifecycle ownership
@@ -89,29 +91,62 @@ verified. Evidence is retained at `/tmp/diamond-recovery-evidence`.
 
 ## Live diagnosis runner
 
-The combined runner starts the topology, verifies the native service, sends
-current-only local observations for each switch, and records model decisions
-for healthy operation and both isolated link faults. It performs no recovery
-action:
+The runner now uses the real `MininetOVSRuntime` and all four compiled agents
+through `ExperimentRuntime`. It does not call the native client directly or
+substitute an executor. Every trial deploys a fresh network, verifies the
+baseline, applies a recorded trusted fault if needed, runs scheduled local
+diagnosis, drains, and independently verifies cleanup before the next trial.
+Trials cover healthy operation, both isolated link faults, a missing required
+s2 flow, and explicit unavailable port-state evidence. No recovery action is
+authorized. The outage is an explicitly recorded collector fault injection,
+not an invented port state.
+
+Use a disposable root-capable host with the native service already running.
+Review the live-model report first: the current one-slot service timed out in
+the corrected four-agent constructed-input check. Resolve/review that deployment
+workload before repeating the network matrix; do not silently enlarge the
+declared deadline or reuse historical 16/16 results as current acceptance.
+The model identity below is an example declaration, not a pinned requirement;
+replace it with your actual service/model. The runner does not start or alter
+the service, silently retry failed trials, or overwrite an evidence directory:
 
 ```bash
 sudo env PYTHONPATH=. .venv/bin/python \
   examples/diamond-recovery/live_diagnosis.py \
   --endpoint http://127.0.0.1:8080 \
-  --evidence /tmp/diamond-live-diagnosis
+  --model-name ggml-org/Kev-4B-GGUF \
+  --model-repository ggml-org/Kev-4B-GGUF \
+  --model-revision f4624b6bb7072f1bab726a622c1cad3f96030b9e \
+  --model-artifact Kev-4B-Q8_0.gguf \
+  --model-sha256 7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da \
+  --evidence /tmp/diamond-runtime-diagnosis-$(date -u +%Y%m%dT%H%M%SZ)
 ```
 
-Decision records are written to `decisions.jsonl`; setup, fault, probe, reset,
-and cleanup records remain in the harness JSONL files in the same directory.
-The completed direct-client live run produced 16/16 expected diagnoses against
+Each trial retains `invocations.jsonl` (normalized coordination and decision
+records), `plan.json`, `ledger.sqlite3`, `runtime-report.json`, and `summary.json`.
+Trusted setup/fault records are kept in the matching `*-harness/` directory.
+Labels are computed from the exact retained local inputs, including expected
+flow matches, not supplied to the model. Missing required ports, unknown/down
+states, absent or changed expected flows, and unavailable inputs are degraded.
+Readiness verifies setup; the real Substrate owns final teardown. A nonzero exit
+or unverified cleanup blocks repetition. All completed invocations, including
+extra cadence ticks and failures, count; there is no cherry-picking of a good
+response. Startup probes warm the service; this runner does not measure cold
+latency. The root provenance file marks unobservable hardware/backend/launch
+details and operator-declared hash verification honestly.
+The runner requires independently observable idle `/slots` before each trial
+and after each passed trial; an unavailable/busy service refuses continuation.
+It verifies root before sending any inference and never requests sudo passwords
+programmatically.
+
+The historical direct-client live run produced 16/16 expected diagnoses against
 port-state labels, including explicit unavailable-evidence cases. The local
 artifact hash and server build were recorded. A fresh server first-inference
 sample completed in 0.834 seconds; the single cold sample is retained separately
 from the warm distribution.
 
-**Acceptance limitation:** this runner calls the native client directly, not
-the four deployed agents in `ExperimentRuntime`. Its `interface.isUp()` inputs
-also differ from the experiment's `ovs.port-counters` source, which currently
-does not supply operational up/down state. Missing expected flows are not
-covered by its label oracle. These are outstanding #116/#125 blockers, not a
-completed deployed-runtime acceptance result; see the live-network report.
+**Acceptance limitation:** those prior samples predate the runtime/collector/
+oracle fixes and do not validate this replacement runner. Its privileged live
+rerun is pending (#125); passwordless sudo is unavailable to the agent. Offline
+regressions exercise the actual continuous runtime with only transport and
+Substrate substituted. See the live-network report for current status.

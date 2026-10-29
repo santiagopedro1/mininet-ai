@@ -126,9 +126,9 @@ def evaluate_runtime(
                     "message": str(cause),
                 }
                 if hasattr(cause, "native_response"):
-                    detail["nativeResponse"] = getattr(cause, "native_response")
+                    detail["nativeResponse"] = getattr(cause, "native_response", None)
                 if getattr(cause, "status_code", None) is not None:
-                    detail["httpStatus"] = getattr(cause, "status_code")
+                    detail["httpStatus"] = getattr(cause, "status_code", None)
                     detail["bodyBase64"] = getattr(cause, "response_body_base64", None)
                     detail["bodyUtf8"] = getattr(cause, "response_body", None)
                 causes.append(detail)

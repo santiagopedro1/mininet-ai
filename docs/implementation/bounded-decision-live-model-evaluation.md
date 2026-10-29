@@ -79,14 +79,60 @@ correctness are measured; live telemetry integration, cold-start/load behavior,
 and real-network diagnosis remain unverified. No network action was requested
 or executed.
 
-## Verdict: PARTIAL PASS / INTEGRATION UNVERIFIED
+## Verdict: CURRENT FOUR-AGENT DEADLINE FAILURE / HISTORICAL FIXTURE PASS
 
-The amended native-client, runtime-shaped fixture matrix passed correctness and
-the scenario-declared deadline on this service. This does not establish live
+The historical native-client, runtime-shaped fixture matrix passed correctness and
+the scenario-declared deadline on its earlier inputs. This does not establish live
 telemetry/runtime integration or model support. Historical pinned-artifact
 claims below are not requirements for this evaluation; provenance gaps remain
 as recorded. Offline results are recorded in the [offline acceptance
 report](bounded-decision-offline-acceptance.md).
+
+### Corrected four-agent runtime check (2026-10-29)
+
+The corrected `ExperimentRuntime` was tested against the existing port-8080
+native service with constructed healthy per-switch observations and the new
+complete local port/flow expectations. Only the Substrate was substituted.
+The compiled four agents ran on their actual one-second cadence and 5-second
+deadlines, with original scheduled ticks, coalescing, and normal coordination.
+No controlling chat model or network action was used.
+
+**Result: failed under these deployment conditions.** All four agents produced
+records, but only two invocations completed native inference: s1 and s3 both
+correctly selected `healthy`, with zero reported output tokens (1,360 and 863
+input tokens). The inference/server-queue phases were 2.359 s and 3.736 s;
+original-tick-to-choice durations were 2.362 s and 3.739 s. Four other invocations
+(s2, s4, and later cadence invocations for s1/s3) timed out at their declared
+deadlines. All six samples/failures are retained, not just the two successes.
+These timeouts are failures to complete the example's operational workload, not
+wrong diagnosis choices or a universal model-latency quality verdict. No cold
+measurement, degraded matrix, or OVS telemetry trial was attempted in this run.
+
+The service had one slot, context 8192, model alias `ggml-org/Kev-4B-GGUF`,
+build `b11429-d812350493`. `/slots` was idle before the run. Startup interface
+probes completed before cadence began, so this is startup-probed/warm rather
+than cold inference. Model/hash values are declared configuration, not a fresh
+full-artifact audit; backend, hardware and launch provenance remain unavailable.
+The service was not restarted, reconfigured or silently substituted.
+
+Evidence: `/tmp/opencode/diagnosis-runtime-native-rdx1sztf/`, including the
+compiled source, `healthy/plan.json`, `invocations.jsonl`, `ledger.sqlite3`,
+`runtime-report.json` and `summary.json`. Fake Substrate cleanup verifies only
+its in-memory model, **not host/network cleanup**. `/slots` still reported active
+work immediately after local drain, demonstrating why local timeout is not
+remote termination. A later independent read at `2026-10-29T19:44:30.051250Z`
+showed idle; retained as `remote-status-after.json`. This establishes no active
+slot at that observation, not a per-request termination cause. Post-run service
+properties are retained separately. No inference was retried.
+
+A portable copy of the complete raw evidence is committed under
+[`evidence/`](evidence/README.md), with an archive SHA-256; this report does not
+depend solely on the temporary path remaining available.
+
+Before the privileged network matrix, resolve/review service capacity and the
+declared deployment workload. Do not silently enlarge the example's deadline,
+drop failed samples, change model/build, or count prior direct-client results
+as a pass for these changed inputs.
 
 ## Runtime/native follow-up (2026-10-29)
 
@@ -262,12 +308,23 @@ against port-state labels and a separate cold first-inference sample; see the
 [live-network report](bounded-decision-live-network-evaluation.md). These do
 not establish the deployed four-agent runtime with real Substrate telemetry.
 The final review identified missing operational port-state inputs and an
-undefined expected-flow oracle. Those integration gaps remain acceptance
-blockers, not a requirement to repeat the superseded recovery matrix.
+undefined expected-flow oracle. Code now fixes those inputs and routes a new
+runner through the real four-agent continuous runtime. The changed runtime
+matrix needs a privileged live rerun; it is not a requirement to repeat the
+superseded recovery matrix. Startup native inference now uses the scenario's
+declared deadline, with a distinct timeout outcome; it no longer imposes a
+separate universal 2-second inference cutoff.
 
 For further evaluation, retain exact runtime requests/responses, labels,
 provenance gaps, scenario-declared deadline outcomes, and separate cold/warm
 conditions. Do not retry a timeout until remote termination/release is
 independently confirmed. There is no universal model-latency pass threshold.
+
+The historical HTTP error-observability defect is also fixed: shared GET/POST
+decoding retains bounded status/body diagnostics (including base64 for exact
+malformed bytes), and native 4xx request rejection is distinct from service
+unavailability. Invalid native choices/diagnostics/output usage retain their
+received response in failed Run Evidence. Earlier reports are preserved, not
+rewritten as successful evaluations.
 
 No confidence gate or model-support promotion is authorized by this report.

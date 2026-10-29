@@ -9,8 +9,9 @@ were exercised successfully. The harness evidence is retained at
 
 This establishes topology, link-state, probe, reset, and cleanup evidence. A
 later direct-client diagnosis runner also supplied live local observations to
-the native model, as recorded below. Neither runner feeds those observations
-through the deployed four-agent `ExperimentRuntime`. No recovery or accepted
+the native model, as recorded below. Those historical runs did not feed observations
+through the deployed four-agent `ExperimentRuntime`. The replacement runner now
+uses that runtime, but its live rerun is pending. No recovery or accepted
 deployed-runtime support claim is made.
 
 The initial Maintained Example scope was amended to current-only local switch
@@ -24,10 +25,11 @@ or bypass capability authorization.
 | Evidence | Result |
 | --- | --- |
 | Offline contract and planning | Passed; see [offline acceptance](bounded-decision-offline-acceptance.md) |
-| Native live-model evaluation | 12/12 runtime-shaped constructed fixtures correct; see [live-model report](bounded-decision-live-model-evaluation.md) |
-| Compiled runtime against native service | 15 successful invocations using the fake substrate |
+| Historical native live-model evaluation | 12/12 earlier runtime-shaped constructed fixtures correct; see [live-model report](bounded-decision-live-model-evaluation.md) |
+| Historical compiled runtime against native service | 15 successful invocations using the fake substrate |
+| Corrected four-agent native workload | Failed: 2 correct healthy choices, 4 timeouts, Fake Substrate only; no new OVS trial |
 | Direct native client with real Mininet/OVS observations | **16/16 correct** against the runner's port-state labels across healthy, both isolated faults, and unavailable evidence |
-| Four deployed agents with real Substrate telemetry | Unverified; direct-client runner bypasses continuous runtime |
+| Four deployed agents with real Substrate telemetry | Replacement implemented and offline tested; privileged live rerun pending |
 | Diamond recovery run | Not applicable to the amended initial scope; historical fixtures retained |
 | Trial reset and cleanup verification | Recorded as verified for the topology and direct-client trials |
 | Remote request termination/isolation | Completed native responses recorded for the successful matrix; cancellation/late-result containment not exercised by this matrix |
@@ -36,23 +38,39 @@ or bypass capability authorization.
 
 The service was usable and model/server provenance was recorded for the
 successful matrix. This is exploratory evaluation, not pinned-build support;
-unavailable provenance must remain explicit. Final code review identified:
+unavailable provenance must remain explicit. Final code review identified (and
+follow-up code now fixes) these gaps in the historical runner:
 
-- `live_diagnosis.py` calls `NativeSystemOneClient.decide()` sequentially using
+- The former `live_diagnosis.py` called `NativeSystemOneClient.decide()` sequentially using
   the first compiled scenario and manually assembled observations. It does not
   exercise the four deployed agents, coordination, scheduled deadlines, or
   normalized retained Run Evidence.
-- The Maintained Example binds `portState` to `ovs.port-counters`, whose real
+- The Maintained Example previously bound `portState` to `ovs.port-counters`, whose real
   collector supplies traffic counters, not operational up/down state. The
   direct runner instead uses `interface.isUp()`, masking that missing input.
-- Instructions require detecting missing expected flows, but do not declare
+- Instructions required detecting missing expected flows, but did not declare
   an inspectable local expected-flow set. The runner's correctness labels
   consider only port availability/state; missing-flow correctness is untested.
 
-Resolve these gaps and evaluate the actual continuous runtime with real local
-telemetry before accepting deployed diagnosis support. See the
-[final review](bounded-decision-final-review.md). No live inference or network
-trial was repeated during this documentation/check refresh.
+The example now uses `ovs.port-state` and per-switch `localExpectations`.
+The replacement runner deploys the real Substrate and all four compiled agents
+through `ExperimentRuntime`. It retains normalized invocations, a SQLite
+ledger, compiled plans, evaluator labels and independent work/cleanup outcomes.
+Healthy, both local-link fault trials, missing-flow and explicit unavailable
+input trials are implemented. Offline regressions substitute only transport and
+Substrate and validate actual serialized evidence against the published schemas.
+
+**Remaining blockers:** resolve/review the failed current four-agent native
+workload (two correct choices, four timeouts on the one-slot service with
+constructed inputs; see the live-model report), then execute the replacement
+on a root-capable host. In this
+session `sudo -n true` requires a password. Read-only `/health` and `/props`
+succeeded on port 8080 (Kev-4B Q8_0, `b11429-d812350493`, one slot, context 8192).
+No privileged trial was sent. The new native-only runtime check uses a Fake
+Substrate, not OVS, and does not establish network cleanup. Historical measurements are not
+silently reused for the changed inputs/oracle. See the
+[final review](bounded-decision-final-review.md) and
+[runner instructions](../../examples/diamond-recovery/README.md#live-diagnosis-runner).
 
 The installed Mininet/OVS binaries were detected, but the harness could not be
 started by this agent because the session has no passwordless root access; the
@@ -79,17 +97,11 @@ output tokens. The server log records model loaded/listening at about 4.86 s
 after process start. Cold evidence is retained at
 `/tmp/opencode/cold-start/cold-evidence.json`.
 
-The runner can be repeated with:
-
-```bash
-sudo env PYTHONPATH=. .venv/bin/python \
-  examples/diamond-recovery/live_diagnosis.py \
-  --endpoint http://127.0.0.1:8080 \
-  --evidence /tmp/diamond-live-diagnosis
-```
-
-Its `decisions.jsonl` must be retained with the harness JSONL files. The
-runner performs diagnosis only and does not install recovery rules. The local
+The old direct-client run's `decisions.jsonl` must remain with its harness JSONL
+files. The replacement command and required identity arguments are documented
+in the Maintained Example; it writes `invocations.jsonl`, `runtime-report.json`,
+`ledger.sqlite3`, `plan.json` and `summary.json` per fresh trial. Both runners
+perform diagnosis only and do not install recovery rules. The historical local
 artifact hash was independently recorded as
 `7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da`; the
 server build was `b11429-d812350493`. The cold run used:

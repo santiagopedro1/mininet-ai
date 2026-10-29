@@ -58,6 +58,16 @@ and metrics are represented as unavailable, not synthesized. Model/server
 provenance that cannot be observed must remain unverified; offline mechanics
 tests do not establish a model-quality or latency claim.
 
+Published evidence schemas require nested scenario/configuration, exact request,
+provenance status, phase timing, proposal mapping and admission/authorization
+fields. Bounded execution records require a `runtime.boundedDecision` payload;
+empty successful records are invalid. Failed records retain invalid native
+responses or bounded HTTP body diagnostics rather than coercing them to no
+action. An absent response requires explicit evidence gaps. The execution
+schema references `urn:mininet-ai:schema:bounded-decision:v1alpha1`; register both
+packaged schemas with a local JSON Schema registry rather than attempting a
+network lookup. Historical saved plans/evidence are not rewritten by validation.
+
 ## Authoring and saved plans
 
 Use `mininet-ai/v1alpha5` for the experiment and blueprint. Select the execution
@@ -89,9 +99,11 @@ positive scenario timing. Per-target deployment instantiates one agent per
 switch with a 1-second interval trigger and concurrency one per agent.
 `decisionInputs` maps logical inputs to observations declared in `observe`.
 Compilation embeds the resolved scenario and effective model configuration in
-the immutable plan snapshot. The current example's port-counter binding does
-not yet provide the required operational port state; see the review before
-attempting deployed-runtime acceptance.
+the immutable plan snapshot. The example binds `portState` to `ovs.port-state`
+(up/down/unknown, not traffic counters). Its `localExpectations` declares each
+switch's required local ports and exact forwarding entries; only the current
+target's expectations enter a model request. Expected labels are evaluator-side
+analysis, not a deterministic replacement for inference.
 
 Historical recovery scenarios instead use `no_action` / `install_recovery`,
 fixed proposals, paths/policy, and the three-round `pathProbes`, `linkStates`,

@@ -4,6 +4,55 @@ Baseline: `git diff main...dfe26ff`, merge-base `67ae633`. Standards and spec
 reviews ran independently. #116's current-only diagnosis and per-scenario
 deadline amendments supersede the original recovery/history/pinned/800 ms scope.
 
+## Resolution status
+
+The findings below are the original review record, not the current open-code
+checklist. Follow-up fixes now provide:
+
+- original-version checks for every explicit blueprint execution selection and
+  experiment decision field, including empty historical fields;
+- field-specific proposal validation and one shared HTTP response decoder;
+- `ovs.port-state` with explicit up/down/unknown values and current timestamps;
+- compiled, inspectable `localExpectations`, filtered to the invocation's one
+  switch; expected port and exact flow completeness are checked by the
+  evaluator, never used as a production inference gate;
+- a real `MininetOVSRuntime` / four-agent `ExperimentRuntime` live runner, with
+  healthy, both isolated link faults, missing-flow, and unavailable-input trials;
+- normalized invocation JSONL, compiled plan, SQLite ledger, independent work
+  and cleanup status, and evaluator-side labels for every trial;
+- scenario-derived startup inference budgets, distinct startup timeout errors,
+  retained invalid native responses and bounded raw HTTP error diagnostics;
+- nested evidence-schema requirements and execution-kind-aware validation,
+  with valid/invalid fixtures and tests of actual serialized runtime records;
+- clean Ruff lint, repository formatting, and Pyright, without disabling checks.
+
+Independent follow-up review at `a2e2e44` confirmed the scoped standards and
+spec findings resolved, with no additional actionable regression confirmed.
+Targeted reviewer validation passed 43 tests. Final full regression: 1049
+passed, 3 opt-in checks skipped, 179 subtests passed; lint, formatting and
+Pyright pass. An initial follow-up standards concern about nonempty v1alpha3
+normalization was corrected: the reproduced defect was admission of explicitly
+empty new experiment fields, now rejected before normalization.
+The six normalized execution records in the retained native-failure archive
+also validate against the strict published evidence schemas.
+
+The current-only continuous-runtime regression substitutes only native transport
+and the Substrate. It covers healthy, down, missing/wrong flow, and unavailable
+inputs; checks per-target isolation, no history, no proposals, coordination,
+deadlines, retained evidence, and cleanup. The three initially failing groups
+were reproduced before their fixes (17 failures); follow-up evidence/startup
+and historical-field failures were also reproduced before fixes.
+
+**Remaining gates:** the new four-agent native check with constructed healthy
+inputs failed its declared workload (two correct choices, four timeouts on the
+one-slot service). No inference was retried; an independent later `/slots`
+observation showed idle after local stop had initially left remote work active.
+See the live-model report. After service/deployment review, rerun the new
+deployed-runtime matrix on a root-capable host. `sudo -n true` requires a
+password in this session; no privileged network trial was sent. Existing 16/16 measurements
+remain historical direct-client evidence, not evidence for the replacement
+runner. #125 and draft PR #126 remain open until this gate is resolved.
+
 ## Standards
 
 - **Documented contract violation:** `specification/models.py` gates execution
@@ -37,6 +86,7 @@ deadline amendments supersede the original recovery/history/pinned/800 ms scope.
   live labels check only ports. Define local forwarding expectations and add
   missing-flow labelled trials, retaining current-only local inputs.
 
-Summary: Standards has one documented violation and two heuristic findings;
-Spec has three findings, with missing operational state and bypassed live
-runtime acceptance the highest-priority gaps. No merge-readiness claim.
+Original review summary: Standards had one documented violation and two
+heuristic findings; Spec had three findings. Their code fixes are implemented;
+the replacement live evaluation still needs privileged execution. No
+merge-readiness or live-support claim.
