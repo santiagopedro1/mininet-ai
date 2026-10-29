@@ -429,7 +429,7 @@ def test_late_native_result_is_discarded_at_exact_deadline(tmp_path):
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            if kwargs["timeout_seconds"] <= 0.8:
+            if payload["state"] != "{}":
                 self.timeout = kwargs["timeout_seconds"]
                 clock.now = 0.8
             return {
@@ -488,7 +488,7 @@ def test_cancellation_revokes_action_authority_and_retains_remote_unknown(tmp_pa
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            if kwargs["timeout_seconds"] <= 0.8:
+            if payload["state"] != "{}":
                 entered.set()
                 assert release.wait(2)
             return {
@@ -1540,7 +1540,7 @@ def test_active_bounded_tick_is_coalesced_and_next_work_waits_for_next_cadence(
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            if kwargs["timeout_seconds"] > 0.8:
+            if payload["state"] == "{}":
                 return {
                     "answers": {
                         "next_action": {"type": "choice", "choice": "no_action"}
@@ -1628,7 +1628,7 @@ def test_queued_bounded_tick_keeps_scheduled_deadline_while_capacity_is_occupied
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            if kwargs["timeout_seconds"] <= 0.8:
+            if payload["state"] != "{}":
                 self.inference_calls += 1
             return {
                 "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
@@ -1769,7 +1769,7 @@ def test_bounded_admission_wait_consumes_original_deadline_before_action_start(
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            if kwargs["timeout_seconds"] > 0.8:
+            if payload["state"] == "{}":
                 return {
                     "answers": {
                         "next_action": {"type": "choice", "choice": "no_action"}
@@ -1927,7 +1927,7 @@ def test_unrelated_agno_agent_progresses_while_bounded_inference_is_in_flight(
             return {"status": "ok"} if url.endswith("/health") else {}
 
         def post_json(self, url, payload, **kwargs):
-            if kwargs["timeout_seconds"] <= 0.8:
+            if payload["state"] != "{}":
                 inference_started.set()
                 assert release_inference.wait(3)
             return {

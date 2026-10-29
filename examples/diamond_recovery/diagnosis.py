@@ -117,10 +117,27 @@ def evaluate_runtime(
         try:
             runtime.start()
         except BaseException as error:
+            causes = []
+            cause: BaseException | None = error
+            while cause is not None:
+                detail = {
+                    "type": type(cause).__name__,
+                    "code": getattr(cause, "code", None),
+                    "message": str(cause),
+                }
+                if hasattr(cause, "native_response"):
+                    detail["nativeResponse"] = getattr(cause, "native_response")
+                if getattr(cause, "status_code", None) is not None:
+                    detail["httpStatus"] = getattr(cause, "status_code")
+                    detail["bodyBase64"] = getattr(cause, "response_body_base64", None)
+                    detail["bodyUtf8"] = getattr(cause, "response_body", None)
+                causes.append(detail)
+                cause = cause.__cause__
             (evidence / "startup-failure.json").write_text(
                 json.dumps(
                     {
                         "error": f"{type(error).__name__}: {error}",
+                        "causes": causes,
                         "cleanup": runtime.cleanup.model_dump(
                             mode="json", by_alias=True
                         ),

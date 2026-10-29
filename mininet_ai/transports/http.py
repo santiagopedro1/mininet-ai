@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from base64 import b64encode
 from collections.abc import Mapping
 from threading import Lock
 from typing import Protocol, runtime_checkable
@@ -19,11 +20,13 @@ class HttpTransportError(Exception):
         code: str,
         status_code: int | None = None,
         response_body: str | None = None,
+        response_body_base64: str | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.status_code = status_code
         self.response_body = response_body
+        self.response_body_base64 = response_body_base64
 
 
 @runtime_checkable
@@ -149,6 +152,7 @@ def _read_json_response(response: httpx.Response, limit: int) -> JsonValue:
             code="http-status",
             status_code=response.status_code,
             response_body=body.decode("utf-8", errors="replace"),
+            response_body_base64=b64encode(body).decode("ascii"),
         )
     try:
         return json.loads(
@@ -158,7 +162,11 @@ def _read_json_response(response: httpx.Response, limit: int) -> JsonValue:
         )
     except (UnicodeDecodeError, ValueError) as error:
         raise HttpTransportError(
-            f"HTTP endpoint returned invalid JSON: {error}", code="invalid-json"
+            f"HTTP endpoint returned invalid JSON: {error}",
+            code="invalid-json",
+            status_code=response.status_code,
+            response_body=body.decode("utf-8", errors="replace"),
+            response_body_base64=b64encode(body).decode("ascii"),
         ) from error
 
 

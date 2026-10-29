@@ -118,9 +118,52 @@
       "additionalProperties": true,
       "title": "Timings",
       "type": "object"
-    }
+    },
+    "timeoutStatus": {"enum": ["expired", "not-expired"]},
+    "remoteTerminalStatus": {"type": "string", "minLength": 1},
+    "localCancellationStatus": {"type": "string", "minLength": 1},
+    "incompleteEffects": {"type": "array", "items": {"type": "object"}},
+    "correctnessFailure": {"type": "object"}
   },
+  "allOf": [
+    {"properties": {
+      "scenario": {"required": ["apiVersion", "kind", "metadata", "instructions", "choices", "paths", "observations", "timing", "policy"], "properties": {
+        "apiVersion": {"const": "mininet-ai/v1alpha5"}, "kind": {"const": "DecisionScenario"},
+        "metadata": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string", "minLength": 1}}},
+        "instructions": {"type": "string", "minLength": 1},
+        "choices": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "object", "additionalProperties": false, "required": ["id", "description", "proposals"], "properties": {"id": {"type": "string", "minLength": 1}, "description": {"type": "string", "minLength": 1}, "proposals": {"type": "array"}}}},
+        "paths": {"type": "object"}, "observations": {"type": "object", "minProperties": 1}, "policy": {"type": "object"},
+        "timing": {"type": "object", "required": ["cadence", "decisionDeadline"], "properties": {"cadence": {"const": "1s"}, "decisionDeadline": {"type": "string", "minLength": 2}}}
+      }},
+      "effectiveConfiguration": {"required": ["model", "provider", "parameters"], "properties": {
+        "model": {"type": "string", "minLength": 1},
+        "provider": {"const": "llamacpp-systemone"},
+        "parameters": {"type": "object", "required": ["endpoint", "expectedIdentity"]}
+      }},
+      "request": {"required": ["url", "state", "instructions", "criteria"], "properties": {
+        "url": {"type": "string", "minLength": 1},
+        "state": {"type": "string"},
+        "instructions": {"type": "string", "minLength": 1},
+        "criteria": {"type": "object", "minProperties": 2, "additionalProperties": {"type": "string", "minLength": 1}}
+      }},
+      "modelProvenance": {"required": ["startup", "expectedIdentity", "verification"], "properties": {
+        "startup": {"type": "object"}, "expectedIdentity": {"type": "object", "required": ["repository", "revision", "artifact", "sha256"]},
+        "verification": {"enum": ["verified", "unverified", "mismatched"]}
+      }},
+      "timings": {"required": ["startedTick", "completedTick", "deadlineTick", "clockDomain", "invokedAt", "phaseTransitions"], "properties": {
+        "startedTick": {"type": "number"}, "completedTick": {"type": "number"}, "deadlineTick": {"type": "number"},
+        "clockDomain": {"type": "string", "minLength": 1}, "invokedAt": {"type": "string", "format": "date-time"},
+        "phaseTransitions": {"type": "array", "items": {"type": "object", "required": ["phase", "tick"], "properties": {"phase": {"type": "string", "minLength": 1}, "tick": {"type": "number"}}}}
+      }},
+      "proposalMapping": {"required": ["choice", "proposals"], "properties": {"choice": {"type": "string", "minLength": 1}, "proposals": {"type": "array"}}},
+      "authorization": {"required": ["status"], "properties": {"status": {"type": "string", "minLength": 1}}},
+      "admission": {"required": ["status"], "properties": {"status": {"type": "string", "minLength": 1}}}
+    }},
+    {"if": {"properties": {"response": {"maxProperties": 0}}},
+     "then": {"required": ["gaps"], "properties": {"gaps": {"minItems": 1}}}}
+  ],
   "required": [
+    "apiVersion",
     "runId",
     "agentId",
     "invocationId",

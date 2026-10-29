@@ -9,6 +9,7 @@ import pytest
 from examples.diamond_recovery.diagnosis import evaluate_runtime, expected_diagnosis
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import FakeSubstrateRuntime
+from tests.agents.test_bounded_evidence_schemas import validators
 
 
 @pytest.mark.parametrize(
@@ -87,6 +88,8 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
     for record in records:
         assert record["coordination"] is not None
         execution = record["result"]["response"]["metadata"]["executionRecord"]
+        _, validator = validators()
+        validator.validate(execution)
         decision = execution["runtime"]["boundedDecision"]
         assert decision["actionOutcomes"] == []
         assert (

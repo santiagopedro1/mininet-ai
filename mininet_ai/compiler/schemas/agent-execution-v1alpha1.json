@@ -44,9 +44,25 @@
       "default": null,
       "title": "Sessionid",
       "type": "null"
-    }
+    },
+    "issue": {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}
   },
+  "allOf": [
+    {"if": {"properties": {"executionKind": {"const": "bounded-decision"}}},
+     "then": {"properties": {"runtime": {
+       "required": ["boundedDecision"],
+       "additionalProperties": false,
+       "properties": {"boundedDecision": {"$ref": "urn:mininet-ai:schema:bounded-decision:v1alpha1"}}
+     }}},
+     "else": {"properties": {"runtime": {"not": {"required": ["boundedDecision"]}}}}},
+    {"if": {"properties": {"executionKind": {"const": "bounded-decision"}, "outcome": {"const": "succeeded"}}},
+     "then": {"properties": {"runtime": {"properties": {"boundedDecision": {"properties": {
+       "selectedChoice": {"not": {"const": "unavailable"}},
+       "response": {"required": ["answers"], "properties": {"answers": {"type": "object", "required": ["next_action"], "properties": {"next_action": {"type": "object", "required": ["type", "choice"], "properties": {"type": {"const": "choice"}, "choice": {"type": "string", "minLength": 1}}}}}}}
+     }}}}}}}
+  ],
   "required": [
+    "apiVersion",
     "executionKind",
     "outcome",
     "runtime"

@@ -263,29 +263,76 @@ def test_native_response_duplicate_keys_are_invalid():
         )
 
 
-def test_bounded_evidence_is_versioned_without_agno_identity_or_metrics():
-    record = BoundedDecisionRecord(
+def evidence_record():
+    identity = {
+        "repository": "org/model",
+        "revision": "revision",
+        "artifact": "model.gguf",
+        "sha256": "0" * 64,
+    }
+    return BoundedDecisionRecord(
         runId="run-1",
         agentId="decision-maker",
         invocationId="invoke-1",
         correlationId="tick-1",
-        scenario={"name": "diamond"},
-        effectiveConfiguration={"endpoint": "http://localhost:8080"},
-        request={"state": "{}"},
-        response={"choice": "no_action"},
-        selectedChoice="no_action",
-        modelProvenance={"verification": "unverified"},
-        timings={"decision": 0.01},
-        proposalMapping={"choice": "no_action", "proposals": []},
+        scenario={
+            "apiVersion": "mininet-ai/v1alpha5",
+            "kind": "DecisionScenario",
+            "inputMode": "current-only",
+            "metadata": {"name": "diamond"},
+            "instructions": "Choose",
+            "choices": [
+                {"id": "healthy", "description": "Healthy", "proposals": []},
+                {"id": "degraded", "description": "Degraded", "proposals": []},
+            ],
+            "paths": {},
+            "observations": {"portState": "ovs.port-state"},
+            "policy": {},
+            "timing": {"cadence": "1s", "decisionDeadline": "5s"},
+        },
+        effectiveConfiguration={
+            "model": "model",
+            "provider": "llamacpp-systemone",
+            "parameters": {
+                "endpoint": "http://localhost:8080",
+                "expectedIdentity": identity,
+            },
+        },
+        request={
+            "url": "http://localhost:8080/v1/systemone",
+            "state": "{}",
+            "instructions": "Choose",
+            "criteria": {"healthy": "Healthy", "degraded": "Degraded"},
+        },
+        response={"answers": {"next_action": {"type": "choice", "choice": "healthy"}}},
+        selectedChoice="healthy",
+        modelProvenance={
+            "verification": "unverified",
+            "startup": {},
+            "expectedIdentity": identity,
+        },
+        timings={
+            "startedTick": 0,
+            "completedTick": 0.01,
+            "deadlineTick": 5,
+            "clockDomain": "run-monotonic",
+            "invokedAt": "2026-10-29T00:00:00Z",
+            "phaseTransitions": [],
+        },
+        proposalMapping={"choice": "healthy", "proposals": []},
         authorization={"status": "not-required"},
         admission={"status": "not-required"},
         actionOutcomes=(),
         gaps=("server build unavailable",),
     )
+
+
+def test_bounded_evidence_is_versioned_without_agno_identity_or_metrics():
+    record = evidence_record()
     execution = AgentExecutionRecord(
         executionKind="bounded-decision",
         outcome="succeeded",
-        runtime={"decision": record.model_dump(mode="json", by_alias=True)},
+        runtime={"boundedDecision": record.model_dump(mode="json", by_alias=True)},
     )
 
     dumped = execution.model_dump(mode="json", by_alias=True)

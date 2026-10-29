@@ -18,6 +18,7 @@ from mininet_ai.agents.runtime import OneShotAgentRuntime
 from mininet_ai.audit import AuditRecorder
 from mininet_ai.compiler import DeploymentPlan
 from mininet_ai.coordination import CoordinationRuntime
+from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import AgentRuntimeError, MininetAIError, describe_failure
 from mininet_ai.outcomes import CleanupOutcome, OperationFailure, OperationOutcome
 from mininet_ai.plugins import ProviderRegistries
@@ -338,6 +339,9 @@ class ExperimentRuntime:
                         item["id"]: item["description"] for item in scenario["choices"]
                     },
                     choices=choices,
+                    interface_timeout_seconds=duration_seconds(
+                        scenario["timing"]["decisionDeadline"]
+                    ),
                 )
             except AgentRuntimeError as error:
                 error.agent_id = agent.id

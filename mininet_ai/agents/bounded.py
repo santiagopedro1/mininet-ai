@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from base64 import b64encode
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -30,6 +31,20 @@ class ChoiceResult:
     probability: float | None = None
     confidence: float | None = None
     native_response: dict[str, Any] | None = None
+
+
+class NativeResponseError(AgentRuntimeError):
+    """An invalid decision still has a response that must survive validation."""
+
+    def __init__(self, error: AgentRuntimeError, response: Any) -> None:
+        super().__init__(str(error), code=error.code)
+        self.native_response = (
+            dict(response)
+            if isinstance(response, Mapping)
+            else {"invalidNativePayloadBase64": b64encode(response).decode("ascii")}
+            if isinstance(response, bytes)
+            else {"invalidNativePayload": response}
+        )
 
 
 def _current_only_context(
@@ -301,7 +316,7 @@ class NativeSystemOneClient:
                     f"native llama.cpp decision request timed out: {error}",
                     code="agent.bounded-decision.timeout",
                 ) from error
-            if getattr(error, "code", None) == "invalid-json":
+            if getattr(error, "code", None) in {"invalid-json", "response-too-large"}:
                 raise AgentRuntimeError(
                     f"native choice response is malformed: {error}",
                     code="agent.bounded-decision.invalid-output",
@@ -320,7 +335,10 @@ class NativeSystemOneClient:
                 f"native llama.cpp decision request failed: {error}",
                 code="agent.bounded-decision.service-unavailable",
             ) from error
-        return map_choice(response, choices)
+        try:
+            return map_choice(response, choices)
+        except AgentRuntimeError as error:
+            raise NativeResponseError(error, response) from error
 
     def verify_startup(
         self,
@@ -330,6 +348,7 @@ class NativeSystemOneClient:
         instructions: str,
         criteria: Mapping[str, str],
         choices: Mapping[str, Sequence[dict[str, Any]]],
+        interface_timeout_seconds: float = 2.0,
     ) -> dict[str, Any]:
         """Verify availability, observable identity and native interface without mutation."""
         try:
@@ -389,17 +408,19 @@ class NativeSystemOneClient:
                     )
                 observed_identity[expected_key] = observed
         try:
-            self.decide(
+            probe = self.decide(
                 state="{}",
                 instructions=instructions,
                 criteria=criteria,
                 choices={key: () for key in criteria},
-                timeout_seconds=2.0,
+                timeout_seconds=interface_timeout_seconds,
             )
         except AgentRuntimeError as error:
             raise AgentRuntimeError(
                 f"bounded decision native interface check failed: {error}",
-                code="agent.bounded-decision.startup-interface-invalid",
+                code="agent.bounded-decision.startup-timeout"
+                if error.code == "agent.bounded-decision.timeout"
+                else "agent.bounded-decision.startup-interface-invalid",
             ) from error
         return {
             "status": "verified"
@@ -410,6 +431,20 @@ class NativeSystemOneClient:
             "expectedIdentity": dict(expected_identity),
             "observedIdentity": observed_identity,
             "interface": "verified",
+            "interfaceProbe": {
+                "request": {
+                    "state": "{}",
+                    "questions": {
+                        "next_action": {
+                            "type": "choice",
+                            "instructions": instructions,
+                            "criteria": dict(criteria),
+                        }
+                    },
+                },
+                "response": probe.native_response,
+                "timeoutSeconds": interface_timeout_seconds,
+            },
             "health": dict(health),
         }
 
@@ -703,7 +738,14 @@ class BoundedDecisionAdapter:
                 self.authority.revoke(reason)
             else:
                 reason = "failed"
-            self._retain_failure(context, reason, phase="inference")
+            self._retain_failure(
+                context,
+                reason,
+                phase="inference",
+                native_response=error.native_response
+                if isinstance(error, NativeResponseError)
+                else None,
+            )
             raise
         if result.choice_id == "no_action" and result.proposals:
             raise AgentRuntimeError(
@@ -1134,6 +1176,7 @@ class BoundedDecisionAdapter:
                 "transportError": {
                     "httpStatus": getattr(cause, "status_code", None),
                     "bodyUtf8": getattr(cause, "response_body", None),
+                    "bodyBase64": getattr(cause, "response_body_base64", None),
                 }
             }
         return AgentResponse(

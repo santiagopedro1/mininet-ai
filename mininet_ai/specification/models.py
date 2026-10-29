@@ -1070,6 +1070,31 @@ class Experiment(VersionedDocument):
         default_factory=ResourceLimits, alias="resourceLimits"
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def new_fields_require_current_source(cls, value: Any) -> Any:
+        agents = value.get("agents", ()) if isinstance(value, dict) else ()
+        if not isinstance(agents, (list, tuple)):
+            agents = ()
+        if (
+            isinstance(value, dict)
+            and value.get("apiVersion", value.get("api_version"))
+            != "mininet-ai/v1alpha5"
+            and (
+                "decisionScenarios" in value
+                or "decision_scenarios" in value
+                or any(
+                    isinstance(agent, dict)
+                    and ("decisionInputs" in agent or "decision_inputs" in agent)
+                    for agent in agents
+                )
+            )
+        ):
+            raise ValueError(
+                "decisionScenarios and decisionInputs require mininet-ai/v1alpha5"
+            )
+        return value
+
     @model_validator(mode="after")
     def versioned_bounded_authoring(self) -> Experiment:
         if self.api_version == "mininet-ai/v1alpha4":
