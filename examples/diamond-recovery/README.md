@@ -105,5 +105,5 @@ Decision records are written to `decisions.jsonl`; setup, fault, probe, reset,
 and cleanup records remain in the harness JSONL files in the same directory.
 The completed live run produced 16/16 expected diagnoses, including explicit
 unavailable-evidence cases. The local artifact hash and server build were
-recorded; cold-start latency was not measured because the running service was
-not restarted.
+recorded. A fresh server first-inference sample completed in 0.834 seconds;
+the single cold sample is retained separately from the warm distribution.

@@ -56,7 +56,11 @@ final evidence is retained at
 records: four healthy, four explicit unavailable-evidence, four `s1-s2` fault,
 and four `s2-s4` fault cases. All expected labels matched the observed choices.
 Decision latency was **1.173–1.486 s**, mean **1.352 s**, n=16; output tokens
-were zero.
+were zero. A separate fresh-server first inference using the documented launch
+command completed in **0.834 s** (n=1), returned `healthy`, and generated zero
+output tokens. The server log records model loaded/listening at about 4.86 s
+after process start. Cold evidence is retained at
+`/tmp/opencode/cold-start/cold-evidence.json`.
 
 The runner can be repeated with:
 
@@ -71,8 +75,9 @@ Its `decisions.jsonl` must be retained with the harness JSONL files. The
 runner performs diagnosis only and does not install recovery rules. The local
 artifact hash was independently recorded as
 `7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da`; the
-server build was `b11429-d812350493`. Cold-start latency was not measured
-because the running service was not restarted; warm latency is reported above.
+server build was `b11429-d812350493`. The cold run used:
+`llama-server -hf ggml-org/Kev-4B-GGUF -hff Kev-4B-Q8_0.gguf --ctx-size 8192
+--parallel 1`.
 
 When the prerequisite is satisfied, use a new configuration/run and retain:
 
