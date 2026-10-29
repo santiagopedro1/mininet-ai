@@ -50,6 +50,19 @@ The observed matrix was:
 | 1 | `s1-s2` down | Three rounds timed out in both directions | Successful in both directions | Verified |
 | 2 | `s2-s4` down | Three rounds timed out in both directions | Successful in both directions | Verified |
 
+The next integrated run is documented in the Maintained Example and can be
+started with:
+
+```bash
+sudo env PYTHONPATH=. .venv/bin/python \
+  examples/diamond-recovery/live_diagnosis.py \
+  --endpoint http://127.0.0.1:8080 \
+  --evidence /tmp/diamond-live-diagnosis
+```
+
+Its `decisions.jsonl` must be retained with the harness JSONL files. The
+runner performs diagnosis only and does not install recovery rules.
+
 When the prerequisite is satisfied, use a new configuration/run and retain:
 
 - readiness, actual switch/port mapping, baseline policy, and probe evidence;

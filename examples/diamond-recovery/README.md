@@ -86,3 +86,20 @@ The opt-in harness was run from a root-capable shell. Both isolated primary
 link faults (`s1-s2` and `s2-s4`) produced three rounds of bidirectional
 primary timeouts with recovery-path probe success, and reset/cleanup were
 verified. Evidence is retained at `/tmp/diamond-recovery-evidence`.
+
+## Live diagnosis runner
+
+The combined runner starts the topology, verifies the native service, sends
+current-only local observations for each switch, and records model decisions
+for healthy operation and both isolated link faults. It performs no recovery
+action:
+
+```bash
+sudo env PYTHONPATH=. .venv/bin/python \
+  examples/diamond-recovery/live_diagnosis.py \
+  --endpoint http://127.0.0.1:8080 \
+  --evidence /tmp/diamond-live-diagnosis
+```
+
+Decision records are written to `decisions.jsonl`; setup, fault, probe, reset,
+and cleanup records remain in the harness JSONL files in the same directory.
