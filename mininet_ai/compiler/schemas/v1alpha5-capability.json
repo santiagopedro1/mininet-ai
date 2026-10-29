@@ -1,0 +1,212 @@
+{
+  "$defs": {
+    "CapabilityRollbackConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "timeout": {
+          "default": "30s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Timeout",
+          "type": "string"
+        }
+      },
+      "title": "CapabilityRollbackConfiguration",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "PostconditionDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "expected": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "interval": {
+          "default": "250ms",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Interval",
+          "type": "string"
+        },
+        "observation": {
+          "minLength": 1,
+          "title": "Observation",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "eq",
+            "ne",
+            "gt",
+            "gte",
+            "lt",
+            "lte"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "timeout": {
+          "default": "5s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Timeout",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation",
+        "path",
+        "operator",
+        "expected"
+      ],
+      "title": "PostconditionDefinition",
+      "type": "object"
+    },
+    "ResourceKind": {
+      "enum": [
+        "network",
+        "region",
+        "controller",
+        "controller-domain",
+        "switch",
+        "host",
+        "port",
+        "link",
+        "flow"
+      ],
+      "title": "ResourceKind",
+      "type": "string"
+    }
+  },
+  "$id": "urn:mininet-ai:schema:v1alpha5:capability",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "mininet-ai/v1alpha5"
+    },
+    "effects": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Effects",
+      "type": "array"
+    },
+    "input-schema": {
+      "additionalProperties": true,
+      "title": "Input-Schema",
+      "type": "object"
+    },
+    "kind": {
+      "const": "Capability",
+      "title": "Kind",
+      "type": "string"
+    },
+    "layers": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Layers",
+      "type": "array"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "output-schema": {
+      "additionalProperties": true,
+      "title": "Output-Schema",
+      "type": "object"
+    },
+    "postconditions": {
+      "items": {
+        "$ref": "#/$defs/PostconditionDefinition"
+      },
+      "title": "Postconditions",
+      "type": "array"
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider"
+    },
+    "reversible": {
+      "default": false,
+      "title": "Reversible",
+      "type": "boolean"
+    },
+    "rollback": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CapabilityRollbackConfiguration"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "targets": {
+      "items": {
+        "$ref": "#/$defs/ResourceKind"
+      },
+      "minItems": 1,
+      "title": "Targets",
+      "type": "array"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "targets",
+    "layers"
+  ],
+  "title": "CapabilityDefinition",
+  "type": "object"
+}

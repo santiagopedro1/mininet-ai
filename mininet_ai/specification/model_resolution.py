@@ -52,6 +52,9 @@ def resolve_models(
                     blueprint.implementation,
                     context=f"models.{model.entry} base{location}",
                     locations=files[path].field_locations[model.entry],
+                    execution_kind=(
+                        blueprint.execution.kind if blueprint.execution else None
+                    ),
                 )
                 effective_fields = dict(files[path].field_locations[model.entry])
                 # Programmatic overrides have no YAML mark. Do not misattribute
@@ -91,6 +94,9 @@ def resolve_models(
                     blueprint.implementation,
                     context=f"models.{model.entry} effective{location}",
                     locations=effective_fields,
+                    execution_kind=(
+                        blueprint.execution.kind if blueprint.execution else None
+                    ),
                 )
             except SpecificationError as error:
                 raise SpecificationError(f"{context}: {error}") from error
@@ -107,6 +113,9 @@ def resolve_models(
                 blueprint.implementation,
                 context=blueprint_context,
                 locations=source_fields,
+                execution_kind=(
+                    blueprint.execution.kind if blueprint.execution else None
+                ),
             )
         blueprints.append(blueprint)
     return replace(loaded, blueprints=tuple(blueprints)), provenance

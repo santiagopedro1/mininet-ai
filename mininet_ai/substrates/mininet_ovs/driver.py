@@ -67,6 +67,7 @@ _OBSERVATIONS: dict[AttachmentLayer, frozenset[str]] = {
             "topology.neighbors",
             "openflow.flows",
             "ovs.port-counters",
+            "ovs.port-state",
             "tc.queue-occupancy",
         }
     ),

@@ -46,6 +46,8 @@ from mininet_ai.specification.models import EventTrigger, IntervalTrigger
 Clock = Callable[[], datetime]
 EventIdFactory = Callable[[], str]
 InvocationListener = Callable[[ContinuousInvocationRecord], None]
+RuntimeIssueListener = Callable[[ContinuousRuntimeIssue], None]
+MonotonicClock = Callable[[], float]
 
 
 def _utc_now() -> datetime:
@@ -90,6 +92,7 @@ class _WorkItem:
     trigger: str
     intent: str
     coalesce_key: tuple[str, str | None]
+    scheduled_tick: float | None = None
 
 
 @dataclass(frozen=True)
@@ -115,6 +118,8 @@ class ContinuousAgentRuntime:
         invocation_listener: InvocationListener | None = None,
         clock: Clock = _utc_now,
         event_id_factory: EventIdFactory = _event_id,
+        monotonic_clock: MonotonicClock = time.monotonic,
+        issue_listener: RuntimeIssueListener | None = None,
     ) -> None:
         if not run_id:
             raise ValueError("continuous runtime run id cannot be empty")
@@ -132,12 +137,16 @@ class ContinuousAgentRuntime:
         self._bus = bus
         self._clock = clock
         self._event_id_factory = event_id_factory
+        self._monotonic = monotonic_clock
+        self._scheduled_ticks: dict[str, float] = {}
         self._invocation_listener = invocation_listener
+        self._issue_listener = issue_listener
         self._agents = {agent.id: agent for agent in plan.agents}
         self._coordination_graph = (
             CoordinationGraph(plan) if isinstance(invoker, Coordinator) else None
         )
         self._queues = {agent.id: deque() for agent in plan.agents}
+        self._bounded_active: set[str] = set()
         self._condition = Condition()
         self._report_lock = Lock()
         self._lifecycle_lock = Lock()
@@ -359,6 +368,7 @@ class ContinuousAgentRuntime:
         sequence = 0
         while not self._interval_stop.is_set():
             scheduled_at = self._clock()
+            scheduled_tick = self._monotonic()
             payload = IntervalElapsedPayload(
                 agentId=agent.id,
                 trigger=trigger.name,
@@ -375,6 +385,7 @@ class ContinuousAgentRuntime:
                 sequence=sequence,
                 payload=payload.model_dump(mode="json", by_alias=True),
             )
+            self._scheduled_ticks[event.event_id] = scheduled_tick
             try:
                 self.publish(event)
             except Exception as error:
@@ -468,6 +479,7 @@ class ContinuousAgentRuntime:
                     trigger=trigger.name,
                     intent=payload.intent,
                     coalesce_key=(trigger.name, event.subject),
+                    scheduled_tick=self._scheduled_ticks.get(event.event_id),
                 ),
             )
         if event.type == RuntimeEventType.INTERVAL_ELAPSED:
@@ -494,6 +506,7 @@ class ContinuousAgentRuntime:
                         f"{payload.scheduled_at.isoformat()}"
                     ),
                     coalesce_key=(trigger.name, event.subject),
+                    scheduled_tick=self._scheduled_ticks.get(event.event_id),
                 ),
             )
         matches = []
@@ -553,6 +566,20 @@ class ContinuousAgentRuntime:
         execution = self._agents[execution_agent_id].execution
         with self._condition:
             queue = self._queues[execution_agent_id]
+            if self._bounded_tick(item) and (
+                execution_agent_id in self._bounded_active or queue
+            ):
+                with self._report_lock:
+                    self._counts["coalesced"] += 1
+                self._issue(
+                    "runtime.bounded-decision.tick-coalesced",
+                    "bounded decision tick was dropped while an earlier tick was queued or in flight",
+                    event=item.event,
+                    agent_id=item.agent.id,
+                    trigger=item.trigger,
+                    dropped=True,
+                )
+                return
             if execution.overflow == "coalesce":
                 for index, queued in enumerate(queue):
                     if queued.coalesce_key == item.coalesce_key:
@@ -609,7 +636,13 @@ class ContinuousAgentRuntime:
                     return
                 item = queue.popleft()
                 self._queued -= 1
+                if self._bounded_tick(item):
+                    self._bounded_active.add(agent_id)
             self._process_item(item)
+            if self._bounded_tick(item):
+                with self._condition:
+                    self._bounded_active.discard(agent_id)
+                    self._condition.notify_all()
 
     def _coordinated_worker(self, agent_id: str) -> None:
         invoker = self._invoker
@@ -646,6 +679,8 @@ class ContinuousAgentRuntime:
                 item = queue.popleft()
                 self._queued -= 1
                 self._active_requests += 1
+                if self._bounded_tick(item):
+                    self._bounded_active.add(agent_id)
             executor.submit(self._process_coordinated_item, item, lease)
 
     def _process_coordinated_item(
@@ -658,6 +693,10 @@ class ContinuousAgentRuntime:
             self._request_slots.release()
             with self._condition:
                 self._active_requests -= 1
+                if self._bounded_tick(item):
+                    self._bounded_active.discard(
+                        self._execution_agent_id(item.agent.id)
+                    )
                 self._condition.notify_all()
 
     def _process_item(
@@ -669,6 +708,7 @@ class ContinuousAgentRuntime:
                 agent_id,
                 lambda: self._invoke(item, lease),
                 before_wait=lease.close if lease is not None else None,
+                continue_after_failure=self._bounded_tick(item),
             )
         except Exception as error:
             self._issue(
@@ -724,6 +764,17 @@ class ContinuousAgentRuntime:
                 intent=item.intent,
                 correlationId=(item.event.correlation_id or item.event.event_id),
                 triggeringEventId=item.event.event_id,
+                deadlineStartedAt=(
+                    item.scheduled_tick if self._bounded_tick(item) else None
+                ),
+                deadlineSeconds=(
+                    duration_seconds(
+                        item.agent.decision_scenario["timing"]["decisionDeadline"]
+                    )
+                    if self._bounded_tick(item)
+                    and item.agent.decision_scenario is not None
+                    else None
+                ),
             )
             outcome = (
                 self._invoker.coordinate(
@@ -751,6 +802,12 @@ class ContinuousAgentRuntime:
         return self._coordination_graph.entry_agent(requested_agent_id)
 
     @staticmethod
+    def _bounded_tick(item: _WorkItem) -> bool:
+        return (
+            item.scheduled_tick is not None and item.agent.decision_scenario is not None
+        )
+
+    @staticmethod
     def _root_result(outcome: CoordinationOutcome) -> AgentInvocationResult:
         if not outcome.messages:
             raise ContinuousRuntimeError(
@@ -767,8 +824,17 @@ class ContinuousAgentRuntime:
             None,
         )
         if root is None:
+            cause = next(
+                (
+                    issue
+                    for issue in outcome.issues
+                    if issue.message_id == root_message_id
+                ),
+                None,
+            )
             raise ContinuousRuntimeError(
-                "coordination outcome has no root invocation",
+                "coordination outcome has no root invocation"
+                + (f": {cause.code}: {cause.message}" if cause is not None else ""),
                 code="runtime.coordination.root-missing",
             )
         return root
@@ -812,3 +878,5 @@ class ContinuousAgentRuntime:
                 self._counts["dropped"] += 1
             if rejected:
                 self._counts["rejected"] += 1
+        if self._issue_listener is not None:
+            self._issue_listener(issue)

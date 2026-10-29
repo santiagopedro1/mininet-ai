@@ -31,9 +31,7 @@ class StaticModel(Model):
     async def ainvoke(self, *args: Any, **kwargs: Any) -> ModelResponse:
         return self.invoke(*args, **kwargs)
 
-    def invoke_stream(
-        self, *args: Any, **kwargs: Any
-    ) -> Iterator[ModelResponse]:
+    def invoke_stream(self, *args: Any, **kwargs: Any) -> Iterator[ModelResponse]:
         yield self.invoke(*args, **kwargs)
 
     async def ainvoke_stream(
@@ -41,9 +39,7 @@ class StaticModel(Model):
     ) -> AsyncIterator[ModelResponse]:
         yield self.invoke(*args, **kwargs)
 
-    def _parse_provider_response(
-        self, response: Any, **kwargs: Any
-    ) -> ModelResponse:
+    def _parse_provider_response(self, response: Any, **kwargs: Any) -> ModelResponse:
         del kwargs
         return response
 

@@ -67,6 +67,7 @@ class FakeSubstrateRuntime:
         self._clock = clock
         self._run_id_factory = run_id_factory
         self._runs: dict[str, _FakeRun] = {}
+        self._scenario_actions: dict[str, list[ActionRequest]] = {}
 
     def deploy(self, plan: DeploymentPlan) -> RunInfo:
         if plan.substrate != self.name:
@@ -114,6 +115,55 @@ class FakeSubstrateRuntime:
         self._runs[run_id] = _FakeRun(info=info, resources=resources)
         return info
 
+    def inspect_scenario_actions(
+        self,
+        run_id: str,
+        expected: tuple[ActionRequest, ...],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> tuple[str, ...]:
+        """Inspect exact actions recorded by this fake runtime for reconciliation."""
+        del timeout_seconds
+        self._require_running(run_id)
+        actual = self._scenario_actions.get(run_id, [])
+        states: list[str] = []
+        for request in expected:
+            expected_cookie = request.parameters.get("cookie")
+            expected_match = request.parameters.get("match")
+            matches = [
+                item
+                for item in actual
+                if item.name == request.name
+                and item.target == request.target
+                and (
+                    (
+                        expected_cookie is not None
+                        and item.parameters.get("cookie") == expected_cookie
+                    )
+                    or item.parameters.get("match") == expected_match
+                )
+            ]
+            if not matches:
+                matches = [item for item in actual if item.id == request.id]
+            if not matches:
+                states.append("missing")
+            else:
+                exact = [
+                    item.name == request.name
+                    and item.target == request.target
+                    and item.parameters == request.parameters
+                    and item.timeout_seconds == request.timeout_seconds
+                    for item in matches
+                ]
+                states.append(
+                    "present"
+                    if all(exact)
+                    else "wrong"
+                    if not any(exact)
+                    else "conflicting"
+                )
+        return tuple(states)
+
     def inspect(self, run_id: str) -> RuntimeSnapshot:
         run = self._get_run(run_id)
         return RuntimeSnapshot(
@@ -143,6 +193,7 @@ class FakeSubstrateRuntime:
         run = self._require_running(run_id)
         resources = {resource.name for resource in run.resources}
         self._require_targets(run_id, (request.target,), resources)
+        self._scenario_actions.setdefault(run_id, []).append(request)
         return ActionResult(
             run_id=run_id,
             request_id=request.id,

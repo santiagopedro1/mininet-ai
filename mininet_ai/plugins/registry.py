@@ -71,8 +71,7 @@ class ProviderRegistry[ConfigurationT, ProviderT: _VersionedProvider]:
         except KeyError as error:
             available = ", ".join(self.names) or "none"
             raise AgentRuntimeError(
-                f"unknown {self.kind.value} provider {name!r}; "
-                f"available: {available}",
+                f"unknown {self.kind.value} provider {name!r}; available: {available}",
                 code="plugin.provider.unknown",
             ) from error
 

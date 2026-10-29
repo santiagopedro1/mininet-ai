@@ -59,8 +59,7 @@ class CoordinationGraph:
             destinations[edge.source].append(edge.target)
 
         self._destinations = {
-            source: tuple(sorted(targets))
-            for source, targets in destinations.items()
+            source: tuple(sorted(targets)) for source, targets in destinations.items()
         }
         self._coordinator: str | None = None
         self._validate_shape()
@@ -127,9 +126,7 @@ class CoordinationGraph:
                 f"coordination edge references unknown target agent {edge.target!r}"
             )
         if edge.source == edge.target:
-            self._invalid(
-                f"coordination graph contains self edge for {edge.source!r}"
-            )
+            self._invalid(f"coordination graph contains self edge for {edge.source!r}")
 
     def _validate_shape(self) -> None:
         if self._mode == CoordinationMode.INDEPENDENT:
@@ -161,9 +158,7 @@ class CoordinationGraph:
             )
         coordinator = next(iter(sources))
         expected = {
-            (coordinator, target)
-            for target in self._agents
-            if target != coordinator
+            (coordinator, target) for target in self._agents if target != coordinator
         }
         if set(self._edges) != expected:
             self._invalid(
@@ -191,9 +186,7 @@ class CoordinationGraph:
     def _validate_peers(self) -> None:
         for source, target in self._edges:
             if (target, source) not in self._edges:
-                self._invalid(
-                    f"peer edge {source!r} -> {target!r} has no reverse edge"
-                )
+                self._invalid(f"peer edge {source!r} -> {target!r} has no reverse edge")
 
     def _require_agent(self, agent_id: str, *, role: str) -> None:
         if agent_id not in self._agents:

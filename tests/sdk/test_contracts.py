@@ -129,8 +129,9 @@ class AgentRuntimeContractTests(unittest.TestCase):
             "router@s2",
         )
         self.assertEqual(
-            CapabilityOutcome(changed=True, output={"installed": True})
-            .model_dump(mode="json"),
+            CapabilityOutcome(changed=True, output={"installed": True}).model_dump(
+                mode="json"
+            ),
             {"changed": True, "output": {"installed": True}},
         )
 

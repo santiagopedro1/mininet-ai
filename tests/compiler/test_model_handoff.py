@@ -350,10 +350,10 @@ def test_mixed_source_versions_compose_with_references_and_overrides(tmp_path):
     before = loaded.experiment.model_dump_json(by_alias=True)
     plan = compile_experiment(loaded)
     assert loaded.experiment.model_dump_json(by_alias=True) == before
-    assert plan.api_version == "mininet-ai/v1alpha4"
-    assert plan.snapshot["apiVersion"] == "mininet-ai/v1alpha4"
+    assert plan.api_version == "mininet-ai/v1alpha5"
+    assert plan.snapshot["apiVersion"] == "mininet-ai/v1alpha5"
     assert {item["apiVersion"] for item in plan.snapshot["blueprints"]} == {
-        "mininet-ai/v1alpha4"
+        "mininet-ai/v1alpha5"
     }
     assert plan.snapshot["blueprints"][1]["model"] == {
         "provider": "ollama",

@@ -1,0 +1,185 @@
+{
+  "$id": "urn:mininet-ai:schema:bounded-decision:v1alpha1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actionOutcomes": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Actionoutcomes",
+      "type": "array"
+    },
+    "admission": {
+      "additionalProperties": true,
+      "title": "Admission",
+      "type": "object"
+    },
+    "agentId": {
+      "minLength": 1,
+      "title": "Agentid",
+      "type": "string"
+    },
+    "apiVersion": {
+      "const": "mininet-ai/bounded-decision/v1alpha1",
+      "default": "mininet-ai/bounded-decision/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "authorization": {
+      "additionalProperties": true,
+      "title": "Authorization",
+      "type": "object"
+    },
+    "cancellationStatus": {
+      "default": "not-requested",
+      "enum": [
+        "not-requested",
+        "cancelled"
+      ],
+      "title": "Cancellationstatus",
+      "type": "string"
+    },
+    "correlationId": {
+      "minLength": 1,
+      "title": "Correlationid",
+      "type": "string"
+    },
+    "effectiveConfiguration": {
+      "additionalProperties": true,
+      "title": "Effectiveconfiguration",
+      "type": "object"
+    },
+    "gaps": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Gaps",
+      "type": "array"
+    },
+    "invocationId": {
+      "minLength": 1,
+      "title": "Invocationid",
+      "type": "string"
+    },
+    "lateResultDiscarded": {
+      "default": false,
+      "title": "Lateresultdiscarded",
+      "type": "boolean"
+    },
+    "modelProvenance": {
+      "additionalProperties": true,
+      "title": "Modelprovenance",
+      "type": "object"
+    },
+    "proposalMapping": {
+      "additionalProperties": true,
+      "title": "Proposalmapping",
+      "type": "object"
+    },
+    "reconciliation": {
+      "additionalProperties": true,
+      "title": "Reconciliation",
+      "type": "object"
+    },
+    "refusal": {
+      "additionalProperties": true,
+      "title": "Refusal",
+      "type": "object"
+    },
+    "request": {
+      "additionalProperties": true,
+      "title": "Request",
+      "type": "object"
+    },
+    "response": {
+      "additionalProperties": true,
+      "title": "Response",
+      "type": "object"
+    },
+    "runId": {
+      "minLength": 1,
+      "title": "Runid",
+      "type": "string"
+    },
+    "scenario": {
+      "additionalProperties": true,
+      "title": "Scenario",
+      "type": "object"
+    },
+    "selectedChoice": {
+      "minLength": 1,
+      "title": "Selectedchoice",
+      "type": "string"
+    },
+    "timings": {
+      "additionalProperties": true,
+      "title": "Timings",
+      "type": "object"
+    },
+    "timeoutStatus": {"enum": ["expired", "not-expired"]},
+    "remoteTerminalStatus": {"type": "string", "minLength": 1},
+    "localCancellationStatus": {"type": "string", "minLength": 1},
+    "incompleteEffects": {"type": "array", "items": {"type": "object"}},
+    "correctnessFailure": {"type": "object"}
+  },
+  "allOf": [
+    {"properties": {
+      "scenario": {"required": ["apiVersion", "kind", "metadata", "instructions", "choices", "paths", "observations", "timing", "policy"], "properties": {
+        "apiVersion": {"const": "mininet-ai/v1alpha5"}, "kind": {"const": "DecisionScenario"},
+        "metadata": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string", "minLength": 1}}},
+        "instructions": {"type": "string", "minLength": 1},
+        "choices": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "object", "additionalProperties": false, "required": ["id", "description", "proposals"], "properties": {"id": {"type": "string", "minLength": 1}, "description": {"type": "string", "minLength": 1}, "proposals": {"type": "array"}}}},
+        "paths": {"type": "object"}, "observations": {"type": "object", "minProperties": 1}, "policy": {"type": "object"},
+        "timing": {"type": "object", "required": ["cadence", "decisionDeadline"], "properties": {"cadence": {"const": "1s"}, "decisionDeadline": {"type": "string", "minLength": 2}}}
+      }},
+      "effectiveConfiguration": {"required": ["model", "provider", "parameters"], "properties": {
+        "model": {"type": "string", "minLength": 1},
+        "provider": {"const": "llamacpp-systemone"},
+        "parameters": {"type": "object", "required": ["endpoint", "expectedIdentity"]}
+      }},
+      "request": {"required": ["url", "state", "instructions", "criteria"], "properties": {
+        "url": {"type": "string", "minLength": 1},
+        "state": {"type": "string"},
+        "instructions": {"type": "string", "minLength": 1},
+        "criteria": {"type": "object", "minProperties": 2, "additionalProperties": {"type": "string", "minLength": 1}}
+      }},
+      "modelProvenance": {"required": ["startup", "expectedIdentity", "verification"], "properties": {
+        "startup": {"type": "object"}, "expectedIdentity": {"type": "object", "required": ["repository", "revision", "artifact", "sha256"]},
+        "verification": {"enum": ["verified", "unverified", "mismatched"]}
+      }},
+      "timings": {"required": ["startedTick", "completedTick", "deadlineTick", "clockDomain", "invokedAt", "phaseTransitions"], "properties": {
+        "startedTick": {"type": "number"}, "completedTick": {"type": "number"}, "deadlineTick": {"type": "number"},
+        "clockDomain": {"type": "string", "minLength": 1}, "invokedAt": {"type": "string", "format": "date-time"},
+        "phaseTransitions": {"type": "array", "items": {"type": "object", "required": ["phase", "tick"], "properties": {"phase": {"type": "string", "minLength": 1}, "tick": {"type": "number"}}}}
+      }},
+      "proposalMapping": {"required": ["choice", "proposals"], "properties": {"choice": {"type": "string", "minLength": 1}, "proposals": {"type": "array"}}},
+      "authorization": {"required": ["status"], "properties": {"status": {"type": "string", "minLength": 1}}},
+      "admission": {"required": ["status"], "properties": {"status": {"type": "string", "minLength": 1}}}
+    }},
+    {"if": {"properties": {"response": {"maxProperties": 0}}},
+     "then": {"required": ["gaps"], "properties": {"gaps": {"minItems": 1}}}}
+  ],
+  "required": [
+    "apiVersion",
+    "runId",
+    "agentId",
+    "invocationId",
+    "correlationId",
+    "scenario",
+    "effectiveConfiguration",
+    "request",
+    "response",
+    "selectedChoice",
+    "modelProvenance",
+    "timings",
+    "proposalMapping",
+    "authorization",
+    "admission",
+    "actionOutcomes"
+  ],
+  "title": "BoundedDecisionRecord",
+  "type": "object"
+}

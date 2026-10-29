@@ -12,9 +12,7 @@ from mininet_ai.specification.models import StrictModel
 COORDINATION_MESSAGE_CONTRACT_VERSION: Literal[
     "mininet-ai/coordination-message/v1alpha1"
 ] = "mininet-ai/coordination-message/v1alpha1"
-COORDINATION_MESSAGE_SCHEMA_ID = (
-    "urn:mininet-ai:schema:v1alpha1:coordination-message"
-)
+COORDINATION_MESSAGE_SCHEMA_ID = "urn:mininet-ai:schema:v1alpha1:coordination-message"
 
 
 class CoordinationMessageKind(StrEnum):
@@ -49,9 +47,7 @@ class CoordinationMessage(StrictModel):
         },
     )
 
-    contract_version: Literal[
-        "mininet-ai/coordination-message/v1alpha1"
-    ] = Field(
+    contract_version: Literal["mininet-ai/coordination-message/v1alpha1"] = Field(
         default=COORDINATION_MESSAGE_CONTRACT_VERSION,
         alias="contractVersion",
     )
@@ -90,10 +86,7 @@ class CoordinationMessage(StrictModel):
 
     @model_validator(mode="after")
     def identities_match_message_kind(self) -> CoordinationMessage:
-        if (
-            self.kind != CoordinationMessageKind.INTENT
-            and self.source_agent_id is None
-        ):
+        if self.kind != CoordinationMessageKind.INTENT and self.source_agent_id is None:
             raise ValueError(f"{self.kind.value} messages require sourceAgentId")
         if self.source_agent_id == self.target_agent_id:
             raise ValueError("coordination messages cannot target their source agent")
@@ -101,9 +94,7 @@ class CoordinationMessage(StrictModel):
 
     @model_validator(mode="after")
     def traversal_is_consistent(self) -> CoordinationMessage:
-        if len(set(self.traversed_message_ids)) != len(
-            self.traversed_message_ids
-        ):
+        if len(set(self.traversed_message_ids)) != len(self.traversed_message_ids):
             raise ValueError("traversedMessageIds must be unique")
         if self.message_id in self.traversed_message_ids:
             raise ValueError("a message cannot appear in its own traversal history")

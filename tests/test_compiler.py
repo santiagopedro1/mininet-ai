@@ -84,7 +84,9 @@ class CompilerTests(unittest.TestCase):
         self.assertEqual(resources["s2-h2"].endpoints, ("s2-eth2", "h2-eth0"))
         self.assertEqual(resources["h2-eth0"].ipv4, "10.0.0.2/24")
 
-    def test_explicit_addresses_are_preserved_and_auto_allocation_skips_them(self) -> None:
+    def test_explicit_addresses_are_preserved_and_auto_allocation_skips_them(
+        self,
+    ) -> None:
         snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         resources = snapshot["substrate"]["topology"]["resources"]
         h1 = next(resource for resource in resources if resource["name"] == "h1")
@@ -211,14 +213,16 @@ class CompilerTests(unittest.TestCase):
         ]
 
         self.assertTrue(switches)
-        self.assertTrue(all(agent.privileges == ("dataplane.write",) for agent in switches))
+        self.assertTrue(
+            all(agent.privileges == ("dataplane.write",) for agent in switches)
+        )
 
     def test_per_group_cardinality_collects_targets_by_label(self) -> None:
         snapshot = compile_experiment(COMPILER_MULTILAYER_SPECIFICATION).snapshot
         resources = snapshot["substrate"]["topology"]["resources"]
-        next(item for item in resources if item["name"] == "s2")["labels"][
-            "region"
-        ] = "west"
+        next(item for item in resources if item["name"] == "s2")["labels"]["region"] = (
+            "west"
+        )
         deployment = next(
             item for item in snapshot["agents"] if item["name"] == "switch-router"
         )

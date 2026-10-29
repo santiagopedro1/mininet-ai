@@ -189,8 +189,7 @@ class ProcessCapabilityProvider:
         max_output_bytes: int = _DEFAULT_OUTPUT_LIMIT,
     ) -> None:
         if not command or any(
-            not isinstance(item, str) or not item or "\x00" in item
-            for item in command
+            not isinstance(item, str) or not item or "\x00" in item for item in command
         ):
             raise ValueError("process capability command must contain valid arguments")
         if max_output_bytes <= 0:

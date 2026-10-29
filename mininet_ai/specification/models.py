@@ -43,7 +43,9 @@ class SpecificationDeprecationWarning(FutureWarning):
 
 
 class VersionedDocument(StrictModel):
-    api_version: Literal["mininet-ai/v1alpha4"] = Field(alias="apiVersion")
+    api_version: Literal["mininet-ai/v1alpha4", "mininet-ai/v1alpha5"] = Field(
+        alias="apiVersion"
+    )
 
     @field_validator("api_version", mode="wrap")
     @classmethod
@@ -267,6 +269,7 @@ Duration = Annotated[
     Field(pattern=r"^(?:0|[0-9]+(?:\.[0-9]+)?)(?:us|ms|s)$"),
 ]
 
+
 class LinkEndpoint(StrictModel):
     node: Name
     adapter: Name | None = None
@@ -318,9 +321,13 @@ _HTTP_ENDPOINT = TypeAdapter(HttpUrl)
 
 def validate_ollama_host(value: object) -> str:
     """Validate an explicit endpoint without normalizing serialized input."""
-    if not isinstance(value, str) or not value or any(
-        char.isspace() or ord(char) < 32 or ord(char) == 127 or char == "\\"
-        for char in value
+    if (
+        not isinstance(value, str)
+        or not value
+        or any(
+            char.isspace() or ord(char) < 32 or ord(char) == 127 or char == "\\"
+            for char in value
+        )
     ):
         raise ValueError("Ollama host must be a non-empty HTTP/HTTPS URL")
     try:
@@ -331,7 +338,9 @@ def validate_ollama_host(value: object) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ValueError("Ollama host must be an HTTP/HTTPS URL with a hostname")
     if parsed.username is not None or parsed.password is not None:
-        raise ValueError("Ollama host must not contain credentials; use environment variables")
+        raise ValueError(
+            "Ollama host must not contain credentials; use environment variables"
+        )
     return value
 
 
@@ -361,6 +370,52 @@ class ModelConfiguration(StrictModel):
                         }
                     ],
                 ) from error
+        if info.data.get("provider") == "llamacpp-systemone":
+            unknown = set(parameters) - {"endpoint", "expectedIdentity"}
+            if unknown:
+                raise ValueError(
+                    "llamacpp-systemone parameters only allow endpoint and expectedIdentity"
+                )
+            endpoint = parameters.get("endpoint")
+            if not isinstance(endpoint, str):
+                raise ValueError("llamacpp-systemone requires parameters.endpoint")
+            parsed = urlsplit(endpoint)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    "llamacpp-systemone endpoint must be an HTTP/HTTPS base URL without credentials, query, or fragment"
+                )
+            identity = parameters.get("expectedIdentity")
+            required = {"repository", "revision", "artifact", "sha256"}
+            if not isinstance(identity, dict) or not required.issubset(identity):
+                raise ValueError(
+                    "llamacpp-systemone expectedIdentity requires repository, revision, artifact, and sha256"
+                )
+            if set(identity) - (required | {"serverVersion", "serverCommit"}):
+                raise ValueError("expectedIdentity contains unsupported fields")
+            if any(
+                not isinstance(identity[key], str) or not identity[key]
+                for key in required
+            ):
+                raise ValueError(
+                    "expectedIdentity repository, revision, artifact, and sha256 must be non-empty strings"
+                )
+            if not re.fullmatch(r"[0-9a-fA-F]{64}", str(identity["sha256"])):
+                raise ValueError("expectedIdentity.sha256 must be a SHA-256 hex digest")
+            if any(
+                key in identity
+                and (not isinstance(identity[key], str) or not identity[key])
+                for key in ("serverVersion", "serverCommit")
+            ):
+                raise ValueError(
+                    "expectedIdentity serverVersion and serverCommit must be non-empty strings"
+                )
         return parameters
 
 
@@ -449,6 +504,195 @@ class MemoryConfiguration(StrictModel):
     shared: SharedMemoryConfiguration | None = None
 
 
+class AgentExecutionSelection(StrictModel):
+    kind: Literal["agno", "bounded-decision"]
+    scenario: Name | None = None
+
+    @model_validator(mode="after")
+    def scenario_matches_kind(self) -> AgentExecutionSelection:
+        if self.kind == "bounded-decision" and not self.scenario:
+            raise ValueError("bounded-decision execution requires scenario")
+        if self.kind == "agno" and self.scenario is not None:
+            raise ValueError("Agno execution cannot select a decision scenario")
+        return self
+
+
+class DecisionChoice(StrictModel):
+    id: Name
+    description: str = Field(min_length=1)
+    proposals: list[dict[str, Any]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def proposals_have_fixed_shape(self) -> DecisionChoice:
+        for proposal in self.proposals:
+            if set(proposal) != {"capability", "target", "arguments"}:
+                raise ValueError(
+                    "decision proposals require exactly capability, target, and arguments"
+                )
+            TypeAdapter(dict[str, Any]).validate_python(
+                proposal["arguments"], strict=True
+            )
+            for field in ("capability", "target"):
+                if not isinstance(proposal[field], str) or not re.fullmatch(
+                    NAME_PATTERN, proposal[field]
+                ):
+                    raise ValueError(
+                        f"decision proposal {field} must be a non-empty identifier"
+                    )
+        if self.id == "install_recovery" and not self.proposals:
+            raise ValueError("install_recovery requires its fixed proposal bundle")
+        return self
+
+
+class DecisionScenario(VersionedDocument):
+    api_version: Literal["mininet-ai/v1alpha5"] = Field(alias="apiVersion")
+    kind: Literal["DecisionScenario"]
+    metadata: Metadata
+    input_mode: Literal["recovery-history", "current-only"] = Field(
+        default="recovery-history", alias="inputMode"
+    )
+    instructions: str = Field(min_length=1)
+    choices: tuple[DecisionChoice, ...] = Field(min_length=2, max_length=2)
+    paths: dict[str, Any]
+    observations: dict[str, Any]
+    timing: dict[str, Any]
+    policy: dict[str, Any]
+    local_expectations: dict[Name, dict[str, Any]] = Field(
+        default_factory=dict,
+        alias="localExpectations",
+        exclude_if=lambda value: not value,
+    )
+
+    @model_validator(mode="after")
+    def bounded_scenario_contract(self) -> DecisionScenario:
+        if self.input_mode == "current-only":
+            for expected in self.local_expectations.values():
+                if set(expected) != {"ports", "flows"} or (
+                    not isinstance(expected["ports"], list)
+                    or not expected["ports"]
+                    or any(
+                        not isinstance(port, str) or not port
+                        for port in expected["ports"]
+                    )
+                    or len(set(expected["ports"])) != len(expected["ports"])
+                    or not isinstance(expected["flows"], list)
+                    or not expected["flows"]
+                ):
+                    raise ValueError(
+                        "localExpectations requires non-empty ports and flows"
+                    )
+                for flow in expected["flows"]:
+                    if not isinstance(flow, dict) or set(flow) != {
+                        "cookie",
+                        "table",
+                        "priority",
+                        "match",
+                        "actions",
+                    }:
+                        raise ValueError(
+                            "local expected flows require cookie, table, priority, match, actions"
+                        )
+                    if (
+                        not isinstance(flow["cookie"], str)
+                        or not re.fullmatch(r"0x[0-9a-fA-F]+", flow["cookie"])
+                        or type(flow["table"]) is not int
+                        or flow["table"] < 0
+                        or type(flow["priority"]) is not int
+                        or not 0 <= flow["priority"] <= 65535
+                        or not isinstance(flow["match"], dict)
+                        or any(
+                            not isinstance(key, str)
+                            or not isinstance(value, (str, bool))
+                            for key, value in flow["match"].items()
+                        )
+                        or not isinstance(flow["actions"], str)
+                        or not flow["actions"]
+                    ):
+                        raise ValueError(
+                            "local expected flow fields have invalid types or ranges"
+                        )
+            if len({choice.id for choice in self.choices}) != 2:
+                raise ValueError("current-only diagnosis choices must have unique IDs")
+            if any(choice.proposals for choice in self.choices):
+                raise ValueError(
+                    "current-only diagnosis choices cannot contain proposals"
+                )
+            if self.paths or self.policy:
+                raise ValueError(
+                    "current-only diagnosis cannot declare network paths or policy"
+                )
+            if not self.observations or any(
+                not isinstance(key, str)
+                or not key
+                or not isinstance(value, str)
+                or not value
+                for key, value in self.observations.items()
+            ):
+                raise ValueError(
+                    "current-only diagnosis requires named current observation bindings"
+                )
+            self._validate_timing()
+            return self
+        if self.local_expectations:
+            raise ValueError(
+                "localExpectations is only valid for current-only diagnosis"
+            )
+        if tuple(choice.id for choice in self.choices) != (
+            "no_action",
+            "install_recovery",
+        ):
+            raise ValueError("decision choices must be no_action then install_recovery")
+        if self.choices[0].proposals:
+            raise ValueError("no_action must have no proposals")
+        if set(self.paths) != {"primary", "recovery"}:
+            raise ValueError("decision scenario requires primary and recovery paths")
+        if any(
+            not isinstance(path, list) or len(path) < 2 for path in self.paths.values()
+        ):
+            raise ValueError("decision scenario paths must be ordered node lists")
+        required = {
+            "pathProbes",
+            "linkStates",
+            "policyState",
+            "actionOutcomes",
+            "historyRounds",
+            "maxAge",
+        }
+        if set(self.observations) != required:
+            raise ValueError("decision scenario observations are incomplete")
+        if any(
+            not isinstance(self.observations[name], str) or not self.observations[name]
+            for name in ("pathProbes", "linkStates", "policyState", "actionOutcomes")
+        ):
+            raise ValueError(
+                "logical decision observation bindings must be non-empty source names"
+            )
+        if (
+            self.observations["historyRounds"] != 3
+            or self.observations["maxAge"] != "2s"
+        ):
+            raise ValueError(
+                "decision scenario historyRounds and maxAge are fixed at 3 and 2s"
+            )
+        if set(self.policy) != {"initial", "recovery", "probePolicy"}:
+            raise ValueError(
+                "decision scenario requires initial, recovery, and probePolicy"
+            )
+        self._validate_timing()
+        return self
+
+    def _validate_timing(self) -> None:
+        if (
+            set(self.timing) != {"cadence", "decisionDeadline"}
+            or self.timing.get("cadence") != "1s"
+            or not isinstance(self.timing.get("decisionDeadline"), str)
+            or duration_seconds(self.timing["decisionDeadline"]) <= 0
+        ):
+            raise ValueError(
+                "decision scenario requires a 1s cadence and positive decisionDeadline"
+            )
+
+
 class AgentBlueprint(VersionedDocument):
     kind: Literal["AgentBlueprint"]
     metadata: Metadata
@@ -457,6 +701,62 @@ class AgentBlueprint(VersionedDocument):
     reasoning: ReasoningConfiguration = Field(default_factory=ReasoningConfiguration)
     memory: MemoryConfiguration = Field(default_factory=MemoryConfiguration)
     loop: LoopConfiguration = Field(default_factory=LoopConfiguration)
+    execution: AgentExecutionSelection | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def execution_requires_current_source(cls, value: Any) -> Any:
+        if (
+            isinstance(value, dict)
+            and "execution" in value
+            and value.get("apiVersion", value.get("api_version"))
+            != "mininet-ai/v1alpha5"
+        ):
+            raise ValueError("execution selection requires mininet-ai/v1alpha5")
+        return value
+
+    @model_validator(mode="after")
+    def bounded_execution_is_explicitly_supported(self) -> AgentBlueprint:
+        if self.execution is not None and self.execution.kind == "bounded-decision":
+            if self.api_version != "mininet-ai/v1alpha5":
+                raise ValueError(
+                    "bounded-decision execution requires mininet-ai/v1alpha5"
+                )
+            if self.implementation.type != "declarative":
+                raise ValueError(
+                    "bounded-decision execution requires declarative implementation"
+                )
+            if (
+                isinstance(self.model, ModelConfiguration)
+                and self.model.provider != "llamacpp-systemone"
+            ):
+                raise ValueError(
+                    "bounded-decision execution requires llamacpp-systemone model configuration"
+                )
+            if self.model is None:
+                raise ValueError(
+                    "bounded-decision execution requires model configuration"
+                )
+            if any((self.memory.local, self.memory.conversation, self.memory.learned)):
+                raise ValueError(
+                    "bounded-decision does not support local, conversation, or learned memory"
+                )
+            if (
+                self.reasoning.instructions is not None
+                or self.reasoning.output_schema is not None
+            ):
+                raise ValueError(
+                    "bounded-decision does not support chat reasoning instructions or output schemas"
+                )
+            if self.loop.phases:
+                raise ValueError("bounded-decision does not support chat loop phases")
+            if self.reasoning.timeout is not None:
+                raise ValueError(
+                    "bounded-decision timing is scenario-owned; reasoning.timeout is not applicable"
+                )
+        return self
 
 
 class PostconditionDefinition(StrictModel):
@@ -617,9 +917,7 @@ class ObservationPolicy(StrictModel):
     observation: str = Field(min_length=1)
     every: Duration
     window: Duration
-    aggregation: Literal["latest", "minimum", "maximum", "mean", "sum"] = (
-        "latest"
-    )
+    aggregation: Literal["latest", "minimum", "maximum", "mean", "sum"] = "latest"
     detectors: list[ObservationDetector] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -674,15 +972,14 @@ class AgentDeployment(StrictModel):
     observe: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
     priority: int = 0
-    triggers: list[Trigger] = Field(
-        default_factory=lambda: [ManualTrigger()]
-    )
+    triggers: list[Trigger] = Field(default_factory=lambda: [ManualTrigger()])
     observation_policies: list[ObservationPolicy] = Field(
         default_factory=list,
         alias="observationPolicies",
     )
-    execution: ExecutionConfiguration = Field(
-        default_factory=ExecutionConfiguration
+    execution: ExecutionConfiguration = Field(default_factory=ExecutionConfiguration)
+    decision_inputs: dict[str, str] = Field(
+        default_factory=dict, alias="decisionInputs", exclude_if=lambda value: not value
     )
 
     @model_validator(mode="after")
@@ -758,6 +1055,11 @@ class Experiment(VersionedDocument):
     metadata: Metadata
     substrate: Substrate
     blueprints: list[AgentBlueprint | str] = Field(default_factory=list)
+    decision_scenarios: list[DecisionScenario | str] = Field(
+        default_factory=list,
+        alias="decisionScenarios",
+        exclude_if=lambda value: not value,
+    )
     capability_definitions: list[CapabilityDefinition | str] = Field(
         default_factory=list, alias="capabilityDefinitions"
     )
@@ -767,3 +1069,48 @@ class Experiment(VersionedDocument):
     resource_limits: ResourceLimits = Field(
         default_factory=ResourceLimits, alias="resourceLimits"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def new_fields_require_current_source(cls, value: Any) -> Any:
+        agents = value.get("agents", ()) if isinstance(value, dict) else ()
+        if not isinstance(agents, (list, tuple)):
+            agents = ()
+        if (
+            isinstance(value, dict)
+            and value.get("apiVersion", value.get("api_version"))
+            != "mininet-ai/v1alpha5"
+            and (
+                "decisionScenarios" in value
+                or "decision_scenarios" in value
+                or any(
+                    isinstance(agent, dict)
+                    and ("decisionInputs" in agent or "decision_inputs" in agent)
+                    for agent in agents
+                )
+            )
+        ):
+            raise ValueError(
+                "decisionScenarios and decisionInputs require mininet-ai/v1alpha5"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def versioned_bounded_authoring(self) -> Experiment:
+        if self.api_version == "mininet-ai/v1alpha4":
+            if self.decision_scenarios or any(
+                agent.decision_inputs for agent in self.agents
+            ):
+                raise ValueError(
+                    "decisionScenarios and decisionInputs require mininet-ai/v1alpha5"
+                )
+            if any(
+                isinstance(blueprint, AgentBlueprint)
+                and blueprint.execution is not None
+                and blueprint.execution.kind == "bounded-decision"
+                for blueprint in self.blueprints
+            ):
+                raise ValueError(
+                    "bounded-decision execution requires mininet-ai/v1alpha5"
+                )
+        return self

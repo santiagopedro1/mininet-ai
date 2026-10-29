@@ -46,8 +46,14 @@ def test_native_inline_source_compiles_serializes_and_reconstructs(tmp_path):
     restored = DeploymentPlan.model_validate_json(plan.model_dump_json(by_alias=True))
     source.unlink()
 
-    assert restored.api_version == "mininet-ai/v1alpha4"
-    assert restored.snapshot == snapshot
+    assert restored.api_version == "mininet-ai/v1alpha5"
+    assert restored.snapshot["apiVersion"] == "mininet-ai/v1alpha5"
+    assert {item["apiVersion"] for item in restored.snapshot["blueprints"]} == {
+        "mininet-ai/v1alpha5"
+    }
+    assert {
+        item["apiVersion"] for item in restored.snapshot["capabilityDefinitions"]
+    } == {"mininet-ai/v1alpha5"}
     model = ExecutionCatalog(restored).resolve("switch-router@s1").blueprint.model
     from mininet_ai.specification.models import ModelConfiguration
 
@@ -77,11 +83,11 @@ def test_old_sources_warn_normalize_and_resolve_mixed_definitions(
     with pytest.warns(SpecificationDeprecationWarning, match="v1alpha3.*v1alpha4"):
         plan = compile_experiment(source)
 
-    assert plan.api_version == "mininet-ai/v1alpha4"
-    assert plan.snapshot["apiVersion"] == "mininet-ai/v1alpha4"
-    assert plan.snapshot["blueprints"][0]["apiVersion"] == "mininet-ai/v1alpha4"
+    assert plan.api_version == "mininet-ai/v1alpha5"
+    assert plan.snapshot["apiVersion"] == "mininet-ai/v1alpha5"
+    assert plan.snapshot["blueprints"][0]["apiVersion"] == "mininet-ai/v1alpha5"
     assert (
-        plan.snapshot["capabilityDefinitions"][0]["apiVersion"] == "mininet-ai/v1alpha4"
+        plan.snapshot["capabilityDefinitions"][0]["apiVersion"] == "mininet-ai/v1alpha5"
     )
     assert ExecutionCatalog(plan).agent_ids
 
@@ -177,7 +183,7 @@ def test_cli_warns_on_old_source_and_only_plans_new_contract(tmp_path, command):
         result = CliRunner().invoke(app, arguments)
     assert result.exit_code == 0, result.output
     if command == "plan":
-        assert json.loads(result.stdout)["apiVersion"] == "mininet-ai/v1alpha4"
+        assert json.loads(result.stdout)["apiVersion"] == "mininet-ai/v1alpha5"
 
 
 def test_cli_invalid_old_source_produces_no_plan(tmp_path):

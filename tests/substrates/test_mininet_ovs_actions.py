@@ -32,6 +32,8 @@ class RecordingExecutor:
             "h2-eth0": True,
         }
         self.fail_interface: str | None = None
+        self.flow_dump = ""
+        self.flow_dump_error = False
 
     def run(
         self, arguments, *, node=None, timeout_seconds: float = 10
@@ -40,6 +42,12 @@ class RecordingExecutor:
         command = list(arguments)
         node_name = getattr(node, "name", None)
         self.calls.append((command, node_name))
+        if command[:4] == ["ovs-ofctl", "-O", "OpenFlow13", "dump-flows"]:
+            return CommandResult(
+                stdout=self.flow_dump,
+                stderr="dump failed" if self.flow_dump_error else "",
+                returncode=1 if self.flow_dump_error else 0,
+            )
         if command[:5] == ["ip", "-j", "link", "show", "dev"]:
             name = command[5]
             flags = ["UP"] if self.interface_up[name] else []
@@ -161,13 +169,19 @@ class MininetOVSActionsTests(unittest.TestCase):
             )
         )
 
-    def test_hierarchical_client_template_uses_distinct_managed_process_ids(self) -> None:
+    def test_hierarchical_client_template_uses_distinct_managed_process_ids(
+        self,
+    ) -> None:
         plan = compile_experiment(
             Path(__file__).parents[2] / "examples/hierarchical-routing/experiment.yaml"
         )
-        instructions = ExecutionCatalog(plan).resolve("host-traffic@h1").blueprint.reasoning.instructions
+        instructions = (
+            ExecutionCatalog(plan)
+            .resolve("host-traffic@h1")
+            .blueprint.reasoning.instructions
+        )
         assert instructions is not None
-        template = instructions[instructions.index("{"):]
+        template = instructions[instructions.index("{") :]
         process_ids = set()
         for index, host in enumerate(("h1", "h2", "h1")):
             rendered = template.replace("<targets[0]>", host).replace(
@@ -278,6 +292,59 @@ class MininetOVSActionsTests(unittest.TestCase):
             ],
         )
         self.assertEqual(self.executor.calls[-1][0][3:5], ["--strict", "del-flows"])
+
+    def test_inspects_exact_scenario_flow_rules_and_reports_wrong_or_missing(
+        self,
+    ) -> None:
+        expected = (
+            ActionRequest(
+                id="bounded-1",
+                name="openflow.flow.install",
+                target="s1",
+                parameters={
+                    "match": {"in_port": 1, "ip": True},
+                    "actions": "output:2",
+                    "cookie": 16,
+                    "priority": 100,
+                    "idleTimeout": 10,
+                    "hardTimeout": 20,
+                },
+            ),
+            ActionRequest(
+                id="bounded-2",
+                name="openflow.flow.install",
+                target="s1",
+                parameters={"match": {"in_port": 3}, "actions": "drop", "cookie": 32},
+            ),
+        )
+        self.executor.flow_dump = (
+            " cookie=0x10, duration=4.5s, table=0, n_packets=3, n_bytes=252, "
+            "idle_timeout=10, hard_timeout=20, priority=100,in_port=1,ip actions=output:2\n"
+            " cookie=0x21, duration=1s, table=0, n_packets=0, n_bytes=0, "
+            "priority=32768,in_port=3 actions=drop\n"
+        )
+
+        states = self.actions.inspect_scenario_actions(expected)
+
+        self.assertEqual(states, ("present", "wrong"))
+        self.assertEqual(
+            self.executor.calls[-1][0],
+            ["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", "s1"],
+        )
+
+    def test_rule_inspection_failure_is_not_interpreted_as_missing(self) -> None:
+        self.executor.flow_dump_error = True
+        expected = (
+            ActionRequest(
+                id="bounded-1",
+                name="openflow.flow.install",
+                target="s1",
+                parameters={"match": {"in_port": 1}, "actions": "output:2"},
+            ),
+        )
+
+        with self.assertRaises(ActionExecutionError):
+            self.actions.inspect_scenario_actions(expected)
 
     def test_host_processes_are_managed_by_request_id(self) -> None:
         started = self.execute(

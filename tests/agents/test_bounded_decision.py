@@ -1,0 +1,459 @@
+import pytest
+
+from mininet_ai.agents.bounded import (
+    NativeSystemOneClient,
+    _current_only_context,
+    map_choice,
+)
+from mininet_ai.agents.bounded_contracts import (
+    AgentExecutionRecord,
+    BoundedDecisionRecord,
+)
+from mininet_ai.errors import AgentRuntimeError
+
+
+def test_exact_no_action_choice_maps_to_no_proposals():
+    result = map_choice(
+        {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}},
+        {"no_action": (), "install_recovery": ({"capability": "flow.install"},)},
+    )
+
+    assert result.choice_id == "no_action"
+    assert result.proposals == ()
+
+
+def test_current_only_diagnosis_choice_maps_without_action_proposals():
+    result = map_choice(
+        {"answers": {"next_action": {"type": "choice", "choice": "degraded"}}},
+        {"healthy": (), "degraded": ()},
+    )
+
+    assert result.choice_id == "degraded"
+    assert result.proposals == ()
+
+
+def test_current_only_state_matches_runtime_wire_shape_without_history():
+    context = _current_only_context(
+        scenario={"name": "switch-current-diagnosis"},
+        identity={"runId": "run-1", "agentId": "switch@s2"},
+        targets=("s2",),
+        diagnosis={
+            "flowState": {
+                "source": "openflow.flows",
+                "availability": "available",
+                "value": {"s2": {"entries": 4}},
+                "observedAt": None,
+            },
+            "portState": {
+                "source": "ovs.port-counters",
+                "availability": "available",
+                "value": {"s2": {"port1": "down"}},
+                "observedAt": None,
+            },
+        },
+    )
+
+    assert set(context) == {"apiVersion", "scenario", "identity", "switch"}
+    assert context["switch"]["targets"] == ["s2"]
+    assert set(context["switch"]["diagnosis"]) == {"flowState", "portState"}
+    assert "history" not in context
+
+
+def test_omitted_native_diagnostics_remain_unavailable():
+    result = map_choice(
+        {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}},
+        {"no_action": (), "install_recovery": ()},
+    )
+
+    assert result.probability is None
+    assert result.confidence is None
+    assert result.probabilities is None
+
+
+@pytest.mark.parametrize("field", ["confidence", "probabilities"])
+@pytest.mark.parametrize(
+    "value", [None, True, "0.5", -0.01, 1.01, float("nan"), float("inf")]
+)
+def test_present_native_diagnostics_must_be_valid_numbers(field, value):
+    response = {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}}
+    response[field] = {"no_action": value} if field == "probabilities" else value
+
+    with pytest.raises(AgentRuntimeError) as error:
+        map_choice(response, {"no_action": (), "install_recovery": ()})
+
+    assert error.value.code == "agent.bounded-decision.invalid-output"
+    assert field in str(error.value)
+
+
+def test_native_probabilities_must_only_name_allowed_choices():
+    with pytest.raises(AgentRuntimeError, match="unknown choice"):
+        map_choice(
+            {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}},
+                "probabilities": {"invented": 0.5},
+            },
+            {"no_action": (), "install_recovery": ()},
+        )
+
+
+def test_llama_native_answer_probabilities_are_retained():
+    result = map_choice(
+        {
+            "answers": {
+                "next_action": {
+                    "type": "choice",
+                    "choice": "no_action",
+                    "probabilities": {"no_action": 0.8, "install_recovery": 0.2},
+                    "confidence": 0.6,
+                }
+            },
+            "usage": {"input_tokens": 64, "output_tokens": 0},
+        },
+        {"no_action": (), "install_recovery": ()},
+    )
+
+    assert result.choice_id == "no_action"
+    assert result.probabilities == {"no_action": 0.8, "install_recovery": 0.2}
+    assert result.confidence == 0.6
+
+
+def test_native_choice_rejects_generated_output_tokens():
+    with pytest.raises(AgentRuntimeError, match="must not generate output tokens"):
+        map_choice(
+            {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}},
+                "usage": {"output_tokens": 1},
+            },
+            {"no_action": (), "install_recovery": ()},
+        )
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"answers": {}},
+        {"answers": {"next_action": {"type": "choice", "choice": "other"}}},
+        {"answers": {"next_action": {"type": "text", "choice": "no_action"}}},
+        {
+            "answers": {
+                "next_action": {
+                    "type": "choice",
+                    "choice": "install_recovery",
+                    "proposals": [{"capability": "invented"}],
+                }
+            }
+        },
+    ],
+)
+def test_invalid_native_choice_is_not_coerced_to_no_action(response):
+    with pytest.raises(AgentRuntimeError, match="choice"):
+        map_choice(response, {"no_action": (), "install_recovery": ()})
+
+
+def test_exact_recovery_choice_maps_fixed_bundle_even_at_low_confidence():
+    bundle = (
+        {
+            "capability": "openflow.flow.install",
+            "target": "s1",
+            "arguments": {"rule": 1},
+        },
+        {
+            "capability": "openflow.flow.install",
+            "target": "s2",
+            "arguments": {"rule": 2},
+        },
+    )
+    result = map_choice(
+        {
+            "answers": {
+                "next_action": {
+                    "type": "choice",
+                    "choice": "install_recovery",
+                }
+            },
+            "probabilities": {"no_action": 0.99, "install_recovery": 0.01},
+            "confidence": 0.02,
+        },
+        {"no_action": (), "install_recovery": bundle},
+    )
+
+    assert result.choice_id == "install_recovery"
+    assert result.proposals == bundle
+    assert result.probabilities == {"no_action": 0.99, "install_recovery": 0.01}
+    assert result.confidence == 0.02
+
+
+def test_map_choice_rejects_choice_not_declared_by_scenario():
+    with pytest.raises(AgentRuntimeError) as error:
+        map_choice(
+            {"answers": {"next_action": {"type": "choice", "choice": "emergency"}}},
+            {
+                "no_action": (),
+                "install_recovery": (),
+            },
+        )
+
+    assert error.value.code == "agent.bounded-decision.invalid-output"
+
+
+def test_no_action_cannot_carry_a_mutation_bundle():
+    with pytest.raises(AgentRuntimeError, match="must have no proposals"):
+        map_choice(
+            {"answers": {"next_action": {"type": "choice", "choice": "no_action"}}},
+            {"no_action": ({"capability": "flow.install"},), "install_recovery": ()},
+        )
+
+
+def test_native_client_posts_one_question_and_retains_canonical_state():
+    class Transport:
+        def get_json(self, url, **kwargs):
+            return {}
+
+        def post_json(self, url, payload, **kwargs):
+            self.call = (url, payload, kwargs)
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}},
+                "probabilities": {"no_action": 0.8, "install_recovery": 0.2},
+                "confidence": 0.8,
+                "usage": {"output_tokens": 0},
+            }
+
+    transport = Transport()
+    client = NativeSystemOneClient("http://localhost:8080/", transport)
+    result = client.decide(
+        state='{"observations":[],"rounds":3}',
+        instructions="Choose only from the declared choices.",
+        criteria={
+            "no_action": "Preserve policy",
+            "install_recovery": "Install exact recovery",
+        },
+        choices={
+            "no_action": (),
+            "install_recovery": ({"capability": "flow.install"},),
+        },
+        timeout_seconds=0.8,
+    )
+
+    assert result.choice_id == "no_action"
+    assert result.probabilities == {"no_action": 0.8, "install_recovery": 0.2}
+    assert result.confidence == 0.8
+    url, payload, kwargs = transport.call
+    assert url == "http://localhost:8080/v1/systemone"
+    assert payload == {
+        "state": '{"observations":[],"rounds":3}',
+        "questions": {
+            "next_action": {
+                "type": "choice",
+                "instructions": "Choose only from the declared choices.",
+                "criteria": {
+                    "no_action": "Preserve policy",
+                    "install_recovery": "Install exact recovery",
+                },
+            }
+        },
+    }
+    assert kwargs["timeout_seconds"] == 0.8
+
+
+def test_native_response_duplicate_keys_are_invalid():
+    with pytest.raises(AgentRuntimeError, match="duplicate JSON key"):
+        map_choice(
+            '{"answers":{"next_action":{"type":"choice","choice":"no_action","choice":"install_recovery"}}}',
+            {"no_action": (), "install_recovery": ()},
+        )
+
+
+def evidence_record():
+    identity = {
+        "repository": "org/model",
+        "revision": "revision",
+        "artifact": "model.gguf",
+        "sha256": "0" * 64,
+    }
+    return BoundedDecisionRecord(
+        runId="run-1",
+        agentId="decision-maker",
+        invocationId="invoke-1",
+        correlationId="tick-1",
+        scenario={
+            "apiVersion": "mininet-ai/v1alpha5",
+            "kind": "DecisionScenario",
+            "inputMode": "current-only",
+            "metadata": {"name": "diamond"},
+            "instructions": "Choose",
+            "choices": [
+                {"id": "healthy", "description": "Healthy", "proposals": []},
+                {"id": "degraded", "description": "Degraded", "proposals": []},
+            ],
+            "paths": {},
+            "observations": {"portState": "ovs.port-state"},
+            "policy": {},
+            "timing": {"cadence": "1s", "decisionDeadline": "5s"},
+        },
+        effectiveConfiguration={
+            "model": "model",
+            "provider": "llamacpp-systemone",
+            "parameters": {
+                "endpoint": "http://localhost:8080",
+                "expectedIdentity": identity,
+            },
+        },
+        request={
+            "url": "http://localhost:8080/v1/systemone",
+            "state": "{}",
+            "instructions": "Choose",
+            "criteria": {"healthy": "Healthy", "degraded": "Degraded"},
+        },
+        response={"answers": {"next_action": {"type": "choice", "choice": "healthy"}}},
+        selectedChoice="healthy",
+        modelProvenance={
+            "verification": "unverified",
+            "startup": {},
+            "expectedIdentity": identity,
+        },
+        timings={
+            "startedTick": 0,
+            "completedTick": 0.01,
+            "deadlineTick": 5,
+            "clockDomain": "run-monotonic",
+            "invokedAt": "2026-10-29T00:00:00Z",
+            "phaseTransitions": [],
+        },
+        proposalMapping={"choice": "healthy", "proposals": []},
+        authorization={"status": "not-required"},
+        admission={"status": "not-required"},
+        actionOutcomes=(),
+        gaps=("server build unavailable",),
+    )
+
+
+def test_bounded_evidence_is_versioned_without_agno_identity_or_metrics():
+    record = evidence_record()
+    execution = AgentExecutionRecord(
+        executionKind="bounded-decision",
+        outcome="succeeded",
+        runtime={"boundedDecision": record.model_dump(mode="json", by_alias=True)},
+    )
+
+    dumped = execution.model_dump(mode="json", by_alias=True)
+    assert dumped["apiVersion"] == "mininet-ai/agent-execution/v1alpha1"
+    assert dumped["agnoRunId"] is None
+    assert dumped["sessionId"] is None
+    assert dumped["metrics"] is None
+
+
+def test_startup_distinguishes_unverifiable_identity_from_service_interface_failure():
+    class Transport:
+        def __init__(self):
+            self.props = {}
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else self.props
+
+        def post_json(self, url, payload, **kwargs):
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
+
+    transport = Transport()
+    client = NativeSystemOneClient("http://127.0.0.1:8080", transport)
+    result = client.verify_startup(
+        model_name="expected-model",
+        expected_identity={
+            "repository": "org/model",
+            "revision": "rev",
+            "artifact": "model.gguf",
+            "sha256": "0" * 64,
+        },
+        instructions="Choose a fixed action.",
+        criteria={
+            "no_action": "Preserve policy",
+            "install_recovery": "Install recovery",
+        },
+        choices={"no_action": (), "install_recovery": ()},
+    )
+    assert result["status"] == "unverified"
+    assert result["interface"] == "verified"
+
+    transport.props = {"model_alias": "different-model"}
+    with pytest.raises(AgentRuntimeError) as error:
+        client.verify_startup(
+            model_name="expected-model",
+            expected_identity={
+                "repository": "org/model",
+                "revision": "rev",
+                "artifact": "model.gguf",
+                "sha256": "0" * 64,
+            },
+            instructions="Choose a fixed action.",
+            criteria={
+                "no_action": "Preserve policy",
+                "install_recovery": "Install recovery",
+            },
+            choices={"no_action": (), "install_recovery": ()},
+        )
+    assert error.value.code == "agent.bounded-decision.startup-identity-mismatch"
+
+
+def test_startup_verifies_observable_llama_props_without_claiming_provenance():
+    class Transport:
+        def __init__(self):
+            self.props = {
+                "model_alias": "expected-model",
+                "model_path": "/models/model.gguf",
+                "model_ftype": 15,
+                "build_info": "b5000",
+                "default_generation_settings": {},
+                "total_slots": 1,
+                "endpoint_slots": True,
+                "endpoint_metrics": True,
+            }
+            self.request = None
+
+        def get_json(self, url, **kwargs):
+            return {"status": "ok"} if url.endswith("/health") else self.props
+
+        def post_json(self, url, payload, **kwargs):
+            self.request = (url, payload)
+            return {
+                "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
+            }
+
+    transport = Transport()
+    client = NativeSystemOneClient("http://127.0.0.1:8080", transport)
+    expected_identity = {
+        "repository": "org/model",
+        "revision": "rev",
+        "artifact": "model.gguf",
+        "sha256": "0" * 64,
+    }
+    criteria = {
+        "no_action": "Preserve policy",
+        "install_recovery": "Install recovery",
+    }
+    result = client.verify_startup(
+        model_name="expected-model",
+        expected_identity=expected_identity,
+        instructions="Choose a fixed action.",
+        criteria=criteria,
+        choices={"no_action": (), "install_recovery": ()},
+    )
+
+    assert result["status"] == "unverified"
+    assert result["expectedIdentity"] == expected_identity
+    assert result["observedIdentity"] == {"artifact": "/models/model.gguf"}
+    assert result["expectedModel"] == "expected-model"
+    assert result["observedModel"] == "expected-model"
+    assert transport.request is not None
+    assert transport.request[1]["questions"]["next_action"]["criteria"] == criteria
+
+    transport.props["model_path"] = "/models/different.gguf"
+    with pytest.raises(AgentRuntimeError) as error:
+        client.verify_startup(
+            model_name="expected-model",
+            expected_identity=expected_identity,
+            instructions="Choose a fixed action.",
+            criteria=criteria,
+            choices={"no_action": (), "install_recovery": ()},
+        )
+    assert error.value.code == "agent.bounded-decision.startup-identity-mismatch"

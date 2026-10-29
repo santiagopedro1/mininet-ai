@@ -53,4 +53,14 @@ boundaries in [ADR 0010](0010-agent-sessions-learned-memory-and-run-evidence.md)
 Implementation references: [agent runtime](../../mininet_ai/agents/runtime.py),
 [Agno integration](../../mininet_ai/agents/agno/provider.py), and
 [capability engine](../../mininet_ai/capabilities/engine.py).
+
+The current one-shot runtime constructs the Agno execution adapter through an
+injected factory and consumes normalized response, runtime evidence, and action
+result persistence through that adapter. Mininet continues to own context
+assembly, capability validation/execution, completion status, and Shared
+Operational State commitment. This seam enables targeted integration work; it
+does not add another supported execution path or change the Agno-only decision.
+A bounded adapter still needs explicit execution selection and a client,
+versioned normalized records and evidence, and concrete compiler/runtime
+integration; none is implemented or claimed by this prefactor.
 See [compatibility and versioning](../compatibility.md) for deprecated API removal.

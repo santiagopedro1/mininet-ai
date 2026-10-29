@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Interface
 from pathlib import Path
 from typing import Literal
+
+from jsonschema import Draft202012Validator
 
 from mininet_ai.compiler.models import (
     AgentInstance,
@@ -29,6 +33,7 @@ from mininet_ai.compiler.models import (
     PlannedResource,
     PlannedSwitch,
 )
+from mininet_ai.durations import duration_seconds
 from mininet_ai.errors import CompilationError
 from mininet_ai.specification.loader import LoadedExperiment, load_experiment
 from mininet_ai.specification.models import (
@@ -43,6 +48,7 @@ from mininet_ai.specification.models import (
     Experiment,
     FlowResource,
     HostResource,
+    ModelConfiguration,
     NetworkResource,
     RegionResource,
     ResourceKind,
@@ -578,6 +584,22 @@ def _compile_instances(
         "agent deployment",
         lambda deployment: deployment.name,
     )
+    scenarios = {
+        scenario.metadata.name: scenario for scenario in loaded.decision_scenarios
+    }
+    if len(scenarios) != len(loaded.decision_scenarios):
+        raise CompilationError("decision scenario names must be unique")
+    bounded_deployments = [
+        deployment
+        for deployment in loaded.experiment.agents
+        if deployment.blueprint in blueprints
+        and (execution := blueprints[deployment.blueprint].execution) is not None
+        and execution.kind == "bounded-decision"
+    ]
+    if len(bounded_deployments) > 1:
+        raise CompilationError(
+            "this bounded-decision slice requires a singleton decision-maker"
+        )
     instances: list[AgentInstance] = []
     seen_ids: set[str] = set()
 
@@ -593,6 +615,73 @@ def _compile_instances(
                 f"agent {deployment.name!r} references unknown capabilities: "
                 + ", ".join(sorted(missing))
             )
+        blueprint = blueprints[deployment.blueprint]
+        selection = blueprint.execution
+        scenario = None
+        if selection is not None and selection.kind == "bounded-decision":
+            if loaded.experiment.api_version != "mininet-ai/v1alpha5":
+                raise CompilationError(
+                    "bounded-decision requires mininet-ai/v1alpha5 source"
+                )
+            scenario = scenarios.get(selection.scenario or "")
+            if scenario is None:
+                raise CompilationError(
+                    f"agent {deployment.name!r} references missing decision scenario {selection.scenario!r}"
+                )
+            declared_nodes = {resource.name for resource in resources}
+            if any(
+                node not in declared_nodes
+                for path_nodes in scenario.paths.values()
+                for node in path_nodes
+            ):
+                raise CompilationError(
+                    "decision scenario paths reference undeclared topology nodes"
+                )
+            current_only = scenario.input_mode == "current-only"
+            required_inputs = (
+                set(scenario.observations)
+                if current_only
+                else {"pathProbes", "linkStates", "policyState", "actionOutcomes"}
+            )
+            if set(deployment.decision_inputs) != required_inputs:
+                raise CompilationError(
+                    f"agent {deployment.name!r} decisionInputs must bind exactly {sorted(required_inputs)}"
+                )
+            undeclared_sources = set(deployment.decision_inputs.values()) - set(
+                deployment.observe
+            )
+            if undeclared_sources:
+                raise CompilationError(
+                    f"agent {deployment.name!r} decisionInputs reference undeclared observation {min(undeclared_sources)!r}"
+                )
+            if deployment.execution.max_concurrency != 1:
+                raise CompilationError("bounded-decision requires maxConcurrency=1")
+            allowed_cardinalities = (
+                {Cardinality.PER_TARGET}
+                if current_only
+                else {Cardinality.SINGLETON, Cardinality.PER_GROUP}
+            )
+            if deployment.placement.cardinality not in allowed_cardinalities:
+                raise CompilationError(
+                    "current-only diagnosis requires per-target placement"
+                    if current_only
+                    else "bounded-decision requires one singleton or one grouped placement"
+                )
+            if (
+                len(deployment.triggers) != 1
+                or deployment.triggers[0].type != "interval"
+                or duration_seconds(deployment.triggers[0].every) != 1
+            ):
+                raise CompilationError(
+                    "bounded-decision requires one 1s interval trigger"
+                )
+            if (
+                not isinstance(blueprint.model, ModelConfiguration)
+                or blueprint.model.provider != "llamacpp-systemone"
+            ):
+                raise CompilationError(
+                    "bounded-decision requires resolved llamacpp-systemone settings"
+                )
         policy_observations = [
             policy.observation for policy in deployment.observation_policies
         ]
@@ -621,7 +710,64 @@ def _compile_instances(
             raise CompilationError(
                 f"observer agent {deployment.name!r} cannot have capabilities"
             )
-        for instance_id, targets in _target_groups(deployment, selected):
+        target_groups = _target_groups(deployment, selected)
+        if (
+            scenario is not None
+            and scenario.input_mode != "current-only"
+            and len(target_groups) != 1
+        ):
+            raise CompilationError(
+                "bounded-decision must compile to exactly one agent instance"
+            )
+        for instance_id, targets in target_groups:
+            if scenario is not None:
+                if scenario.local_expectations:
+                    expected_targets = {
+                        target.name for group in target_groups for target in group[1]
+                    }
+                    if set(scenario.local_expectations) != expected_targets:
+                        raise CompilationError(
+                            "localExpectations must cover exactly the deployed switches"
+                        )
+                    for target in targets:
+                        expected_ports = scenario.local_expectations[target.name][
+                            "ports"
+                        ]
+                        actual_ports = {
+                            resource.name
+                            for resource in resources
+                            if resource.kind == ResourceKind.PORT
+                            and resource.parent == target.name
+                        }
+                        if set(expected_ports) != actual_ports:
+                            raise CompilationError(
+                                "localExpectations ports must match the target's declared ports"
+                            )
+                for choice in scenario.choices:
+                    for proposal in choice.proposals:
+                        capability = capabilities.get(proposal["capability"])
+                        if (
+                            capability is None
+                            or proposal["capability"] not in deployment.capabilities
+                        ):
+                            raise CompilationError(
+                                f"decision proposal capability {proposal['capability']!r} is not granted"
+                            )
+                        if proposal["target"] not in {
+                            target.name for target in targets
+                        }:
+                            raise CompilationError(
+                                f"decision proposal target {proposal['target']!r} is outside the singleton placement"
+                            )
+                        try:
+                            Draft202012Validator(capability.input_schema).validate(
+                                proposal["arguments"]
+                            )
+                        except Exception as error:
+                            detail = getattr(error, "message", str(error))
+                            raise CompilationError(
+                                f"decision proposal for {capability.metadata.name!r} has invalid arguments: {detail}"
+                            ) from error
             if instance_id in seen_ids:
                 raise CompilationError(f"duplicate compiled agent id: {instance_id!r}")
             seen_ids.add(instance_id)
@@ -701,6 +847,12 @@ def _compile_instances(
                     observationPolicies=tuple(deployment.observation_policies),
                     memory=blueprints[deployment.blueprint].memory,
                     execution=deployment.execution,
+                    decisionScenario=(
+                        scenario.model_dump(by_alias=True, mode="json")
+                        if scenario
+                        else None
+                    ),
+                    decisionInputs=deployment.decision_inputs if scenario else {},
                 )
             )
 
@@ -794,15 +946,31 @@ def _coordination(
 
 def _snapshot(loaded: LoadedExperiment) -> dict[str, object]:
     experiment = loaded.experiment.model_dump(by_alias=True, mode="json")
+    # New compilation always writes the current contract; old saved plans are
+    # dispatched separately and never pass through this source normalization.
+    experiment["apiVersion"] = "mininet-ai/v1alpha5"
     experiment["substrate"]["topology"] = loaded.topology.model_dump(
         by_alias=True, mode="json"
     )
     experiment["blueprints"] = [
-        blueprint.model_dump(by_alias=True, mode="json")
+        {
+            **blueprint.model_dump(by_alias=True, mode="json"),
+            "apiVersion": "mininet-ai/v1alpha5",
+        }
         for blueprint in sorted(loaded.blueprints, key=lambda item: item.metadata.name)
     ]
+    if loaded.decision_scenarios:
+        experiment["decisionScenarios"] = [
+            scenario.model_dump(by_alias=True, mode="json")
+            for scenario in sorted(
+                loaded.decision_scenarios, key=lambda item: item.metadata.name
+            )
+        ]
     experiment["capabilityDefinitions"] = [
-        capability.model_dump(by_alias=True, mode="json")
+        {
+            **capability.model_dump(by_alias=True, mode="json"),
+            "apiVersion": "mininet-ai/v1alpha5",
+        }
         for capability in sorted(
             loaded.capabilities, key=lambda item: item.metadata.name
         )
@@ -861,7 +1029,7 @@ def compile_experiment(
     canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
     digest = f"sha256:{hashlib.sha256(canonical.encode()).hexdigest()}"
     return DeploymentPlan(
-        apiVersion="mininet-ai/v1alpha4",
+        apiVersion="mininet-ai/v1alpha5",
         metadata=loaded.experiment.metadata,
         source=str(loaded.source),
         digest=digest,
@@ -874,3 +1042,35 @@ def compile_experiment(
         snapshot=snapshot,
         modelProvenance=model_provenance,
     )
+
+
+def save_deployment_plan(plan: DeploymentPlan, destination: str | Path) -> Path:
+    """Persist a compiled plan without reinterpreting its snapshot or digest."""
+    path = Path(destination).expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = plan.model_dump_json(by_alias=True, indent=2) + "\n"
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+    return path
+
+
+def load_deployment_plan(source: str | Path) -> DeploymentPlan:
+    """Load a saved DeploymentPlan verbatim, preserving historical semantics."""
+    path = Path(source)
+    try:
+        return DeploymentPlan.model_validate_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise CompilationError(
+            f"cannot load saved DeploymentPlan {path}: {error}"
+        ) from error

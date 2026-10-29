@@ -41,7 +41,7 @@ from mininet_ai.sdk import (
     AgentResponse,
 )
 from mininet_ai.specification.models import StrictModel
-from mininet_ai.substrates import ActionResult
+from mininet_ai.substrates import ActionResult, ActionStatus
 
 Clock = Callable[[], datetime]
 MessageIdFactory = Callable[[], str]
@@ -79,6 +79,8 @@ class CoordinationRequest(StrictModel):
         alias="triggeringEventId",
         min_length=1,
     )
+    deadline_started_at: float | None = Field(default=None, alias="deadlineStartedAt")
+    deadline_seconds: float | None = Field(default=None, alias="deadlineSeconds", gt=0)
 
 
 class CoordinationIssue(StrictModel):
@@ -330,6 +332,15 @@ class CoordinationRuntime:
             payload=CoordinationIntentPayload(
                 intent=request.intent,
                 requestedAgentId=request.requested_agent_id,
+                metadata=(
+                    {
+                        "deadlineStartedAt": request.deadline_started_at,
+                        "deadlineSeconds": request.deadline_seconds,
+                    }
+                    if request.deadline_started_at is not None
+                    and request.deadline_seconds is not None
+                    else {}
+                ),
             ).model_dump(mode="json", by_alias=True),
         )
         messages = [root]
@@ -593,7 +604,23 @@ class CoordinationRuntime:
         rejections: dict[str, ArbitrationCandidate],
     ):
         decisions = {d.candidate_id: d for d in arbitration.report.decisions}
+        bounded_bundle = (
+            prepared.response.metadata.get("executionKind") == "bounded-decision"
+            and prepared.response.metadata.get("selectedChoice") == "install_recovery"
+        )
+        halted = bounded_bundle and bool(action_results)
         for candidate in arbitration.ordered:
+            if halted:
+                action_results[candidate.candidate_id] = self._invoker.reject(
+                    prepared,
+                    candidate.proposal,
+                    code="agent.bounded-decision.bundle-stopped",
+                    message="recovery bundle stopped before this step started",
+                )
+                decisions[candidate.candidate_id] = decisions[
+                    candidate.candidate_id
+                ].model_copy(update={"disposition": "reject", "commit_order": None})
+                continue
             if candidate.candidate_id in rejections:
                 winner = rejections[candidate.candidate_id]
                 action_results[candidate.candidate_id] = self._invoker.reject(
@@ -611,6 +638,8 @@ class CoordinationRuntime:
                         "winner_candidate_id": winner.candidate_id,
                     }
                 )
+                if bounded_bundle:
+                    halted = True
                 continue
             rejection = self._invoker.validate(prepared, candidate.proposal)
             if rejection is not None:
@@ -618,12 +647,20 @@ class CoordinationRuntime:
                 decisions[candidate.candidate_id] = decisions[
                     candidate.candidate_id
                 ].model_copy(update={"disposition": "reject", "commit_order": None})
+                if bounded_bundle:
+                    halted = True
                 continue
             with self._admission.admit(candidate, history) as winner:
                 if winner is None:
                     action_results[candidate.candidate_id] = self._invoker.execute(
                         prepared, candidate.proposal
                     )
+                    if (
+                        bounded_bundle
+                        and action_results[candidate.candidate_id].status
+                        != ActionStatus.SUCCEEDED
+                    ):
+                        halted = True
                 else:
                     action_results[candidate.candidate_id] = self._invoker.reject(
                         prepared,
@@ -640,6 +677,8 @@ class CoordinationRuntime:
                             "winner_candidate_id": winner.candidate_id,
                         }
                     )
+                    if bounded_bundle:
+                        halted = True
         for candidate in arbitration.candidates:
             if candidate.candidate_id in arbitration.rejected:
                 action_results[candidate.candidate_id] = self._invoker.reject(

@@ -5,6 +5,7 @@ evolves. Golden plans are not used for examples — they are meant to be
 readable, not frozen.
 """
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -26,11 +27,298 @@ from mininet_ai.substrates.runtime import ObservationQuery, ObservationResult
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 EXAMPLE_NAMES = [
+    "diamond-recovery",
     "getting-started",
     "autonomous-operation",
     "hierarchical-routing",
     "iperf-throughput",
 ]
+
+
+def test_diamond_example_compiles_one_current_only_agent_per_switch() -> None:
+    """The maintained example plans local diagnosis without history or actions."""
+    plan = compile_experiment(EXAMPLES_DIR / "diamond-recovery/experiment.yaml")
+    assert plan.api_version == "mininet-ai/v1alpha5"
+    assert len(plan.agents) == 4
+    assert {instance.attachment.targets[0] for instance in plan.agents} == {
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+    }
+    assert all(
+        instance.attachment.targets == (instance.attachment.targets[0],)
+        for instance in plan.agents
+    )
+    assert all(
+        set(instance.observes) == {"openflow.flows", "ovs.port-state"}
+        for instance in plan.agents
+    )
+    assert all(
+        instance.decision_inputs
+        == {
+            "flowState": "openflow.flows",
+            "portState": "ovs.port-state",
+        }
+        for instance in plan.agents
+    )
+    instance = plan.agents[0]
+    scenario = instance.decision_scenario
+    assert scenario is not None
+    choices = scenario["choices"]
+    assert scenario["inputMode"] == "current-only"
+    assert [choice["id"] for choice in choices] == ["healthy", "degraded"]
+    assert all(choice["proposals"] == [] for choice in choices)
+    assert "history" not in scenario
+    assert scenario["paths"] == {}
+    assert scenario["policy"] == {}
+    assert scenario["observations"] == {
+        "flowState": "openflow.flows",
+        "portState": "ovs.port-state",
+    }
+    assert scenario["timing"] == {"cadence": "1s", "decisionDeadline": "5s"}
+    resources = plan.snapshot["substrate"]["topology"]["resources"]
+    switch_ports = {
+        resource["name"]: {port["number"] for port in resource["ports"]}
+        for resource in resources
+        if resource["kind"] == "switch"
+    }
+    assert switch_ports == {
+        "s1": {1, 2, 3},
+        "s2": {1, 2},
+        "s3": {1, 2},
+        "s4": {1, 2, 3},
+    }
+    assert {target for agent in plan.agents for target in agent.attachment.targets} == {
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+    }
+    link_map = {
+        link["name"]: tuple(
+            (endpoint["node"], endpoint.get("adapter"))
+            for endpoint in link["endpoints"]
+        )
+        for link in plan.snapshot["substrate"]["topology"]["links"]
+    }
+    assert link_map == {
+        "h1-s1": (("h1", "h1-eth0"), ("s1", "s1-eth1")),
+        "s1-s2": (("s1", "s1-eth2"), ("s2", "s2-eth1")),
+        "s2-s4": (("s2", "s2-eth2"), ("s4", "s4-eth2")),
+        "s1-s3": (("s1", "s1-eth3"), ("s3", "s3-eth1")),
+        "s3-s4": (("s3", "s3-eth2"), ("s4", "s4-eth3")),
+        "s4-h2": (("s4", "s4-eth1"), ("h2", "h2-eth0")),
+    }
+
+
+def test_diamond_recovery_oracle_covers_required_decision_classes() -> None:
+    fixture = (
+        EXAMPLES_DIR.parent
+        / "tests/fixtures/specifications/diamond-recovery/oracle.json"
+    )
+    cases = json.loads(fixture.read_text())["cases"]
+    labels = {case["label"] for case in cases}
+    assert {
+        "healthy",
+        "startup-insufficient-history",
+        "one-round-transient-loss",
+        "two-round-transient-loss",
+        "sustained-primary-failure",
+        "stale-evidence",
+        "missing-round",
+        "conflicting-link-and-probe-evidence",
+        "failed-recovery-probes",
+        "partial-or-unknown-policy",
+        "post-recovery-restraint",
+    } <= labels
+    assert all(case["expected"] in {"no_action", "install_recovery"} for case in cases)
+    assert all(
+        case["expected"] == "no_action"
+        for case in cases
+        if case["label"] != "sustained-primary-failure"
+    )
+
+
+def test_diamond_oracle_carries_bidirectional_round_evidence_for_each_link() -> None:
+    fixture = (
+        EXAMPLES_DIR.parent
+        / "tests/fixtures/specifications/diamond-recovery/oracle.json"
+    )
+    cases = json.loads(fixture.read_text())["cases"]
+    sustained = [case for case in cases if case["label"] == "sustained-primary-failure"]
+
+    assert {case["failedLink"] for case in sustained} == {"s1-s2", "s2-s4"}
+    for case in cases:
+        assert len(case["rounds"]) == 3
+        assert (
+            sum(round_["complete"] for round_ in case["rounds"])
+            == case["completeRounds"]
+        )
+        for round_ in case["rounds"]:
+            assert set(round_["primary"]) == {"forward", "reverse"}
+            assert set(round_["recovery"]) == {"forward", "reverse"}
+            assert set(round_["links"]) == {"s1-s2", "s2-s4", "s1-s3", "s3-s4"}
+            assert "observedAt" in round_
+
+
+def test_diamond_initial_policy_and_probe_payload_use_independent_paths() -> None:
+    from examples.diamond_recovery import (
+        INITIAL_RULES,
+        PATHS,
+        collect_observation_round,
+        static_neighbors,
+    )
+    from mininet_ai.substrates import FakeSubstrateRuntime
+
+    class FakeDiamondSubstrate(FakeSubstrateRuntime):
+        def __init__(self):
+            super().__init__(run_id_factory=lambda: "diamond-fake")
+            self.probe_calls = []
+
+        def probe(self, source, destination, source_ip, destination_ip, timeout):
+            self.probe_calls.append(
+                (source, destination, source_ip, destination_ip, timeout)
+            )
+            return {
+                "sent": 1,
+                "received": 1,
+                "state": "success",
+                "observedAt": "2026-10-28T12:00:00Z",
+            }
+
+    assert len(INITIAL_RULES) == 18
+    assert {rule["priority"] for rule in INITIAL_RULES} == {100}
+    assert {rule["hardTimeout"] for rule in INITIAL_RULES} == {0}
+    assert [rule["cookie"] for rule in INITIAL_RULES] == list(range(11101, 11119))
+    assert [rule["path"] for rule in INITIAL_RULES].count("primary") == 12
+    assert [rule["path"] for rule in INITIAL_RULES].count("recovery") == 6
+    assert PATHS == {
+        "primary": ("h1", "s1", "s2", "s4", "h2"),
+        "recovery": ("h1", "s1", "s3", "s4", "h2"),
+    }
+    assert static_neighbors() == {
+        "h1": {
+            "10.0.0.2": "02:00:00:00:00:02",
+            "10.0.0.12": "02:00:00:00:00:02",
+            "10.0.0.22": "02:00:00:00:00:02",
+        },
+        "h2": {
+            "10.0.0.1": "02:00:00:00:00:01",
+            "10.0.0.11": "02:00:00:00:00:01",
+            "10.0.0.21": "02:00:00:00:00:01",
+        },
+    }
+
+    substrate = FakeDiamondSubstrate()
+    substrate.deploy(
+        compile_experiment(EXAMPLES_DIR / "diamond-recovery/experiment.yaml")
+    )
+
+    payload = collect_observation_round(
+        substrate.probe,
+        observed_at="2026-10-28T12:00:00Z",
+        link_states={"s1-s2": "up", "s1-s3": "up", "s2-s4": "up", "s3-s4": "up"},
+        policy_state="primary",
+        previous_outcomes=[],
+    )
+    assert (
+        len(substrate.probe_calls) == 6
+    )  # four diagnostics and two active confirmations
+    assert {call[2] for call in substrate.probe_calls} == {
+        "10.0.0.1",
+        "10.0.0.2",
+        "10.0.0.11",
+        "10.0.0.12",
+        "10.0.0.21",
+        "10.0.0.22",
+    }
+    assert all(call[-1] == 1 for call in substrate.probe_calls)
+    assert len(payload["pathProbes"]) == 4
+    assert len(payload["activeConfirmation"]) == 2
+    assert payload["paths"] == {
+        "primary": ["h1", "s1", "s2", "s4", "h2"],
+        "recovery": ["h1", "s1", "s3", "s4", "h2"],
+    }
+    assert all(
+        probe["observedAt"] == "2026-10-28T12:00:00Z" for probe in payload["pathProbes"]
+    )
+    assert payload["linkStates"] == {
+        "s1-s2": {"state": "up", "observedAt": "2026-10-28T12:00:00Z"},
+        "s1-s3": {"state": "up", "observedAt": "2026-10-28T12:00:00Z"},
+        "s2-s4": {"state": "up", "observedAt": "2026-10-28T12:00:00Z"},
+        "s3-s4": {"state": "up", "observedAt": "2026-10-28T12:00:00Z"},
+    }
+
+
+def test_diamond_history_requires_three_consecutive_complete_scheduled_rounds() -> None:
+    from examples.diamond_recovery import collect_observation_round
+
+    def successful_probe(*_args):
+        return {"sent": 1, "received": 1, "state": "success"}
+
+    link_states = {name: "up" for name in ("s1-s2", "s1-s3", "s2-s4", "s3-s4")}
+    first = collect_observation_round(
+        successful_probe,
+        observed_at="2026-10-28T12:00:00Z",
+        link_states=link_states,
+        policy_state="primary",
+        previous_outcomes=[],
+        round_number=1,
+        scheduled_at="2026-10-28T12:00:00Z",
+    )
+    assert len(first["history"]["completedRounds"]) == 1
+    assert first["history"]["gaps"] == [
+        {"code": "history.insufficient-complete-rounds", "required": 3, "available": 1}
+    ]
+    second = collect_observation_round(
+        successful_probe,
+        observed_at="2026-10-28T12:00:01Z",
+        link_states=link_states,
+        policy_state="primary",
+        previous_outcomes=[],
+        previous_rounds=(first,),
+        round_number=2,
+        scheduled_at="2026-10-28T12:00:01Z",
+    )
+    third = collect_observation_round(
+        successful_probe,
+        observed_at="2026-10-28T12:00:02Z",
+        link_states=link_states,
+        policy_state="primary",
+        previous_outcomes=[],
+        previous_rounds=(first, second),
+        round_number=3,
+        scheduled_at="2026-10-28T12:00:02Z",
+    )
+    assert [
+        round_data["roundNumber"] for round_data in third["history"]["completedRounds"]
+    ] == [1, 2, 3]
+    assert third["history"]["gaps"] == []
+    assert third["invocationSnapshot"]["scenario"] == "diamond-recovery"
+    assert third["invocationSnapshot"]["inputs"]["history"]["requiredRounds"] == 3
+    frozen_inputs = third["invocationSnapshot"]["inputs"]
+    third["policyState"] = "mutated-after-assembly"
+    assert frozen_inputs["policyState"] == "primary"
+
+    def incomplete_probe(source, _destination, _source_ip, _destination_ip, _timeout):
+        if source == "h1":
+            return {"sent": None, "received": None, "state": "unknown"}
+        return {"sent": 1, "received": 1, "state": "success"}
+
+    fourth = collect_observation_round(
+        incomplete_probe,
+        observed_at="2026-10-28T12:00:03Z",
+        link_states=link_states,
+        policy_state="primary",
+        previous_outcomes=[],
+        previous_rounds=(second, third),
+        round_number=4,
+        scheduled_at="2026-10-28T12:00:03Z",
+    )
+    assert len(fourth["history"]["completedRounds"]) == 2
+    assert any(gap["code"] == "round.incomplete" for gap in fourth["history"]["gaps"])
+    assert any(probe["sent"] is None for probe in fourth["pathProbes"])
 
 
 def test_examples_validate_and_plan() -> None:

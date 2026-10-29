@@ -144,9 +144,7 @@ class AgentProviderTests(unittest.TestCase):
 
         invalid_contexts = (
             self.context.model_copy(update={"targets": ("s2",)}),
-            self.context.model_copy(
-                update={"observations": {"host.processes": []}}
-            ),
+            self.context.model_copy(update={"observations": {"host.processes": []}}),
         )
 
         for provider in providers:

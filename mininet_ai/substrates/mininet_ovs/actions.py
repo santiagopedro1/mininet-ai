@@ -122,6 +122,137 @@ class MininetOVSActions:
             ) from error
         return handler()
 
+    def inspect_scenario_actions(
+        self,
+        expected: tuple[ActionRequest, ...],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> tuple[str, ...]:
+        """Compare compiled scenario flows with a read-only OVS flow dump."""
+        dumps: dict[str, tuple[dict[str, Any], ...]] = {}
+        for request in expected:
+            if request.name != "openflow.flow.install":
+                raise ActionExecutionError(
+                    "scenario reconciliation only supports installed OpenFlow rules",
+                    code="runtime.reconciliation.unsupported",
+                    status=ActionStatus.FAILED,
+                )
+            if request.target not in dumps:
+                switch = cast(
+                    "PlannedSwitch",
+                    self._require_kind(request.target, ResourceKind.SWITCH),
+                )
+                command = ["ovs-ofctl"]
+                if switch.protocols:
+                    command.extend(["-O", switch.protocols[-1].value])
+                command.extend(["dump-flows", switch.name])
+                inspection_timeout = request.timeout_seconds
+                if timeout_seconds is not None:
+                    inspection_timeout = min(inspection_timeout, timeout_seconds)
+                output = self._run(command, timeout_seconds=inspection_timeout)
+                try:
+                    dumps[request.target] = self._parse_flow_dump(output.stdout)
+                except (TypeError, ValueError) as error:
+                    raise ActionExecutionError(
+                        f"could not parse scenario rule inspection for {switch.name!r}: {error}",
+                        code="runtime.reconciliation.invalid-output",
+                        status=ActionStatus.FAILED,
+                    ) from error
+        states = []
+        for request in expected:
+            expected_rule = self._parse_flow_expression(
+                self._flow_expression(request.parameters, require_actions=True)
+            )
+            candidates = [
+                flow
+                for flow in dumps[request.target]
+                if self._same_rule_identity(flow, expected_rule)
+            ]
+            if not candidates:
+                states.append("missing")
+            elif len(candidates) > 1:
+                states.append("conflicting")
+            elif candidates[0] == expected_rule:
+                states.append("present")
+            else:
+                states.append("wrong")
+        return tuple(states)
+
+    @classmethod
+    def _parse_flow_dump(cls, output: str) -> tuple[dict[str, Any], ...]:
+        flows = []
+        for line in output.splitlines():
+            if "cookie=" in line and "actions=" not in line:
+                raise ValueError("flow record is missing its actions field")
+            parsed = cls._parse_flow_expression(line)
+            if parsed:
+                flows.append(parsed)
+        return tuple(flows)
+
+    @staticmethod
+    def _parse_flow_expression(expression: str) -> dict[str, Any]:
+        import re
+
+        match = re.search(r"(?:,|\s)actions=(.*)$", expression.strip())
+        if match is None:
+            return {}
+        prefix = expression.strip()[: match.start()]
+        actions = match.group(1).strip()
+        result: dict[str, Any] = {"actions": actions}
+        ignored = {"duration", "n_packets", "n_bytes", "idle_age", "hard_age"}
+        for field in prefix.split(","):
+            token = field.strip()
+            if not token:
+                continue
+            if "=" in token:
+                name, value = token.split("=", 1)
+                name = name.strip()
+                if name in ignored:
+                    continue
+                result[name] = value.strip()
+            else:
+                result[token] = True
+        for name, default in (
+            ("cookie", "0"),
+            ("table", "0"),
+            ("priority", "32768"),
+            ("idle_timeout", "0"),
+            ("hard_timeout", "0"),
+        ):
+            result.setdefault(name, default)
+        for name in ("cookie", "table", "priority", "idle_timeout", "hard_timeout"):
+            value = result[name]
+            try:
+                result[name] = int(value, 0)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"invalid {name} value") from error
+        return result
+
+    @staticmethod
+    def _same_rule_identity(
+        actual: Mapping[str, Any], expected: Mapping[str, Any]
+    ) -> bool:
+        metadata = {
+            "actions",
+            "cookie",
+            "table",
+            "priority",
+            "idle_timeout",
+            "hard_timeout",
+        }
+        expected_match = {
+            key: value for key, value in expected.items() if key not in metadata
+        }
+        actual_match = {
+            key: value for key, value in actual.items() if key not in metadata
+        }
+        cookie_matches = (
+            "cookie" in expected
+            and expected["cookie"] != 0
+            and actual.get("cookie") == expected["cookie"]
+        )
+        return cookie_matches or actual_match == expected_match
+
     def close(self) -> None:
         for process_id in tuple(self._processes):
             managed = self._processes[process_id]
@@ -147,9 +278,7 @@ class MininetOVSActions:
                 self._terminate(managed.process, timeout_seconds=2)
             del self._processes[process_id]
 
-    def _set_link_state(
-        self, request: ActionRequest, *, up: bool
-    ) -> ActionOutcome:
+    def _set_link_state(self, request: ActionRequest, *, up: bool) -> ActionOutcome:
         self._require_no_parameters(request)
         link = self._require_kind(request.target, ResourceKind.LINK)
         interfaces = self._link_interfaces(cast("PlannedLink", link))
@@ -269,12 +398,9 @@ class MininetOVSActions:
         arguments = request.parameters.get("arguments", [])
         if not isinstance(command, str) or not command or "\x00" in command:
             self._reject("command must be a non-empty string")
-        if (
-            not isinstance(arguments, list)
-            or any(
-                not isinstance(argument, str) or "\x00" in argument
-                for argument in arguments
-            )
+        if not isinstance(arguments, list) or any(
+            not isinstance(argument, str) or "\x00" in argument
+            for argument in arguments
         ):
             self._reject("arguments must be a list of strings")
         if request.id in self._processes:
@@ -327,9 +453,7 @@ class MininetOVSActions:
                 code="runtime.action.process-unknown",
             ) from error
         if managed.host != request.target:
-            self._reject(
-                f"process {process_id!r} belongs to host {managed.host!r}"
-            )
+            self._reject(f"process {process_id!r} belongs to host {managed.host!r}")
         running = managed.process.poll() is None
         if running:
             self._terminate(
@@ -387,9 +511,7 @@ class MininetOVSActions:
                         code="runtime.action.timeout",
                         status=ActionStatus.FAILED,
                     )
-                time.sleep(
-                    min(0.05, max(0, kill_deadline - time.monotonic()))
-                )
+                time.sleep(min(0.05, max(0, kill_deadline - time.monotonic())))
         except ActionExecutionError:
             raise
         except subprocess.TimeoutExpired:
@@ -452,9 +574,7 @@ class MininetOVSActions:
             cookie_value = self._flow_integer("cookie", cookie, maximum=2**64 - 1)
             cookie_field = f"cookie={cookie_value:#x}"
             if cookie_mask is not None:
-                mask = self._flow_integer(
-                    "cookieMask", cookie_mask, maximum=2**64 - 1
-                )
+                mask = self._flow_integer("cookieMask", cookie_mask, maximum=2**64 - 1)
                 cookie_field += f"/{mask:#x}"
             fields.append(cookie_field)
         integer_fields = (
@@ -562,9 +682,7 @@ class MininetOVSActions:
             "max_queue_size": parameters["maxQueueSize"],
         }
 
-    def _link_interfaces(
-        self, link: PlannedLink
-    ) -> list[tuple[str, Any, Any]]:
+    def _link_interfaces(self, link: PlannedLink) -> list[tuple[str, Any, Any]]:
         by_name = {
             interface.name: interface
             for live_link in self._network.links
@@ -664,9 +782,7 @@ class MininetOVSActions:
             except ValueError:
                 MininetOVSActions._reject(f"{name} must be an integer")
         if not isinstance(value, int) or not 0 <= value <= maximum:
-            MininetOVSActions._reject(
-                f"{name} must be between 0 and {maximum}"
-            )
+            MininetOVSActions._reject(f"{name} must be between 0 and {maximum}")
         return value
 
     @staticmethod

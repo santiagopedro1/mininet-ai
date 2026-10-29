@@ -170,6 +170,30 @@ class MininetOVSObservationTests(unittest.TestCase):
         self.assertEqual(flow["match"], {"in_port": "1"})
         self.assertEqual(flow["actions"], "output:2")
 
+    def test_operational_port_state_preserves_down_and_unavailable(self) -> None:
+        for name, stdout in (
+            ("s1-eth1", '[{"flags":["UP"],"operstate":"DOWN","carrier":0}]'),
+            ("s1-eth2", "[]"),
+        ):
+            self.executor.add(
+                ("ip", "-j", "-s", "address", "show", "dev", name), stdout=stdout
+            )
+        values = self.observe("ovs.port-state", "s1")
+        assert values["s1"]["ports"] == [
+            {
+                "name": "s1-eth1",
+                "number": 1,
+                "state": "down",
+                "observedAt": values["s1"]["ports"][0]["observedAt"],
+            },
+            {
+                "name": "s1-eth2",
+                "number": 2,
+                "state": "unknown",
+                "observedAt": values["s1"]["ports"][1]["observedAt"],
+            },
+        ]
+
     def test_queue_telemetry_runs_in_each_ports_namespace(self) -> None:
         qdisc = (
             '[{"kind":"netem","handle":"10:","bytes":400,'
@@ -244,9 +268,7 @@ class MininetOVSObservationTests(unittest.TestCase):
         self.executor.add(
             ("ping", "-n", "-c", "1", "-W", "1", "10.0.0.2"),
             node="h1",
-            stdout=(
-                "64 bytes from 10.0.0.2: icmp_seq=1 ttl=64 time=0.123 ms\n"
-            ),
+            stdout=("64 bytes from 10.0.0.2: icmp_seq=1 ttl=64 time=0.123 ms\n"),
         )
 
         values = self.observe(
@@ -302,9 +324,7 @@ class MininetOVSObservationTests(unittest.TestCase):
         with self.assertRaises(ObservationCollectionError) as target:
             self.observe("host.interfaces", "s1")
         with self.assertRaises(ObservationCollectionError) as parameters:
-            self.observe(
-                "host.processes", "h1", parameters={"limit": True}
-            )
+            self.observe("host.processes", "h1", parameters={"limit": True})
         with self.assertRaises(ObservationCollectionError) as destination:
             self.observe(
                 "host.reachability",
@@ -346,10 +366,7 @@ class MininetOVSObservationTests(unittest.TestCase):
         snapshot = provider.snapshot()
 
         self.assertTrue(
-            all(
-                resource.state == ResourceOperationalState.UP
-                for resource in snapshot
-            )
+            all(resource.state == ResourceOperationalState.UP for resource in snapshot)
         )
         port = next(resource for resource in snapshot if resource.name == "h1-eth0")
         self.assertEqual(port.attributes["operState"], "UP")

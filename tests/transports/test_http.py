@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from threading import Event, Thread
 
 import httpx
 
@@ -61,6 +62,81 @@ class HttpxJsonTransportTests(unittest.TestCase):
 
         with self.assertRaises(TimeoutError):
             self.post(httpx.MockTransport(timeout))
+
+    def test_duplicate_json_keys_are_rejected(self) -> None:
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, content=b'{"answers":{"next_action":{},"next_action":{}}}'
+            )
+        )
+        with self.assertRaises(HttpTransportError) as error:
+            self.post(transport)
+        self.assertEqual(error.exception.code, "invalid-json")
+
+    def test_get_and_post_retain_bounded_http_rejection_diagnostics(self) -> None:
+        for method in ("get_json", "post_json"):
+            adapter = HttpxJsonTransport(
+                httpx.MockTransport(
+                    lambda request: httpx.Response(
+                        400, json={"error": "context limit exceeded"}
+                    )
+                )
+            )
+            with self.assertRaises(HttpTransportError) as caught:
+                call = getattr(adapter, method)
+                args = ({},) if method == "post_json" else ()
+                call(
+                    "http://localhost/test",
+                    *args,
+                    headers={},
+                    timeout_seconds=1,
+                    max_response_bytes=1024,
+                )
+            assert caught.exception.status_code == 400
+            assert caught.exception.response_body is not None
+            assert "context limit exceeded" in caught.exception.response_body
+
+    def test_cancel_request_closes_only_the_matching_local_client(self) -> None:
+        entered, release = Event(), Event()
+        result = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            entered.set()
+            self.assertTrue(release.wait(2))
+            return httpx.Response(200, json={"result": "ok"})
+
+        transport = HttpxJsonTransport(httpx.MockTransport(handler))
+
+        def post() -> None:
+            try:
+                result.append(
+                    transport.post_json(
+                        "https://provider.example.test/invoke",
+                        {"request": "test"},
+                        headers={},
+                        timeout_seconds=1,
+                        max_response_bytes=1024,
+                        request_id="invoke-1",
+                    )
+                )
+            except Exception as error:
+                result.append(error)
+
+        worker = Thread(target=post)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(1))
+            self.assertTrue(transport.cancel_request("invoke-1"))
+            release.set()
+            worker.join(2)
+            self.assertFalse(worker.is_alive())
+            # A closed local client does not prove the peer stopped and a
+            # response already in flight may still be delivered by the adapter.
+            self.assertTrue(result)
+            self.assertFalse(transport.cancel_request("invoke-1"))
+        finally:
+            release.set()
+            worker.join(2)
 
 
 if __name__ == "__main__":

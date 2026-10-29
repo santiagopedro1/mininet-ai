@@ -1,0 +1,2391 @@
+{
+  "$defs": {
+    "Addressing": {
+      "additionalProperties": false,
+      "properties": {
+        "ipv4": {
+          "$ref": "#/$defs/IPv4Allocation"
+        },
+        "mac": {
+          "$ref": "#/$defs/MACAllocation"
+        }
+      },
+      "title": "Addressing",
+      "type": "object"
+    },
+    "AgentBlueprint": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": "mininet-ai/v1alpha5"
+        },
+        "execution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentExecutionSelection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "implementation": {
+          "$ref": "#/$defs/Implementation"
+        },
+        "kind": {
+          "const": "AgentBlueprint",
+          "title": "Kind",
+          "type": "string"
+        },
+        "loop": {
+          "$ref": "#/$defs/LoopConfiguration"
+        },
+        "memory": {
+          "$ref": "#/$defs/MemoryConfiguration"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelConfiguration"
+            },
+            {
+              "$ref": "#/$defs/ModelReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "reasoning": {
+          "$ref": "#/$defs/ReasoningConfiguration"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "kind",
+        "metadata"
+      ],
+      "title": "AgentBlueprint",
+      "type": "object"
+    },
+    "AgentDeployment": {
+      "additionalProperties": false,
+      "properties": {
+        "blueprint": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Blueprint"
+        },
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "decisionInputs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Decisioninputs",
+          "type": "object"
+        },
+        "execution": {
+          "$ref": "#/$defs/ExecutionConfiguration"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "observationPolicies": {
+          "items": {
+            "$ref": "#/$defs/ObservationPolicy"
+          },
+          "title": "Observationpolicies",
+          "type": "array"
+        },
+        "observe": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Observe",
+          "type": "array"
+        },
+        "placement": {
+          "$ref": "#/$defs/Placement"
+        },
+        "priority": {
+          "default": 0,
+          "title": "Priority",
+          "type": "integer"
+        },
+        "triggers": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "event": "#/$defs/EventTrigger",
+                "interval": "#/$defs/IntervalTrigger",
+                "manual": "#/$defs/ManualTrigger"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ManualTrigger"
+              },
+              {
+                "$ref": "#/$defs/IntervalTrigger"
+              },
+              {
+                "$ref": "#/$defs/EventTrigger"
+              }
+            ]
+          },
+          "title": "Triggers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "blueprint",
+        "placement"
+      ],
+      "title": "AgentDeployment",
+      "type": "object"
+    },
+    "AgentExecutionSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "agno",
+            "bounded-decision"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "AgentExecutionSelection",
+      "type": "object"
+    },
+    "AnomalyDetector": {
+      "additionalProperties": false,
+      "properties": {
+        "cooldown": {
+          "default": "0s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Cooldown",
+          "type": "string"
+        },
+        "event": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Event",
+          "type": "string"
+        },
+        "method": {
+          "const": "zscore",
+          "default": "zscore",
+          "title": "Method",
+          "type": "string"
+        },
+        "minSamples": {
+          "default": 10,
+          "minimum": 2,
+          "title": "Minsamples",
+          "type": "integer"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sensitivity": {
+          "default": 3,
+          "exclusiveMinimum": 0,
+          "title": "Sensitivity",
+          "type": "number"
+        },
+        "type": {
+          "const": "anomaly",
+          "default": "anomaly",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "event",
+        "path"
+      ],
+      "title": "AnomalyDetector",
+      "type": "object"
+    },
+    "AttachmentLayer": {
+      "enum": [
+        "global",
+        "management",
+        "control",
+        "data",
+        "host",
+        "observer",
+        "custom"
+      ],
+      "title": "AttachmentLayer",
+      "type": "string"
+    },
+    "CapabilityDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": "mininet-ai/v1alpha5"
+        },
+        "effects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Effects",
+          "type": "array"
+        },
+        "input-schema": {
+          "additionalProperties": true,
+          "title": "Input-Schema",
+          "type": "object"
+        },
+        "kind": {
+          "const": "Capability",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layers": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Layers",
+          "type": "array"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "output-schema": {
+          "additionalProperties": true,
+          "title": "Output-Schema",
+          "type": "object"
+        },
+        "postconditions": {
+          "items": {
+            "$ref": "#/$defs/PostconditionDefinition"
+          },
+          "title": "Postconditions",
+          "type": "array"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "reversible": {
+          "default": false,
+          "title": "Reversible",
+          "type": "boolean"
+        },
+        "rollback": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CapabilityRollbackConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/ResourceKind"
+          },
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "kind",
+        "metadata",
+        "targets",
+        "layers"
+      ],
+      "title": "CapabilityDefinition",
+      "type": "object"
+    },
+    "CapabilityRollbackConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "timeout": {
+          "default": "30s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Timeout",
+          "type": "string"
+        }
+      },
+      "title": "CapabilityRollbackConfiguration",
+      "type": "object"
+    },
+    "Cardinality": {
+      "enum": [
+        "singleton",
+        "per-target",
+        "per-group"
+      ],
+      "title": "Cardinality",
+      "type": "string"
+    },
+    "ControllerDomainResource": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "controllers": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Controllers",
+          "type": "array"
+        },
+        "kind": {
+          "const": "controller-domain",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "controllers"
+      ],
+      "title": "ControllerDomainResource",
+      "type": "object"
+    },
+    "ControllerProtocol": {
+      "enum": [
+        "tcp",
+        "ssl"
+      ],
+      "title": "ControllerProtocol",
+      "type": "string"
+    },
+    "ControllerResource": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "anyOf": [
+            {
+              "format": "ipv4",
+              "type": "string"
+            },
+            {
+              "format": "ipv6",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address"
+        },
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "kind": {
+          "const": "controller",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        },
+        "port": {
+          "default": 6653,
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ControllerProtocol",
+          "default": "tcp"
+        },
+        "type": {
+          "$ref": "#/$defs/ControllerType"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "type"
+      ],
+      "title": "ControllerResource",
+      "type": "object"
+    },
+    "ControllerType": {
+      "enum": [
+        "builtin",
+        "remote"
+      ],
+      "title": "ControllerType",
+      "type": "string"
+    },
+    "ConversationMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxMessages": {
+          "default": 50,
+          "minimum": 1,
+          "title": "Maxmessages",
+          "type": "integer"
+        },
+        "summaries": {
+          "default": false,
+          "title": "Summaries",
+          "type": "boolean"
+        }
+      },
+      "title": "ConversationMemoryConfiguration",
+      "type": "object"
+    },
+    "Coordination": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinator": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coordinator"
+        },
+        "mode": {
+          "$ref": "#/$defs/CoordinationMode",
+          "default": "independent"
+        },
+        "peers": {
+          "anyOf": [
+            {
+              "enum": [
+                "all",
+                "topology-neighbors"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peers"
+        },
+        "relationships": {
+          "items": {
+            "$ref": "#/$defs/CoordinationRelationship"
+          },
+          "title": "Relationships",
+          "type": "array"
+        }
+      },
+      "title": "Coordination",
+      "type": "object"
+    },
+    "CoordinationMode": {
+      "enum": [
+        "independent",
+        "centralized",
+        "hierarchical",
+        "distributed"
+      ],
+      "title": "CoordinationMode",
+      "type": "string"
+    },
+    "CoordinationRelationship": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Source",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "targets"
+      ],
+      "title": "CoordinationRelationship",
+      "type": "object"
+    },
+    "DecisionChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "proposals": {
+          "items": {
+            "additionalProperties": false,
+            "required": ["capability", "target", "arguments"],
+            "properties": {
+              "capability": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$"},
+              "target": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$"},
+              "arguments": {"type": "object", "additionalProperties": true}
+            },
+            "type": "object"
+          },
+          "title": "Proposals",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "description"
+      ],
+      "title": "DecisionChoice",
+      "type": "object"
+    },
+    "DecisionScenario": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": "mininet-ai/v1alpha5"
+        },
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/DecisionChoice"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Choices",
+          "type": "array"
+        },
+        "instructions": {
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "inputMode": {
+          "default": "recovery-history",
+          "enum": ["recovery-history", "current-only"],
+          "type": "string"
+        },
+        "localExpectations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false,
+            "required": ["ports", "flows"],
+            "properties": {
+              "ports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+              "flows": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["cookie", "table", "priority", "match", "actions"], "properties": {
+                "cookie": {"type": "string", "pattern": "^0x[0-9a-fA-F]+$"},
+                "table": {"type": "integer", "minimum": 0},
+                "priority": {"type": "integer", "minimum": 0, "maximum": 65535},
+                "match": {"type": "object", "additionalProperties": {"type": ["string", "boolean"]}},
+                "actions": {"type": "string", "minLength": 1}
+              }}}
+            }
+          }
+        },
+        "kind": {
+          "const": "DecisionScenario",
+          "title": "Kind",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "observations": {
+          "additionalProperties": true,
+          "title": "Observations",
+          "type": "object"
+        },
+        "paths": {
+          "additionalProperties": true,
+          "title": "Paths",
+          "type": "object"
+        },
+        "policy": {
+          "additionalProperties": true,
+          "title": "Policy",
+          "type": "object"
+        },
+        "timing": {
+          "additionalProperties": true,
+          "title": "Timing",
+          "type": "object"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "kind",
+        "metadata",
+        "instructions",
+        "choices",
+        "paths",
+        "observations",
+        "timing",
+        "policy"
+      ],
+      "title": "DecisionScenario",
+      "type": "object"
+    },
+    "EventTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "cooldown": {
+          "default": "0s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Cooldown",
+          "type": "string"
+        },
+        "event": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Event",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject"
+        },
+        "type": {
+          "const": "event",
+          "default": "event",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "event"
+      ],
+      "title": "EventTrigger",
+      "type": "object"
+    },
+    "ExecutionConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "actionTimeout": {
+          "default": "30s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Actiontimeout",
+          "type": "string"
+        },
+        "maxConcurrency": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Maxconcurrency",
+          "type": "integer"
+        },
+        "overflow": {
+          "default": "reject",
+          "enum": [
+            "reject",
+            "drop-oldest",
+            "coalesce"
+          ],
+          "title": "Overflow",
+          "type": "string"
+        },
+        "queueCapacity": {
+          "default": 64,
+          "minimum": 1,
+          "title": "Queuecapacity",
+          "type": "integer"
+        },
+        "restart": {
+          "$ref": "#/$defs/RestartConfiguration"
+        }
+      },
+      "title": "ExecutionConfiguration",
+      "type": "object"
+    },
+    "FlowResource": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "kind": {
+          "const": "flow",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "FlowResource",
+      "type": "object"
+    },
+    "HostInterface": {
+      "additionalProperties": false,
+      "properties": {
+        "ipv4": {
+          "anyOf": [
+            {
+              "format": "ipv4interface",
+              "type": "string"
+            },
+            {
+              "enum": [
+                "auto",
+                "none"
+              ],
+              "type": "string"
+            }
+          ],
+          "default": "auto",
+          "title": "Ipv4"
+        },
+        "mac": {
+          "default": "auto",
+          "title": "Mac",
+          "type": "string"
+        },
+        "mtu": {
+          "default": 1500,
+          "maximum": 65535,
+          "minimum": 576,
+          "title": "Mtu",
+          "type": "integer"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        }
+      },
+      "title": "HostInterface",
+      "type": "object"
+    },
+    "HostResource": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "defaultRoute": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Defaultroute"
+        },
+        "interfaces": {
+          "items": {
+            "$ref": "#/$defs/HostInterface"
+          },
+          "title": "Interfaces",
+          "type": "array"
+        },
+        "kind": {
+          "const": "host",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "HostResource",
+      "type": "object"
+    },
+    "IPv4Allocation": {
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "const": "sequential",
+          "default": "sequential",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "subnet": {
+          "default": "10.0.0.0/24",
+          "format": "ipv4network",
+          "title": "Subnet",
+          "type": "string"
+        }
+      },
+      "title": "IPv4Allocation",
+      "type": "object"
+    },
+    "Implementation": {
+      "additionalProperties": false,
+      "properties": {
+        "entrypoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entrypoint"
+        },
+        "type": {
+          "default": "declarative",
+          "enum": [
+            "declarative",
+            "python"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Implementation",
+      "type": "object"
+    },
+    "IntervalTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "every": {
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Every",
+          "type": "string"
+        },
+        "initialDelay": {
+          "default": "0s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Initialdelay",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "interval",
+          "default": "interval",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "every"
+      ],
+      "title": "IntervalTrigger",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "LearnedMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "automatic",
+          "enum": [
+            "automatic",
+            "agentic"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "scope": {
+          "default": "run",
+          "enum": [
+            "run",
+            "agent"
+          ],
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "title": "LearnedMemoryConfiguration",
+      "type": "object"
+    },
+    "Link": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "bandwidth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bandwidth"
+        },
+        "delay": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delay"
+        },
+        "endpoints": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/LinkEndpoint"
+            },
+            {
+              "$ref": "#/$defs/LinkEndpoint"
+            }
+          ],
+          "title": "Endpoints",
+          "type": "array"
+        },
+        "jitter": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jitter"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "loss": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Loss",
+          "type": "number"
+        },
+        "maxQueueSize": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxqueuesize"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "endpoints"
+      ],
+      "title": "Link",
+      "type": "object"
+    },
+    "LinkEndpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adapter"
+        },
+        "node": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Node",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node"
+      ],
+      "title": "LinkEndpoint",
+      "type": "object"
+    },
+    "LocalMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxEntries": {
+          "default": 1000,
+          "minimum": 1,
+          "title": "Maxentries",
+          "type": "integer"
+        }
+      },
+      "title": "LocalMemoryConfiguration",
+      "type": "object"
+    },
+    "LoopConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "phases": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          },
+          "title": "Phases",
+          "type": "array"
+        }
+      },
+      "title": "LoopConfiguration",
+      "type": "object"
+    },
+    "MACAllocation": {
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {
+          "default": "02:00:00",
+          "title": "Prefix",
+          "type": "string"
+        },
+        "strategy": {
+          "const": "sequential",
+          "default": "sequential",
+          "title": "Strategy",
+          "type": "string"
+        }
+      },
+      "title": "MACAllocation",
+      "type": "object"
+    },
+    "ManualTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "default": "manual",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "manual",
+          "default": "manual",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "ManualTrigger",
+      "type": "object"
+    },
+    "MemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConversationMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "learned": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LearnedMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "local": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shared": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SharedMemoryConfiguration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "MemoryConfiguration",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "ModelConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "name"
+      ],
+      "title": "ModelConfiguration",
+      "type": "object"
+    },
+    "ModelOverrides": {
+      "additionalProperties": false,
+      "description": "Only supplied keys exist: omission inherits, explicit null is not omission.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "title": "ModelOverrides",
+      "type": "object"
+    },
+    "ModelReference": {
+      "additionalProperties": false,
+      "properties": {
+        "entry": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Entry",
+          "type": "string"
+        },
+        "file": {
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        },
+        "overrides": {
+          "$ref": "#/$defs/ModelOverrides"
+        }
+      },
+      "required": [
+        "file",
+        "entry"
+      ],
+      "title": "ModelReference",
+      "type": "object"
+    },
+    "NetworkResource": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "kind": {
+          "const": "network",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "NetworkResource",
+      "type": "object"
+    },
+    "ObservationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregation": {
+          "default": "latest",
+          "enum": [
+            "latest",
+            "minimum",
+            "maximum",
+            "mean",
+            "sum"
+          ],
+          "title": "Aggregation",
+          "type": "string"
+        },
+        "detectors": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "anomaly": "#/$defs/AnomalyDetector",
+                "threshold": "#/$defs/ThresholdDetector"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ThresholdDetector"
+              },
+              {
+                "$ref": "#/$defs/AnomalyDetector"
+              }
+            ]
+          },
+          "title": "Detectors",
+          "type": "array"
+        },
+        "every": {
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Every",
+          "type": "string"
+        },
+        "observation": {
+          "minLength": 1,
+          "title": "Observation",
+          "type": "string"
+        },
+        "window": {
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Window",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation",
+        "every",
+        "window"
+      ],
+      "title": "ObservationPolicy",
+      "type": "object"
+    },
+    "OpenFlowProtocol": {
+      "enum": [
+        "OpenFlow10",
+        "OpenFlow11",
+        "OpenFlow12",
+        "OpenFlow13",
+        "OpenFlow14",
+        "OpenFlow15"
+      ],
+      "title": "OpenFlowProtocol",
+      "type": "string"
+    },
+    "Placement": {
+      "additionalProperties": false,
+      "properties": {
+        "cardinality": {
+          "$ref": "#/$defs/Cardinality",
+          "default": "per-target"
+        },
+        "custom-layer": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Custom-Layer"
+        },
+        "groupBy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Groupby"
+        },
+        "layer": {
+          "$ref": "#/$defs/AttachmentLayer"
+        },
+        "runtime": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Runtime",
+          "type": "string"
+        },
+        "targets": {
+          "$ref": "#/$defs/Selector"
+        }
+      },
+      "required": [
+        "layer",
+        "targets",
+        "runtime"
+      ],
+      "title": "Placement",
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "properties": {
+        "conflicting-actions": {
+          "default": "reject",
+          "enum": [
+            "reject",
+            "serialize",
+            "priority"
+          ],
+          "title": "Conflicting-Actions",
+          "type": "string"
+        },
+        "require-postcondition-check": {
+          "default": false,
+          "title": "Require-Postcondition-Check",
+          "type": "boolean"
+        }
+      },
+      "title": "Policy",
+      "type": "object"
+    },
+    "PostconditionDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "expected": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "interval": {
+          "default": "250ms",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Interval",
+          "type": "string"
+        },
+        "observation": {
+          "minLength": 1,
+          "title": "Observation",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "eq",
+            "ne",
+            "gt",
+            "gte",
+            "lt",
+            "lte"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "timeout": {
+          "default": "5s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Timeout",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation",
+        "path",
+        "operator",
+        "expected"
+      ],
+      "title": "PostconditionDefinition",
+      "type": "object"
+    },
+    "ReasoningConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instructions"
+        },
+        "output-schema": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output-Schema"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        }
+      },
+      "title": "ReasoningConfiguration",
+      "type": "object"
+    },
+    "RegionResource": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "kind": {
+          "const": "region",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "RegionResource",
+      "type": "object"
+    },
+    "ResourceKind": {
+      "enum": [
+        "network",
+        "region",
+        "controller",
+        "controller-domain",
+        "switch",
+        "host",
+        "port",
+        "link",
+        "flow"
+      ],
+      "title": "ResourceKind",
+      "type": "string"
+    },
+    "ResourceLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max-concurrent-invocations": {
+          "default": 32,
+          "minimum": 1,
+          "title": "Max-Concurrent-Invocations",
+          "type": "integer"
+        },
+        "max-instances": {
+          "default": 256,
+          "minimum": 1,
+          "title": "Max-Instances",
+          "type": "integer"
+        },
+        "max-queued-events": {
+          "default": 4096,
+          "minimum": 1,
+          "title": "Max-Queued-Events",
+          "type": "integer"
+        }
+      },
+      "title": "ResourceLimits",
+      "type": "object"
+    },
+    "RestartConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "backoff": {
+          "default": "1s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Backoff",
+          "type": "string"
+        },
+        "maxAttempts": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Maxattempts",
+          "type": "integer"
+        },
+        "policy": {
+          "default": "never",
+          "enum": [
+            "never",
+            "on-failure"
+          ],
+          "title": "Policy",
+          "type": "string"
+        }
+      },
+      "title": "RestartConfiguration",
+      "type": "object"
+    },
+    "Selector": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ResourceKind"
+        },
+        "matchLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Matchlabels",
+          "type": "object"
+        },
+        "names": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          },
+          "title": "Names",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Selector",
+      "type": "object"
+    },
+    "SharedMemoryConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "maxEntries": {
+          "default": 1000,
+          "minimum": 1,
+          "title": "Maxentries",
+          "type": "integer"
+        },
+        "scopes": {
+          "items": {
+            "enum": [
+              "deployment",
+              "run"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Scopes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scopes"
+      ],
+      "title": "SharedMemoryConfiguration",
+      "type": "object"
+    },
+    "Substrate": {
+      "additionalProperties": false,
+      "properties": {
+        "driver": {
+          "default": "fake",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Driver",
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": true,
+          "title": "Options",
+          "type": "object"
+        },
+        "topology": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Topology"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Topology"
+        }
+      },
+      "required": [
+        "topology"
+      ],
+      "title": "Substrate",
+      "type": "object"
+    },
+    "SwitchDatapath": {
+      "enum": [
+        "kernel",
+        "userspace"
+      ],
+      "title": "SwitchDatapath",
+      "type": "string"
+    },
+    "SwitchFailMode": {
+      "enum": [
+        "standalone",
+        "secure"
+      ],
+      "title": "SwitchFailMode",
+      "type": "string"
+    },
+    "SwitchPort": {
+      "additionalProperties": false,
+      "properties": {
+        "mtu": {
+          "default": 1500,
+          "maximum": 65535,
+          "minimum": 576,
+          "title": "Mtu",
+          "type": "integer"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "const": "auto",
+              "type": "string"
+            }
+          ],
+          "default": "auto",
+          "title": "Number"
+        }
+      },
+      "title": "SwitchPort",
+      "type": "object"
+    },
+    "SwitchResource": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "title": "Attributes",
+          "type": "object"
+        },
+        "controllers": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+            "type": "string"
+          },
+          "title": "Controllers",
+          "type": "array"
+        },
+        "datapath": {
+          "$ref": "#/$defs/SwitchDatapath",
+          "default": "kernel"
+        },
+        "dpid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dpid"
+        },
+        "failMode": {
+          "$ref": "#/$defs/SwitchFailMode",
+          "default": "secure"
+        },
+        "kind": {
+          "const": "switch",
+          "title": "Kind",
+          "type": "string"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent"
+        },
+        "ports": {
+          "items": {
+            "$ref": "#/$defs/SwitchPort"
+          },
+          "title": "Ports",
+          "type": "array"
+        },
+        "protocols": {
+          "items": {
+            "$ref": "#/$defs/OpenFlowProtocol"
+          },
+          "title": "Protocols",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "SwitchResource",
+      "type": "object"
+    },
+    "ThresholdDetector": {
+      "additionalProperties": false,
+      "properties": {
+        "cooldown": {
+          "default": "0s",
+          "pattern": "^(?:0|[0-9]+(?:\\.[0-9]+)?)(?:us|ms|s)$",
+          "title": "Cooldown",
+          "type": "string"
+        },
+        "event": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Event",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "eq",
+            "ne"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "type": {
+          "const": "threshold",
+          "default": "threshold",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "event",
+        "path",
+        "operator",
+        "value"
+      ],
+      "title": "ThresholdDetector",
+      "type": "object"
+    },
+    "Topology": {
+      "additionalProperties": false,
+      "properties": {
+        "addressing": {
+          "$ref": "#/$defs/Addressing"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/Link"
+          },
+          "title": "Links",
+          "type": "array"
+        },
+        "resources": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "controller": "#/$defs/ControllerResource",
+                "controller-domain": "#/$defs/ControllerDomainResource",
+                "flow": "#/$defs/FlowResource",
+                "host": "#/$defs/HostResource",
+                "network": "#/$defs/NetworkResource",
+                "region": "#/$defs/RegionResource",
+                "switch": "#/$defs/SwitchResource"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/NetworkResource"
+              },
+              {
+                "$ref": "#/$defs/RegionResource"
+              },
+              {
+                "$ref": "#/$defs/ControllerResource"
+              },
+              {
+                "$ref": "#/$defs/ControllerDomainResource"
+              },
+              {
+                "$ref": "#/$defs/SwitchResource"
+              },
+              {
+                "$ref": "#/$defs/HostResource"
+              },
+              {
+                "$ref": "#/$defs/FlowResource"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Resources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "resources"
+      ],
+      "title": "Topology",
+      "type": "object"
+    }
+  },
+  "$id": "urn:mininet-ai:schema:v1alpha5:experiment",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agents": {
+      "items": {
+        "$ref": "#/$defs/AgentDeployment"
+      },
+      "title": "Agents",
+      "type": "array"
+    },
+    "apiVersion": {
+      "const": "mininet-ai/v1alpha5"
+    },
+    "blueprints": {
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/AgentBlueprint"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "title": "Blueprints",
+      "type": "array"
+    },
+    "capabilityDefinitions": {
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CapabilityDefinition"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "title": "Capabilitydefinitions",
+      "type": "array"
+    },
+    "coordination": {
+      "$ref": "#/$defs/Coordination"
+    },
+    "decisionScenarios": {
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DecisionScenario"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "title": "Decisionscenarios",
+      "type": "array"
+    },
+    "kind": {
+      "const": "Experiment",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "policies": {
+      "$ref": "#/$defs/Policy"
+    },
+    "resourceLimits": {
+      "$ref": "#/$defs/ResourceLimits"
+    },
+    "substrate": {
+      "$ref": "#/$defs/Substrate"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "substrate"
+  ],
+  "title": "Experiment",
+  "type": "object"
+}

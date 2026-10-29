@@ -49,6 +49,7 @@ def validate_model_configuration(
     *,
     context: str,
     locations: Mapping[str, str] | None = None,
+    execution_kind: str | None = None,
 ) -> None:
     """Validate supported construction paths without runtime or environment I/O."""
     if configuration is not None:
@@ -69,6 +70,20 @@ def validate_model_configuration(
     if configuration is None:
         fail("", "a model configuration is required")
         return
+    if execution_kind == "bounded-decision":
+        if configuration.provider != "llamacpp-systemone":
+            fail(".provider", "bounded-decision requires llamacpp-systemone")
+        if set(configuration.parameters) != {"endpoint", "expectedIdentity"}:
+            fail(
+                ".parameters",
+                "bounded-decision requires only endpoint and expectedIdentity",
+            )
+        return
+    if configuration.provider == "llamacpp-systemone":
+        fail(
+            ".provider",
+            "llamacpp-systemone requires explicit bounded-decision execution",
+        )
     if bundled and configuration.provider != "ollama":
         fail(".provider", "the bundled factory requires an Ollama model")
     if configuration.provider == "ollama":

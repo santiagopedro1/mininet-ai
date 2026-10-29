@@ -175,6 +175,7 @@ class DeclarativeAgentProvider:
             ) from error
         return _response_from_model(self._model_provider.generate(request))
 
+
 PythonEntrypoint = Callable[[AgentContext], AgentResponse | Mapping[str, JsonValue]]
 
 

@@ -9,6 +9,7 @@ import re
 import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from ipaddress import ip_interface
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, Protocol, cast
@@ -164,7 +165,7 @@ def discover_attached_network(plan: DeploymentPlan) -> AttachedNetwork:
             continue
         try:
             arguments = (entry / "cmdline").read_bytes().rstrip(b"\0").split(b"\0")
-        except (FileNotFoundError, PermissionError):
+        except FileNotFoundError, PermissionError:
             continue
         for argument in arguments:
             name = markers.get(argument)
@@ -200,8 +201,7 @@ class MininetOVSObservations:
         self._interfaces.clear()
         states: dict[str, ResourceOperationalState] = {}
         return tuple(
-            self._live_resource(resource, states)
-            for resource in self._plan.resources
+            self._live_resource(resource, states) for resource in self._plan.resources
         )
 
     def collect(self, query: ObservationQuery) -> dict[str, Any]:
@@ -212,6 +212,7 @@ class MininetOVSObservations:
             "controller.events": self._controller_events,
             "openflow.flows": self._openflow_flows,
             "ovs.port-counters": self._port_counters,
+            "ovs.port-state": self._port_state,
             "tc.queue-occupancy": self._queue_occupancy,
             "host.interfaces": self._host_interfaces,
             "host.processes": self._host_processes,
@@ -263,9 +264,7 @@ class MininetOVSObservations:
         if resource.name in states:
             return states[resource.name]
         if resource.kind == ResourceKind.SWITCH:
-            result = self._run(
-                ("ovs-vsctl", "--timeout=5", "br-exists", resource.name)
-            )
+            result = self._run(("ovs-vsctl", "--timeout=5", "br-exists", resource.name))
             state = self._up_or_down(result.returncode == 0)
         elif resource.kind in {ResourceKind.CONTROLLER, ResourceKind.HOST}:
             state = self._up_or_down(self._node_is_alive(resource.name))
@@ -293,11 +292,7 @@ class MininetOVSObservations:
 
     @staticmethod
     def _up_or_down(value: bool) -> ResourceOperationalState:
-        return (
-            ResourceOperationalState.UP
-            if value
-            else ResourceOperationalState.DOWN
-        )
+        return ResourceOperationalState.UP if value else ResourceOperationalState.DOWN
 
     def _node_is_alive(self, name: str) -> bool:
         node = self._node(name)
@@ -317,7 +312,7 @@ class MininetOVSObservations:
             return None
         try:
             return self._network.get(name)
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             return None
 
     def _interface(self, port: PlannedPort) -> dict[str, Any] | None:
@@ -406,9 +401,7 @@ class MininetOVSObservations:
         limit = self._limit(query)
         values = {}
         for target in query.targets:
-            controllers = self._selected(
-                target, kinds={ResourceKind.CONTROLLER}
-            )
+            controllers = self._selected(target, kinds={ResourceKind.CONTROLLER})
             if not controllers:
                 self._invalid_target(query.name, target, "controller scope")
             events = []
@@ -480,6 +473,39 @@ class MininetOVSObservations:
                 normalized["match"][token] = True
         return normalized
 
+    def _port_state(self, query: ObservationQuery) -> dict[str, Any]:
+        values = {}
+        for target in query.targets:
+            ports = [
+                cast("PlannedPort", resource)
+                for resource in self._selected(target, kinds={ResourceKind.PORT})
+                if cast("PlannedPort", resource).role == "switch-port"
+            ]
+            if not ports:
+                self._invalid_target(query.name, target, "OVS port scope")
+            records = []
+            for port in ports:
+                interface = self._interface(port)
+                state = "unknown"
+                if interface is not None:
+                    operational = interface.get("operstate")
+                    if operational == "UP" and "UP" in interface.get("flags", ()):
+                        state = "up"
+                    elif operational in {"DOWN", "LOWERLAYERDOWN", "NOTPRESENT"} or (
+                        "flags" in interface and "UP" not in interface["flags"]
+                    ):
+                        state = "down"
+                records.append(
+                    {
+                        "name": port.name,
+                        "number": port.number,
+                        "state": state,
+                        "observedAt": datetime.now(UTC).isoformat(),
+                    }
+                )
+            values[target] = {"ports": records}
+        return values
+
     def _port_counters(self, query: ObservationQuery) -> dict[str, Any]:
         values = {}
         for target in query.targets:
@@ -523,8 +549,7 @@ class MininetOVSObservations:
                 self._invalid_target(query.name, target, "port or link scope")
             values[target] = {
                 "ports": [
-                    {"name": port.name, "qdiscs": self._qdiscs(port)}
-                    for port in ports
+                    {"name": port.name, "qdiscs": self._qdiscs(port)} for port in ports
                 ]
             }
         return values
@@ -561,8 +586,7 @@ class MininetOVSObservations:
             "qlen",
         )
         return [
-            {name: qdisc[name] for name in fields if name in qdisc}
-            for qdisc in qdiscs
+            {name: qdisc[name] for name in fields if name in qdisc} for qdisc in qdiscs
         ]
 
     def _host_interfaces(self, query: ObservationQuery) -> dict[str, Any]:
@@ -782,15 +806,19 @@ class MininetOVSObservations:
         for resource in self._plan.resources:
             if resource.kind not in kinds:
                 continue
-            if resource.name in descendants or (
-                resource.kind == ResourceKind.SWITCH
-                and target_resource.kind == ResourceKind.CONTROLLER
-                and target in cast("PlannedSwitch", resource).controllers
-            ) or (
-                resource.kind == ResourceKind.CONTROLLER
-                and target_resource.kind == ResourceKind.CONTROLLER_DOMAIN
-                and resource.name
-                in cast("PlannedControllerDomain", target_resource).controllers
+            if (
+                resource.name in descendants
+                or (
+                    resource.kind == ResourceKind.SWITCH
+                    and target_resource.kind == ResourceKind.CONTROLLER
+                    and target in cast("PlannedSwitch", resource).controllers
+                )
+                or (
+                    resource.kind == ResourceKind.CONTROLLER
+                    and target_resource.kind == ResourceKind.CONTROLLER_DOMAIN
+                    and resource.name
+                    in cast("PlannedControllerDomain", target_resource).controllers
+                )
             ):
                 selected.append(resource)
             elif (

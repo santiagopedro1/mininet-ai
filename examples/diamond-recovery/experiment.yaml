@@ -1,0 +1,245 @@
+apiVersion: mininet-ai/v1alpha5
+kind: Experiment
+metadata:
+  name: diamond-recovery
+  description: Offline, inspectable four-switch bounded-decision diamond scenario.
+substrate:
+  driver: fake
+  topology:
+    addressing:
+      ipv4:
+        subnet: 10.0.0.0/24
+        strategy: sequential
+      mac:
+        prefix: 02:00:00
+        strategy: sequential
+    resources:
+    - name: network
+      kind: network
+    - name: h1
+      kind: host
+      parent: network
+      interfaces:
+      - name: h1-eth0
+        ipv4: 10.0.0.1/24
+        mac: 02:00:00:00:00:01
+    - name: h2
+      kind: host
+      parent: network
+      interfaces:
+      - name: h2-eth0
+        ipv4: 10.0.0.2/24
+        mac: 02:00:00:00:00:02
+    - name: s1
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols:
+      - OpenFlow13
+      labels:
+        diamond: recovery
+      ports:
+      - name: s1-eth1
+        number: 1
+      - name: s1-eth2
+        number: 2
+      - name: s1-eth3
+        number: 3
+    - name: s2
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols:
+      - OpenFlow13
+      labels:
+        diamond: recovery
+      ports:
+      - name: s2-eth1
+        number: 1
+      - name: s2-eth2
+        number: 2
+    - name: s3
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols:
+      - OpenFlow13
+      labels:
+        diamond: recovery
+      ports:
+      - name: s3-eth1
+        number: 1
+      - name: s3-eth2
+        number: 2
+    - name: s4
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols:
+      - OpenFlow13
+      labels:
+        diamond: recovery
+      ports:
+      - name: s4-eth1
+        number: 1
+      - name: s4-eth2
+        number: 2
+      - name: s4-eth3
+        number: 3
+    links:
+    - name: h1-s1
+      endpoints:
+      - node: h1
+        adapter: h1-eth0
+      - node: s1
+        adapter: s1-eth1
+    - name: s1-s2
+      endpoints:
+      - node: s1
+        adapter: s1-eth2
+      - node: s2
+        adapter: s2-eth1
+    - name: s2-s4
+      endpoints:
+      - node: s2
+        adapter: s2-eth2
+      - node: s4
+        adapter: s4-eth2
+    - name: s1-s3
+      endpoints:
+      - node: s1
+        adapter: s1-eth3
+      - node: s3
+        adapter: s3-eth1
+    - name: s3-s4
+      endpoints:
+      - node: s3
+        adapter: s3-eth2
+      - node: s4
+        adapter: s4-eth3
+    - name: s4-h2
+      endpoints:
+      - node: s4
+        adapter: s4-eth1
+      - node: h2
+        adapter: h2-eth0
+blueprints:
+- apiVersion: mininet-ai/v1alpha5
+  kind: AgentBlueprint
+  metadata:
+    name: diamond-decision-maker
+  implementation:
+    type: declarative
+  execution:
+    kind: bounded-decision
+    scenario: switch-current-diagnosis
+  model:
+    provider: llamacpp-systemone
+    name: exploratory-model
+    parameters:
+      endpoint: http://127.0.0.1:8080
+      expectedIdentity:
+        repository: example/not-configured
+        revision: unpinned
+        artifact: not-configured.gguf
+        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+agents:
+- name: diamond-decision
+  blueprint: diamond-decision-maker
+  placement:
+    layer: data
+    targets:
+      kind: switch
+      matchLabels:
+        diamond: recovery
+    cardinality: per-target
+    runtime: device-sidecar
+  observe:
+  - openflow.flows
+  - ovs.port-state
+  decisionInputs:
+    flowState: openflow.flows
+    portState: ovs.port-state
+  triggers:
+  - type: interval
+    name: once-per-second
+    every: 1s
+  execution:
+    maxConcurrency: 1
+    overflow: coalesce
+    actionTimeout: 30s
+decisionScenarios:
+- apiVersion: mininet-ai/v1alpha5
+  kind: DecisionScenario
+  metadata:
+    name: switch-current-diagnosis
+    description: Current local switch diagnosis; no history or network-wide state.
+  inputMode: current-only
+  instructions: >-
+    Diagnose only the identified switch from its current local port states and
+    forwarding entries. Choose degraded if any reported local port is down, if
+    expected local forwarding entries are missing, or if required current local
+    evidence is unavailable. These degraded conditions take precedence even
+    when another local observation looks healthy. Choose healthy only when all
+    required local evidence is available, every reported port is up, and all
+    expected local entries are present. Do not infer other switches,
+    network-wide reachability, or values for missing observations.
+    Compare only this switch's supplied expectations against current observations.
+    Every expected port must be present and up (unknown is degraded). Every
+    expected flow must match cookie, table, priority, match fields, and actions;
+    packet counts and duration are not health conditions. Extra flows alone do
+    not establish or disprove health. Missing required entries imply degraded.
+  choices:
+  - id: healthy
+    description: All required current local evidence is available; every port is up and every expected local flow entry is present.
+    proposals: []
+  - id: degraded
+    description: Any local port is down, expected local flow entries are missing, or required current evidence is unavailable; these conditions take precedence over healthy signals.
+    proposals: []
+  paths: {}
+  observations:
+    flowState: openflow.flows
+    portState: ovs.port-state
+  timing:
+    cadence: 1s
+    decisionDeadline: 5s
+  policy: {}
+  localExpectations:
+    s1:
+      ports: [s1-eth1, s1-eth2, s1-eth3]
+      flows:
+      - {cookie: '0x1100', table: 0, priority: 0, match: {}, actions: drop}
+      - {cookie: '0x2b5d', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: 'output:2'}
+      - {cookie: '0x2b62', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: 'output:1'}
+      - {cookie: '0x2b63', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.11, nw_dst: 10.0.0.12}, actions: 'output:2'}
+      - {cookie: '0x2b68', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.12, nw_dst: 10.0.0.11}, actions: 'output:1'}
+      - {cookie: '0x2b69', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.21, nw_dst: 10.0.0.22}, actions: 'output:3'}
+      - {cookie: '0x2b6e', table: 0, priority: 100, match: {ip: true, in_port: '3', nw_src: 10.0.0.22, nw_dst: 10.0.0.21}, actions: 'output:1'}
+    s2:
+      ports: [s2-eth1, s2-eth2]
+      flows:
+      - {cookie: '0x1100', table: 0, priority: 0, match: {}, actions: drop}
+      - {cookie: '0x2b5e', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: 'output:2'}
+      - {cookie: '0x2b61', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: 'output:1'}
+      - {cookie: '0x2b64', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.11, nw_dst: 10.0.0.12}, actions: 'output:2'}
+      - {cookie: '0x2b67', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.12, nw_dst: 10.0.0.11}, actions: 'output:1'}
+    s3:
+      ports: [s3-eth1, s3-eth2]
+      flows:
+      - {cookie: '0x1100', table: 0, priority: 0, match: {}, actions: drop}
+      - {cookie: '0x2b6a', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.21, nw_dst: 10.0.0.22}, actions: 'output:2'}
+      - {cookie: '0x2b6d', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.22, nw_dst: 10.0.0.21}, actions: 'output:1'}
+    s4:
+      ports: [s4-eth1, s4-eth2, s4-eth3]
+      flows:
+      - {cookie: '0x1100', table: 0, priority: 0, match: {}, actions: drop}
+      - {cookie: '0x2b5f', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.1, nw_dst: 10.0.0.2}, actions: 'output:1'}
+      - {cookie: '0x2b60', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.2, nw_dst: 10.0.0.1}, actions: 'output:2'}
+      - {cookie: '0x2b65', table: 0, priority: 100, match: {ip: true, in_port: '2', nw_src: 10.0.0.11, nw_dst: 10.0.0.12}, actions: 'output:1'}
+      - {cookie: '0x2b66', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.12, nw_dst: 10.0.0.11}, actions: 'output:2'}
+      - {cookie: '0x2b6b', table: 0, priority: 100, match: {ip: true, in_port: '3', nw_src: 10.0.0.21, nw_dst: 10.0.0.22}, actions: 'output:1'}
+      - {cookie: '0x2b6c', table: 0, priority: 100, match: {ip: true, in_port: '1', nw_src: 10.0.0.22, nw_dst: 10.0.0.21}, actions: 'output:3'}

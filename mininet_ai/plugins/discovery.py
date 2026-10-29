@@ -53,8 +53,7 @@ def discover_plugins(
             descriptor = point.load()
         except Exception as error:
             raise AgentRuntimeError(
-                f"could not load plugin {point.name!r} from "
-                f"{point.group!r}: {error}",
+                f"could not load plugin {point.name!r} from {point.group!r}: {error}",
                 code="plugin.load.failed",
             ) from error
         if not isinstance(descriptor, ProviderPlugin):
@@ -79,9 +78,7 @@ def _entry_points(
 
     installed = metadata.entry_points()
     return tuple(
-        point
-        for group in sorted(groups)
-        for point in installed.select(group=group)
+        point for group in sorted(groups) for point in installed.select(group=group)
     )
 
 

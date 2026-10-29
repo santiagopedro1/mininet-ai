@@ -32,9 +32,7 @@ class CoordinationGraphTests(unittest.TestCase):
         )
 
     def test_centralized_intent_enters_at_single_coordinator(self) -> None:
-        graph = graph_for(
-            {"mode": "centralized", "coordinator": "global-router"}
-        )
+        graph = graph_for({"mode": "centralized", "coordinator": "global-router"})
 
         self.assertEqual(
             graph.entry_agent("switch-router@s1"),
@@ -61,9 +59,7 @@ class CoordinationGraphTests(unittest.TestCase):
             "coordinator": "global-router",
         }
 
-        graph = CoordinationGraph(
-            compile_experiment(experiment_from(snapshot))
-        )
+        graph = CoordinationGraph(compile_experiment(experiment_from(snapshot)))
 
         self.assertEqual(graph.entry_agent("global-router"), "global-router")
         self.assertEqual(graph.destinations("global-router"), ())
@@ -95,9 +91,7 @@ class CoordinationGraphTests(unittest.TestCase):
         )
 
     def test_topology_neighbor_peers_allow_only_compiled_neighbors(self) -> None:
-        graph = graph_for(
-            {"mode": "distributed", "peers": "topology-neighbors"}
-        )
+        graph = graph_for({"mode": "distributed", "peers": "topology-neighbors"})
 
         self.assertEqual(
             graph.authorize("host-router@h1", "switch-router@s1").relationship,
