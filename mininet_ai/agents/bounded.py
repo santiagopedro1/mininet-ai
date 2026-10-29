@@ -133,7 +133,13 @@ def map_choice(
             "native response must contain answers.next_action of type choice",
             code="agent.bounded-decision.invalid-output",
         )
-    if set(answer) - {"type", "choice", "probability", "confidence"}:
+    if set(answer) - {
+        "type",
+        "choice",
+        "probability",
+        "probabilities",
+        "confidence",
+    }:
         raise AgentRuntimeError(
             "native choice answer contains unsupported fields",
             code="agent.bounded-decision.invalid-output",
@@ -154,8 +160,13 @@ def map_choice(
             "the no_action choice must have no proposals",
             code="agent.bounded-decision.configuration-invalid",
         )
-    probabilities = response.get("probabilities")
-    if "probabilities" in response:
+    has_probabilities = "probabilities" in answer or "probabilities" in response
+    probabilities = (
+        answer.get("probabilities")
+        if "probabilities" in answer
+        else response.get("probabilities")
+    )
+    if has_probabilities:
         if not isinstance(probabilities, Mapping):
             raise AgentRuntimeError(
                 "native response probabilities must be an object",

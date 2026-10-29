@@ -52,7 +52,28 @@ def test_native_probabilities_must_only_name_allowed_choices():
                 "probabilities": {"invented": 0.5},
             },
             {"no_action": (), "install_recovery": ()},
-        )
+    )
+
+
+def test_llama_native_answer_probabilities_are_retained():
+    result = map_choice(
+        {
+            "answers": {
+                "next_action": {
+                    "type": "choice",
+                    "choice": "no_action",
+                    "probabilities": {"no_action": 0.8, "install_recovery": 0.2},
+                    "confidence": 0.6,
+                }
+            },
+            "usage": {"input_tokens": 64, "output_tokens": 0},
+        },
+        {"no_action": (), "install_recovery": ()},
+    )
+
+    assert result.choice_id == "no_action"
+    assert result.probabilities == {"no_action": 0.8, "install_recovery": 0.2}
+    assert result.confidence == 0.6
 
 
 def test_native_choice_rejects_generated_output_tokens():
