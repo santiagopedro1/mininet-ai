@@ -119,6 +119,12 @@ prompt-only failures remain in the [clarification report](../../docs/implementat
 
 ### Runner operation
 
+The latest [real-network H2O matrix](../../docs/implementation/bounded-decision-live-h2o-acceptance.md)
+passed all five runner cases (20/20 correct), with independent cleanup verified.
+This is scoped deployment evidence, not general model correctness: the separately
+recorded missing-s1 probe limitation remains. Follow the runner's stop-on-failure
+and isolation rules; do not treat that result as an automatic support-gate waiver.
+
 For the current blockers, service-review checklist, once-only operator command
 and evidence return instructions, use the
 [acceptance handoff](../../docs/implementation/bounded-decision-acceptance-handoff.md).

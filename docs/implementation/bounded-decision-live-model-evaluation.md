@@ -1,5 +1,11 @@
 # Bounded-decision live candidate evaluation
 
+> **New live-network evidence:** H2O passed the current five-case real Mininet/OVS
+> runner matrix, 20/20 correct with independently verified cleanup. See the
+> [live H2O report](bounded-decision-live-h2o-acceptance.md). This narrower result
+> does not erase the constructed missing-s1 probe failure or establish general
+> native-model correctness. Final acceptance/support disposition remains explicit.
+
 > **Latest enriched-state result (2026-10-30):** Explicit context v1alpha2 static
 > local flow roles with the original prompt correct the inspected s2 miss and
 > preserve both tested port-fault choices, but H2O misses another probe on s1

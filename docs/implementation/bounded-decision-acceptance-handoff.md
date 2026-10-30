@@ -1,5 +1,15 @@
 # Finish bounded-decision acceptance (#116)
 
+> **Live update (2026-10-30, supersedes network status below):** The operator's
+> new real Mininet/OVS H2O run passed all five cases, **20/20 correct**, with
+> independent cleanup verified and exit 0. Plans, SQLite integrity, strict
+> execution/state schemas and labels were audited. See the
+> [live H2O report](bounded-decision-live-h2o-acceptance.md). Generic runtime
+> cleanup still reports unknown; the separate observer supplies verification.
+> #124's broader native-quality limitation remains; no final support-gate waiver
+> or issue closure is implied. Earlier failed/unattempted network statuses below
+> are historical, not the latest matrix result.
+
 > **Owner direction:** Stop further model sweeps and tuning for now and finish
 > implementation. Record the original case missed by both models and the possible
 > information/representation limitation on #124, without declaring its cause
