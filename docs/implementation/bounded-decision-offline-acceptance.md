@@ -1,5 +1,14 @@
 # Bounded-decision offline acceptance
 
+> **2026-10-30 refresh:** The merged tree no longer has a clean full-regression
+> result: 137 failed, 1032 passed, 3 opt-in skips. A focused current diagnosis,
+> cleanup, guard and evidence run passed 57 tests; lint, formatting, Pyright and
+> diamond/iperf validation and planning passed. All 12 retained execution
+> records in the two committed diagnosis archives pass strict schema validation.
+> Earlier counts below remain historical. See the
+> [acceptance handoff](bounded-decision-acceptance-handoff.md) for the reproducible
+> CLI results-contract regression and remaining live gates.
+
 ## Verdict
 
 The bounded-decision path is **offline-contract tested**, not accepted as a

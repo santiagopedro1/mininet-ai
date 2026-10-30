@@ -12,11 +12,23 @@ from mininet_ai.substrates import FakeSubstrateRuntime
 from tests.agents.test_bounded_evidence_schemas import validators
 
 
+@pytest.mark.parametrize("force_healthy", [False, True])
 @pytest.mark.parametrize(
-    "fault", ["healthy", "down", "missing-flow", "unavailable", "wrong-flow"]
+    "fault",
+    [
+        "healthy",
+        "reordered-flows",
+        "down",
+        "missing-flow",
+        "missing-flow-first",
+        "missing-flow-same-count",
+        "unavailable",
+        "wrong-flow",
+        "wrong-cookie",
+    ],
 )
 def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
-    tmp_path, fault
+    tmp_path, fault, force_healthy
 ):
     path = Path(__file__).parents[2] / "examples/diamond-recovery/experiment.yaml"
     plan = compile_experiment(path)
@@ -40,8 +52,16 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
             else:
                 if target == "s2" and fault == "missing-flow":
                     local["flows"].pop()
+                if target == "s2" and fault == "missing-flow-first":
+                    local["flows"].pop(0)
+                if target == "s2" and fault == "missing-flow-same-count":
+                    local["flows"][-1] = deepcopy(local["flows"][0])
                 if target == "s2" and fault == "wrong-flow":
                     local["flows"][0]["actions"] = "NORMAL"
+                if target == "s2" and fault == "wrong-cookie":
+                    local["flows"][-1]["cookie"] = "0xdead"
+                if fault == "reordered-flows":
+                    local["flows"].reverse()
                 value = {"switches": [{"name": target, "flows": local["flows"]}]}
             return result.model_copy(update={"values": {target: value}})
 
@@ -52,6 +72,11 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
         def post_json(self, url, payload, **kwargs):
             assert url.endswith("/v1/systemone")
             assert set(payload["questions"]) == {"next_action"}
+            question = payload["questions"]["next_action"]
+            assert question["instructions"] == scenario["instructions"]
+            assert question["criteria"] == {
+                choice["id"]: choice["description"] for choice in scenario["choices"]
+            }
             state = (
                 json.loads(payload["state"])
                 if payload["state"].startswith("{")
@@ -65,7 +90,11 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
                 for observation in state["switch"]["diagnosis"].values():
                     assert set(observation["value"]) == {target}
                 assert 0 < kwargs["timeout_seconds"] <= 5
-                if target == "s2" and fault != "healthy":
+                if (
+                    not force_healthy
+                    and target == "s2"
+                    and fault not in {"healthy", "reordered-flows"}
+                ):
                     choice = "degraded"
             return {
                 "answers": {"next_action": {"type": "choice", "choice": choice}},
@@ -75,9 +104,17 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
     summary = evaluate_runtime(
         plan, LocalSubstrate(), tmp_path / "evidence", decision_transport=Transport()
     )
-    assert summary["passed"], summary
+    expected_pass = not (force_healthy and fault not in {"healthy", "reordered-flows"})
+    assert summary["passed"] == expected_pass, summary
     assert summary["samples"] >= 4
-    assert summary["correct"] == summary["samples"]
+    if expected_pass:
+        assert summary["correct"] == summary["samples"]
+    else:
+        # Wrong native diagnoses remain successful transport/runtime operations,
+        # but fail evaluation. Never turn the oracle label into model output.
+        assert summary["operation"] == "succeeded"
+        assert summary["correct"] < summary["samples"]
+        assert all(item["status"] == "succeeded" for item in summary["evaluations"])
     records = [
         json.loads(line)
         for line in (tmp_path / "evidence/invocations.jsonl").read_text().splitlines()
@@ -92,7 +129,10 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
         validator.validate(execution)
         decision = execution["runtime"]["boundedDecision"]
         assert decision["actionOutcomes"] == []
-        assert (
-            expected_diagnosis(json.loads(decision["request"]["state"]))
-            == decision["selectedChoice"]
-        )
+        if force_healthy:
+            assert decision["selectedChoice"] == "healthy"
+        else:
+            assert (
+                expected_diagnosis(json.loads(decision["request"]["state"]))
+                == decision["selectedChoice"]
+            )

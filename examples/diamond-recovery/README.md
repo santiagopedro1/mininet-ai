@@ -91,6 +91,14 @@ verified. Evidence is retained at `/tmp/diamond-recovery-evidence`.
 
 ## Live diagnosis runner
 
+For the current blockers, service-review checklist, once-only operator command
+and evidence return instructions, use the
+[acceptance handoff](../../docs/implementation/bounded-decision-acceptance-handoff.md).
+A later archived healthy real-runtime trial failed with four correct diagnoses,
+two timeouts and unknown cleanup. The independent cleanup observer added after
+that trial still requires live validation; do not treat earlier direct-client
+results as acceptance.
+
 The runner now uses the real `MininetOVSRuntime` and all four compiled agents
 through `ExperimentRuntime`. It does not call the native client directly or
 substitute an executor. Every trial deploys a fresh network, verifies the

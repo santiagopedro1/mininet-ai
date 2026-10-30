@@ -1,5 +1,29 @@
 # Bounded-decision live candidate evaluation
 
+> **Latest tuning outcome (2026-10-30):** Neither of two prompt revisions passed
+> the native matrix: missing-flow choices improved but down-port diagnosis
+> regressed. Both failed runs are archived separately; original source wording
+> is restored. See the [prompt-tuning report](bounded-decision-prompt-tuning.md).
+> #124 and the real-network acceptance gate remain blocked on correctness.
+
+> **Latest remote result (2026-10-30):** On `10.10.10.152:9931`, all 27
+> constructed-input runtime invocations completed without timeouts, but two
+> missing-flow diagnoses were wrong (25/27 correct). The matrix stopped at that
+> failure; wrong-flow and unavailable-input cases were not attempted. #124
+> remains open. See the [remote evaluation](bounded-decision-remote-native-evaluation.md)
+> and its complete checksummed archive. Earlier local throughput failures below
+> remain valid for their own deployment conditions, not the remote service.
+
+> **2026-10-30 status refresh:** A subsequent real-OVS healthy trial retained
+> four correct diagnoses and two timeouts across six invocations, with unknown
+> network cleanup. This is separate from the constructed-input two-correct /
+> four-timeout run below; neither establishes deployment acceptance. All 12
+> execution records across the two committed archives validate against the
+> strict execution schema. PR #128 merged the later cleanup-observer fix into
+> `main`; new live validation is still required. See the
+> [live-network refresh](bounded-decision-live-network-evaluation.md) and
+> [operator handoff](bounded-decision-acceptance-handoff.md).
+
 > **Scope note (2026-10-29):** The original recovery-model evaluation below is
 > retained as historical evidence. Issue #116 and child #124 were amended to
 > make the initial evaluation current-only per-switch diagnosis, with no pinned
