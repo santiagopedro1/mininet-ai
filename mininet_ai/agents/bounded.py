@@ -54,6 +54,7 @@ def _current_only_context(
     targets: Sequence[str],
     diagnosis: Mapping[str, Any],
     expectations: Mapping[str, Any] | None = None,
+    diagnostic_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the runtime's local-only state envelope, with no history fields."""
     context = {
@@ -64,6 +65,22 @@ def _current_only_context(
     }
     if expectations:
         context["switch"]["expectations"] = dict(expectations)
+    if diagnostic_context is not None:
+        if (
+            diagnostic_context.get("apiVersion")
+            != "mininet-ai/bounded-decision-context/v1alpha2"
+            or len(targets) != 1
+            or targets[0] not in diagnostic_context.get("flowRoles", {})
+        ):
+            raise AgentRuntimeError(
+                "invalid explicit local diagnostic context",
+                code="agent.bounded-decision.configuration-invalid",
+            )
+        context["apiVersion"] = diagnostic_context["apiVersion"]
+        context["switch"]["diagnosticScope"] = diagnostic_context["diagnosticScope"]
+        context["switch"]["flowRoles"] = dict(
+            diagnostic_context["flowRoles"][targets[0]]
+        )
     return context
 
 
@@ -673,6 +690,7 @@ class BoundedDecisionAdapter:
                 expectations=self.scenario.get("localExpectations", {}).get(
                     self.definition.instance.attachment.targets[0]
                 ),
+                diagnostic_context=self.scenario.get("diagnosticContext"),
             )
         else:
             decision_context = {

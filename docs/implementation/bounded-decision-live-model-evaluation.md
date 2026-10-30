@@ -1,5 +1,27 @@
 # Bounded-decision live candidate evaluation
 
+> **Latest enriched-state result (2026-10-30):** Explicit context v1alpha2 static
+> local flow roles with the original prompt correct the inspected s2 miss and
+> preserve both tested port-fault choices, but H2O misses another probe on s1
+> (19/20 correct). The matrix stopped with 12 cases unattempted. See the
+> [rich-state evaluation](bounded-decision-rich-state-evaluation.md). #124/#125
+> remain blocked; prior prompt/model failures below remain historical evidence.
+
+> **Latest prompt clarification (2026-10-30):** Source instructions and choices
+> now explicitly require diagnostic-probe/drop rules regardless of possible
+> active connectivity. H2O still misclassifies the same missing rule (healthy
+> 4/4, missing-probe case 3/4); the matrix stopped, and native down-port behavior
+> for the new wording is unverified. See the
+> [clarification report](bounded-decision-probe-clarification.md). #124/#125
+> remain blocked; this is not an accepted native correctness fix.
+
+> **Latest approved-model result (2026-10-30):** The distinct H2O-Lightning-4B
+> native candidate completed eight invocations without timeouts, but misclassified
+> missing expected s2 flow as healthy (7/8 correct). The matrix stopped at the
+> first failed case; fourteen declared cases remain unattempted. See the
+> [H2O evaluation](bounded-decision-h2o-evaluation.md). #124/#125 remain blocked;
+> no source prompt was changed or automatic fallback performed.
+
 > **Latest tuning outcome (2026-10-30):** Neither of two prompt revisions passed
 > the native matrix: missing-flow choices improved but down-port diagnosis
 > regressed. Both failed runs are archived separately; original source wording

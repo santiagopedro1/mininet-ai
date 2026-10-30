@@ -544,6 +544,36 @@ class DecisionChoice(StrictModel):
         return self
 
 
+class DiagnosticFlowRole(StrictModel):
+    """Static meaning of one required rule, never its observed presence."""
+
+    purpose: str = Field(min_length=1)
+    required: Literal[True]
+    requirement: str = Field(min_length=1)
+
+    @field_validator("required", mode="before")
+    @classmethod
+    def explicitly_required(cls, value: Any) -> Any:
+        if value is not True:
+            raise ValueError("diagnostic flow roles must explicitly be required")
+        return value
+
+
+class DiagnosticContext(StrictModel):
+    """Opt-in, versioned static annotations for current-only diagnosis."""
+
+    api_version: Literal["mininet-ai/bounded-decision-context/v1alpha2"] = Field(
+        alias="apiVersion"
+    )
+    diagnostic_scope: Literal["required-local-configuration"] = Field(
+        alias="diagnosticScope"
+    )
+    flow_roles: dict[
+        Name,
+        dict[Annotated[str, Field(pattern=r"^0x[0-9a-fA-F]+$")], DiagnosticFlowRole],
+    ] = Field(alias="flowRoles", min_length=1)
+
+
 class DecisionScenario(VersionedDocument):
     api_version: Literal["mininet-ai/v1alpha5"] = Field(alias="apiVersion")
     kind: Literal["DecisionScenario"]
@@ -561,6 +591,11 @@ class DecisionScenario(VersionedDocument):
         default_factory=dict,
         alias="localExpectations",
         exclude_if=lambda value: not value,
+    )
+    diagnostic_context: DiagnosticContext | None = Field(
+        default=None,
+        alias="diagnosticContext",
+        exclude_if=lambda value: value is None,
     )
 
     @model_validator(mode="after")
@@ -611,6 +646,20 @@ class DecisionScenario(VersionedDocument):
                         raise ValueError(
                             "local expected flow fields have invalid types or ranges"
                         )
+            if self.diagnostic_context is not None:
+                roles = self.diagnostic_context.flow_roles
+                if set(roles) != set(self.local_expectations):
+                    raise ValueError(
+                        "diagnosticContext flowRoles must cover exactly localExpectations targets"
+                    )
+                for target, expected in self.local_expectations.items():
+                    cookies = [flow["cookie"] for flow in expected["flows"]]
+                    if len(set(cookies)) != len(cookies) or set(roles[target]) != set(
+                        cookies
+                    ):
+                        raise ValueError(
+                            "diagnosticContext flowRoles must identify every unique expected flow cookie"
+                        )
             if len({choice.id for choice in self.choices}) != 2:
                 raise ValueError("current-only diagnosis choices must have unique IDs")
             if any(choice.proposals for choice in self.choices):
@@ -633,6 +682,10 @@ class DecisionScenario(VersionedDocument):
                 )
             self._validate_timing()
             return self
+        if self.diagnostic_context is not None:
+            raise ValueError(
+                "diagnosticContext is only valid for current-only diagnosis"
+            )
         if self.local_expectations:
             raise ValueError(
                 "localExpectations is only valid for current-only diagnosis"

@@ -1,5 +1,34 @@
 # Finish bounded-decision acceptance (#116)
 
+> **Owner direction:** Stop further model sweeps and tuning for now and finish
+> implementation. Record the original case missed by both models and the possible
+> information/representation limitation on #124, without declaring its cause
+> proven. Rich-state results are H2O-only. Implementation proceeds with these
+> known limitations; neither native correctness nor real-network acceptance is
+> reported as passed.
+
+> **Latest state experiment:** The example explicitly opts into context v1alpha2
+> with static local flow roles and the original prompt. H2O passes the inspected
+> s2 miss and both port-fault cases but fails another missing s1 probe (19/20
+> correct; 12 later cases unattempted). See the
+> [rich-state evaluation](bounded-decision-rich-state-evaluation.md). Offline
+> regression: **1218 passed, 3 opt-in skips, 179 subtests passed**. Native
+> correctness and #125's privileged network matrix remain blocked.
+
+> **Current wording:** The user-requested narrow prompt clarification explicitly
+> includes diagnostic-probe/drop rules even if active traffic could still pass.
+> Offline regression is **1180 passed, 3 opt-in skips, 179 subtests passed**.
+> H2O still misses the same rule (healthy 4/4, missing-probe case 3/4); later native
+> cases were not attempted. See the
+> [clarification report](bounded-decision-probe-clarification.md). Earlier
+> original-wording and rewrite results below remain historical, not acceptance.
+
+> **Latest native correctness gate:** The explicitly approved H2O-Lightning-4B
+> Q8_0 evaluation also failed missing-flow diagnosis (7/8 correct, no timeouts).
+> [Evidence and limitations](bounded-decision-h2o-evaluation.md) are retained;
+> fourteen later cases were not attempted. Do not proceed to the real-network
+> matrix on this failed prerequisite. The source scenario is unchanged.
+
 > **CLI repair completed (2026-10-30):** The offline CLI/results integration
 > blocker described below is resolved on `fix/cli-results-integration`: full
 > suite **1178 passed, 3 opt-in skips, 179 subtests passed**; lint, formatting,

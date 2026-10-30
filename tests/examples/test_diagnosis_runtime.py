@@ -10,8 +10,10 @@ from examples.diamond_recovery.diagnosis import evaluate_runtime, expected_diagn
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.substrates import FakeSubstrateRuntime
 from tests.agents.test_bounded_evidence_schemas import validators
+from tests.compiler.test_diagnostic_context import rich_document
 
 
+@pytest.mark.parametrize("enriched", [False, True])
 @pytest.mark.parametrize("force_healthy", [False, True])
 @pytest.mark.parametrize(
     "fault",
@@ -20,6 +22,7 @@ from tests.agents.test_bounded_evidence_schemas import validators
         "reordered-flows",
         "down",
         "missing-flow",
+        "missing-active-flow",
         "missing-flow-first",
         "missing-flow-same-count",
         "unavailable",
@@ -28,9 +31,15 @@ from tests.agents.test_bounded_evidence_schemas import validators
     ],
 )
 def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
-    tmp_path, fault, force_healthy
+    tmp_path, fault, force_healthy, enriched
 ):
-    path = Path(__file__).parents[2] / "examples/diamond-recovery/experiment.yaml"
+    import yaml
+
+    document = rich_document()
+    if not enriched:
+        document["decisionScenarios"][0].pop("diagnosticContext")
+    path = tmp_path / "experiment.yaml"
+    path.write_text(yaml.safe_dump(document, sort_keys=False))
     plan = compile_experiment(path)
     scenario = plan.agents[0].decision_scenario
     assert scenario is not None
@@ -52,6 +61,8 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
             else:
                 if target == "s2" and fault == "missing-flow":
                     local["flows"].pop()
+                if target == "s2" and fault == "missing-active-flow":
+                    local["flows"].pop(1)
                 if target == "s2" and fault == "missing-flow-first":
                     local["flows"].pop(0)
                 if target == "s2" and fault == "missing-flow-same-count":
@@ -87,8 +98,46 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
                 assert "history" not in state
                 (target,) = state["switch"]["targets"]
                 assert state["switch"]["expectations"] == expected[target]
+                if enriched:
+                    assert (
+                        state["apiVersion"]
+                        == "mininet-ai/bounded-decision-context/v1alpha2"
+                    )
+                    assert (
+                        state["switch"]["diagnosticScope"]
+                        == "required-local-configuration"
+                    )
+                    assert (
+                        state["switch"]["flowRoles"]
+                        == scenario["diagnosticContext"]["flowRoles"][target]
+                    )
+                    assert all(
+                        set(role) == {"purpose", "required", "requirement"}
+                        for role in state["switch"]["flowRoles"].values()
+                    )
+                else:
+                    assert (
+                        state["apiVersion"]
+                        == "mininet-ai/bounded-decision-context/v1alpha1"
+                    )
+                    assert "flowRoles" not in state["switch"]
+                    assert "diagnosticScope" not in state["switch"]
                 for observation in state["switch"]["diagnosis"].values():
                     assert set(observation["value"]) == {target}
+                if target == "s2" and fault == "missing-flow":
+                    # The failed native case removes a diagnostic-probe rule,
+                    # while both active-address forwarding rules remain present.
+                    flows = state["switch"]["diagnosis"]["flowState"]["value"][target][
+                        "switches"
+                    ][0]["flows"]
+                    active = [
+                        flow
+                        for flow in expected[target]["flows"]
+                        if flow["match"].get("nw_src") in {"10.0.0.1", "10.0.0.2"}
+                    ]
+                    assert len(active) == 2
+                    assert all(flow in flows for flow in active)
+                    assert expected[target]["flows"][-1] not in flows
                 assert 0 < kwargs["timeout_seconds"] <= 5
                 if (
                     not force_healthy
@@ -129,6 +178,18 @@ def test_current_only_agents_retain_local_inputs_and_normalized_evidence(
         validator.validate(execution)
         decision = execution["runtime"]["boundedDecision"]
         assert decision["actionOutcomes"] == []
+        if enriched:
+            from jsonschema import Draft202012Validator
+
+            schema = json.loads(
+                (
+                    Path(__file__).parents[2]
+                    / "mininet_ai/compiler/schemas/bounded-decision-context-v1alpha2.json"
+                ).read_text()
+            )
+            Draft202012Validator(schema).validate(
+                json.loads(decision["request"]["state"])
+            )
         if force_healthy:
             assert decision["selectedChoice"] == "healthy"
         else:

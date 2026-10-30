@@ -80,7 +80,15 @@ the current agent's decision contract. Current acceptance labels local switch
 states (healthy, degraded, and unavailable/missing local evidence) independently
 for each target switch; unavailable required evidence is classified as degraded
 because health cannot be confirmed. Any down local port or missing expected local
-flow entry takes precedence over healthy signals. Model evaluation does not require
+flow entry takes precedence over healthy signals. Required entries include
+diagnostic-probe forwarding rules and table-miss drop rules: a missing probe rule
+means degraded even if active traffic could still pass. This is a required local
+configuration diagnosis, not proof of connectivity loss. The example explicitly
+opts into static, switch-local flow roles in context v1alpha2, using the original
+prompt and unchanged raw observations. This corrected the inspected missing-s2
+probe case, but a missing-s1 probe is still misclassified; see the
+[rich-state evaluation](../../docs/implementation/bounded-decision-rich-state-evaluation.md).
+It is not an accepted general model-correctness fix. Model evaluation does not require
 a pinned artifact or build; provenance is recorded when available. The example's
 5-second decision deadline is an operational scenario setting, not a universal
 latency acceptance target. Report warm and cold latency distributions separately.
@@ -90,6 +98,26 @@ primary timeouts with recovery-path probe success, and reset/cleanup were
 verified. Evidence is retained at `/tmp/diamond-recovery-evidence`.
 
 ## Live diagnosis runner
+
+### Explicit enriched-state opt-in
+
+The scenario's `diagnosticContext` declares context version
+`mininet-ai/bounded-decision-context/v1alpha2`, scope
+`required-local-configuration`, and a `flowRoles` table for every expected local
+rule. Each entry supplies a static purpose, literal `required: true`, and a
+requirement description. For example, s2's `0x2b67` describes reverse diagnostic
+probe forwarding that is required even if active traffic could still pass.
+These annotations remain separate from raw matches/actions; the model must
+still compare complete expected and observed inventories itself. Only the
+invocation's switch roles are supplied, without computed presence/verdict fields.
+
+Omit `diagnosticContext` to retain context v1alpha1. Existing saved plans are
+not enriched from the current example; changed configuration needs a newly
+compiled plan/run. The latest original-prompt enriched-state evaluation is
+19/20 correct and still blocked on missing-flow generalization. Historical
+prompt-only failures remain in the [clarification report](../../docs/implementation/bounded-decision-probe-clarification.md).
+
+### Runner operation
 
 For the current blockers, service-review checklist, once-only operator command
 and evidence return instructions, use the
