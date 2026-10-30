@@ -1,5 +1,13 @@
 # Finish bounded-decision acceptance (#116)
 
+> **Owner-approved final scope:** Complete #116/#125 as experimental,
+> restricted-support implementation limited to the measured five-case live
+> matrix. Keep #124 open; general native correctness is not claimed. This
+> explicit amendment replaces the broader quality prerequisite for this limited
+> handoff, without rewriting failures. Publish a PR only; merge needs separate
+> authorization and issue closure follows merge. See the
+> [current implementation handoff](bounded-decision-implementation-handoff.md).
+
 > **Live update (2026-10-30, supersedes network status below):** The operator's
 > new real Mininet/OVS H2O run passed all five cases, **20/20 correct**, with
 > independent cleanup verified and exit 0. Plans, SQLite integrity, strict

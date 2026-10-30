@@ -119,6 +119,13 @@ prompt-only failures remain in the [clarification report](../../docs/implementat
 
 ### Runner operation
 
+**Support status: experimental and restricted to the measured live cases.**
+The owner accepted the implementation handoff with #124's known model-quality
+limitation remaining open. This is not general diagnosis correctness, sustained
+load qualification, network recovery, or approval for unattended production
+automation. Provenance gaps and generic runtime cleanup limitations remain as
+documented in the live report.
+
 The latest [real-network H2O matrix](../../docs/implementation/bounded-decision-live-h2o-acceptance.md)
 passed all five runner cases (20/20 correct), with independent cleanup verified.
 This is scoped deployment evidence, not general model correctness: the separately

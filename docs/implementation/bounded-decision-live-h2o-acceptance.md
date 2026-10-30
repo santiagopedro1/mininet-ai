@@ -89,8 +89,12 @@ under H2O enriched state or the original missing-s2 failure shared by Kev/H2O.
 Insufficient information/representation remains a hypothesis, not an established
 cause. See the [rich-state report](bounded-decision-rich-state-evaluation.md).
 
-#124 remains the known-limitation record. #125/#116 require an explicit final
-acceptance/support disposition because the broader native correctness prerequisite
-did not pass. No issue closure, gate waiver, universal model-support claim or
-automatic production adoption follows from this narrower live result. Further
-model sweeps/tuning remain paused per owner direction.
+#124 remains the known-limitation record. Following this review, the owner
+explicitly approved completing #125/#116 as **experimental, restricted-support
+implementation**, limited to these measured live cases, without a general
+model-correctness claim. That disposition replaces the broader native-quality
+prerequisite for this restricted handoff; it does not turn the failed matrix
+into a pass. See the [implementation handoff](bounded-decision-implementation-handoff.md).
+Issue closure follows a separately authorized merge; current authorization is
+push/open PR only. No universal model-support claim or automatic production
+adoption follows. Further model sweeps/tuning remain paused per owner direction.
