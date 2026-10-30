@@ -197,7 +197,10 @@ sample completed in 0.834 seconds; the single cold sample is retained separately
 from the warm distribution.
 
 **Acceptance limitation:** those prior samples predate the runtime/collector/
-oracle fixes and do not validate this replacement runner. Its privileged live
-rerun is pending (#125); passwordless sudo is unavailable to the agent. Offline
-regressions exercise the actual continuous runtime with only transport and
-Substrate substituted. See the live-network report for current status.
+oracle fixes and do not validate this replacement runner. The operator has now
+completed its privileged five-case H2O run (20/20 correct, independent cleanup
+verified). #125 remains open pending review and separately authorized merge,
+not another privileged rerun. Offline regressions additionally exercise the
+continuous runtime with only transport and Substrate substituted. See the
+[latest live report](../../docs/implementation/bounded-decision-live-h2o-acceptance.md)
+for restricted support and remaining model-quality/provenance limitations.
