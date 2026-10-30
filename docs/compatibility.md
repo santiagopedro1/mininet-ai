@@ -7,7 +7,7 @@ driver contract.
 
 ## Versioned contracts
 
-The project currently defines twelve contract families:
+The project defines the following independently versioned contract families:
 
 - `mininet-ai/v1alpha5` is the current authoring and deployment-plan contract;
   it covers `Experiment`, `AgentBlueprint`, `Capability`, and `DecisionScenario`
@@ -37,6 +37,10 @@ The project currently defines twelve contract families:
   contract versions.
 - `mininet-ai/bounded-decision/v1alpha1` covers retained native decision
   requests, choices, provenance, timing, outcomes, and explicit evidence gaps.
+- `mininet-ai/bounded-decision-context/v1alpha1` is the original serialized
+  inference state. Explicitly annotated current-only scenarios opt into
+  `mininet-ai/bounded-decision-context/v1alpha2`, which adds static switch-local
+  diagnostic scope and flow-role metadata without changing raw observations.
 - `mininet-ai/agent-execution/v1alpha1` discriminates runtime-specific execution
   records, preserving Agno compatibility without manufacturing Agno fields for
   bounded execution.
@@ -249,6 +253,41 @@ inline. Decisions and rationale: [authoring](https://github.com/santiagopedro1/m
 and [bounded compatibility/acceptance](https://github.com/santiagopedro1/mininet-ai/issues/88#issuecomment-6317993870).
 The [implementation handoff](implementation/shared-model-configurations.md)
 records the integrated acceptance evidence and complete golden-diff rationale.
+
+### Bounded decision context v1alpha1 to v1alpha2
+
+The current `v1alpha5` scenario supports an optional, explicitly versioned
+`diagnosticContext` declaration. It contains
+`apiVersion: mininet-ai/bounded-decision-context/v1alpha2`,
+`diagnosticScope: required-local-configuration`, and `flowRoles`, keyed by
+target and then expected flow cookie. Each role has a static `purpose`, literal
+`required: true`, and `requirement`. Targets/cookies must cover the complete
+declared local expectations without ambiguous duplicate cookies. This opt-in
+is valid only for current-only diagnosis; historical v1alpha3/v1alpha4 sources
+cannot use the v1alpha5 scenario surface.
+
+The runtime places only the invocation's target roles in `switch.flowRoles`
+and the scope in `switch.diagnosticScope`, with context version v1alpha2.
+Expected flow matches and raw current observations remain separate and
+unchanged. An annotation describes what a rule is for, not whether it is
+currently present. There are no computed verdict, missing-rule, or expected
+answer fields. A strict schema is published at
+`urn:mininet-ai:schema:bounded-decision-context:v1alpha2`.
+
+Omitting `diagnosticContext` inserts no serialized default and retains the
+original v1alpha1 request shape. Existing v1alpha5 saved plans and their digests
+remain unchanged; they do not acquire annotations from the current example or
+source files. Older saved versions keep their existing readers. Newly opted-in
+plans embed the complete annotation declaration and intentionally have a new
+digest; unsupported context versions are rejected, not silently downgraded.
+Old software is not promised to accept newly opted-in plans. Regenerate a new
+plan/run explicitly rather than editing an archived plan.
+
+The native request still carries an exact canonical state string. Bounded
+evidence, agent-execution, audit and ledger envelopes do not change: consumers
+that decode the string must dispatch on its embedded context version. Adoption
+and measured limitations are in the
+[rich-state evaluation](implementation/bounded-decision-rich-state-evaluation.md).
 
 ### Agent runtime v1alpha1 to v1alpha2
 

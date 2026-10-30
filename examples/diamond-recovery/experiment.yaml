@@ -208,6 +208,57 @@ decisionScenarios:
     cadence: 1s
     decisionDeadline: 5s
   policy: {}
+  diagnosticContext:
+    apiVersion: mininet-ai/bounded-decision-context/v1alpha2
+    diagnosticScope: required-local-configuration
+    flowRoles:
+      s1:
+        '0x1100': &dropRole
+          purpose: Table-miss drop
+          required: true
+          requirement: Mandatory local table-miss configuration
+        '0x2b5d': &activeForwardRole
+          purpose: Active traffic 10.0.0.1 to 10.0.0.2
+          required: true
+          requirement: Mandatory local active-traffic configuration
+        '0x2b62': &activeReverseRole
+          purpose: Active traffic 10.0.0.2 to 10.0.0.1
+          required: true
+          requirement: Mandatory local active-traffic configuration
+        '0x2b63': &probeForwardRole
+          purpose: Diagnostic probe 10.0.0.11 to 10.0.0.12
+          required: true
+          requirement: Mandatory diagnostic configuration even if active traffic could still pass
+        '0x2b68': &probeReverseRole
+          purpose: Diagnostic probe 10.0.0.12 to 10.0.0.11
+          required: true
+          requirement: Mandatory diagnostic configuration even if active traffic could still pass
+        '0x2b69': &alternateProbeForwardRole
+          purpose: Diagnostic probe 10.0.0.21 to 10.0.0.22
+          required: true
+          requirement: Mandatory diagnostic configuration even if active traffic could still pass
+        '0x2b6e': &alternateProbeReverseRole
+          purpose: Diagnostic probe 10.0.0.22 to 10.0.0.21
+          required: true
+          requirement: Mandatory diagnostic configuration even if active traffic could still pass
+      s2:
+        '0x1100': *dropRole
+        '0x2b5e': *activeForwardRole
+        '0x2b61': *activeReverseRole
+        '0x2b64': *probeForwardRole
+        '0x2b67': *probeReverseRole
+      s3:
+        '0x1100': *dropRole
+        '0x2b6a': *alternateProbeForwardRole
+        '0x2b6d': *alternateProbeReverseRole
+      s4:
+        '0x1100': *dropRole
+        '0x2b5f': *activeForwardRole
+        '0x2b60': *activeReverseRole
+        '0x2b65': *probeForwardRole
+        '0x2b66': *probeReverseRole
+        '0x2b6b': *alternateProbeForwardRole
+        '0x2b6c': *alternateProbeReverseRole
   localExpectations:
     s1:
       ports: [s1-eth1, s1-eth2, s1-eth3]

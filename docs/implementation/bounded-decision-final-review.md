@@ -1,5 +1,13 @@
 # Bounded-decision final review (2026-10-29)
 
+> **2026-10-30 refresh:** All committed integration work is on `main` through
+> merged PR #128 (`a0f5224`); PR #126 is closed without merging. The later
+> archived real-OVS healthy trial failed (4 correct diagnoses, 2 timeouts,
+> cleanup unknown). Independent cleanup verification was added afterward and
+> requires live validation. The findings/checks below remain the historical
+> review record, not a new support pass. See the
+> [acceptance handoff](bounded-decision-acceptance-handoff.md).
+
 Baseline: `git diff main...dfe26ff`, merge-base `67ae633`. Standards and spec
 reviews ran independently. #116's current-only diagnosis and per-scenario
 deadline amendments supersede the original recovery/history/pinned/800 ms scope.
@@ -51,7 +59,7 @@ See the live-model report. After service/deployment review, rerun the new
 deployed-runtime matrix on a root-capable host. `sudo -n true` requires a
 password in this session; no privileged network trial was sent. Existing 16/16 measurements
 remain historical direct-client evidence, not evidence for the replacement
-runner. #125 and draft PR #126 remain open until this gate is resolved.
+runner. #125 remains open until this gate is resolved; PR #126 was later closed.
 
 ## Standards
 

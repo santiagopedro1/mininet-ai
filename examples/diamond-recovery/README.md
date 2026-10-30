@@ -80,7 +80,15 @@ the current agent's decision contract. Current acceptance labels local switch
 states (healthy, degraded, and unavailable/missing local evidence) independently
 for each target switch; unavailable required evidence is classified as degraded
 because health cannot be confirmed. Any down local port or missing expected local
-flow entry takes precedence over healthy signals. Model evaluation does not require
+flow entry takes precedence over healthy signals. Required entries include
+diagnostic-probe forwarding rules and table-miss drop rules: a missing probe rule
+means degraded even if active traffic could still pass. This is a required local
+configuration diagnosis, not proof of connectivity loss. The example explicitly
+opts into static, switch-local flow roles in context v1alpha2, using the original
+prompt and unchanged raw observations. This corrected the inspected missing-s2
+probe case, but a missing-s1 probe is still misclassified; see the
+[rich-state evaluation](../../docs/implementation/bounded-decision-rich-state-evaluation.md).
+It is not an accepted general model-correctness fix. Model evaluation does not require
 a pinned artifact or build; provenance is recorded when available. The example's
 5-second decision deadline is an operational scenario setting, not a universal
 latency acceptance target. Report warm and cold latency distributions separately.
@@ -90,6 +98,48 @@ primary timeouts with recovery-path probe success, and reset/cleanup were
 verified. Evidence is retained at `/tmp/diamond-recovery-evidence`.
 
 ## Live diagnosis runner
+
+### Explicit enriched-state opt-in
+
+The scenario's `diagnosticContext` declares context version
+`mininet-ai/bounded-decision-context/v1alpha2`, scope
+`required-local-configuration`, and a `flowRoles` table for every expected local
+rule. Each entry supplies a static purpose, literal `required: true`, and a
+requirement description. For example, s2's `0x2b67` describes reverse diagnostic
+probe forwarding that is required even if active traffic could still pass.
+These annotations remain separate from raw matches/actions; the model must
+still compare complete expected and observed inventories itself. Only the
+invocation's switch roles are supplied, without computed presence/verdict fields.
+
+Omit `diagnosticContext` to retain context v1alpha1. Existing saved plans are
+not enriched from the current example; changed configuration needs a newly
+compiled plan/run. The latest original-prompt enriched-state evaluation is
+19/20 correct and still blocked on missing-flow generalization. Historical
+prompt-only failures remain in the [clarification report](../../docs/implementation/bounded-decision-probe-clarification.md).
+
+### Runner operation
+
+**Support status: experimental and restricted to the measured live cases.**
+The owner accepted the implementation handoff with #124's known model-quality
+limitation remaining open. This is not general diagnosis correctness, sustained
+load qualification, network recovery, or approval for unattended production
+automation. Provenance gaps and generic runtime cleanup limitations remain as
+documented in the live report.
+
+The latest [real-network H2O matrix](../../docs/implementation/bounded-decision-live-h2o-acceptance.md)
+passed all five runner cases (20/20 correct), with independent cleanup verified.
+This is scoped deployment evidence, not general model correctness: the separately
+recorded missing-s1 probe limitation remains. Follow the runner's stop-on-failure
+and isolation rules; do not treat that result as an automatic support-gate waiver.
+
+For the current acceptance disposition, service-review checklist and historical
+operator/evidence-return instructions, use the
+[acceptance handoff](../../docs/implementation/bounded-decision-acceptance-handoff.md).
+An earlier archived healthy real-runtime trial failed with four correct diagnoses,
+two timeouts and unknown cleanup. The latest five-case H2O matrix independently
+verified cleanup using the subsequently added observer; it does not retroactively
+verify cleanup of the older failed trial. Earlier direct-client results are not
+replacement-runner acceptance.
 
 The runner now uses the real `MininetOVSRuntime` and all four compiled agents
 through `ExperimentRuntime`. It does not call the native client directly or
@@ -102,10 +152,11 @@ authorized. The outage is an explicitly recorded collector fault injection,
 not an invented port state.
 
 Use a disposable root-capable host with the native service already running.
-Review the live-model report first: the current one-slot service timed out in
-the corrected four-agent constructed-input check. Resolve/review that deployment
-workload before repeating the network matrix; do not silently enlarge the
-declared deadline or reuse historical 16/16 results as current acceptance.
+Review the live-model and latest live-network reports first. The historical
+one-slot service timed out; the measured H2O matrix used four idle slots with
+8192 context tokens each. Before any new run, review the actual deployment and
+isolation rather than assuming these conditions still hold. Do not silently
+enlarge the deadline or reuse historical 16/16 results as current acceptance.
 The model identity below is an example declaration, not a pinned requirement;
 replace it with your actual service/model. The runner does not start or alter
 the service, silently retry failed trials, or overwrite an evidence directory:
@@ -146,7 +197,10 @@ sample completed in 0.834 seconds; the single cold sample is retained separately
 from the warm distribution.
 
 **Acceptance limitation:** those prior samples predate the runtime/collector/
-oracle fixes and do not validate this replacement runner. Its privileged live
-rerun is pending (#125); passwordless sudo is unavailable to the agent. Offline
-regressions exercise the actual continuous runtime with only transport and
-Substrate substituted. See the live-network report for current status.
+oracle fixes and do not validate this replacement runner. The operator has now
+completed its privileged five-case H2O run (20/20 correct, independent cleanup
+verified). #125 remains open pending review and separately authorized merge,
+not another privileged rerun. Offline regressions additionally exercise the
+continuous runtime with only transport and Substrate substituted. See the
+[latest live report](../../docs/implementation/bounded-decision-live-h2o-acceptance.md)
+for restricted support and remaining model-quality/provenance limitations.

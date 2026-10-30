@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mininet-ai:schema:bounded-decision-context:v1alpha2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "scenario", "identity", "switch"],
+  "properties": {
+    "apiVersion": {"const": "mininet-ai/bounded-decision-context/v1alpha2"},
+    "scenario": {
+      "type": "object", "additionalProperties": false, "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "description": {"type": ["string", "null"]},
+        "labels": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["runId", "agentId", "invocationId", "tickId", "invokedAt"],
+      "properties": {
+        "runId": {"type": "string", "minLength": 1},
+        "agentId": {"type": "string", "minLength": 1},
+        "invocationId": {"type": "string", "minLength": 1},
+        "tickId": {"type": "string", "minLength": 1},
+        "invokedAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "switch": {
+      "type": "object", "additionalProperties": false,
+      "required": ["targets", "diagnosis", "expectations", "diagnosticScope", "flowRoles"],
+      "properties": {
+        "targets": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "string", "minLength": 1}},
+        "diagnosis": {
+          "type": "object", "minProperties": 1,
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false,
+            "required": ["source", "availability", "value", "observedAt"],
+            "properties": {
+              "source": {"type": "string", "minLength": 1},
+              "availability": {"enum": ["available", "missing"]},
+              "value": {},
+              "observedAt": {"type": ["string", "null"]}
+            }
+          }
+        },
+        "expectations": {
+          "type": "object", "additionalProperties": false,
+          "required": ["ports", "flows"],
+          "properties": {
+            "ports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "flows": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/ExpectedFlow"}}
+          }
+        },
+        "diagnosticScope": {"const": "required-local-configuration"},
+        "flowRoles": {
+          "type": "object", "minProperties": 1,
+          "propertyNames": {"pattern": "^0x[0-9a-fA-F]+$"},
+          "additionalProperties": {"$ref": "#/$defs/FlowRole"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "ExpectedFlow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cookie", "table", "priority", "match", "actions"],
+      "properties": {
+        "cookie": {"type": "string", "pattern": "^0x[0-9a-fA-F]+$"},
+        "table": {"type": "integer", "minimum": 0},
+        "priority": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "match": {"type": "object", "additionalProperties": {"type": ["string", "boolean"]}},
+        "actions": {"type": "string", "minLength": 1}
+      }
+    },
+    "FlowRole": {
+      "type": "object", "additionalProperties": false,
+      "required": ["purpose", "required", "requirement"],
+      "properties": {
+        "purpose": {"type": "string", "minLength": 1},
+        "required": {"const": true},
+        "requirement": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

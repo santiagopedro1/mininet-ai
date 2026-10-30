@@ -37,6 +37,32 @@
       "title": "DecisionChoice",
       "type": "object"
     },
+    "DiagnosticFlowRole": {
+      "type": "object", "additionalProperties": false,
+      "required": ["purpose", "required", "requirement"],
+      "properties": {
+        "purpose": {"type": "string", "minLength": 1},
+        "required": {"const": true},
+        "requirement": {"type": "string", "minLength": 1}
+      }
+    },
+    "DiagnosticContext": {
+      "type": "object", "additionalProperties": false,
+      "required": ["apiVersion", "diagnosticScope", "flowRoles"],
+      "properties": {
+        "apiVersion": {"const": "mininet-ai/bounded-decision-context/v1alpha2"},
+        "diagnosticScope": {"const": "required-local-configuration"},
+        "flowRoles": {
+          "type": "object", "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-zA-Z][a-zA-Z0-9_.-]*$", "minLength": 1, "maxLength": 128},
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {"pattern": "^0x[0-9a-fA-F]+$"},
+            "additionalProperties": {"$ref": "#/$defs/DiagnosticFlowRole"}
+          }
+        }
+      }
+    },
     "Metadata": {
       "additionalProperties": false,
       "properties": {
@@ -103,6 +129,10 @@
       ],
       "title": "Input Mode",
       "type": "string"
+    },
+    "diagnosticContext": {
+      "anyOf": [{"$ref": "#/$defs/DiagnosticContext"}, {"type": "null"}],
+      "default": null
     },
     "kind": {
       "const": "DecisionScenario",

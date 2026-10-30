@@ -1,6 +1,26 @@
 # Bounded-decision live-network evaluation
 
-## Verdict: DIRECT-CLIENT TELEMETRY PASS / DEPLOYED RUNTIME UNVERIFIED
+## Verdict: DEPLOYED HEALTHY TRIAL FAILED / FULL MATRIX UNVERIFIED
+
+### Status refresh (2026-10-30)
+
+A later user-run real-OVS healthy trial is archived at
+`evidence/diagnosis-live-healthy-20261029.tar.gz` (SHA-256
+`d9d928f5046ef6c2683bee623e0482ae943314060683626787fa9363f27887ab`).
+Its six normalized invocations contain four correct healthy choices and two
+`agent.bounded-decision.timeout` failures. Successful inference phases were
+1.422, 3.333, 4.889 and 4.806 seconds; these are not whole-run latency statistics.
+The trial failed and cleanup was unknown; no subsequent fault trial is in
+this archive. The later read-only observation in
+`evidence/diagnosis-live-healthy-remote-after.json` showed an idle remote slot,
+not per-request termination or network cleanup proof.
+
+PR #128 subsequently merged the independent cleanup observer and namespace
+identity gate into `main` (`a0f5224`). That fix does not retroactively verify
+the archived run. A new live matrix after service/deployment review is still
+required. PR #126 is closed, not a pending draft. See the
+[acceptance handoff](bounded-decision-acceptance-handoff.md) for exact operator
+steps. The older narrative below records the earlier evaluation stages.
 
 The real Mininet/OVS topology and both isolated primary-link fault conditions
 were exercised successfully. The harness evidence is retained at
@@ -29,7 +49,7 @@ or bypass capability authorization.
 | Historical compiled runtime against native service | 15 successful invocations using the fake substrate |
 | Corrected four-agent native workload | Failed: 2 correct healthy choices, 4 timeouts, Fake Substrate only; no new OVS trial |
 | Direct native client with real Mininet/OVS observations | **16/16 correct** against the runner's port-state labels across healthy, both isolated faults, and unavailable evidence |
-| Four deployed agents with real Substrate telemetry | Replacement implemented and offline tested; privileged live rerun pending |
+| Four deployed agents with real Substrate telemetry | Later healthy trial: 4 correct diagnoses, 2 timeouts, cleanup unknown; full matrix with new cleanup observer pending |
 | Diamond recovery run | Not applicable to the amended initial scope; historical fixtures retained |
 | Trial reset and cleanup verification | Recorded as verified for the topology and direct-client trials |
 | Remote request termination/isolation | Completed native responses recorded for the successful matrix; cancellation/late-result containment not exercised by this matrix |

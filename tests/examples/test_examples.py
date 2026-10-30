@@ -77,6 +77,16 @@ def test_diamond_example_compiles_one_current_only_agent_per_switch() -> None:
         "portState": "ovs.port-state",
     }
     assert scenario["timing"] == {"cadence": "1s", "decisionDeadline": "5s"}
+    annotations = scenario["diagnosticContext"]
+    assert annotations["apiVersion"] == "mininet-ai/bounded-decision-context/v1alpha2"
+    assert annotations["diagnosticScope"] == "required-local-configuration"
+    for target, expected in scenario["localExpectations"].items():
+        roles = annotations["flowRoles"][target]
+        assert set(roles) == {flow["cookie"] for flow in expected["flows"]}
+        assert all(role["required"] is True for role in roles.values())
+    probe_role = annotations["flowRoles"]["s2"]["0x2b67"]
+    assert "Diagnostic probe" in probe_role["purpose"]
+    assert "even if active traffic could still pass" in probe_role["requirement"]
     resources = plan.snapshot["substrate"]["topology"]["resources"]
     switch_ports = {
         resource["name"]: {port["number"] for port in resource["ports"]}
