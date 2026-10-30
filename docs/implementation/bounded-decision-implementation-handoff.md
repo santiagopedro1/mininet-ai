@@ -72,3 +72,27 @@ are excluded; the complete live archive is committed.
 
 Remaining workflow is final review/checks and PR publication. Merge is not
 authorized. No new inference is planned in this implementation pass.
+
+## Final PR review and checks
+
+The owner expanded final review to the complete diff against `main`, pinned at
+`a0f5224f41cf8eaa5e9f1eb58f92c331543b960a`, including the CLI/results repair.
+
+- **Standards:** 0 actionable findings.
+- **Spec:** 1 documentation finding (stale README live-validation status), fixed
+  in `c33bade` and `955dba0`; follow-up confirms fully resolved, no remaining
+  findings. Failed historical trials remain clearly distinguished from the new
+  passing matrix.
+- Exact committed snapshot `c33bade`, isolated from the user edit: **1218 passed,
+  3 skipped, 179 subtests passed** (76.78 seconds). Ruff lint/format and Pyright
+  passed; diamond and iperf validation/planning passed. Later changes are
+  documentation-only. The three opt-in checks are still skipped, not passed;
+  the separate operator-run live matrix supplies the measured network evidence.
+- Live evidence archive byte-for-byte matches the supplied source files; strict
+  state/execution validation, labels, five saved-plan digests, SQLite integrity,
+  event correlations and independent cleanup were checked as detailed in the
+  [live report](bounded-decision-live-h2o-acceptance.md).
+
+Publication does not authorize merge or issue closure. After merge is separately
+approved and completed, close #116/#125 with the restricted-support disposition
+and keep #124 open. Do not use automatic closing keywords for #124.
