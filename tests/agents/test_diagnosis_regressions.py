@@ -19,8 +19,11 @@ def test_historical_source_rejects_explicit_execution_field(version, selection):
     document["execution"] = selection
     with pytest.raises(
         ValidationError, match="execution.*requires mininet-ai/v1alpha5"
-    ):
+    ) as error:
         AgentBlueprint.model_validate(document)
+    assert "historical versions omit the execution field to mean Agno" in str(
+        error.value
+    )
 
 
 @pytest.mark.parametrize("field", ["capability", "target", "arguments"])

@@ -761,14 +761,21 @@ class AgentBlueprint(VersionedDocument):
     @model_validator(mode="before")
     @classmethod
     def execution_requires_current_source(cls, value: Any) -> Any:
-        if (
-            isinstance(value, dict)
-            and "execution" in value
-            and value.get("apiVersion", value.get("api_version"))
-            != "mininet-ai/v1alpha5"
-        ):
-            raise ValueError("execution selection requires mininet-ai/v1alpha5")
-        return value
+        if not isinstance(value, dict):
+            return value
+        if "execution" not in value:
+            return value
+        api_version = value.get("apiVersion", value.get("api_version"))
+        if api_version == "mininet-ai/v1alpha5":
+            # v1alpha5: execution selection is always allowed
+            return value
+        # v1alpha3 / v1alpha4: new fields are not admitted under old document versions.
+        # Omitted execution selection means Agno (historical behavior).
+        # Explicit execution selection is rejected.
+        raise ValueError(
+            "execution selection requires mininet-ai/v1alpha5; "
+            "historical versions omit the execution field to mean Agno"
+        )
 
     @model_validator(mode="after")
     def bounded_execution_is_explicitly_supported(self) -> AgentBlueprint:
