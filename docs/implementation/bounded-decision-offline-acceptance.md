@@ -1,5 +1,13 @@
 # Bounded-decision offline acceptance
 
+> **Latest offline repair (2026-10-30):** The CLI/results integration mismatch
+> is resolved on `fix/cli-results-integration`. Final full suite: **1178 passed,
+> 3 opt-in skips, 179 subtests passed**. Lint, formatting, Pyright and
+> diamond/iperf validation/planning pass. See the
+> [repair report](cli-results-integration.md); the prior failing refresh below
+> is historical. Native-model correctness still fails, and live network
+> acceptance remains blocked.
+
 > **2026-10-30 refresh:** The merged tree no longer has a clean full-regression
 > result: 137 failed, 1032 passed, 3 opt-in skips. A focused current diagnosis,
 > cleanup, guard and evidence run passed 57 tests; lint, formatting, Pyright and

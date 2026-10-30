@@ -186,12 +186,22 @@ def test_complete_recorded_response_survives_without_raw_capture(tmp_path):
         r["data"]["data"]["response"]
         for r in ledger["records"]
         if r["type"] == "agent.invocation.completed"
+        and r["data"]["data"].get("phase") != "lifecycle-finalized"
     ]
     assert len(recorded) == 1
     assert recorded[0]["message"] == response["message"]
     assert recorded[0]["proposals"] == [
         {**response["proposals"][0], "reason": None, "timeoutSeconds": 30.0}
     ]
+    finalized = [
+        r["data"]["data"]
+        for r in ledger["records"]
+        if r["type"] == "agent.invocation.completed"
+        and r["data"]["data"].get("phase") == "lifecycle-finalized"
+    ]
+    assert len(finalized) == 1
+    assert finalized[0]["response"]["message"] == response["message"]
+    assert len(finalized[0]["actionResults"]) == 1
     assert ledger["manifest"]["contractVersion"] == "mininet-ai/run-ledger/v1alpha1"
     summary = json.loads((directory / "summary.json").read_text())
     assert summary["counts"]["actions"]["succeeded"]["value"] == 1
@@ -469,7 +479,31 @@ def test_failed_invocation_is_not_hidden_by_successful_reasoning_or_cleanup(tmp_
     assert summary["counts"]["invocations"]["failed"]["value"] == 1
     assert summary["counts"]["invocations"]["succeeded"]["value"] == 0
     assert summary["counts"]["invocations"]["reasoning_completed"]["value"] == 1
+    assert summary["counts"]["invocations"]["reasoning_failed"]["value"] == 0
     assert summary["observations"]["invocations"][0]["status"] != "succeeded"
+
+
+def test_reasoning_failure_is_counted_once_with_its_finalized_failure(tmp_path):
+    result, directory = inspect_run(
+        tmp_path,
+        plan=configured_plan({"metadata": {}}),
+        extra_args=("--intent", "switch-router@s1=inspect"),
+    )
+    assert result.exit_code == 1, result.output
+    summary = json.loads((directory / "summary.json").read_text())
+    counts = summary["counts"]["invocations"]
+    assert counts["reasoning_completed"]["value"] == 0
+    assert counts["reasoning_failed"]["value"] == 1
+    assert counts["failed"]["value"] == 1
+    ledger = json.loads((directory / "evidence/ledger.json").read_text())
+    failed = [
+        record
+        for record in ledger["records"]
+        if record["type"] == "agent.invocation.failed"
+    ]
+    assert len(failed) == 2
+    phases = [record["data"]["data"].get("phase") for record in failed]
+    assert phases.count("lifecycle-finalized") == 1
 
 
 def test_unexpected_runtime_failure_preserves_issue_without_inventing_result(tmp_path):

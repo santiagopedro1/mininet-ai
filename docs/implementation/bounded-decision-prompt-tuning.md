@@ -86,11 +86,13 @@ native choice remains healthy and runtime operation remains successful.
 These tests establish mechanics, not correctness of either failed prompt.
 
 Focused diagnosis/example/cleanup/guard/evidence regressions: **88 passed**.
-Ruff lint, repository formatting and Pyright pass. The full regression refresh
-finished with **137 failed, 1045 passed, 3 skipped, 173 subtests passed**.
-The earlier merged CLI/results failure set remains an independent completion
-blocker; no clean full-suite pass is claimed. The 13 additional passing cases
-come from expanding the diagnosis runtime test from five to eighteen cases.
+Ruff lint, repository formatting and Pyright pass. At the end of tuning, the
+full regression refresh finished with **137 failed, 1045 passed, 3 skipped,
+173 subtests passed**. The 13 additional passing cases came from expanding the
+diagnosis runtime test from five to eighteen cases. The subsequent separate
+[CLI integration repair](cli-results-integration.md) resolves that offline
+blocker: **1178 passed, 3 skipped, 179 subtests passed**. It does not repair or
+waive either native candidate's correctness failure.
 
 #124 stays open; #125's real-network matrix remains blocked. The next step
 requires an explicit decision to evaluate another native model or to undertake

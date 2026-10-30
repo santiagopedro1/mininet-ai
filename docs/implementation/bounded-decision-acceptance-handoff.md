@@ -1,5 +1,13 @@
 # Finish bounded-decision acceptance (#116)
 
+> **CLI repair completed (2026-10-30):** The offline CLI/results integration
+> blocker described below is resolved on `fix/cli-results-integration`: full
+> suite **1178 passed, 3 opt-in skips, 179 subtests passed**; lint, formatting,
+> Pyright and diamond/iperf planning checks pass. See the
+> [repair report](cli-results-integration.md). Earlier failing counts below are
+> retained as history. Native correctness and privileged network acceptance
+> remain blocked; the offline repair is not a model-support pass.
+
 > **Prompt tuning attempted:** Two revisions improved missing-flow choices but
 > regressed local port-fault diagnosis. Both were rejected and original wording
 > restored; [all tuning evidence is retained](bounded-decision-prompt-tuning.md).

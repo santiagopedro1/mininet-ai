@@ -192,6 +192,14 @@ def _observations(
             )
             continue
         result = payload.get("result", {})
+        if (
+            group is not None
+            and group[0] == "invocations"
+            and payload.get("phase") == "lifecycle-finalized"
+        ):
+            # Final commitment outcomes are retained audit facts, not another
+            # reasoning attempt. Invocation outcomes come from the end report.
+            group = None
         if kind == "capability.execution.completed" and result.get("status") in {
             "succeeded",
             "failed",
@@ -207,7 +215,7 @@ def _observations(
                 observed[group].append(reference)
                 invocation_ids.add(identity)
         if kind.endswith(".failed") or result.get("status") in {"failed", "rejected"}:
-            issue = result.get("issue") or {}
+            issue = result.get("issue") or payload.get("issue") or {}
             if not isinstance(issue, dict):
                 issue = {}
             problems.append(

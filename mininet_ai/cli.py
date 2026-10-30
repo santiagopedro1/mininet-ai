@@ -9,8 +9,11 @@ import signal
 import stat
 import threading
 from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from time import monotonic
 from types import FrameType
 from typing import Annotated, Self, cast
 
@@ -36,7 +39,7 @@ from mininet_ai.compiler import (
     save_deployment_plan,
 )
 from mininet_ai.coordination import CoordinationMessage, CoordinationOutcome
-from mininet_ai.dependency_logging import RunDiagnostics
+from mininet_ai.dependency_logging import RunDiagnostics, WarningIdentity
 from mininet_ai.errors import MininetAIError, describe_failure
 from mininet_ai.experiment import ExperimentRuntime, ExperimentRuntimeState
 from mininet_ai.exports import export_managed, export_offline
@@ -63,6 +66,7 @@ from mininet_ai.specification import (
     CapabilityDefinition,
     Experiment,
 )
+from mininet_ai.storage_config import StorageCommand, load_storage_config
 from mininet_ai.substrates import (
     ExternallyStoppableRuntime,
     RuntimeSnapshot,
@@ -92,6 +96,15 @@ class _RunLogError(MininetAIError):
         self.code = "run.log.open-failed"
 
 
+@dataclass
+class _WarningRepeats:
+    source: str
+    message: str
+    last_shown: float
+    total: int = 1
+    pending: int = 0
+
+
 class _RunProgress:
     """Mirror run progress to an owner-only log and optionally stderr."""
 
@@ -111,6 +124,7 @@ class _RunProgress:
         self._network_capabilities = network_capabilities
         self._lock = threading.RLock()
         self._capabilities: dict[tuple[str, str], str] = {}
+        self._warnings: dict[tuple[str, WarningIdentity], _WarningRepeats] = {}
         descriptor: int | None = None
         try:
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -155,6 +169,7 @@ class _RunProgress:
         source: str = "Run",
         visible: bool = False,
         summary: str | None = None,
+        warning_key: WarningIdentity | None = None,
     ) -> None:
         with self._lock:
             self._logger.log(
@@ -162,6 +177,27 @@ class _RunProgress:
                 message,
                 extra={"run_identity": self._run_identity, "source": source},
             )
+            if not self._verbose and level == logging.WARNING:
+                # Group by source, agent, code and stable message, never invocation.
+                warning = warning_key or WarningIdentity(
+                    agent="", code="", problem=message
+                )
+                key = (source, warning)
+                now = monotonic()
+                previous = self._warnings.get(key)
+                if previous is not None:
+                    previous.total += 1
+                    previous.pending += 1
+                    if now - previous.last_shown >= 30:
+                        self._show_warning_repeats(previous)
+                        previous.last_shown = now
+                    return
+                self._warnings[key] = _WarningRepeats(
+                    source,
+                    warning.problem
+                    + (f" agent={warning.agent}" if warning.agent else ""),
+                    now,
+                )
             if self._verbose or visible or level >= logging.WARNING:
                 print_event(
                     error_console,
@@ -169,6 +205,17 @@ class _RunProgress:
                     source,
                     message if self._verbose or summary is None else summary,
                 )
+
+    def _show_warning_repeats(self, warning: _WarningRepeats) -> None:
+        if warning.pending:
+            print_event(
+                error_console,
+                "WARNING",
+                warning.source,
+                f"{warning.message} (repeated {warning.pending} times; "
+                f"{warning.total} occurrences total)",
+            )
+            warning.pending = 0
 
     def info(self, message: str, *, visible: bool = False) -> None:
         self.emit(message, visible=visible)
@@ -233,7 +280,7 @@ class _RunProgress:
             and details.get("status") not in (None, "succeeded")
         )
         source = f"Agent:{event.agent_id}"
-        visible = event.type == AuditEventType.AGENT_COMPLETED
+        visible = False
         summary = str(
             details.get("message")
             or "Reasoning completed; see subsequent action results"
@@ -268,6 +315,13 @@ class _RunProgress:
                 summary += f" message={details['message']}"
         elif failed:
             summary = f"{event.type.value}: {details.get('message', 'failed')}"
+        if failed:
+            summary += f" invocation={event.invocation_id}"
+            summary += "".join(
+                f" {key}={json.dumps(details[key], ensure_ascii=True)}"
+                for key in ("code", "request_id", "errorType")
+                if key in details
+            )
         self.emit(
             message,
             level=logging.ERROR if failed else logging.INFO,
@@ -277,11 +331,16 @@ class _RunProgress:
         )
 
     def close(self) -> None:
-        for handler in tuple(self._logger.handlers):
-            handler.flush()
-            handler.close()
-            self._logger.removeHandler(handler)
-        self._stream.close()
+        with self._lock:
+            try:
+                for warning in self._warnings.values():
+                    self._show_warning_repeats(warning)
+            finally:
+                for handler in tuple(self._logger.handlers):
+                    handler.flush()
+                    handler.close()
+                    self._logger.removeHandler(handler)
+                self._stream.close()
 
 
 class _ReportingAuditSink:
@@ -327,6 +386,7 @@ class _SignalLatch:
     def __init__(self) -> None:
         self._event = threading.Event()
         self._previous: dict[signal.Signals, signal.Handlers] = {}
+        self.interruption_observed = False
 
     def __enter__(self) -> Self:
         for number in (signal.SIGINT, signal.SIGTERM):
@@ -339,6 +399,7 @@ class _SignalLatch:
             signal.signal(number, handler)
 
     def _request_stop(self, number: int, frame: FrameType | None) -> None:
+        self.interruption_observed = True
         del number, frame
         self.request_stop()
 
@@ -558,7 +619,7 @@ def plan(
         _print_text_plan(deployment_plan)
 
 
-@app.command()
+@app.command(cls=StorageCommand)
 def run(
     experiment: Annotated[
         Path,
@@ -574,7 +635,13 @@ def run(
         ),
     ] = False,
     output_format: Annotated[
-        OutputFormat, typer.Option("--format", "-f", help="Output format.")
+        OutputFormat,
+        typer.Option(
+            "--format",
+            "-f",
+            help="Command results on stdout; independent of --verbose. JSON is not a live event stream.",
+            rich_help_panel="Results and output",
+        ),
     ] = OutputFormat.TEXT,
     initial_intents: Annotated[
         list[str],
@@ -590,27 +657,6 @@ def run(
             help="Stop after every initial --intent reaches a final result.",
         ),
     ] = False,
-    ledger_db: Annotated[
-        Path | None,
-        typer.Option(
-            "--ledger-db",
-            help="Persistent experiment ledger database.",
-        ),
-    ] = None,
-    agno_db: Annotated[
-        Path | None,
-        typer.Option(
-            "--agno-db",
-            help="Private SQLite database for Agno sessions and memory.",
-        ),
-    ] = None,
-    shared_state_db: Annotated[
-        Path | None,
-        typer.Option(
-            "--shared-state-db",
-            help="Private SQLite database for shared operational state.",
-        ),
-    ] = None,
     discover: Annotated[
         bool,
         typer.Option(
@@ -623,21 +669,24 @@ def run(
         typer.Option(
             "--verbose",
             "-v",
-            help="Show live lifecycle, invocation, model, and capability progress.",
+            help="Add detailed progress on stderr; saved diagnostics are equally detailed without it.",
+            rich_help_panel="Results and output",
         ),
     ] = False,
-    log_file: Annotated[
+    storage_config: Annotated[
         Path | None,
         typer.Option(
-            "--log-file",
-            help="Append human-readable run progress to this file.",
+            "--storage-config",
+            help="Explicit YAML with optional log_file, ledger_db, shared_state_db, agno_db paths, relative to this file. Each overrides only its own default.",
+            rich_help_panel="Advanced storage",
         ),
     ] = None,
-    artifact_root: Annotated[
+    results_dir: Annotated[
         Path | None,
         typer.Option(
-            "--artifact-root",
-            help="Persistent live storage root (default: effective-user local state, not the project directory).",
+            "--results-dir",
+            help="Parent live storage root, not an exact run directory or export destination. Default: /var/lib/mininet-ai for effective UID 0; otherwise absolute XDG_STATE_HOME/mininet-ai or ~/.local/state/mininet-ai. May include memory/. Private and potentially sensitive; not necessarily safe to share or use on a VM shared filesystem.",
+            rich_help_panel="Results and output",
         ),
     ] = None,
     control_dir: Annotated[
@@ -647,8 +696,19 @@ def run(
         ),
     ] = DEFAULT_CONTROL_DIRECTORY,
 ) -> None:
-    """Own a complete continuous experiment until interrupted or stopped."""
+    """Own a complete continuous experiment until interrupted or stopped.
 
+    Built-in runs announce their recorded ID and absolute results directory.
+    When safely available, inspect summary.md, equivalent summary.json and
+    complete recorded structured responses in evidence/ledger.json there.
+    These private derived views are not an export or proof of experiment success.
+    """
+
+    storage = load_storage_config(storage_config)
+    log_file = storage.get("log_file")
+    ledger_db = storage.get("ledger_db")
+    shared_state_db = storage.get("shared_state_db")
+    agno_db = storage.get("agno_db")
     deployment_plan = _load_plan_or_compile_or_exit(experiment)
     if dry_run:
         if output_format == OutputFormat.JSON:
@@ -657,8 +717,8 @@ def run(
             _print_text_plan(deployment_plan)
         return
 
-    root_selection = "--artifact-root" if artifact_root is not None else "default"
-    artifact_root = (artifact_root or default_artifact_root()).absolute()
+    root_selection = "--results-dir" if results_dir is not None else "default"
+    artifact_root = (results_dir or default_artifact_root()).absolute()
     print_event(
         error_console,
         "INFO",
@@ -667,7 +727,9 @@ def run(
     )
 
     try:
-        reserved_id, substrate = reserve_run(deployment_plan.substrate)
+        reserved_id, substrate = _operation_or_exit(
+            lambda: reserve_run(deployment_plan.substrate), output_format
+        )
     except (LookupError, TypeError, ValueError) as error:
         raise typer.BadParameter(str(error)) from error
     registries = ProviderRegistries()
@@ -698,9 +760,9 @@ def run(
     if persistent_memory and agno_db is None and legacy_memory.exists():
         raise typer.BadParameter(
             f"Existing learned-memory store found at {legacy_memory}. "
-            f"Use --agno-db {legacy_memory} to retain its agent memory, or explicitly "
-            "select a new --agno-db to start fresh. No automatic migration is performed.",
-            param_hint="--agno-db",
+            f"Use --storage-config FILE with agno_db: {legacy_memory} to retain its agent memory, or explicitly "
+            "select a new agno_db path to start fresh. This starts a new run, not an old session. No automatic migration is performed.",
+            param_hint="--storage-config",
         )
     artifacts = None
     if reserved_id is None:
@@ -709,7 +771,7 @@ def run(
         ):
             raise typer.BadParameter(
                 "This registered adapter does not support built-in identity reservation. "
-                "Provide --log-file, --ledger-db, --shared-state-db, and --agno-db explicitly; "
+                "Provide all four paths (log_file, ledger_db, shared_state_db, agno_db) through --storage-config FILE; "
                 "its zero-argument factory and runtime protocol remain unchanged."
             )
         artifact_description = (
@@ -754,6 +816,12 @@ def run(
         )
     evidence = None
     if artifacts is not None and reserved_id is not None:
+        print_event(
+            error_console,
+            "INFO",
+            "Run",
+            f"Recorded run ID: {reserved_id}; Results directory: {artifacts.directory}",
+        )
         verified_writers = (
             not loaded
             and all(
@@ -816,8 +884,10 @@ def run(
     intent_server = None
     report = None
     operation_failed = False
+    operation_problem = None
     pending_error: MininetAIError | None = None
     diagnostics = None
+    stop_latch = None
     try:
         if reserved_id is not None:
             diagnostics = RunDiagnostics(
@@ -907,17 +977,24 @@ def run(
                     if stop_after_intents
                     else "Press Ctrl+C to stop."
                 )
-                console.print(
-                    f"[green]Running[/green] {run_info.id} on "
+                progress.info(
+                    f"Running {run_info.id} on "
                     f"{run_info.substrate}. {wait_message}\n"
-                    f"Log: {log_file}"
+                    f"Log: {log_file}",
+                    visible=True,
                 )
             stop_latch.wait()
     except BaseException as error:
         operation_failed = True
+        operation_problem = {
+            "code": str(getattr(error, "code", "operation.failed")),
+            "reason": str(error) or type(error).__name__,
+            "phase": "startup/operation",
+            "source": str(log_file),
+        }
         progress.error(f"Run {reserved_id} startup/operation failed: {error}")
         error_console.print(
-            "Run failed; diagnostic output retained. For storage errors use --artifact-root on a private local filesystem supporting SQLite locking."
+            "Run failed; diagnostic output retained. For storage errors use --results-dir on a private local filesystem supporting SQLite locking."
         )
         if isinstance(error, MininetAIError):
             pending_error = error
@@ -993,6 +1070,41 @@ def run(
                                 owner.teardown_error if owner is not None else None
                             ),
                         )
+                        from mininet_ai.inspection import publish_inspection
+
+                        try:
+                            print_event(
+                                error_console,
+                                "INFO",
+                                "Run",
+                                f"Recorded run ID: {reserved_id}; Results directory: {evidence.directory}",
+                            )
+                            for message in publish_inspection(
+                                evidence,
+                                interrupted=getattr(
+                                    stop_latch, "interruption_observed", None
+                                ),
+                                report=report,
+                                operation_problem=operation_problem,
+                            ):
+                                print_event(
+                                    error_console,
+                                    "WARNING"
+                                    if message.startswith("Inspection unavailable:")
+                                    else "INFO",
+                                    "Run",
+                                    message,
+                                )
+                        except Exception as inspection_error:
+                            # A broken diagnostic stream must not introduce an
+                            # inspection-only exit rule or mask original errors.
+                            with suppress(Exception):
+                                print_event(
+                                    error_console,
+                                    "WARNING",
+                                    "Run",
+                                    f"Inspection unavailable: summary.md, summary.json, evidence/ledger.json: {inspection_error}; sources: {evidence.metadata.sources}",
+                                )
                 finally:
                     if evidence is not None:
                         evidence.close()
@@ -1249,7 +1361,7 @@ def stop(
         raise typer.Exit(code=1)
 
 
-@app.command()
+@app.command(cls=StorageCommand)
 def invoke(
     run_id: Annotated[str, typer.Argument(help="Running substrate identifier.")],
     agent_id: Annotated[
@@ -1279,16 +1391,6 @@ def invoke(
         Path | None,
         typer.Option("--audit-log", help="Deprecated: audit is recorded by the owner."),
     ] = None,
-    agno_db: Annotated[
-        Path | None,
-        typer.Option("--agno-db", help="Deprecated: configure sessions on run."),
-    ] = None,
-    shared_state_db: Annotated[
-        Path | None,
-        typer.Option(
-            "--shared-state-db", help="Deprecated: configure shared state on run."
-        ),
-    ] = None,
     discover: Annotated[
         bool,
         typer.Option("--discover-plugins", help="Deprecated: discover plugins on run."),
@@ -1299,10 +1401,7 @@ def invoke(
 ) -> None:
     """Queue an intent in an already-running owner, including from another terminal."""
 
-    if (
-        any(value is not None for value in (audit_log, agno_db, shared_state_db))
-        or discover
-    ):
+    if audit_log is not None or discover:
         error_console.print(
             "[yellow]Deprecated invoke configuration options are ignored; "
             "the foreground owner uses the databases, audit, and plugins configured on run.[/yellow]"

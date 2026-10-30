@@ -84,6 +84,7 @@ def test_output_modes_preserve_external_evidence_and_inspection_journey(
         record["data"]["data"]["response"]
         for record in ledger["records"]
         if record["type"] == "agent.invocation.completed"
+        and record["data"]["data"].get("phase") != "lifecycle-finalized"
     ]
     assert len(responses) == 1
     assert responses[0]["message"] == response["message"]
@@ -91,6 +92,15 @@ def test_output_modes_preserve_external_evidence_and_inspection_journey(
         responses[0]["proposals"][0]["arguments"]
         == response["proposals"][0]["arguments"]
     )
+    finalized = [
+        record["data"]["data"]
+        for record in ledger["records"]
+        if record["type"] == "agent.invocation.completed"
+        and record["data"]["data"].get("phase") == "lifecycle-finalized"
+    ]
+    assert len(finalized) == 1
+    assert finalized[0]["response"]["message"] == response["message"]
+    assert len(finalized[0]["actionResults"]) == 1
 
 
 def test_export_of_old_saved_run_does_not_backfill_views_or_mutate_sources(tmp_path):
