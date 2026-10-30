@@ -132,13 +132,14 @@ This is scoped deployment evidence, not general model correctness: the separatel
 recorded missing-s1 probe limitation remains. Follow the runner's stop-on-failure
 and isolation rules; do not treat that result as an automatic support-gate waiver.
 
-For the current blockers, service-review checklist, once-only operator command
-and evidence return instructions, use the
+For the current acceptance disposition, service-review checklist and historical
+operator/evidence-return instructions, use the
 [acceptance handoff](../../docs/implementation/bounded-decision-acceptance-handoff.md).
-A later archived healthy real-runtime trial failed with four correct diagnoses,
-two timeouts and unknown cleanup. The independent cleanup observer added after
-that trial still requires live validation; do not treat earlier direct-client
-results as acceptance.
+An earlier archived healthy real-runtime trial failed with four correct diagnoses,
+two timeouts and unknown cleanup. The latest five-case H2O matrix independently
+verified cleanup using the subsequently added observer; it does not retroactively
+verify cleanup of the older failed trial. Earlier direct-client results are not
+replacement-runner acceptance.
 
 The runner now uses the real `MininetOVSRuntime` and all four compiled agents
 through `ExperimentRuntime`. It does not call the native client directly or
@@ -151,10 +152,11 @@ authorized. The outage is an explicitly recorded collector fault injection,
 not an invented port state.
 
 Use a disposable root-capable host with the native service already running.
-Review the live-model report first: the current one-slot service timed out in
-the corrected four-agent constructed-input check. Resolve/review that deployment
-workload before repeating the network matrix; do not silently enlarge the
-declared deadline or reuse historical 16/16 results as current acceptance.
+Review the live-model and latest live-network reports first. The historical
+one-slot service timed out; the measured H2O matrix used four idle slots with
+8192 context tokens each. Before any new run, review the actual deployment and
+isolation rather than assuming these conditions still hold. Do not silently
+enlarge the deadline or reuse historical 16/16 results as current acceptance.
 The model identity below is an example declaration, not a pinned requirement;
 replace it with your actual service/model. The runner does not start or alter
 the service, silently retry failed trials, or overwrite an evidence directory:
