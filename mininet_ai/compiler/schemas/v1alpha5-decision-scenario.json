@@ -101,6 +101,7 @@
     }
   },
   "$id": "urn:mininet-ai:schema:v1alpha5:decision-scenario",
+  "allOf": [{"if": {"required": ["inputMode"], "properties": {"inputMode": {"const": "current-recovery"}}}, "else": {"properties": {"choices": {"maxItems": 2}}}}],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -111,7 +112,7 @@
       "items": {
         "$ref": "#/$defs/DecisionChoice"
       },
-      "maxItems": 2,
+      "maxItems": 8,
       "minItems": 2,
       "title": "Choices",
       "type": "array"
@@ -125,7 +126,8 @@
       "default": "recovery-history",
       "enum": [
         "recovery-history",
-        "current-only"
+        "current-only",
+        "current-recovery"
       ],
       "title": "Input Mode",
       "type": "string"

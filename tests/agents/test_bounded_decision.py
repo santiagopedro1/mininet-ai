@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 from mininet_ai.agents.bounded import (
@@ -20,6 +22,56 @@ def test_exact_no_action_choice_maps_to_no_proposals():
 
     assert result.choice_id == "no_action"
     assert result.proposals == ()
+
+
+def test_explicit_identity_bypass_still_checks_health_and_native_output():
+    class Transport:
+        ready = True
+        valid = True
+
+        def get_json(self, url, **kwargs):
+            return (
+                {"status": "ok" if self.ready else "loading"}
+                if url.endswith("/health")
+                else {
+                    "model_alias": "different-model",
+                    "model_sha256": "different-hash",
+                }
+            )
+
+        def post_json(self, url, payload, **kwargs):
+            return {
+                "answers": {
+                    "next_action": {
+                        "type": "choice",
+                        "choice": "no_action" if self.valid else "invented",
+                    }
+                }
+            }
+
+    transport = Transport()
+    client = NativeSystemOneClient("http://localhost:8080", transport)
+    parameters: dict[str, Any] = {
+        "model_name": "declared-model",
+        "expected_identity": None,
+        "verify_identity": False,
+        "instructions": "Choose",
+        "criteria": {"no_action": "Healthy", "escalate": "Unknown"},
+        "choices": {"no_action": (), "escalate": ()},
+    }
+    startup = client.verify_startup(**parameters)
+    assert startup["status"] == "unverified"
+    assert startup["identityVerification"] == "skipped"
+    assert startup["expectedIdentity"] is None
+    assert startup["observedModel"] == "different-model"
+    assert startup["interface"] == "verified"
+    transport.ready = False
+    with pytest.raises(AgentRuntimeError, match="not ready"):
+        client.verify_startup(**parameters)
+    transport.ready = True
+    transport.valid = False
+    with pytest.raises(AgentRuntimeError, match="interface check failed"):
+        client.verify_startup(**parameters)
 
 
 def test_current_only_diagnosis_choice_maps_without_action_proposals():

@@ -361,11 +361,12 @@ class NativeSystemOneClient:
         self,
         *,
         model_name: str,
-        expected_identity: Mapping[str, Any],
+        expected_identity: Mapping[str, Any] | None,
         instructions: str,
         criteria: Mapping[str, str],
         choices: Mapping[str, Sequence[dict[str, Any]]],
         interface_timeout_seconds: float = 2.0,
+        verify_identity: bool = True,
     ) -> dict[str, Any]:
         """Verify availability, observable identity and native interface without mutation."""
         try:
@@ -397,7 +398,11 @@ class NativeSystemOneClient:
                 code="agent.bounded-decision.startup-unavailable",
             )
         observed_name = props.get("model_alias") or props.get("model")
-        if observed_name is not None and observed_name != model_name:
+        if (
+            verify_identity
+            and observed_name is not None
+            and observed_name != model_name
+        ):
             raise AgentRuntimeError(
                 f"bounded decision served model {observed_name!r} does not match expected {model_name!r}",
                 code="agent.bounded-decision.startup-identity-mismatch",
@@ -411,8 +416,15 @@ class NativeSystemOneClient:
             "repository": "model_repository",
         }
         observed_identity = {}
+        if verify_identity and expected_identity is None:
+            raise AgentRuntimeError(
+                "model identity declarations are required unless verification is explicitly skipped",
+                code="agent.bounded-decision.startup-configuration-invalid",
+            )
         for expected_key, props_key in observable_fields.items():
-            expected = expected_identity.get(expected_key)
+            if not verify_identity:
+                continue
+            expected = (expected_identity or {}).get(expected_key)
             observed = props.get(props_key)
             if expected is not None and observed is not None:
                 matches = expected == observed
@@ -441,11 +453,13 @@ class NativeSystemOneClient:
             ) from error
         return {
             "status": "verified"
-            if len(observed_identity) == len(expected_identity)
+            if verify_identity
+            and len(observed_identity) == len(expected_identity or {})
             else "unverified",
             "expectedModel": model_name,
             "observedModel": observed_name,
-            "expectedIdentity": dict(expected_identity),
+            "expectedIdentity": dict(expected_identity) if expected_identity else None,
+            "identityVerification": "checked" if verify_identity else "skipped",
             "observedIdentity": observed_identity,
             "interface": "verified",
             "interfaceProbe": {
@@ -655,7 +669,8 @@ class BoundedDecisionAdapter:
                     if source_name in context.observations
                     and context.observations[source_name] is not None
                     and (
-                        self.scenario.get("inputMode") != "current-only"
+                        self.scenario.get("inputMode")
+                        not in {"current-only", "current-recovery"}
                         or not isinstance(context.observations[source_name], dict)
                         or all(
                             context.observations[source_name].get(target) is not None
@@ -681,7 +696,7 @@ class BoundedDecisionAdapter:
             "tickId": tick_id,
             "invokedAt": context.invoked_at.isoformat(),
         }
-        if self.scenario.get("inputMode") == "current-only":
+        if self.scenario.get("inputMode") in {"current-only", "current-recovery"}:
             decision_context = _current_only_context(
                 scenario=self.scenario["metadata"],
                 identity=identity,
@@ -792,8 +807,31 @@ class BoundedDecisionAdapter:
                 agent_id=context.agent_id,
                 invocation_id=context.invocation_id,
             )
+        local_recovery = self.scenario.get("inputMode") == "current-recovery"
+        if local_recovery and result.proposals:
+            self._prepare_local_repair(context, result, deadline)
+            completed_tick = clock()
+            if (
+                self.authority.validate_response() is not None
+                or completed_tick >= deadline
+            ):
+                self.authority.revoke("timeout")
+                self._retain_failure(
+                    context,
+                    "timeout",
+                    phase="reconciliation",
+                    native_response=result.native_response or {},
+                    selected_choice=result.choice_id,
+                )
+                raise AgentRuntimeError(
+                    "local repair admission deadline expired during reconciliation",
+                    code="agent.bounded-decision.timeout",
+                )
+        historical_recovery = (
+            not local_recovery and result.choice_id == "install_recovery"
+        )
         policy_state = self._reconciliation.get("policy", "unknown")
-        if result.choice_id == "install_recovery" and policy_state == "unknown":
+        if historical_recovery and policy_state == "unknown":
             self._retain_failure(
                 context,
                 "reconciliation-failed",
@@ -811,10 +849,7 @@ class BoundedDecisionAdapter:
                 agent_id=context.agent_id,
                 invocation_id=context.invocation_id,
             )
-        if (
-            result.choice_id == "install_recovery"
-            and policy_state == "verified-recovery"
-        ):
+        if historical_recovery and policy_state == "verified-recovery":
             self._retain_failure(
                 context,
                 "redundant-recovery",
@@ -832,7 +867,7 @@ class BoundedDecisionAdapter:
                 agent_id=context.agent_id,
                 invocation_id=context.invocation_id,
             )
-        if result.choice_id == "install_recovery":
+        if historical_recovery:
             retry_evidence = self._recheck_recovery_evidence(
                 context.run_id,
                 timeout_seconds=max(0.0, deadline - clock()),
@@ -889,10 +924,10 @@ class BoundedDecisionAdapter:
             tuple(
                 index for index in range(len(result.proposals)) if index not in present
             )
-            if result.choice_id == "install_recovery"
+            if historical_recovery
             else ()
         )
-        if result.choice_id == "install_recovery" and policy_state == "partial":
+        if historical_recovery and policy_state == "partial":
             proposals = tuple(result.proposals[index] for index in remaining_indices)
             proposal_ids = tuple(f"bounded-{index + 1}" for index in remaining_indices)
         else:
@@ -925,7 +960,7 @@ class BoundedDecisionAdapter:
             selectedChoice=result.choice_id,
             modelProvenance={
                 "startup": self.startup,
-                "expectedIdentity": self.model.parameters["expectedIdentity"],
+                "expectedIdentity": self.model.parameters.get("expectedIdentity"),
                 "verification": self.startup.get("status", "unverified"),
                 "artifactVerification": "unverified",
                 "serverBuild": "unavailable",
@@ -1006,6 +1041,38 @@ class BoundedDecisionAdapter:
             runtime_name="bounded-decision",
             runtime_data=execution_record,
             authority=self.authority,
+        )
+
+    def _prepare_local_repair(
+        self, context: Any, result: ChoiceResult, deadline: float
+    ) -> None:
+        """Reconcile the selected fixed repair; never infer or substitute a choice."""
+        self._bundle_requests = tuple(
+            ActionRequest(
+                id=f"bounded-{index + 1}",
+                name=proposal["capability"],
+                target=proposal["target"],
+                parameters=proposal["arguments"],
+            )
+            for index, proposal in enumerate(result.proposals)
+        )
+        state = self._inspect_policy(
+            context.run_id, timeout_seconds=max(0.0, deadline - self._monotonic())
+        )
+        if state["policy"] == "verified-primary":
+            return
+        self._retain_failure(
+            context,
+            "local-repair-refused",
+            phase="reconciliation",
+            native_response=result.native_response or {},
+            selected_choice=result.choice_id,
+        )
+        raise AgentRuntimeError(
+            "selected local repair is already satisfied or its state cannot be established",
+            code="agent.bounded-decision.local-repair-refused",
+            agent_id=context.agent_id,
+            invocation_id=context.invocation_id,
         )
 
     def _inspect_policy(
@@ -1239,7 +1306,7 @@ class BoundedDecisionAdapter:
             selectedChoice=selected_choice,
             modelProvenance={
                 "startup": self.startup,
-                "expectedIdentity": self.model.parameters["expectedIdentity"],
+                "expectedIdentity": self.model.parameters.get("expectedIdentity"),
                 "verification": self.startup.get("status", "unverified"),
                 "remoteTerminalStatus": "unknown",
             },

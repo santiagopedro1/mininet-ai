@@ -5,6 +5,23 @@ networking research. This glossary defines project-specific terms.
 
 ## Language
 
+**Recovery Policy**:
+A predefined action or set of actions intended to restore required network
+communication when its applicability conditions are satisfied.
+
+**Recovery Policy Selection**:
+Choosing a recovery policy from diagnostic evidence, or deciding that none of
+the available policies should be applied.
+
+**Escalation**:
+Referring an incident to another decision-maker when local evidence or recovery
+capabilities are insufficient.
+
+**Post-Fault Check**:
+A completed evaluation of diagnostics observed after a fault, including a failed
+decision attempt. A decision based on observations collected before the fault is
+not a post-fault check.
+
 **Maintained Example**:
 A user-facing scenario in `examples/` with a README, validated and planned as
 part of the test suite. Each maintained example demonstrates a coherent

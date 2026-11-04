@@ -25,6 +25,13 @@ Start with the simplest example and work your way up:
 
 ## Index
 
+**[NOMS 2027 System One recovery](noms27/README.md)** adds
+one-agent monitoring with seven choices, automatic repeated port-down trials,
+configurable warm-up requests, and an
+explicit escalation choice that records a request without calling another model.
+The specification supports offline planning; its privileged runner requires
+separate live validation.
+
 | Example | Description | Substrate | Provider | Primary Goal | Key Features |
 | --- | --- | --- | --- | --- | --- |
 | [Getting Started](getting-started/README.md) | Minimal offline experiment | `fake` | `mock` | Feature demonstration | Basic workflow, one agent, one capability |

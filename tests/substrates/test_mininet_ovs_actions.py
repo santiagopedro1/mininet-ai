@@ -169,6 +169,46 @@ class MininetOVSActionsTests(unittest.TestCase):
             )
         )
 
+    def test_enable_switch_port_is_scoped_and_idempotent(self) -> None:
+        self.executor.interface_up["s1-eth1"] = False
+        request = ActionRequest(
+            id="enable-port",
+            name="ovs.port.enable",
+            target="s1",
+            parameters={"port": "s1-eth1"},
+        )
+        assert self.actions.inspect_scenario_actions((request,)) == ("missing",)
+        assert self.actions.execute(request).changed
+        assert self.executor.interface_up["s1-eth1"]
+        assert self.executor.interface_up["h1-eth0"]
+        assert self.actions.inspect_scenario_actions((request,)) == ("present",)
+        assert not self.actions.execute(request).changed
+        mutations = [
+            call
+            for call in self.executor.calls
+            if call[0][:4] == ["ip", "link", "set", "dev"]
+        ]
+        assert mutations == [(["ip", "link", "set", "dev", "s1-eth1", "up"], "s1")]
+
+    def test_enable_switch_port_rejects_foreign_or_malformed_arguments(self) -> None:
+        for parameters in (
+            {"port": "s2-eth1"},
+            {"port": "h1-eth0"},
+            {"port": "missing"},
+            {},
+            {"port": "s1-eth1", "extra": True},
+        ):
+            with self.assertRaises(ActionExecutionError):
+                self.execute("ovs.port.enable", "s1", parameters)
+        assert self.executor.calls == []
+
+    def test_enable_switch_port_reports_command_failure(self) -> None:
+        self.executor.interface_up["s1-eth1"] = False
+        self.executor.fail_interface = "s1-eth1"
+        with self.assertRaises(ActionExecutionError):
+            self.execute("ovs.port.enable", "s1", {"port": "s1-eth1"})
+        assert not self.executor.interface_up["s1-eth1"]
+
     def test_hierarchical_client_template_uses_distinct_managed_process_ids(
         self,
     ) -> None:

@@ -73,10 +73,12 @@ def validate_model_configuration(
     if execution_kind == "bounded-decision":
         if configuration.provider != "llamacpp-systemone":
             fail(".provider", "bounded-decision requires llamacpp-systemone")
-        if set(configuration.parameters) != {"endpoint", "expectedIdentity"}:
+        if "endpoint" not in configuration.parameters or set(
+            configuration.parameters
+        ) - {"endpoint", "expectedIdentity", "verifyIdentity"}:
             fail(
                 ".parameters",
-                "bounded-decision requires only endpoint and expectedIdentity",
+                "bounded-decision requires native endpoint and explicit identity settings",
             )
         return
     if configuration.provider == "llamacpp-systemone":

@@ -371,10 +371,14 @@ class ModelConfiguration(StrictModel):
                     ],
                 ) from error
         if info.data.get("provider") == "llamacpp-systemone":
-            unknown = set(parameters) - {"endpoint", "expectedIdentity"}
+            unknown = set(parameters) - {
+                "endpoint",
+                "expectedIdentity",
+                "verifyIdentity",
+            }
             if unknown:
                 raise ValueError(
-                    "llamacpp-systemone parameters only allow endpoint and expectedIdentity"
+                    "llamacpp-systemone parameters only allow endpoint, expectedIdentity, and verifyIdentity"
                 )
             endpoint = parameters.get("endpoint")
             if not isinstance(endpoint, str):
@@ -391,6 +395,17 @@ class ModelConfiguration(StrictModel):
                 raise ValueError(
                     "llamacpp-systemone endpoint must be an HTTP/HTTPS base URL without credentials, query, or fragment"
                 )
+            if (
+                "verifyIdentity" in parameters
+                and type(parameters["verifyIdentity"]) is not bool
+            ):
+                raise ValueError("verifyIdentity must be a boolean")
+            if parameters.get("verifyIdentity") is False:
+                if "expectedIdentity" in parameters:
+                    raise ValueError(
+                        "omit expectedIdentity when verifyIdentity is false"
+                    )
+                return parameters
             identity = parameters.get("expectedIdentity")
             required = {"repository", "revision", "artifact", "sha256"}
             if not isinstance(identity, dict) or not required.issubset(identity):
@@ -578,11 +593,11 @@ class DecisionScenario(VersionedDocument):
     api_version: Literal["mininet-ai/v1alpha5"] = Field(alias="apiVersion")
     kind: Literal["DecisionScenario"]
     metadata: Metadata
-    input_mode: Literal["recovery-history", "current-only"] = Field(
+    input_mode: Literal["recovery-history", "current-only", "current-recovery"] = Field(
         default="recovery-history", alias="inputMode"
     )
     instructions: str = Field(min_length=1)
-    choices: tuple[DecisionChoice, ...] = Field(min_length=2, max_length=2)
+    choices: tuple[DecisionChoice, ...] = Field(min_length=2, max_length=8)
     paths: dict[str, Any]
     observations: dict[str, Any]
     timing: dict[str, Any]
@@ -600,7 +615,7 @@ class DecisionScenario(VersionedDocument):
 
     @model_validator(mode="after")
     def bounded_scenario_contract(self) -> DecisionScenario:
-        if self.input_mode == "current-only":
+        if self.input_mode in {"current-only", "current-recovery"}:
             for expected in self.local_expectations.values():
                 if set(expected) != {"ports", "flows"} or (
                     not isinstance(expected["ports"], list)
@@ -660,12 +675,49 @@ class DecisionScenario(VersionedDocument):
                         raise ValueError(
                             "diagnosticContext flowRoles must identify every unique expected flow cookie"
                         )
-            if len({choice.id for choice in self.choices}) != 2:
-                raise ValueError("current-only diagnosis choices must have unique IDs")
-            if any(choice.proposals for choice in self.choices):
+            if len({choice.id for choice in self.choices}) != len(self.choices):
+                raise ValueError("current-state choices must have unique IDs")
+            if self.input_mode == "current-only" and len(self.choices) != 2:
+                raise ValueError("current-only diagnosis requires exactly two choices")
+            if self.input_mode == "current-only" and any(
+                choice.proposals for choice in self.choices
+            ):
                 raise ValueError(
                     "current-only diagnosis choices cannot contain proposals"
                 )
+            if self.input_mode == "current-recovery":
+                if not self.local_expectations:
+                    raise ValueError("current-recovery requires localExpectations")
+                if not any(choice.proposals for choice in self.choices):
+                    raise ValueError(
+                        "current-recovery requires a fixed repair proposal"
+                    )
+                for choice in self.choices:
+                    if choice.id in {"no_action", "escalate"} and choice.proposals:
+                        raise ValueError(
+                            "no_action and escalate must have no proposals"
+                        )
+                    if len(choice.proposals) > 1:
+                        raise ValueError(
+                            "current-recovery permits one fixed repair per choice"
+                        )
+                    for proposal in choice.proposals:
+                        expected = self.local_expectations.get(proposal["target"], {})
+                        flow_repair = proposal[
+                            "capability"
+                        ] == "openflow.flow.install" and proposal[
+                            "arguments"
+                        ] in expected.get("flows", [])
+                        port_repair = (
+                            proposal["capability"] == "ovs.port.enable"
+                            and set(proposal["arguments"]) == {"port"}
+                            and proposal["arguments"]["port"]
+                            in expected.get("ports", [])
+                        )
+                        if not (flow_repair or port_repair):
+                            raise ValueError(
+                                "current-recovery proposals must restore an exact expected local flow or enable a declared local port"
+                            )
             if self.paths or self.policy:
                 raise ValueError(
                     "current-only diagnosis cannot declare network paths or policy"
