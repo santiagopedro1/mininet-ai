@@ -411,3 +411,136 @@ def test_six_class_configuration_refuses_live_purpose_and_cli_reports_no_path(tm
     assert (
         json.loads(result.stdout)["structural_check"]["regime"] == "no_surviving_path"
     )
+
+
+@pytest.mark.parametrize("ingress,recovered", [(2, False), (1, True)])
+def test_s2_rule_only_repairs_service_when_traffic_matches_ingress(
+    tmp_path, ingress, recovered
+):
+    from examples.noms27.recovery_campaign.controlled import ControlledScenarioRuntime
+    from examples.noms27.recovery_campaign.runner import CampaignConfig, run_campaign
+    from examples.noms27.recovery_campaign.scenarios import Scenario
+
+    placement = next(
+        s for s in build_manifest().scenarios if s.placement_id == "diamond_link-p1"
+    )
+    # A controlled mechanism fixture, not a held-out effectiveness run. Both
+    # s1->p0 and s1->s3 survive; only the downstream primary link is faulted.
+    scenario = Scenario.model_validate(
+        {
+            **placement.model_dump(),
+            "fault_target": ("p0", "p1"),
+            "placement_id": "controlled-ingress-check",
+            "split": "calibration",
+        }
+    )
+
+    class WrongIngress(ControlledScenarioRuntime):
+        async def decide_s2(self, context, remaining_seconds):
+            repair = {
+                "status": "repair",
+                "actions": [
+                    {"switch": "s1", "in_port": ingress, "out_port": 3},
+                ],
+            }
+            return {
+                "repair": repair,
+                "request": context,
+                "response": {"done": True, "repair": repair},
+                "tokens": {"input": 20, "output": 30, "reasoning": None},
+            }
+
+    evidence = asyncio.run(
+        run_campaign(
+            CampaignConfig(
+                trial_id="wrong-ingress",
+                treatment="s2_only",
+                scenario="matched_scenario",
+                scenario_instance=scenario,
+                seed=1000,
+                deadline_seconds=6,
+                s1_cap_seconds=3,
+                bottleneck_mbps=9.6,
+            ),
+            tmp_path / "incident",
+            runtime=WrongIngress(),
+        )
+    )
+    assert evidence["validity"]["valid"] is True
+    assert evidence["actions"] and all(
+        a["result"]["success"] for a in evidence["actions"]
+    )
+    assert evidence["actions"][0]["repair"]["actions"] == [
+        {"switch": "s1", "in_port": ingress, "out_port": 3},
+    ]
+    assert evidence["outcome"]["service_recovery"] is recovered
+    assert evidence["outcome"]["policy_status"] == (
+        "verified" if recovered else "attempts_exhausted"
+    )
+    assert evidence["measurement"]["censored"] is not recovered
+    if not recovered:
+        assert evidence["measurement"]["disruption_seconds"] == 11
+        observed_rules = evidence["model_calls"][1]["request"]["observation"][
+            "switches"
+        ]["s1"]["flows"]
+        assert {tuple(sorted(rule.items())) for rule in observed_rules} == {
+            (("in_port", 1), ("out_port", 2)),
+            (("in_port", 2), ("out_port", 3)),
+        }
+    assert json.loads((tmp_path / "incident/evidence.json").read_text()) == evidence
+
+
+@pytest.mark.parametrize("wrong_ingress", [True, False])
+def test_multi_switch_repair_requires_matching_ingress_at_downstream_switch(
+    tmp_path, wrong_ingress
+):
+    from examples.noms27.recovery_campaign.controlled import ControlledScenarioRuntime
+    from examples.noms27.recovery_campaign.runner import CampaignConfig, run_campaign
+    from examples.noms27.recovery_campaign.scenarios import Scenario
+
+    placement = next(
+        s for s in build_manifest().scenarios if s.placement_id == "extended_link-p0"
+    )
+    scenario = Scenario.model_validate(
+        {
+            **placement.model_dump(),
+            "links": (*placement.links, ("s3", "spare")),
+            "placement_id": "controlled-downstream-ingress",
+        }
+    )
+
+    class DownstreamIngress(ControlledScenarioRuntime):
+        async def decide_s2(self, context, remaining_seconds):
+            result = await super().decide_s2(context, remaining_seconds)
+            if wrong_ingress:
+                next(a for a in result["repair"]["actions"] if a["switch"] == "s3")[
+                    "in_port"
+                ] = 3
+            return result
+
+    evidence = asyncio.run(
+        run_campaign(
+            CampaignConfig(
+                trial_id="downstream-ingress",
+                treatment="s2_only",
+                scenario="matched_scenario",
+                scenario_instance=scenario,
+                seed=1000,
+                deadline_seconds=6,
+                s1_cap_seconds=3,
+                bottleneck_mbps=9.6,
+            ),
+            tmp_path / "incident",
+            runtime=DownstreamIngress(),
+        )
+    )
+    assert evidence["validity"]["valid"] is True
+    assert all(a["result"]["success"] for a in evidence["actions"])
+    assert {a["switch"] for a in evidence["actions"][0]["repair"]["actions"]} == {
+        "s1",
+        "s3",
+        "s5",
+    }
+    assert evidence["outcome"]["service_recovery"] is not wrong_ingress
+    assert evidence["measurement"]["censored"] is wrong_ingress
+    assert evidence["containment"]["next_trial_allowed"] is True

@@ -133,3 +133,28 @@ integration; live feasibility across all classes and treatments; measurement and
 provider containment validation; approved numerical budgets/resources; calibrated
 confidence gating; frozen prompts/catalogues/configuration; Pedro's approval before
 any held-out execution. No new scientific claims or effect estimates are made.
+
+## Review follow-up: ingress-matched controlled forwarding
+
+The P2 review finding on `93ddbc8` identified a controlled-adapter mismatch with
+the real S2 contract: S2 actions carried `in_port`/`out_port`, but installation
+and packet delivery previously used a switch-wide next hop. An accepted rule for
+the wrong ingress could therefore falsely appear to restore h1 traffic.
+
+The controlled adapter now stores rules by switch and ingress port. Initial
+directional forwarding is compiled into explicit ingress/output rules for the
+declared primary and backup predecessors, including both ingresses at merge
+switches. Missing downstream forwarding stays missing. Reset evidence retains
+`initial_rules`; diagnostic flow records contain both match and output ports.
+Initial health and packet delivery use the installed rules, carrying the incoming
+neighbor/port through every hop and detecting loops by switch/ingress state.
+S1 changes only its frozen port-1-to-port-3 rule; S2 installs exactly its declared
+ingress/output pairs without replacing rules for other ingresses.
+
+A wrong-ingress action can still execute successfully—it is not an invalid
+experiment or malformed action—but it does not restore service when h1 packets
+do not match it. Paired configuration-to-evidence regressions cover the reported
+downstream-primary-link fault and a downstream switch in a multi-switch repair.
+Correctly matched variants must recover; wrong-ingress variants retain valid
+unsuccessful/censored outcomes. These remain synthetic mechanism checks, not
+held-out effectiveness or live evidence. No runner containment rule was changed.

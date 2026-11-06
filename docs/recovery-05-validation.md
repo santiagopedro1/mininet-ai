@@ -123,3 +123,71 @@ numerical budget is approved. The live substrate remains the original diamond
 adapter; six-class live feasibility stays pending. Ticket 03's unresolved
 inference/action-timeout containment boundary remains unchanged. Independent
 Standards/Spec review and parent integration are not claimed by these checks.
+
+## P2 ingress-match review fix
+
+The parent reported zero Standards findings and one actionable Spec P2 on
+`93ddbc8`. Before this follow-up, both this branch and integration were verified
+at `93ddbc8530d9a2bb4ee1d7032dbfdacbe7e4570a`, with a clean worktree.
+
+TDD reproduced the exact symptom through configuration → `run_campaign` →
+observable action, flow, packet and outcome evidence. On a diamond with a
+downstream `p0`–`p1` fault, s1 ports toward p0 and s3 remain up. The port-2-to-port-3
+rule was accepted and executed, but traffic arriving from h1 on port 1 incorrectly
+recovered. The initial command was:
+
+```bash
+python -m pytest tests/examples/test_recovery_campaign_blocks.py -q \
+  -k wrong_ingress --basetemp=/tmp/opencode/r05-ingress-red
+```
+
+It failed at `service_recovery is False` because the old result was `True`.
+After installing ingress/output rules and carrying ingress through packet walks,
+the same regression passed. It was expanded into four paired mechanism cases:
+wrong/correct ingress at s1, and wrong/correct ingress on a downstream switch in
+the three-switch repair. The fixture derived from placement p1 is explicitly a
+synthetic calibration-split mechanism fixture, not held-out effectiveness data.
+The wrong rule remains successfully executed and visible alongside the unchanged
+port-1 rule in subsequent telemetry, but the service remains unsuccessful and
+censored. The initial four-case rerun passed in 2.34 s.
+
+Final follow-up commands (existing environment, no installation):
+
+```bash
+python -m pytest tests/examples/test_recovery_campaign_blocks.py -q \
+  --basetemp=/tmp/opencode/r05-ingress-focused
+python -m pytest -q --basetemp=/tmp/opencode/r05-ingress-full
+ruff check .
+ruff format --check examples/noms27/recovery_campaign/controlled.py \
+  tests/examples/test_recovery_campaign_blocks.py
+pyright --pythonpath /home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python
+pyright --pythonpath /home/pedro/projects/mininet-ai/mininet-ai/.venv/bin/python \
+  examples/noms27/recovery_campaign tests/examples/test_recovery_campaign_blocks.py
+git diff --check
+```
+
+Follow-up logs and new controlled artifacts are retained separately in
+`run-evidence/recovery-05-ingress-fix/`; earlier artifacts remain untouched and
+must not be used as evidence that ingress matching had already been validated.
+
+- Focused boundary suite: **22 passed** in 58.80 s (`focused-tests.log`).
+- Final full regression: **1,470 passed, 3 skipped, 179 subtests passed**, with
+  the same 124 existing warnings, in 208.42 s (`full-tests.log`).
+- Repository Ruff, scoped formatting and both Pyright checks: passed.
+- All-class CLI rehearsals repeated successfully with the corrected adapter:
+  13 primary blocks / 39 incident invocations (including the retained invalid
+  original and replacement), and 6 higher-load blocks / 12 invocations.
+- Four paired ingress evidence records are retained under `ingress-evidence/`;
+  rerunning `-k ingress` with that directory as `--basetemp` passed all four in
+  2.30 s (`ingress-repro.log`). Do not reuse that output path without preserving
+  its artifacts first.
+- `artifact-audit.json` confirms two recoveries and two valid unsuccessful,
+  censored incidents despite successful action execution, full 11-second
+  observation, containment, new initial-rule receipts, no held-out execution in
+  either rehearsal, and Python source hashes matching the corrected worktree.
+
+All prior offline-only restrictions and scientific acceptance limits remain in
+force. Integration subsequently advanced to `3527962`, adding only the parent's
+independent review record (`docs/recovery-05-review.md`); that record is preserved
+when merging the integration tip into this fix branch. The parent handles
+re-review, integration and tracker steps.

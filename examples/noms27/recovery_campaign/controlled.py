@@ -34,21 +34,42 @@ class ControlledScenarioRuntime:
         self.config, self.scenario = config, config.scenario_instance
         if self.scenario is None:
             raise ValueError("controlled graph requires a frozen scenario")
-        self.forwarding = dict(self.scenario.initial_forwarding)
+        # Compile the declared directional forwarding into actual ingress/output
+        # rules. Merge switches already accept both primary and backup ingress;
+        # missing downstream forwarding remains missing in broader-repair cases.
+        self.forwarding: dict[str, dict[int, int]] = {}
+        declared_edges = [
+            *self.scenario.initial_forwarding.items(),
+            *self.scenario.backup_forwarding.items(),
+            ("h1", "s1"),
+        ]
+        for node, target in self.scenario.initial_forwarding.items():
+            ports = self.scenario.ports[node]
+            self.forwarding[node] = {
+                ports[previous]: ports[target]
+                for previous, destination in declared_edges
+                if destination == node
+            }
         self.down = set()
         self.history = []
         self.checks = []
+        self.initial_delivery = self._delivers()
         return {
-            "initial_state": self.failure != "initial_state",
+            "initial_state": self.initial_delivery and self.failure != "initial_state",
             "fresh_context": True,
             "automatic_backup": False,
             "topology_id": self.scenario.topology_id,
-            "initial_forwarding": dict(self.forwarding),
+            "initial_forwarding": dict(self.scenario.initial_forwarding),
+            "initial_rules": [
+                {"switch": node, "in_port": ingress, "out_port": output}
+                for node, rules in self.forwarding.items()
+                for ingress, output in rules.items()
+            ],
             "backup_resources": [list(edge) for edge in self.scenario.links],
             "preinstalled_backup_forwarding": {
                 node: target
                 for node, target in self.scenario.backup_forwarding.items()
-                if self.forwarding.get(node) == target
+                if self.scenario.initial_forwarding.get(node) == target
             },
             "state_owner": config.trial_id,
         }
@@ -59,18 +80,26 @@ class ControlledScenarioRuntime:
     def _delivers(self):
         # Independent directed packet walk, not the structural checker or a
         # treatment/status label. Link isolation remains active after all repairs.
-        node, visited = "s1", set()
+        previous, node, visited = "h1", "s1", set()
         while node != "h2":
-            if node in visited or node not in self.forwarding:
+            if node not in self.scenario.ports:
                 return False
-            visited.add(node)
-            target = self.forwarding[node]
+            ports = self.scenario.ports[node]
+            ingress = ports[previous]
+            state = (node, ingress)
+            output = self.forwarding.get(node, {}).get(ingress)
+            if state in visited or output is None:
+                return False
+            visited.add(state)
+            target = next(
+                neighbor for neighbor, port in ports.items() if port == output
+            )
             edge = frozenset((node, target))
             if edge in self.down or edge not in {
                 frozenset(e) for e in self.scenario.links
             }:
                 return False
-            node = target
+            previous, node = node, target
         return True
 
     def _check_fault(self):
@@ -106,9 +135,10 @@ class ControlledScenarioRuntime:
                         str(port): frozenset((node, neighbor)) not in self.down
                         for neighbor, port in ports.items()
                     },
-                    "flows": [{"out_port": ports[self.forwarding[node]]}]
-                    if node in self.forwarding
-                    else [],
+                    "flows": [
+                        {"in_port": ingress, "out_port": output}
+                        for ingress, output in self.forwarding.get(node, {}).items()
+                    ],
                 }
                 for node, ports in self.scenario.ports.items()
             }
@@ -133,7 +163,7 @@ class ControlledScenarioRuntime:
 
     async def execute(self, choice):
         if self.failure != "action":
-            self.forwarding["s1"] = "s3"
+            self.forwarding["s1"][1] = 3
         self.history.append((self.clock.now_ns(), self._delivers()))
         self._check_fault()
         return {"success": self.failure != "action"}
@@ -166,9 +196,8 @@ class ControlledScenarioRuntime:
     async def execute_s2(self, repair):
         if self.failure != "action":
             for action in repair["actions"]:
-                ports = self.scenario.ports[action["switch"]]
-                self.forwarding[action["switch"]] = next(
-                    n for n, p in ports.items() if p == action["out_port"]
+                self.forwarding.setdefault(action["switch"], {})[action["in_port"]] = (
+                    action["out_port"]
                 )
         self.history.append((self.clock.now_ns(), self._delivers()))
         self._check_fault()
@@ -184,7 +213,7 @@ class ControlledScenarioRuntime:
     async def collect(self, observation_end_ns):
         rate = self.config.packet_rate
         count = round((self.config.deadline_seconds + 10) * rate)
-        packets, index, good = [], 0, True
+        packets, index, good = [], 0, self.initial_delivery
         for seq in range(count):
             sent = self.injection - 5 * NS + round(seq * NS / rate)
             while index < len(self.history) and self.history[index][0] <= sent:
