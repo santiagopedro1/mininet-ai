@@ -27,6 +27,7 @@ from .runner import (
     INSTRUCTIONS,
     NS,
     Clock,
+    decode_tokens,
     measure,
     write_json,
 )
@@ -126,6 +127,8 @@ class LiveRuntime:
         self.fault_checks = []
         self.monitor = None
         self.measurement_errors = []
+        self.cleanup_started_ns: int | None = None
+        self.cleanup_budget_seconds = 30.0
 
     async def _thread(self, function, *args, **kwargs):
         # Do not lose the terminal result of a blocking provider/harness operation
@@ -338,7 +341,6 @@ class LiveRuntime:
         response = self.recording.last_response
         if not isinstance(response, dict):
             raise TypeError("native response is not an object")
-        usage = response.get("usage", {}) if isinstance(response, dict) else {}
         answer = (
             response.get("answers", {}).get("next_action", {})
             if isinstance(response, dict)
@@ -352,26 +354,13 @@ class LiveRuntime:
             and 0 <= confidence <= 1
         )
 
-        def token(name):
-            field = name.removesuffix("_tokens")
-            value = usage.get(name, usage.get(field + "Tokens"))
-            return (
-                value
-                if isinstance(value, int) and not isinstance(value, bool) and value >= 0
-                else None
-            )
-
         return {
             "choice": result.choice_id,
             "confidence": confidence,
             "confidence_status": "valid" if valid_confidence else "missing_or_invalid",
             "request": self.recording.last_request,
             "response": response,
-            "tokens": {
-                "input": token("input_tokens"),
-                "output": token("output_tokens"),
-                "reasoning": None,
-            },
+            "tokens": decode_tokens(response),
             "reasoning_tokens_unavailable": "native choice protocol has no separate reasoning-token usage",
             "provider": "llamacpp-systemone",
             "remote_terminal": "normal_native_response",
@@ -467,18 +456,54 @@ class LiveRuntime:
                 errors.append("unmatched_or_malformed_arrival")
             else:
                 packet["arrivals_ns"].append(row["arrival_ns"])
+        if any(seq != expected for expected, seq in enumerate(sorted(records))):
+            errors.append("send_sequence_gap")
+        summaries = {
+            "sender": [row for row in sends if row.get("kind") == "sender_summary"],
+            "receiver": [
+                row for row in arrivals if row.get("kind") == "receiver_summary"
+            ],
+        }
         if not partial:
-            if not any(row.get("kind") == "sender_summary" for row in sends):
-                errors.append("missing_sender_terminal_evidence")
-            if not any(row.get("kind") == "receiver_summary" for row in arrivals):
-                errors.append("missing_receiver_terminal_evidence")
+            for role, rows, fields in (
+                ("sender", sends, ("next_sequence", "missed_slots")),
+                ("receiver", arrivals, ("received",)),
+            ):
+                terminal = summaries[role]
+                if not terminal:
+                    errors.append(f"missing_{role}_terminal_evidence")
+                elif (
+                    len(terminal) != 1
+                    or rows[-1] != terminal[0]
+                    or any(
+                        type(terminal[0].get(field)) is not int
+                        or terminal[0][field] < 0
+                        for field in fields
+                    )
+                ):
+                    errors.append(f"invalid_{role}_terminal_evidence")
+                elif role == "sender":
+                    summary = terminal[0]
+                    if summary["missed_slots"]:
+                        errors.append("sender_error_or_missed_slots")
+                    if (
+                        summary["next_sequence"]
+                        != len(records) + summary["missed_slots"]
+                    ):
+                        errors.append("sender_summary_count_mismatch")
+                elif terminal[0]["received"] != sum(
+                    row.get("kind") == "arrival" for row in arrivals
+                ):
+                    errors.append("receiver_summary_count_mismatch")
         return {
             "packets": list(records.values()),
+            "worker_summaries": summaries,
             "measurement_errors": sorted(set(errors)),
         }
 
     async def collect(self, observation_end_ns):
         await self._check_fault()
+        self._cleanup_remaining()
         if self.monitor is not None:
             self.monitor.cancel()
             await asyncio.gather(self.monitor, return_exceptions=True)
@@ -488,7 +513,21 @@ class LiveRuntime:
         collected["fault_checks"] = self.fault_checks
         return collected
 
+    def _cleanup_remaining(self):
+        if self.cleanup_started_ns is None:
+            self.cleanup_started_ns = self.clock.now_ns()
+            self.cleanup_budget_seconds = getattr(
+                getattr(self, "config", None), "cleanup_budget_seconds", 30.0
+            )
+        return max(
+            0.0,
+            self.cleanup_budget_seconds
+            - (self.clock.now_ns() - self.cleanup_started_ns) / NS,
+        )
+
     async def _stop_traffic(self):
+        # Collection's worker stop and subsequent cleanup share this same budget.
+        self._cleanup_remaining()
         for process in self.processes:
             if process.poll() is None:
                 process.terminate()
@@ -498,10 +537,20 @@ class LiveRuntime:
                 # A collector crash cannot be classified as data-plane loss.
                 self.measurement_errors.append("traffic_worker_exited_early")
             try:
-                await self._thread(process.wait, timeout=2)
+                timeout = min(2, self._cleanup_remaining())
+                if timeout <= 0:
+                    raise subprocess.TimeoutExpired("traffic worker", timeout)
+                await self._thread(process.wait, timeout=timeout)
             except subprocess.TimeoutExpired:
                 process.kill()
-                await self._thread(process.wait, timeout=2)
+                timeout = min(2, self._cleanup_remaining())
+                if timeout > 0:
+                    try:
+                        await self._thread(process.wait, timeout=timeout)
+                    except subprocess.TimeoutExpired:
+                        self.measurement_errors.append("traffic_worker_stop_unverified")
+                else:
+                    self.measurement_errors.append("traffic_worker_stop_unverified")
                 self.measurement_errors.append("traffic_worker_required_kill")
         self.traffic_stopped = True
         for log in self.process_logs:
@@ -516,30 +565,88 @@ class LiveRuntime:
         if self.monitor is not None:
             self.monitor.cancel()
             await asyncio.gather(self.monitor, return_exceptions=True)
+        result = {"status": "not_created"}
+        inspections, errors = [], []
+        remaining = bridges = None
         if self.harness is not None:
-            result = await self._thread(self.harness.cleanup)
-            # Verify actual owned names independently. The legacy harness's
-            # interface-name check predates this campaign and is not authority.
+            try:
+                # Reuse owned Mininet teardown, not the legacy harness cleanup's
+                # unbounded/ambiguous inspection commands. Python net.stop() may
+                # overrun the best-effort budget; do not claim a hard deadline.
+                if self.harness.net is not None:
+                    await self._thread(self.harness.net.stop)
+                    self.harness.net = None
+                result = {"status": "stopped", "method": "owned_mininet_net.stop"}
+            except Exception as error:
+                result = {"status": "failed", "error": str(error)}
+            # A successful inventory can prove absence. A nonzero per-device
+            # probe cannot distinguish absence from an inspection failure.
             from examples.diamond_recovery import PORTS
 
-            remaining = []
-            for switch, peers in PORTS.items():
-                for port in range(1, len(peers) + 1):
-                    name = f"{switch}-eth{port}"
+            owned_names = {
+                f"{switch}-eth{port}"
+                for switch, peers in PORTS.items()
+                for port in range(1, len(peers) + 1)
+            } | {"h1-eth0", "h2-eth0"}
+            for command in (["ip", "-j", "link", "show"], ["ovs-vsctl", "list-br"]):
+                try:
+                    timeout = self._cleanup_remaining()
+                    if timeout <= 0:
+                        raise TimeoutError("shared cleanup budget exhausted")
                     check = await self._thread(
                         subprocess.run,
-                        ["ip", "-j", "link", "show", "dev", name],
+                        command,
                         capture_output=True,
+                        text=True,
                         check=False,
+                        timeout=timeout,
                     )
-                    if check.returncode == 0:
-                        remaining.append(name)
-            return {
-                "verified": result.get("status") == "verified"
-                and not remaining
-                and traffic_error is None,
-                "result": result,
-                "remaining_owned_interfaces": remaining,
-                "traffic_error": traffic_error,
-            }
-        return {"verified": True, "reason": "no network created"}
+                    inspections.append(
+                        {
+                            "command": command,
+                            "returncode": check.returncode,
+                            "stdout": check.stdout,
+                            "stderr": check.stderr,
+                        }
+                    )
+                    if check.returncode:
+                        raise RuntimeError(check.stderr or "nonzero inspection exit")
+                    if command[0] == "ip":
+                        inventory = json.loads(check.stdout)
+                        if not isinstance(inventory, list) or any(
+                            not isinstance(row, dict)
+                            or not isinstance(row.get("ifname"), str)
+                            for row in inventory
+                        ):
+                            raise ValueError("malformed interface inventory")
+                        remaining = sorted(
+                            owned_names & {row["ifname"] for row in inventory}
+                        )
+                    else:
+                        bridges = sorted(set(PORTS) & set(check.stdout.splitlines()))
+                except Exception as error:
+                    errors.append(f"{command[0]}:{error}")
+        exhausted = self._cleanup_remaining() <= 0
+        assert self.cleanup_started_ns is not None
+        workers_stopped = all(process.poll() is not None for process in self.processes)
+        return {
+            "verified": result["status"] != "failed"
+            and not errors
+            and not remaining
+            and not bridges
+            and traffic_error is None
+            and workers_stopped
+            and not exhausted,
+            "result": result,
+            "remaining_owned_interfaces": remaining,
+            "remaining_owned_bridges": bridges,
+            "inspections": inspections,
+            "inspection_errors": errors,
+            "traffic_error": traffic_error,
+            "workers_stopped": workers_stopped,
+            "budget_seconds": self.cleanup_budget_seconds,
+            "elapsed_seconds": (self.clock.now_ns() - self.cleanup_started_ns) / NS,
+            "budget_exhausted": exhausted,
+            "hard_return_deadline": False,
+            "limitation": "synchronous Mininet teardown can exceed the best-effort budget",
+        }
