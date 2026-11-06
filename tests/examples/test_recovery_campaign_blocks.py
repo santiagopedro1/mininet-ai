@@ -10,6 +10,83 @@ import pytest
 from examples.noms27.recovery_campaign.blocks import build_manifest, run_blocks
 
 
+@pytest.mark.parametrize("load", [0.1, 0.7])
+def test_explicit_development_threshold_integrates_gated_matched_slot(tmp_path, load):
+    root = tmp_path / "campaign"
+    result = asyncio.run(
+        run_blocks(
+            build_manifest(),
+            root,
+            repetitions=1,
+            load_fraction=load,
+            confidence_threshold=0.5,
+        )
+    )
+    assert result["status"] == "completed"
+    assert result["heldout_execution"] is False
+    assert result["reserved_unavailable_treatments"] == []
+    assert result["development_confidence_threshold"] == 0.5
+    expected = {"s2_only", "combined_ungated", "combined_gated"}
+    if load == 0.1:
+        expected.add("s1_only")
+    assert set(result["available_treatments"]) == expected
+    assert len(result["blocks"]) == 6
+    for block in result["blocks"]:
+        assert block["valid"] is True
+        assert set(block["treatment_order"]) == expected
+        evidence = {
+            trial["treatment"]: json.loads((root / trial["evidence"]).read_text())
+            for trial in block["trials"]
+        }
+        gated = evidence["combined_gated"]
+        ungated = evidence["combined_ungated"]
+        assert gated["scenario"] == ungated["scenario"]
+        assert gated["config"]["seed"] == ungated["config"]["seed"]
+        assert (
+            gated["reset"]["initial_forwarding"]
+            == ungated["reset"]["initial_forwarding"]
+        )
+        assert gated["reset"]["fresh_context"] is True
+        assert gated["reset"]["state_owner"] != ungated["reset"]["state_owner"]
+        assert gated["containment"]["next_trial_allowed"] is True
+        gate = next(e for e in gated["events"] if e["kind"] == "confidence_gate")
+        assert gate["cause"] == "confidence_below_threshold"
+        assert gate["local_execution_skipped"] is True
+        assert all(a["stage"] == "s2" for a in gated["actions"])
+        handoff = gated["handoffs"][0]
+        assert handoff["cause"] == gate["cause"]
+        assert handoff["deadline_ns"] == next(
+            e["deadline_ns"] for e in gated["events"] if e["kind"] == "injection_start"
+        )
+        assert gated["outcome"]["service_recovery"] is (
+            not block["matching"]["class_id"].startswith("tail_")
+        )
+        assert all(
+            not e["enabled"]
+            for e in ungated["events"]
+            if e["kind"] == "confidence_gate"
+        )
+        if block["matching"]["class_id"].startswith("extended_"):
+            assert {a["switch"] for a in gated["actions"][0]["repair"]["actions"]} == {
+                "s1",
+                "s3",
+                "s5",
+            }
+    assert json.loads((root / "blocks.json").read_text()) == result
+
+
+@pytest.mark.parametrize(
+    "threshold", [True, "0.5", -0.1, 1.1, float("nan"), float("inf")]
+)
+def test_invalid_development_threshold_rejected_before_evidence_creation(
+    tmp_path, threshold
+):
+    root = tmp_path / "campaign"
+    with pytest.raises(ValueError, match="development confidence threshold"):
+        asyncio.run(run_blocks(build_manifest(), root, confidence_threshold=threshold))
+    assert not root.exists()
+
+
 def test_manifest_reserves_splits_structural_classes_and_full_allocation():
     manifest = build_manifest()
     assert len(manifest.scenarios) == 18

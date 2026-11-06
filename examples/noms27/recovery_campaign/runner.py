@@ -19,8 +19,9 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .confidence import valid_confidence
 from .scenarios import Scenario
-from .supervision import record_inference, run_action
+from .supervision import evidence_value, record_inference, run_action
 
 NS = 1_000_000_000
 BIN = NS // 10
@@ -50,7 +51,9 @@ class CampaignConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
     trial_id: str = Field(min_length=1)
-    treatment: Literal["s1_only", "s2_only", "combined_ungated"]
+    treatment: Literal["s1_only", "s2_only", "combined_ungated", "combined_gated"]
+    confidence_gate_enabled: bool = Field(default=False, strict=True)
+    confidence_threshold: float | None = Field(default=None, ge=0, le=1, strict=True)
     scenario: Literal[
         "diamond_s1_s2_link", "controlled_broader_repair", "matched_scenario"
     ]
@@ -99,6 +102,12 @@ class CampaignConfig(BaseModel):
             raise ValueError(
                 "six-class live feasibility is not implemented or authorized"
             )
+        if self.confidence_gate_enabled and (
+            self.treatment != "combined_gated" or self.confidence_threshold is None
+        ):
+            raise ValueError(
+                "enabled confidence gate requires combined_gated and a threshold"
+            )
         if self.scenario == "controlled_broader_repair" and (
             self.purpose != "mechanism_validation" or self.treatment == "s1_only"
         ):
@@ -112,6 +121,21 @@ class CampaignConfig(BaseModel):
                 "at least 10 packets per 100ms bin required for this slice"
             )
         return self
+
+    @property
+    def combined(self) -> bool:
+        return self.treatment in {"combined_ungated", "combined_gated"}
+
+    @property
+    def confidence_gate(self) -> dict:
+        return {
+            "enabled": self.confidence_gate_enabled,
+            "threshold": self.confidence_threshold,
+            "comparison": "strictly_below",
+            "valid_confidence": "finite numeric [0,1], excluding booleans",
+            "invalid_confidence": "escalate_only_when_enabled",
+            "shared_failure_precedence": True,
+        }
 
     @property
     def packet_rate(self) -> float:
@@ -318,6 +342,7 @@ def provenance(config: CampaignConfig) -> dict:
             "model_name": config.model_name,
         },
         "instructions": INSTRUCTIONS,
+        "confidence_gate": config.confidence_gate,
         "criteria": CRITERIA,
         "catalogue": CATALOGUE,
         "catalogue_sha256": hashlib.sha256(
@@ -383,7 +408,7 @@ async def run_campaign(
             "trial_id": config.trial_id,
             "tick_ns": clock.now_ns(),
             "kind": kind,
-            **data,
+            **{key: evidence_value(value) for key, value in data.items()},
         }
         events.append(record)
         with (evidence_dir / "events.jsonl").open("a") as stream:
@@ -519,16 +544,51 @@ async def run_campaign(
 
                     decision = await bounded("inference", infer(), stage_limit)
                     choice = decision.get("choice")
+                    gate_cause = None
+                    if config.combined:
+                        confidence = decision.get("confidence")
+                        valid = valid_confidence(confidence)
+                        call["confidence_status"] = (
+                            "valid" if valid else "missing_or_invalid"
+                        )
+                        # Shared unusable/inability handling takes precedence over
+                        # confidence; disabling the gate never bypasses it.
+                        usable = choice in CATALOGUE and choice != "unable"
+                        if config.confidence_gate_enabled and usable:
+                            if not valid:
+                                gate_cause = "confidence_missing_or_invalid"
+                            elif confidence < config.confidence_threshold:
+                                gate_cause = "confidence_below_threshold"
+                        event(
+                            "confidence_gate",
+                            selected_choice=choice,
+                            confidence=confidence,
+                            confidence_present=decision.get(
+                                "confidence_present", "confidence" in decision
+                            ),
+                            enabled=config.confidence_gate_enabled,
+                            threshold=config.confidence_threshold,
+                            confidence_status="valid"
+                            if valid
+                            else "missing_or_invalid",
+                            decision="escalate"
+                            if gate_cause
+                            else "proceed"
+                            if usable
+                            else "shared_failure",
+                            cause=gate_cause,
+                            local_execution_skipped=bool(gate_cause),
+                            remaining_seconds=max(0, deadline - clock.now_ns()) / NS,
+                        )
                     if choice not in CATALOGUE:
                         policy = "unusable_decision"
+                    elif gate_cause:
+                        policy = gate_cause
                     elif CATALOGUE[choice] is None:
                         policy = (
                             "explicit_inability" if choice == "unable" else "no_action"
                         )
-                        if (
-                            choice == "no_action"
-                            and config.treatment == "combined_ungated"
-                        ):
+                        if choice == "no_action" and config.combined:
                             signal = await bounded(
                                 "verification",
                                 runtime.service_signal(clock.now_ns()),
@@ -580,7 +640,7 @@ async def run_campaign(
                 # Malformed decisions, failed inference/actions are treatment outcomes.
                 policy = "treatment_error"
                 event("treatment_error", error=str(error))
-            if config.treatment == "combined_ungated":
+            if config.combined:
                 from .s2 import run_direct
 
                 s1_status = policy
@@ -633,6 +693,7 @@ async def run_campaign(
                                         "treatment_error",
                                         "cancellation",
                                         "s1_terminated",
+                                        "confidence_gate",
                                     }
                                 ]
                             ),

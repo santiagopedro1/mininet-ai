@@ -3,14 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+import math
 
 NS = 1_000_000_000
+
+
+def evidence_value(value):
+    """Represent non-JSON numeric responses without dropping their invalid value."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return {"nonfinite_float": repr(value)}
+    if isinstance(value, dict):
+        return {key: evidence_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [evidence_value(item) for item in value]
+    return value
 
 
 async def record_inference(operation, call, clock, limit):
     try:
         value = await operation()
-        call.update(value, status="completed")
+        call.update(evidence_value(value), status="completed")
         return value
     except asyncio.CancelledError:
         call["status"] = "locally_cancelled_remote_unknown"
