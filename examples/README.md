@@ -25,6 +25,12 @@ Start with the simplest example and work your way up:
 
 ## Index
 
+**[S1-only recovery campaign path](noms27/recovery_campaign/README.md)** implements
+one declared persistent-link diamond incident with independent sequenced UDP
+evidence. It uses a campaign JSON configuration rather than `experiment.yaml`;
+`python -m examples.noms27.recovery_campaign --config <file> --check` validates it
+without privileges. Development budgets are unapproved; live validation is pending.
+
 **[NOMS 2027 System One recovery](noms27/single-switch-recovery/README.md)** adds
 one-agent monitoring with seven choices, automatic repeated port-down trials,
 configurable warm-up requests, and an
