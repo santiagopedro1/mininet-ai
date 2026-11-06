@@ -19,3 +19,21 @@ change), a transport-only response rewrite (would hide the original model choice
 and automatic escalation after failed local repair (would obscure a wrong System
 One decision). The unified example is additive; the focused recovery and
 escalation examples remain separate maintained examples.
+
+## Four-treatment campaign amendment (2026-11-06)
+
+The paper's approved four-treatment recovery specification supersedes the pilot's
+terminal-local-failure choice **for the new campaign**, not for these preserved
+examples. Combined campaign treatments must escalate on inability, unsuccessful
+action/service verification or S1 timeout, sharing a common deadline; the gated
+variant additionally gates before local action. Direct S2 must not wait for S1.
+Those combined/S2 extensions are not implemented by ticket 01.
+
+Ticket 01 adds a separately maintained configuration-to-evidence campaign runner
+at `examples/noms27/recovery_campaign/` for **S1-only**, one persistent `s1-s2`
+outage and one frozen local bypass attempt. It has no confidence gate, escalation,
+port-enable repair or retries. Service verification is independent sequenced UDP,
+not the pilot's ping rounds. Policy stays in this runner and uses the existing
+native S1 client; core bounded-decision contracts and older examples are unchanged.
+See [implementation and limitations](../recovery-01-implementation.md). This is
+not a claim that the pilot is compliant or that campaign feasibility is approved.

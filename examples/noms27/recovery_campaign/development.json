@@ -1,0 +1,15 @@
+{
+  "trial_id": "development-s1-001",
+  "treatment": "s1_only",
+  "scenario": "diamond_s1_s2_link",
+  "purpose": "live_feasibility",
+  "budget_status": "development_unapproved",
+  "deadline_seconds": 10,
+  "s1_cap_seconds": 10,
+  "bottleneck_mbps": 9.6,
+  "seed": 7,
+  "execution_order": 1,
+  "endpoint": "http://10.10.10.152:9931",
+  "model_name": "unconfigured",
+  "expected_identity": null
+}
