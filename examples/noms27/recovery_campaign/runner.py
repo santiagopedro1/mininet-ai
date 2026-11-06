@@ -19,6 +19,8 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .supervision import record_inference, run_action
+
 NS = 1_000_000_000
 BIN = NS // 10
 CATALOGUE = {
@@ -467,28 +469,18 @@ async def run_campaign(
 
                     async def infer():
                         try:
-                            value = await runtime.decide(
-                                diagnostics, max(0, stage_limit - clock.now_ns()) / NS
+                            return await record_inference(
+                                lambda: runtime.decide(
+                                    diagnostics,
+                                    max(0, stage_limit - clock.now_ns()) / NS,
+                                ),
+                                call,
+                                clock,
+                                stage_limit,
                             )
-                            call.update(value, status="completed")
-                            return value
-                        except asyncio.CancelledError:
-                            call["status"] = "locally_cancelled_remote_unknown"
-                            raise
-                        except Exception as error:
-                            call.update(
-                                status="failed",
-                                error=str(error),
-                                response=getattr(error, "native_response", None),
-                            )
+                        except Exception:
                             call["tokens"] = decode_tokens(call["response"])
                             raise
-                        finally:
-                            call["completed_ns"] = clock.now_ns()
-                            call["latency_seconds"] = (
-                                call["completed_ns"] - inference_start
-                            ) / NS
-                            call["late"] = call["completed_ns"] > stage_limit
 
                     decision = await bounded("inference", infer(), stage_limit)
                     choice = decision.get("choice")
@@ -506,26 +498,15 @@ async def run_campaign(
                         }
                         actions.append(action)
 
-                        async def execute():
-                            try:
-                                result = await runtime.execute(choice)
-                            except Exception as error:
-                                result = {"success": False, "error": str(error)}
-                            action.update(
-                                result=result,
-                                completed_ns=clock.now_ns(),
-                                late=clock.now_ns() > stage_limit,
-                            )
-                            return result
-
                         try:
-                            result = await bounded("action", execute(), stage_limit)
+                            result = await run_action(
+                                lambda: runtime.execute(choice),
+                                action,
+                                clock,
+                                stage_limit,
+                                bounded,
+                            )
                         except TimeoutError:
-                            if action["result"] is None:
-                                action["result"] = {
-                                    "success": None,
-                                    "status": "cancelled_execution_unknown",
-                                }
                             raise
                         except Exception as error:
                             result = {"success": False, "error": str(error)}
@@ -710,7 +691,7 @@ async def run_campaign(
     }
     if config.treatment == "s2_only":
         from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
-        from .s2 import PERMISSIONS, Repair
+        from .s2 import MODEL_SETTINGS, PERMISSIONS, Repair
 
         result["schema_version"] = "recovery-s2/v1"
         result["permissions"] = PERMISSIONS
@@ -719,11 +700,7 @@ async def run_campaign(
         prov["catalogue"] = None
         prov["catalogue_sha256"] = None
         prov["s2_repair_schema"] = Repair.model_json_schema()
-        prov["s2_model_settings"] = {
-            "think": False,
-            "keep_alive": -1,
-            "options": {"temperature": 0, "num_predict": 1024},
-        }
+        prov["s2_model_settings"] = MODEL_SETTINGS
     # Later task/provider completions append to durable journals, not frozen outcomes.
     snapshot = copy.deepcopy(result)
     write_json(evidence_dir / "evidence.json", snapshot)

@@ -470,7 +470,7 @@ class LiveRuntime:
 
     async def decide_s2(self, context, remaining_seconds):
         from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
-        from .s2 import Repair
+        from .s2 import MODEL_SETTINGS, Repair
 
         payload = {
             "model": self.config.model_name,
@@ -480,9 +480,7 @@ class LiveRuntime:
             ],
             "format": Repair.model_json_schema(),
             "stream": False,
-            "think": False,
-            "keep_alive": -1,
-            "options": {"temperature": 0, "num_predict": 1024},
+            **MODEL_SETTINGS,
         }
         response = await self._thread(
             self.recording.post_json,

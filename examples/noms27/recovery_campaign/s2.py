@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from examples.diamond_recovery import PORTS
 
+from .supervision import record_inference, run_action
+
 NS = 1_000_000_000
+MAX_ATTEMPTS = 3
+MODEL_SETTINGS = {
+    "think": False,
+    "keep_alive": -1,
+    "options": {"temperature": 0, "num_predict": 1024},
+}
 PERMISSIONS = {
     "telemetry": "surviving_switches_network_wide",
     "forwarding": "surviving_switches_only",
@@ -17,7 +24,7 @@ PERMISSIONS = {
     "resource_revival": False,
     "offered_traffic_changes": False,
     "evaluator_labels": False,
-    "max_attempts": 3,
+    "max_attempts": MAX_ATTEMPTS,
 }
 INSTRUCTIONS = (
     "Diagnose the directional h1-to-h2 service alarm using the shared initial local "
@@ -64,7 +71,7 @@ def validate_repair(value, observation):
 
 async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, actions):
     history = []
-    for attempt in range(1, 4):
+    for attempt in range(1, MAX_ATTEMPTS + 1):
         event("s2_attempt_start", attempt=attempt, deadline_ns=deadline)
         observation = await bounded("telemetry", runtime.observe_network(), deadline)
         context = {
@@ -90,30 +97,15 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
 
         async def infer(call=call, context=context):
             # Bind the current record: late completions must never mutate a later call.
-            try:
-                value = await runtime.decide_s2(
-                    context, (deadline - clock.now_ns()) / NS
-                )
-                call.update(value, status="completed")
-                if value.get("remote_terminal") == "unconfirmed":
-                    call["status"] = "remote_terminal_unknown"
-                return value
-            except asyncio.CancelledError:
-                call["status"] = "locally_cancelled_remote_unknown"
-                raise
-            except Exception as error:
-                call.update(
-                    status="failed",
-                    error=str(error),
-                    response=getattr(error, "native_response", None),
-                )
-                raise
-            finally:
-                call["completed_ns"] = clock.now_ns()
-                call["latency_seconds"] = (
-                    call["completed_ns"] - call["started_ns"]
-                ) / NS
-                call["late"] = call["completed_ns"] > deadline
+            value = await record_inference(
+                lambda: runtime.decide_s2(context, (deadline - clock.now_ns()) / NS),
+                call,
+                clock,
+                deadline,
+            )
+            if value.get("remote_terminal") == "unconfirmed":
+                call["status"] = "remote_terminal_unknown"
+            return value
 
         try:
             decision = await bounded("inference", infer(), deadline)
@@ -145,27 +137,13 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
         }
         actions.append(action)
 
-        async def execute(action=action, repair=repair):
-            try:
-                result = await runtime.execute_s2(repair)
-            except Exception as error:
-                result = {"success": False, "error": str(error)}
-            action.update(
-                result=result,
-                completed_ns=clock.now_ns(),
-                late=clock.now_ns() > deadline,
-            )
-            return result
-
-        try:
-            result = await bounded("action", execute(), deadline)
-        except TimeoutError:
-            if action["result"] is None:
-                action["result"] = {
-                    "success": None,
-                    "status": "cancelled_execution_unknown",
-                }
-            raise
+        result = await run_action(
+            lambda repair=repair: runtime.execute_s2(repair),
+            action,
+            clock,
+            deadline,
+            bounded,
+        )
         signal = await bounded(
             "verification", runtime.service_signal(clock.now_ns()), deadline
         )

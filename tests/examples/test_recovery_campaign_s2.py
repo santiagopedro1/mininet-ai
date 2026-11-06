@@ -70,6 +70,11 @@ def test_unsuccessful_s2_reobserves_and_stops_after_three_attempts(tmp_path):
     assert evidence["outcome"]["recovery_timeout"] is False
     assert evidence["outcome"]["recovery_failure"] is True
     assert len(evidence["model_calls"]) == len(evidence["actions"]) == 3
+    assert evidence["permissions"]["max_attempts"] == 3
+    assert all(
+        call["request"]["permissions"]["max_attempts"] == 3
+        for call in evidence["model_calls"]
+    )
     assert [len(call["request"]["history"]) for call in evidence["model_calls"]] == [
         0,
         1,
@@ -135,6 +140,55 @@ def test_s2_deadline_is_not_reset_on_second_attempt(tmp_path):
     assert evidence["outcome"]["policy_status"] == "timeout"
     assert len(evidence["actions"]) == 2
     assert evidence["measurement"]["observation_seconds"] == 7
+
+
+@pytest.mark.parametrize("treatment", ["s1_only", "s2_only"])
+@pytest.mark.parametrize("phase", ["inference", "action"])
+def test_cancelled_incident_work_retains_unknown_terminal_evidence(
+    tmp_path, treatment, phase
+):
+    class Cancelled(DirectRuntime):
+        async def wait_for_cancellation(self):
+            await asyncio.Future()
+
+        async def decide(self, diagnostics, remaining_seconds):
+            if phase == "inference":
+                await self.wait_for_cancellation()
+            return await super().decide(diagnostics, remaining_seconds)
+
+        async def decide_s2(self, context, remaining_seconds):
+            if phase == "inference":
+                await self.wait_for_cancellation()
+            return await super().decide_s2(context, remaining_seconds)
+
+        async def execute(self, choice):
+            await self.wait_for_cancellation()
+
+        async def execute_s2(self, repair):
+            await self.wait_for_cancellation()
+
+    evidence = run(tmp_path, Cancelled(good_from=None), treatment=treatment)
+    assert evidence["validity"]["valid"] is True
+    assert evidence["outcome"]["policy_status"] == "timeout"
+    assert evidence["containment"]["next_trial_allowed"] is False
+    assert len(evidence["model_calls"]) == 1
+    call = evidence["model_calls"][0]
+    if phase == "inference":
+        assert call["status"] == "locally_cancelled_remote_unknown"
+        assert call["completed_ns"] >= call["started_ns"]
+        assert call["latency_seconds"] >= 0
+        assert call["response"] is None
+        assert evidence["actions"] == []
+    else:
+        assert call["status"] == "completed"
+        assert evidence["actions"][0]["result"] == {
+            "success": None,
+            "status": "cancelled_execution_unknown",
+        }
+    assert any(
+        event["kind"] == "local_task_cancelled" and event["phase"] == phase
+        for event in evidence["events"]
+    )
 
 
 def test_s2_missing_provider_terminal_response_stops_without_overlapping_retry(
@@ -530,6 +584,17 @@ def test_s2_startup_uses_no_s1_request_and_accounts_incident_separately(
     assert evidence["messages"]["handoff_count"] == 0
     if warmup_ok:
         assert evidence["validity"]["valid"] is True
+        expected_settings = {
+            "think": False,
+            "keep_alive": -1,
+            "options": {"temperature": 0, "num_predict": 1024},
+        }
+        assert evidence["provenance"]["s2_model_settings"] == expected_settings
+        for row in wire_requests[1:]:
+            assert {
+                key: row["payload"][key] for key in expected_settings
+            } == expected_settings
+        assert wire_requests[0]["payload"]["options"]["num_predict"] == 2
         attempts = 3 if reply == "malformed" else 1
         assert len(wire_requests) == 1 + attempts
         assert evidence["outcome"]["policy_status"] == (
