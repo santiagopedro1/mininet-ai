@@ -14,10 +14,10 @@ from typing import ClassVar
 
 import pytest
 
-from examples.noms27.recovery_campaign.runner import CampaignConfig, run_campaign
+from examples.noms27.recovery_campaign.runner import CampaignConfig, Clock, run_campaign
 
 
-class FastClock:
+class FastClock(Clock):
     def __init__(self):
         self.origin = time.monotonic_ns()
 
@@ -225,6 +225,34 @@ def test_deadline_cancels_and_retains_late_inference_without_executing(tmp_path)
     assert evidence["model_calls"][0]["tokens"]["input"] == 12
 
 
+@pytest.mark.parametrize("success", [True, False])
+def test_known_late_action_result_updates_execution_not_policy_deadline(
+    tmp_path, success
+):
+    class LateAction(ControlledRuntime):
+        async def execute(self, choice):
+            try:
+                await self.clock.sleep_until(self.injection + 4_000_000_000)
+            except asyncio.CancelledError:
+                await self.clock.sleep_until(self.injection + 4_000_000_000)
+            return {"success": success, "terminal": "known"}
+
+    evidence = run(tmp_path, LateAction(good_from=None))
+    assert evidence["validity"]["valid"] is True
+    assert evidence["outcome"]["policy_status"] == "timeout"
+    assert evidence["outcome"]["recovery_timeout"] is True
+    assert evidence["outcome"]["service_recovery"] is False
+    assert evidence["outcome"]["action_execution_success"] is success
+    assert evidence["actions"][0]["result"] == {"success": success, "terminal": "known"}
+    assert evidence["actions"][0]["late"] is True
+    assert evidence["actions"][0]["completed_ns"] > evidence["actions"][0]["started_ns"]
+    assert any(
+        event["kind"] == "late_completion" and event["phase"] == "action"
+        for event in evidence["events"]
+    )
+    assert evidence["containment"]["next_trial_allowed"] is False
+
+
 def test_cli_validates_frozen_configuration_without_starting_a_network(tmp_path):
     source = tmp_path / "campaign.json"
     source.write_text(json.dumps(config().model_dump(mode="json")))
@@ -246,7 +274,38 @@ def test_cli_validates_frozen_configuration_without_starting_a_network(tmp_path)
     declared = json.loads(completed.stdout)
     assert declared["packet_rate"] == 1000
     assert declared["budget_status"] == "development_unapproved"
+    assert declared["config"]["cleanup_budget_seconds"] == 30
     assert declared["surviving_path"] == ["h1", "s1", "s3", "s4", "h2"]
+
+
+@pytest.mark.parametrize("receipt", [True, False, None, "inspection failed"])
+def test_cli_requires_positive_cleanup_without_changing_trial_validity(
+    tmp_path, monkeypatch, capsys, receipt
+):
+    from examples.noms27.recovery_campaign import __main__, live
+
+    class CleanupRuntime(ControlledRuntime):
+        async def cleanup(self):
+            if receipt == "inspection failed":
+                raise RuntimeError("inspection failed")
+            return {"verified": receipt}
+
+    source = tmp_path / "campaign.json"
+    source.write_text(config(purpose="live_feasibility").model_dump_json())
+    destination = tmp_path / "evidence"
+    monkeypatch.setattr(live, "LiveRuntime", CleanupRuntime)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["campaign", "--config", str(source), "--evidence", str(destination)],
+    )
+    status = __main__.main()
+    evidence = json.loads((destination / "evidence.json").read_text())
+    assert evidence["validity"]["valid"] is True
+    assert evidence["outcome"]["service_recovery"] is True
+    assert status == (0 if receipt is True else 2)
+    assert evidence["containment"]["next_trial_allowed"] is (receipt is True)
+    assert json.loads(capsys.readouterr().out)["cleanup"] == evidence["cleanup"]
 
 
 @pytest.mark.parametrize(
@@ -260,6 +319,9 @@ def test_cli_validates_frozen_configuration_without_starting_a_network(tmp_path)
         {"automatic_backup": True},
         {"deadline_seconds": float("nan")},
         {"s1_cap_seconds": 4},
+        {"cleanup_budget_seconds": 0},
+        {"cleanup_budget_seconds": -1},
+        {"cleanup_budget_seconds": float("nan")},
         {"budget_status": "approved"},
         {"purpose": "held_out_evaluation"},
     ],
@@ -310,6 +372,43 @@ def test_late_restoration_is_not_on_time_success_or_early_censoring(tmp_path):
     assert evidence["measurement"]["late_restoration"] is True
     assert evidence["measurement"]["censored"] is False
     assert evidence["measurement"]["verification_complete_seconds"] == 3.6
+
+
+@pytest.mark.parametrize("restores", [False, True])
+def test_slow_injection_cannot_count_pre_fault_health_as_restoration(
+    tmp_path, restores
+):
+    class SlowInjection(ControlledRuntime):
+        async def inject(self, start_ns):
+            result = await super().inject(start_ns)
+            await self.clock.sleep_until(start_ns + 2_000_000_000)
+            return result
+
+        async def collect(self, end):
+            result = await super().collect(end)
+            for packet in result["packets"]:
+                offset = packet["send_ns"] - self.injection
+                if 0 <= offset < 2_000_000_000:
+                    packet["arrivals_ns"] = [packet["send_ns"] + 1_000_000]
+            return result
+
+    evidence = run(
+        tmp_path,
+        SlowInjection(choice="unable", good_from=22 if restores else None),
+        deadline_seconds=4,
+        s1_cap_seconds=4,
+    )
+    assert evidence["validity"]["valid"] is True
+    assert evidence["outcome"]["policy_status"] == "explicit_inability"
+    assert evidence["outcome"]["service_recovery"] is restores
+    assert evidence["measurement"]["recovery_start_seconds"] == (
+        2.2 if restores else None
+    )
+    assert evidence["measurement"]["verification_complete_seconds"] == (
+        3.3 if restores else None
+    )
+    assert evidence["measurement"]["observation_seconds"] == 9
+    assert evidence["measurement"]["relapse"] is False
 
 
 def test_malformed_response_is_a_valid_outcome_with_retained_request(tmp_path):
@@ -490,6 +589,230 @@ def test_missing_essential_packet_fields_retains_invalid_trial_instead_of_crashi
     assert "send_ns" not in evidence["packet_evidence"]["packets"][0]
 
 
+def test_independent_evaluator_rejects_send_gaps_even_within_bin_tolerance(tmp_path):
+    class MissingSends(ControlledRuntime):
+        async def collect(self, end):
+            result = await super().collect(end)
+            result["packets"] = [
+                packet
+                for packet in result["packets"]
+                if packet["seq"] < 5000 or packet["seq"] % 100
+            ]
+            return result
+
+    evidence = run(tmp_path, MissingSends(good_from=None))
+    assert evidence["validity"]["valid"] is False
+    assert "send_sequence_gap" in evidence["measurement"]["measurement_errors"]
+    assert evidence["measurement"]["observed_disruption"] is True
+    # These are retained observed counts, not a valid lower-disruption estimate.
+    assert evidence["measurement"]["failed_packets"] == 7920
+    assert evidence["measurement"]["observation_seconds"] == 8
+
+
+@pytest.mark.parametrize(
+    "damage,reason",
+    [
+        ("none", None),
+        ("interior", "send_sequence_gap"),
+        ("suffix", "sender_summary_count_mismatch"),
+        ("sender_count", "sender_summary_count_mismatch"),
+        ("receiver_count", "receiver_summary_count_mismatch"),
+        ("duplicate_summary", "invalid_sender_terminal_evidence"),
+    ],
+)
+def test_worker_record_gaps_and_summary_counts_invalidate_evidence(
+    tmp_path, damage, reason
+):
+    from types import SimpleNamespace
+
+    from examples.noms27.recovery_campaign.live import LiveRuntime
+
+    class RecordedWorkers(ControlledRuntime):
+        async def setup(self, declared, root):
+            self.root = root
+            return await super().setup(declared, root)
+
+        async def collect(self, end):
+            result = await super().collect(end)
+            packets = result["packets"]
+            sends = [
+                {"kind": "send", "seq": packet["seq"], "send_ns": packet["send_ns"]}
+                for packet in packets
+            ]
+            arrivals = [
+                {
+                    "kind": "arrival",
+                    "seq": packet["seq"],
+                    "send_ns": packet["send_ns"],
+                    "arrival_ns": tick,
+                    "payload_bytes": 1200,
+                }
+                for packet in packets
+                for tick in packet["arrivals_ns"]
+            ]
+            sender_summary = {
+                "kind": "sender_summary",
+                "next_sequence": len(sends),
+                "missed_slots": 0,
+            }
+            receiver_summary = {"kind": "receiver_summary", "received": len(arrivals)}
+            if damage == "interior":
+                sends = [row for row in sends if row["seq"] < 5000 or row["seq"] % 100]
+            elif damage == "suffix":
+                sends.pop()
+            elif damage == "sender_count":
+                sender_summary["next_sequence"] += 1
+            elif damage == "receiver_count":
+                receiver_summary["received"] += 1
+            sends.append(sender_summary)
+            if damage == "duplicate_summary":
+                sends.append(sender_summary)
+            arrivals.append(receiver_summary)
+            for name, rows in (("sends", sends), ("arrivals", arrivals)):
+                (self.root / f"udp-{name}.jsonl").write_text(
+                    "".join(json.dumps(row) + "\n" for row in rows)
+                )
+            collector = LiveRuntime()
+            collector.root = self.root
+            collector.clock = self.clock
+            endpoint = SimpleNamespace(isUp=lambda: False)
+            collector.harness = SimpleNamespace(
+                links={"s1-s2": SimpleNamespace(intf1=endpoint, intf2=endpoint)}
+            )
+            return await collector.collect(end)
+
+    evidence = run(tmp_path, RecordedWorkers(choice="unable", good_from=None))
+    assert evidence["validity"]["valid"] is (damage == "none")
+    if reason is not None:
+        assert reason in evidence["validity"]["reasons"]
+    assert evidence["outcome"]["service_recovery"] is False
+    assert evidence["measurement"]["observed_disruption"] is True
+    assert evidence["packet_evidence"]["worker_summaries"]["sender"]
+    assert evidence["packet_evidence"]["worker_summaries"]["receiver"]
+    assert (tmp_path / "evidence/udp-sends.jsonl").exists()
+
+
+@pytest.mark.parametrize("inspection", ["absent", "failed", "malformed", "present"])
+def test_live_cleanup_requires_successful_absence_inspection(
+    tmp_path, monkeypatch, inspection
+):
+    from types import SimpleNamespace
+
+    from examples.noms27.recovery_campaign.live import LiveRuntime
+
+    original_run = subprocess.run
+
+    def commands(args, **kwargs):
+        if args[0] not in {"ip", "ovs-vsctl"}:
+            return original_run(args, **kwargs)
+        if inspection == "failed":
+            return subprocess.CompletedProcess(
+                args, 2, "", "inspection permission denied"
+            )
+        if args[0] == "ovs-vsctl":
+            return subprocess.CompletedProcess(args, 0, "", "")
+        if inspection == "malformed":
+            return subprocess.CompletedProcess(args, 0, "not JSON", "")
+        if "dev" in args:
+            return subprocess.CompletedProcess(args, 1, "", "Cannot find device")
+        names = [{"ifname": "s1-eth1"}] if inspection == "present" else []
+        return subprocess.CompletedProcess(args, 0, json.dumps(names), "")
+
+    class CleanupRuntime(ControlledRuntime):
+        async def cleanup(self):
+            adapter = LiveRuntime()
+            adapter.config = self.config
+            adapter.clock = self.clock
+            adapter.harness = SimpleNamespace(
+                net=SimpleNamespace(stop=lambda: None),
+                cleanup=lambda: {"status": "verified"},
+            )
+            return await adapter.cleanup()
+
+    monkeypatch.setattr(subprocess, "run", commands)
+    evidence = run(tmp_path, CleanupRuntime())
+    assert evidence["validity"]["valid"] is True
+    assert evidence["cleanup"]["verified"] is (inspection == "absent")
+    assert evidence["containment"]["next_trial_allowed"] is (inspection == "absent")
+    if inspection in {"failed", "malformed"}:
+        assert evidence["cleanup"]["inspection_errors"]
+
+
+@pytest.mark.parametrize("mode", ["shared", "slow_teardown", "inspection_timeout"])
+def test_configured_cleanup_budget_is_shared_and_best_effort(
+    tmp_path, monkeypatch, mode
+):
+    from types import SimpleNamespace
+
+    from examples.noms27.recovery_campaign.live import LiveRuntime
+
+    checks = []
+    worker_waits = []
+    original_run = subprocess.run
+    runtime = ControlledRuntime()
+
+    def consume(seconds):
+        runtime.clock.origin -= round(seconds * 1e9 / 50)
+
+    def stop():
+        consume(2 if mode == "slow_teardown" else 0.3)
+
+    class Worker:
+        stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+        def terminate(self):
+            pass
+
+        def wait(self, timeout):
+            worker_waits.append(timeout)
+            consume(0.2)
+            self.stopped = True
+
+    def commands(args, **kwargs):
+        if args[0] not in {"ip", "ovs-vsctl"}:
+            return original_run(args, **kwargs)
+        checks.append(kwargs.get("timeout"))
+        if mode == "inspection_timeout":
+            consume(kwargs["timeout"] + 0.01)
+            raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+        consume(0.1)
+        return subprocess.CompletedProcess(args, 0, "[]" if args[0] == "ip" else "", "")
+
+    async def cleanup():
+        adapter = LiveRuntime()
+        adapter.config = runtime.config
+        adapter.clock = runtime.clock
+        adapter.processes = [Worker()]
+        adapter.harness = SimpleNamespace(
+            net=SimpleNamespace(stop=stop), cleanup=lambda: {"status": "verified"}
+        )
+        return await adapter.cleanup()
+
+    runtime.cleanup = cleanup
+    monkeypatch.setattr(subprocess, "run", commands)
+    evidence = run(tmp_path, runtime, cleanup_budget_seconds=1)
+    assert evidence["validity"]["valid"] is True
+    receipt = evidence["cleanup"]
+    assert receipt["budget_seconds"] == 1
+    assert receipt["hard_return_deadline"] is False
+    assert receipt["budget_exhausted"] is (mode != "shared")
+    assert receipt["verified"] is (mode == "shared")
+    assert evidence["containment"]["next_trial_allowed"] is (mode == "shared")
+    assert worker_waits and 0 < worker_waits[0] <= 1
+    if mode == "shared":
+        assert len(checks) == 2
+        assert 0 < checks[1] < checks[0] < worker_waits[0]
+    elif mode == "slow_teardown":
+        assert checks == []
+        assert receipt["elapsed_seconds"] >= 2
+    else:
+        assert len(checks) == 1
+        assert receipt["inspection_errors"]
+
+
 def test_s1_cap_does_not_reset_deadline_and_preserves_late_model_cost(tmp_path):
     class StageLate(ControlledRuntime):
         async def decide(self, diagnostics, remaining_seconds):
@@ -521,6 +844,43 @@ def test_native_budget_exhaustion_is_timeout_not_malformed_response(tmp_path):
     assert any(event["kind"] == "cancellation" for event in evidence["events"])
 
 
+@pytest.mark.parametrize("terminal_response", [None, {"invalid": "native answer"}])
+def test_failed_inference_without_provider_terminal_evidence_blocks_next_trial(
+    tmp_path, terminal_response
+):
+    class ProviderError(Exception):
+        native_response: dict | None
+
+    class FailedInference(ControlledRuntime):
+        async def decide(self, diagnostics, remaining_seconds):
+            error = ProviderError("request failed")
+            error.native_response = terminal_response
+            raise error
+
+    evidence = run(tmp_path, FailedInference(good_from=None))
+    assert evidence["validity"]["valid"] is True
+    assert evidence["cleanup"]["verified"] is True
+    assert evidence["outcome"]["policy_status"] == "treatment_error"
+    assert evidence["containment"]["provider_contained"] is (
+        terminal_response is not None
+    )
+    assert evidence["containment"]["next_trial_allowed"] is (
+        terminal_response is not None
+    )
+
+
+def test_incomplete_startup_cannot_establish_provider_containment(tmp_path):
+    class FailedStartup(ControlledRuntime):
+        async def setup(self, declared, root):
+            raise RuntimeError("startup request disconnected; provider state unknown")
+
+    evidence = run(tmp_path, FailedStartup())
+    assert evidence["validity"]["valid"] is False
+    assert evidence["cleanup"]["verified"] is True
+    assert evidence["containment"]["provider_contained"] is False
+    assert evidence["containment"]["next_trial_allowed"] is False
+
+
 def test_unusable_native_output_still_counts_reported_tokens(tmp_path):
     class Unusable(Exception):
         native_response: ClassVar[dict] = {
@@ -538,3 +898,57 @@ def test_unusable_native_output_still_counts_reported_tokens(tmp_path):
     assert evidence["tokens"]["input"] == 9
     assert evidence["tokens"]["output"] == 2
     assert evidence["model_calls"][0]["response"] == Unusable.native_response
+
+
+@pytest.mark.parametrize("usable", [True, False])
+@pytest.mark.parametrize(
+    "usage,expected",
+    [
+        (
+            {"inputTokens": 17, "outputTokens": 0},
+            {"input": 17, "output": 0, "reasoning": None},
+        ),
+        (
+            {"input_tokens": True, "inputTokens": 17, "output_tokens": 0},
+            {"input": None, "output": 0, "reasoning": None},
+        ),
+        (None, {"input": None, "output": None, "reasoning": None}),
+    ],
+)
+def test_native_token_accounting_is_consistent_for_usable_and_unusable_output(
+    tmp_path, usable, usage, expected
+):
+    import httpx
+
+    from examples.noms27.recovery_campaign.live import LiveRuntime, RecordingTransport
+    from mininet_ai.agents.bounded import NativeSystemOneClient
+    from mininet_ai.transports.http import HttpxJsonTransport
+
+    class NativeAccounting(ControlledRuntime):
+        async def setup(self, declared, root):
+            response = {
+                "answers": {"next_action": {"type": "choice", "choice": "unable"}}
+                if usable
+                else {"invalid": {}},
+                "usage": usage,
+            }
+            transport = HttpxJsonTransport(
+                httpx.MockTransport(lambda request: httpx.Response(200, json=response))
+            )
+            self.native = LiveRuntime()
+            self.native.config = declared
+            self.native.recording = RecordingTransport(root, transport)
+            self.native.client = NativeSystemOneClient(
+                declared.endpoint, self.native.recording
+            )
+            return await super().setup(declared, root)
+
+        async def decide(self, diagnostics, remaining_seconds):
+            return await self.native.decide(diagnostics, remaining_seconds)
+
+    evidence = run(tmp_path, NativeAccounting(good_from=None))
+    assert evidence["validity"]["valid"] is True
+    assert evidence["model_calls"][0]["tokens"] == expected
+    assert evidence["outcome"]["policy_status"] == (
+        "explicit_inability" if usable else "treatment_error"
+    )

@@ -10,6 +10,7 @@ import math
 import platform
 import subprocess
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from itertools import pairwise
@@ -50,6 +51,7 @@ class CampaignConfig(BaseModel):
     scenario: Literal["diamond_s1_s2_link"]
     deadline_seconds: float = Field(gt=0)
     s1_cap_seconds: float = Field(gt=0)
+    cleanup_budget_seconds: float = Field(default=30, gt=0)
     bottleneck_mbps: float = Field(gt=0)
     seed: int
     purpose: Literal["mechanism_validation", "live_feasibility"] = (
@@ -116,10 +118,34 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n")
 
 
-def measure(config: CampaignConfig, packets: list[dict], origin: int) -> dict:
+def decode_tokens(response: Any) -> dict[str, int | None]:
+    """Retain available nonnegative usage with identical rules for invalid output."""
+    usage = response.get("usage") if isinstance(response, dict) else None
+    tokens: dict[str, int | None] = {"input": None, "output": None, "reasoning": None}
+    if isinstance(usage, dict):
+        for field in ("input", "output"):
+            count = usage.get(field + "_tokens", usage.get(field + "Tokens"))
+            if type(count) is int and count >= 0:
+                tokens[field] = count
+    return tokens
+
+
+@dataclass
+class BinCounts:
+    sent: int = 0
+    timely: int = 0
+
+
+def measure(
+    config: CampaignConfig,
+    packets: list[dict],
+    origin: int,
+    *,
+    recovery_not_before_ns: int | None = None,
+) -> dict:
     """Authoritative send-time accounting; raw duplicate arrivals remain in evidence."""
     end = round((config.deadline_seconds + 5) * NS)
-    bins: dict[int, list[int]] = {}
+    bins: dict[int, BinCounts] = {}
     errors = []
     seen = set()
     arrivals = []
@@ -138,20 +164,23 @@ def measure(config: CampaignConfig, packets: list[dict], origin: int) -> dict:
         if any(tick < sent for tick in raw):
             errors.append("arrival_precedes_send_clock_error")
         timely = [tick for tick in raw if sent <= tick <= sent + BIN]
-        bucket = bins.setdefault(offset // BIN, [0, 0])
-        bucket[0] += 1
-        bucket[1] += bool(timely)
+        bucket = bins.setdefault(offset // BIN, BinCounts())
+        bucket.sent += 1
+        bucket.timely += bool(timely)
         if offset >= 0:
             sent_count += 1
             failed += not timely
             late += bool(raw) and not timely
             if timely:
                 arrivals.append(min(timely) - origin)
+    if any(right != left + 1 for left, right in pairwise(sorted(seen))):
+        errors.append("send_sequence_gap")
     timeline = []
     baseline_good = True
     # Only full bins can qualify; the partial final bin still contributes disruption.
     for index in range(-50, math.ceil(end / BIN)):
-        sent, timely = bins.get(index, [0, 0])
+        bucket = bins.get(index, BinCounts())
+        sent, timely = bucket.sent, bucket.timely
         full = (index + 1) * BIN <= end
         enough = abs(sent - config.packet_rate / 10) <= max(
             1, config.packet_rate / 10 * 0.05
@@ -177,7 +206,10 @@ def measure(config: CampaignConfig, packets: list[dict], origin: int) -> dict:
     relapse = []
     in_relapse = False
     for item in timeline:
-        streak = streak + 1 if item["qualifies"] else 0
+        eligible = recovery_not_before_ns is None or (
+            origin + item["bin"] * BIN >= recovery_not_before_ns
+        )
+        streak = streak + 1 if item["qualifies"] and eligible else 0
         if recovery is None and streak >= 10 and (item["bin"] + 2) * BIN <= end:
             recovery = (item["bin"] - 9) / 10
             completion = (item["bin"] + 2) / 10  # bin end + 100ms delivery allowance
@@ -298,6 +330,7 @@ async def run_campaign(
     invalid = []
     policy = "not_started"
     injection_start = None
+    fault_confirmed_ns = None
     deadline = None
     reset = cleanup = packet_evidence = None
     timed_out = False
@@ -379,7 +412,10 @@ async def run_campaign(
         if fault.get("both_endpoints_down") is not True:
             invalid.append("incorrect_injection")
         else:
-            event("fault_confirmed")
+            # Conservatively use completed confirmation, not submission: injection
+            # can be slow while the pre-fault service remains healthy.
+            fault_confirmed_ns = clock.now_ns()
+            event("fault_confirmed", confirmed_ns=fault_confirmed_ns)
             try:
                 diagnostics = await bounded(
                     "telemetry", runtime.diagnose(), stage_limit
@@ -414,19 +450,7 @@ async def run_campaign(
                             error=str(error),
                             response=getattr(error, "native_response", None),
                         )
-                        raw = call["response"]
-                        usage = raw.get("usage") if isinstance(raw, dict) else None
-                        if isinstance(usage, dict):
-                            for field in ("input", "output"):
-                                count = usage.get(
-                                    field + "_tokens", usage.get(field + "Tokens")
-                                )
-                                if (
-                                    isinstance(count, int)
-                                    and not isinstance(count, bool)
-                                    and count >= 0
-                                ):
-                                    call["tokens"][field] = count
+                        call["tokens"] = decode_tokens(call["response"])
                         raise
                     finally:
                         call["completed_ns"] = clock.now_ns()
@@ -448,15 +472,27 @@ async def run_campaign(
                         "result": None,
                     }
                     actions.append(action)
-                    try:
-                        result = await bounded(
-                            "action", runtime.execute(choice), stage_limit
+
+                    async def execute():
+                        try:
+                            result = await runtime.execute(choice)
+                        except Exception as error:
+                            result = {"success": False, "error": str(error)}
+                        action.update(
+                            result=result,
+                            completed_ns=clock.now_ns(),
+                            late=clock.now_ns() > stage_limit,
                         )
+                        return result
+
+                    try:
+                        result = await bounded("action", execute(), stage_limit)
                     except TimeoutError:
-                        action["result"] = {
-                            "success": None,
-                            "status": "cancelled_execution_unknown",
-                        }
+                        if action["result"] is None:
+                            action["result"] = {
+                                "success": None,
+                                "status": "cancelled_execution_unknown",
+                            }
                         raise
                     except Exception as error:
                         result = {"success": False, "error": str(error)}
@@ -508,7 +544,14 @@ async def run_campaign(
     measurement = None
     if packet_evidence is not None and injection_start is not None:
         try:
-            measurement = measure(config, packet_evidence["packets"], injection_start)
+            measurement = measure(
+                config,
+                packet_evidence["packets"],
+                injection_start,
+                recovery_not_before_ns=fault_confirmed_ns
+                if fault_confirmed_ns is not None
+                else injection_start + round((config.deadline_seconds + 5) * NS),
+            )
         except KeyError, ValueError, TypeError:
             invalid.append("missing_or_malformed_essential_packet_records")
     if measurement is not None and packet_evidence is not None:
@@ -571,6 +614,15 @@ async def run_campaign(
         for path in sorted(evidence_dir.rglob("*"))
         if path.is_file()
     }
+    provider_contained = bool(
+        reset is not None
+        and reset.get("fresh_context") is True
+        and all(
+            call["status"] in {"completed", "failed"}
+            and call.get("response") is not None
+            for call in model_calls
+        )
+    )
     result = {
         "schema_version": "recovery-s1/v1",
         "trial_id": config.trial_id,
@@ -605,7 +657,11 @@ async def run_campaign(
         },
         "outstanding_local_tasks": sum(not task.done() for task in pending),
         "containment": {
-            "next_trial_allowed": not timed_out
+            "provider_contained": provider_contained,
+            "next_trial_allowed": cleanup is not None
+            and cleanup.get("verified") is True
+            and provider_contained
+            and not timed_out
             and all(task.done() for task in pending),
             "remote_termination_after_cancel": "unknown"
             if timed_out

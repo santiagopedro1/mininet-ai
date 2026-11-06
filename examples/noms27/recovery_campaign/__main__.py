@@ -38,9 +38,18 @@ def main() -> int:
         )
     evidence = asyncio.run(run_campaign(config, args.evidence))
     print(
-        json.dumps({"validity": evidence["validity"], "outcome": evidence["outcome"]})
+        json.dumps(
+            {
+                key: evidence[key]
+                for key in ("validity", "outcome", "cleanup", "containment")
+            }
+        )
     )
-    return 0 if evidence["validity"]["valid"] else 2
+    return (
+        0
+        if evidence["validity"]["valid"] and evidence["cleanup"].get("verified") is True
+        else 2
+    )
 
 
 if __name__ == "__main__":

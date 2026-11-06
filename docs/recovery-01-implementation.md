@@ -63,15 +63,21 @@ Use a previously nonexistent evidence directory. Source archives need the
 `examples/` and `mininet_ai/` trees and installed project dependencies. Git revision
 is null without `.git`; retain the archive's originating commit and checksum
 alongside the evidence. Per-source-file hashes and dependency versions remain in
-the export. Exit 0 means a **valid** trial, including valid unsuccessful recovery;
-exit 2 means an invalid experimental trial. Inspect outcomes, not just exit status.
+the export. Exit 0 means a **valid trial with verified cleanup**, including valid
+unsuccessful recovery; exit 2 means experimental invalidity **or unverified cleanup**.
+Cleanup failure does not change trial validity or service outcomes. CLI output
+includes validity, outcomes, cleanup and containment separately; inspect all four,
+not just exit status. Even exit 0 does not authorize another trial when Provider
+containment is unresolved.
 No automatic cleanup of preexisting bridges/interfaces is attempted. Resolve
 resource-name collisions explicitly in the disposable VM before trying again.
 
 ## Network and permissions
 
 - Reuses `DiamondLiveHarness` for owned topology setup, primary forwarding,
-  permanent neighbors, persistent `s1-s2` link-down, and teardown.
+  permanent neighbors and persistent `s1-s2` link-down. The campaign adapter calls
+  teardown on that harness's owned Mininet network, then independently inspects
+  its interfaces and bridges, leaving the legacy harness/example unchanged.
 - The designated directional service is h1 → s1 → s2 → s4 → h2 initially;
   the surviving path is h1 → s1 → s3 → s4 → h2. Hosts and attachment switches
   survive. This slice is one structurally locally repairable placement, not all
@@ -119,6 +125,10 @@ timely; an average over the second is insufficient. Verification completion is
 the qualifying interval's end **plus 100ms**, not its first arrival or action exit.
 At the sample's 100 pps, each bin has about ten packets, so 99% means all packets;
 this resolution limitation must be checked in feasibility before freezing load.
+Only full bins beginning at or after completed link-down confirmation can enter
+the restoration streak. Healthy traffic during a slow injection cannot qualify as
+restoration. All elapsed times, disruption and the deadline remain anchored to
+injection **submission**, not confirmation.
 
 The operational service signal projects those records into one post-action
 one-second interval plus delivery allowance (aligned to the next full send bin).
@@ -143,11 +153,29 @@ Missing slots, duplicate sends, an incomplete worker record/terminal summary,
 collector failure, or offered counts outside the frozen per-bin tolerance
 (`max(1 packet, 5%)`) are experimental measurement failures, not network packet
 loss. Any missed sender slot is invalid, even if bin counts fit that tolerance.
+Send sequences must be continuous from zero; the single final sender summary's
+next sequence/missed-slot counts must reconcile with retained send records. The
+single final receiver summary must reconcile with all arrival records (duplicates
+included). Summaries remain in packet evidence. Missing records within the load
+tolerance still invalidate the trial; observed-only disruption from an invalid
+trial is not a complete campaign estimate, and missing observations are not
+invented as packets or concealed as a lower offered load.
 Malformed essential packets, unhealthy baseline, bad reset/injection, missing
 persistence checks or a restored failed link also invalidate the trial. Raw
 records are retained. Model malformation, inability, failed repair and exhausted
 budgets remain valid treatment outcomes. Cleanup verification is separate from
 service and validity, and must be inspected before another run.
+
+`cleanup_budget_seconds` defaults to 30 and must be positive. Worker stop/drain,
+owned-network teardown and independent inspection share one best-effort budget;
+each enforceable external check receives only the remaining time. Successful
+`ip -j link show` and OVS bridge inventories are filtered to the owned resource
+names. Nonzero exits, malformed inventories, timeouts and budget exhaustion remain
+unverified, with diagnostics retained, not evidence of absence. No global deletion
+or VM recovery is attempted. Synchronous Mininet teardown may exceed the budget;
+the cleanup receipt explicitly does **not** promise a hard return deadline or that
+budget exhaustion stopped Python teardown. These are scoped checks under trusted
+ownership assumptions, not whole-host or arbitrary-descendant containment proof.
 
 ## Timing, cancellation and evidence
 
@@ -167,6 +195,16 @@ retain terminal results where available. Outstanding tasks and unknown remote
 termination remain explicit. Late terminal evidence can append to journals after
 the immutable export snapshot without revising its outcome; artifact sizes/hashes
 are explicitly snapshots. Do not infer a terminal response from local cancellation.
+`containment.next_trial_allowed` additionally requires a positive cleanup receipt,
+completed startup, retained terminal responses for incident Provider calls, and no
+outstanding local tasks. Failed requests without terminal response evidence remain
+uncontained even when no policy timeout was reported. This is a conservative
+single-incident admission signal, not implementation of repeated-trial scheduling.
+
+A late action terminal result known before export updates `actions[].result`, its
+completion/late fields and `outcome.action_execution_success`. It does not reopen
+verification or revise the already-fixed timeout/policy result. Results arriving
+after the export snapshot remain journal-only as above.
 
 `evidence.json` retains independent validity, action success, service recovery,
 failure, allocated-budget timeout and policy termination separately, plus:
@@ -203,7 +241,7 @@ allocation belong to later tickets. Original checkouts and paper tracker were no
 modified. The older examples remain intact; their reversible administrative-port
 faults and ping criteria are not evidence for this campaign contract.
 
-## Recorded implementation checks
+## Initial integration checks (`57eb2a4`)
 
 - Targeted configuration/evidence tests: **33 passed**, including real loopback
   UDP worker processes with controlled network/model responses.
@@ -214,3 +252,32 @@ faults and ping criteria are not evidence for this campaign contract.
   in `tests/examples/test_noms27.py:471`; that preserved baseline file was not
   rewritten. The added campaign and tests are formatted.
 - No live Mininet/native recovery result is asserted by these checks.
+
+## Ticket 01 review corrections
+
+The isolated `fix/recovery-01-review` follow-up addresses all four documented
+standards findings and three specification findings. Regression tests were run red
+then green through configuration → runner/CLI → exported evidence, including:
+
+- unverified/unknown/exceptional cleanup leaves validity unchanged but returns a
+  nonzero CLI result and blocks another trial;
+- successful absence inspection versus inspection failure, malformed inventory,
+  remaining resources, a shared configured cleanup budget, bounded external checks,
+  and synchronous teardown overrunning that best-effort budget;
+- missing Provider terminal evidence and incomplete startup blocking containment;
+- slow injection with healthy pre-fault traffic, with and without later restoration;
+- missing send records even inside per-bin load tolerance, summary reconciliation,
+  retained raw worker evidence, and known late action success/failure updating only
+  execution evidence rather than deadline/policy outcomes.
+
+The token decoder is shared between usable and unusable native output, preserving
+snake/camel-case aliases, explicit unavailable counts, and rejection of boolean or
+negative counts. Bin accounting now uses named sent/timely counts.
+
+Follow-up checks: **67 targeted tests passed**; full suite **1,381 passed, 3 skipped,
+179 subtests passed** (existing specification-deprecation warnings retained).
+Repository-wide Ruff lint and full Pyright passed; explicitly scoped campaign/test
+Pyright passed with zero errors or warnings. Added-file formatting and whitespace
+checks are clean. Live VM/model
+validation and independent re-review remain parent-session gates; these changes do
+not approve campaign budgets or implement later tickets.
