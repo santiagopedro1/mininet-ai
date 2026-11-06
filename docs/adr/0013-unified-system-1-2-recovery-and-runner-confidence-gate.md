@@ -104,3 +104,24 @@ Runs remain valid evidence either way. Confirmed calls carry
 `provider_contained`/`remote_termination_after_cancel` summary reflects
 confirmed aborts as contained rather than unknown. Capabilityless runtimes,
 offline fixtures and the core runtime contract are unchanged.
+
+Ticket 04 adds the fourth **combined gated** campaign slot. Gate enablement and
+threshold are explicit configuration, not a different S1 prompt or native schema.
+Both combined slots use the same native adapter, instructions, criteria and
+catalogue. Gate-disabled is supported in the fourth slot, including when no
+calibrated threshold qualifies; the slot itself never enables hidden behavior.
+An enabled gate requires a finite threshold in [0,1]. It hands off before local
+execution for confidence strictly below the threshold (equality proceeds), or
+missing/invalid confidence. Valid confidence is finite numeric [0,1], excluding
+booleans; numeric strings are not coerced. Unusable decisions and explicit
+inability retain shared failure handling regardless of confidence. Confident
+failed execution or service verification still requests escalation.
+
+Unlike the pilot, the campaign does not rewrite the S1 response into an effective
+choice. It retains the original decision plus an explicit pre-action gate event,
+skipped-execution flag and handoff cause. Nonfinite values received at the adapter
+boundary are tagged in JSON evidence rather than lost or emitted as invalid JSON.
+Invalid wire JSON still follows shared native parsing/failure rules, not a relaxed
+gate-specific parser. The ticket 03 containment refusal and all live/scientific
+acceptance blockers remain unchanged. See
+[ticket 04 implementation and limitations](../recovery-04-implementation.md).

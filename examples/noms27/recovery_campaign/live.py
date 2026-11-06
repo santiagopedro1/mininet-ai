@@ -125,8 +125,8 @@ class RecordingTransport:
                 )
                 + "\n"
             )
-        # Confidence is diagnostic-only in these S1 paths. Do not widen the core native
-        # contract: retain invalid values in wire evidence, omit solely for mapping.
+        # Keep the native decision contract identical for every S1 path. Retain
+        # invalid confidence for runner-side policy, omitting solely for mapping.
         mapped = copy.deepcopy(self.last_response)
         if isinstance(mapped, dict):
             answer = (
@@ -141,8 +141,8 @@ class RecordingTransport:
                 if (
                     isinstance(value, bool)
                     or not isinstance(value, (int, float))
-                    or not math.isfinite(value)
                     or not 0 <= value <= 1
+                    or not math.isfinite(value)
                 ):
                     del container["confidence"]
         return mapped
@@ -455,13 +455,14 @@ class LiveRuntime:
         valid_confidence = (
             not isinstance(confidence, bool)
             and isinstance(confidence, (int, float))
-            and math.isfinite(confidence)
             and 0 <= confidence <= 1
+            and math.isfinite(confidence)
         )
 
         return {
             "choice": result.choice_id,
             "confidence": confidence,
+            "confidence_present": "confidence" in response or "confidence" in answer,
             "confidence_status": "valid" if valid_confidence else "missing_or_invalid",
             "request": self.recording.last_request,
             "response": response,

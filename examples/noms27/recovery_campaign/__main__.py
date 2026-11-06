@@ -30,8 +30,9 @@ def main() -> int:
                     else Repair.model_json_schema()
                 ),
             }
-            if config.treatment == "combined_ungated":
+            if config.combined:
                 authority["catalogue"] = CATALOGUE
+                authority["confidence_gate"] = config.confidence_gate
         print(
             json.dumps(
                 {
