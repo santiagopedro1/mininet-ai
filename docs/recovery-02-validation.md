@@ -114,7 +114,24 @@ any live/scientific acceptance gate below.
 This is the implementer handoff, **not** independent code-review clearance or a
 declaration that the branch is ready for `main`. The parent session owns merger
 and subsequent Standards/Spec reviews, paper-tracker updates and acceptance.
-Retain the implementer worktree for that process; do not push.
+The parent subsequently completed that process as recorded below; do not push.
+
+### Final integration validation and independent review
+
+The parent merged through `b7eea15` into `feat/recovery-02-integration`.
+Independent Standards and Spec re-reviews cleared all findings, including all
+three earlier Standards heuristics. Review was read-only and offline.
+
+An independent integration-worktree rerun confirmed **1,415 passed, 3 skipped,
+179 subtests passed** in 147.10 seconds, with 124 existing deprecation warnings.
+Repository-wide Ruff lint, full Pyright (zero errors/warnings), whitespace checks,
+and network-free direct-S2 CLI configuration validation passed. No dependency
+installation, live/model call, VM operation or push occurred.
+
+Implementer logs/evidence were copied into the retained integration worktree at
+`/tmp/opencode/recovery-02-integration/run-evidence/recovery-02-development/`
+before removing the clean implementer worktree. The integration branch and source
+remain available there; the paper tracker records the unresolved live gates.
 
 Ticket 01 still blocks live acceptance. Ticket 02's live broader-repair criterion,
 all live scenario/placement/load feasibility, approved numerical budgets/resources,
