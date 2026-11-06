@@ -19,6 +19,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .confidence import valid_confidence
 from .containment import contain_cancelled_stage, unsafe_reasons
 from .supervision import evidence_value, record_inference, run_action
 
@@ -534,11 +535,7 @@ async def run_campaign(
                     gate_cause = None
                     if config.combined:
                         confidence = decision.get("confidence")
-                        valid = (
-                            type(confidence) in (int, float)
-                            and 0 <= confidence <= 1
-                            and math.isfinite(confidence)
-                        )
+                        valid = valid_confidence(confidence)
                         call["confidence_status"] = (
                             "valid" if valid else "missing_or_invalid"
                         )
