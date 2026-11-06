@@ -69,6 +69,48 @@ suite retains existing specification-deprecation warnings.
 
 ## Handoff and remaining gates
 
+### Standards review follow-up (2026-11-06)
+
+All three Standards findings were addressed together in `cc8d079`:
+
+- `supervision.py` now owns the shared inference/action lifecycle recording,
+  including cancellation-unknown results, completion timing and late completion
+  accounting. Treatment-specific decision validation, S1 failure-token decoding
+  and S2 Provider-terminal interpretation remain in their treatment paths. No
+  campaign/runtime API was widened.
+- Incident S2 request construction and provenance use the same `MODEL_SETTINGS`.
+  Warm-up deliberately retains its separate two-token output budget.
+- `MAX_ATTEMPTS` supplies both the permission declaration and loop enforcement.
+
+The existing settings characterization passed before extraction (26 S2 tests);
+this was a behavior-preserving refactor, not a claimed failing-feature red→green
+cycle. Boundary assertions now compare retained incident wire requests and
+provenance against independently specified settings, retain the distinct warm-up
+budget, and check cancellation evidence for inference/actions in both treatments.
+Tests do not import or assert the new helper structure.
+
+Integration was confirmed clean at `40733c6` before edits. After committing the
+fixes, `git merge feat/recovery-02-integration` again reported **already up to
+date**, and its tip `40733c60f0ab45877176b8055295f8eb0d99631b` was verified as an
+ancestor of `cc8d0799c6b953393741d31a13c60bea602ae5bc` before this report update.
+
+Follow-up checks, using the same installed environment and no network access:
+
+- Focused S1/S2 boundary suite: **101 passed** in 45.74 s.
+- Full suite: **1,415 passed, 3 skipped, 179 subtests passed** in 146.12 s;
+  existing specification-deprecation warnings remain (124 warnings total).
+- Repository-wide Ruff lint: passed.
+- Full and scoped campaign/test Pyright: **zero errors/warnings**.
+- Scoped Ruff formatting: **10 files already formatted**.
+- Network-free direct-S2 CLI configuration check and whitespace check: passed.
+
+Raw test/type-check logs are retained under
+`run-evidence/recovery-02-development/review-fixes/`; full-suite temporary
+artifacts use `/tmp/opencode/r02-review-tests`. No dependency installation, VM,
+model computer, Provider connection, fetch, push, or paper-tracker edit was
+performed. These results address offline review findings only and do not change
+any live/scientific acceptance gate below.
+
 This is the implementer handoff, **not** independent code-review clearance or a
 declaration that the branch is ready for `main`. The parent session owns merger
 and subsequent Standards/Spec reviews, paper-tracker updates and acceptance.
