@@ -2,7 +2,7 @@
 
 Primary goal: **both** (feature demonstration and realistic scenario).
 
-This maintained campaign runner implements the offline paths for tickets 01–06 of the four-treatment
+This maintained campaign runner implements the offline paths for tickets 01–07 of the four-treatment
 study, not a replacement for the older compiler-backed recovery examples.
 Its declared JSON campaign configuration is validated separately from an
 `Experiment` specification. The approved test boundary is configuration →
@@ -54,3 +54,17 @@ higher-load slots. Neither mode authorizes live or held-out runs.
 See [implementation](../../../docs/recovery-05-implementation.md) and
 [validation](../../../docs/recovery-05-validation.md) for commands and limits.
 See [integration notes](../../../docs/recovery-06-integration.md) for merge scope.
+## Offline calibration draft tooling
+
+Preregistration snapshots candidates/allocation; reporting audits complete
+synthetic matched records and emits a **non-executable, unapproved** evaluation draft:
+
+```bash
+python -m examples.noms27.recovery_campaign.calibration preregister --output registration.json
+python -m examples.noms27.recovery_campaign.calibration report \
+  --registration registration.json --evidence synthetic-evidence.json --output draft-report.json
+```
+
+No scientific freeze or approval is possible. See
+[ticket 07 implementation](../../../docs/recovery-07-implementation.md) and
+[validation](../../../docs/recovery-07-validation.md).
