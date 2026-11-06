@@ -13,7 +13,10 @@ exercise that boundary; a loopback test additionally runs the real UDP worker
 processes and the existing native S1 protocol with controlled model/network
 responses. These are **mechanism validation**, not Mininet/model campaign trials.
 
-Live validation is **pending the parent integration session's VM smoke run**.
+The parent's first VM smoke at `5dede608` restored service with one successful
+action and verified cleanup, but remained **invalid** solely due to
+`fault_monitor_failed:`. The invalid original is preserved; the authorized repeat
+after the [monitor-race correction](recovery-01-monitor-diagnosis.md) is pending.
 Initial discovery found uid 1000, password-required host sudo, denied host OVS
 socket access, and a powered-off VM. Subsequently the user authorized booting
 the VM without provisioning; the parent booted it and confirmed guest Python
