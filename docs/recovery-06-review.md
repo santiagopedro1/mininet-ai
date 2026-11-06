@@ -56,5 +56,48 @@ No network, VM, real model/provider operation, remote write, main-branch change,
 tracker edit or evidence deletion occurred. All offline limitations and pending
 acceptance in `docs/recovery-06-validation.md` remain unchanged: synthetic
 mechanism evidence does not establish scientific approval, live calibration,
-held-out results, resource measurements or execution authorization. Parent
-integration/final regressions and issue-tracker steps remain outstanding.
+held-out results, resource measurements or execution authorization.
+
+## Independent re-review and parent handoff
+
+The parent merged implementation `dc48eb2` and review fix `a344296` into
+`feat/recovery-06-integration`. The Standards reviewer independently verified the
+fix: **no remaining actionable findings**. Spec review remains **zero actionable
+deviations** within the authorized offline slice. Live acceptance blockers are
+not treated as implemented experiments or resolved scientific requirements.
+
+Parent checks on the integrated code:
+
+- Existing S1, S2, ungated, gated and matched-block campaign suites:
+  **251 passed, 1 deselected in 158.03 s**. The deselected test was
+  `test_real_udp_workers_and_native_protocol_emit_mechanism_evidence`, which opens
+  real loopback sockets. Command used `-p no:cacheprovider`,
+  `-o tmp_path_retention_policy=failed` and a unique parent basetemp. The run began
+  at `dc48eb2`; the only intervening source change was the reviewed feasibility
+  floor refactor, outside these campaign suites.
+- Final-tree reporting suite: **41 passed in 6.40 s**, including eight controlled
+  configuration-to-evidence demonstrations, with no sockets or real models.
+- Repository Ruff lint, scoped formatting, full repository Pyright and explicit
+  feasibility-module/test Pyright: passed, **zero type errors/warnings**.
+- Default config → CLI report: passed; report retains
+  `numerical_signoff_ready=false`, `execution_authorized=false` and all blockers.
+
+Preserved evidence under the integration worktree's ignored `run-evidence/`:
+
+- `recovery-06-development/`: implementer red/green logs, final checks, original
+  failed duplicate-ID demonstration and eight-trial `controlled-demo-v2` evidence,
+  config and report.
+- `recovery-06-preservation.json`: SHA-256 verification of all **82 original
+  files** before implementer cleanup. Two pytest `current` directory aliases were
+  materialized during copying, producing six additional duplicate files; they do
+  not represent additional trials.
+- `recovery-06-parent-campaign-regression.log` and
+  `recovery-06-parent-plan.json`: parent regression output and unapproved plan.
+
+The parent removed only the newly created implementer worktree
+`/tmp/opencode/recovery-06-implement` after preservation. The integration worktree,
+earlier ticket worktrees and existing checkouts remain intact. No merge into
+`main`, push, PR, remote tracker write, dependency download, VM/model-machine
+access, provider call, live experiment, scientific approval or held-out run
+occurred. Ticket 06 remains unresolved; the paper's local tracker records this
+offline handoff for human acceptance, not scientific completion.
