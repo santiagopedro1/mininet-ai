@@ -71,10 +71,53 @@ The successful final run has no shell timeout and uses the short pytest root
 `/tmp/opencode/r04-serial-tests`, avoiding the known Unix-socket path limit.
 Targeted large-numeric and presence red/green logs are also retained.
 
+## Independent review and resolution
+
+The parent session reported independent review of integration `caf4899`:
+
+- **Standards:** zero hard violations and one maintainability smell, **Duplicated
+  Code** in confidence validation across native mapping, adapter evidence and
+  runner policy.
+- **Spec:** zero actionable deviations.
+
+The implementer resolved that finding with one campaign-local
+`confidence.valid_confidence` predicate, shared by all three callers. Bounds are
+checked before finiteness to avoid huge-integer conversion overflow. Booleans,
+numeric strings, containers, out-of-range values and nonfinite values remain
+invalid; missing-confidence and strict native-JSON failure behavior are unchanged.
+Escalation enablement, threshold comparison and containment remain in the runner.
+No core runtime or policy semantics were changed.
+
+Because this is a behavior-preserving review refactor, characterization tests
+were green before extraction rather than manufacturing a failing behavior. The
+existing approved configuration → runner → exported-evidence tests now also
+assert native adapter evidence and gate validation status against literal expected
+statuses, adding false, numeric strings, containers, upper-bound violations and
+negative infinity to the native-response matrix. No predicate-internal tests or
+mocking of the shared helper were introduced.
+
+Post-review checks were run serially:
+
+- Expanded gate boundary suite before extraction: **88 passed** in 32.96 s.
+- Expanded gate boundary suite after extraction: **88 passed** in 32.91 s.
+- Repository Ruff lint: passed; scoped format: passed (11 files).
+- Full Pyright with explicit installed Python: zero errors/warnings.
+- Full serial regression: **1,536 passed, 3 skipped, 179 subtests passed** in
+  180.58 s, with the existing 124 warnings. No UDP-worker failure occurred.
+- Whitespace: passed.
+
+Logs are `review-before-tests.log`, `review-after-tests.log`, `review-ruff.log`,
+`review-format.log`, `review-pyright.log` and `review-full-tests-serial.log` under
+`run-evidence/recovery-04-development/`. Full regression used
+`/tmp/opencode/r04-review-tests`; no tests ran concurrently. The integration branch
+was merged before the follow-up and checked again at handoff. This records the
+implementer's resolution and validation, not an independent re-review of the fix.
+
 ## Handoff and limitations
 
-This is implementer validation and self-review, not independent Standards/Spec
-review. No subagents, live experiments, VM/model-machine access, real provider
+Initial validation above was implementer self-review; the subsequent independent
+review and implementer resolution are distinguished in the preceding section.
+No subagents, live experiments, VM/model-machine access, real provider
 calls, dependency downloads, pushes, GitHub writes or main merges were performed.
 Existing network-free/controlled transport checks do not validate live faults.
 

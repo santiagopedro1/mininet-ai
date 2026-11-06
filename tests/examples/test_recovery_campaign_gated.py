@@ -225,11 +225,27 @@ def test_fourth_slot_configuration_check_is_network_free():
 
 
 @pytest.mark.parametrize(
-    "confidence",
-    [0.1, None, -1, 10**400, True, "bad", float("nan"), float("inf"), "missing"],
+    "confidence,confidence_status",
+    [
+        (0.1, "valid"),
+        (None, "missing_or_invalid"),
+        (-1, "missing_or_invalid"),
+        (10**400, "missing_or_invalid"),
+        (True, "missing_or_invalid"),
+        (False, "missing_or_invalid"),
+        ("bad", "missing_or_invalid"),
+        ("0.5", "missing_or_invalid"),
+        ([], "missing_or_invalid"),
+        ({}, "missing_or_invalid"),
+        (1.1, "missing_or_invalid"),
+        (float("nan"), "missing_or_invalid"),
+        (float("inf"), "missing_or_invalid"),
+        (-float("inf"), "missing_or_invalid"),
+        ("missing", "missing_or_invalid"),
+    ],
 )
 def test_native_s1_prompt_schema_and_output_are_identical_across_combined_slots(
-    tmp_path, confidence
+    tmp_path, confidence, confidence_status
 ):
     import httpx
 
@@ -290,6 +306,20 @@ def test_native_s1_prompt_schema_and_output_are_identical_across_combined_slots(
         assert all(e["outcome"]["s1_status"] == "treatment_error" for e in results)
         assert all(e["actions"] == e["handoffs"] == [] for e in results)
         return
+    for evidence in results:
+        adapter_result = next(
+            e["result"] for e in evidence["events"] if e["kind"] == "inference_complete"
+        )
+        assert adapter_result["confidence_status"] == confidence_status
+        assert evidence["model_calls"][0]["confidence_status"] == confidence_status
+        assert (
+            next(
+                e["confidence_status"]
+                for e in evidence["events"]
+                if e["kind"] == "confidence_gate"
+            )
+            == confidence_status
+        )
     gate = next(e for e in gated["events"] if e["kind"] == "confidence_gate")
     assert gate["confidence_present"] is (confidence != "missing")
     assert ungated["handoffs"] == []

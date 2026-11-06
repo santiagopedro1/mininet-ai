@@ -21,6 +21,7 @@ from typing import Any
 from mininet_ai.agents.bounded import NativeSystemOneClient
 from mininet_ai.transports.http import HttpxJsonTransport
 
+from .confidence import valid_confidence
 from .runner import (
     BIN,
     CATALOGUE,
@@ -105,12 +106,7 @@ class RecordingTransport:
                 if not isinstance(container, dict) or "confidence" not in container:
                     continue
                 value = container["confidence"]
-                if (
-                    isinstance(value, bool)
-                    or not isinstance(value, (int, float))
-                    or not 0 <= value <= 1
-                    or not math.isfinite(value)
-                ):
+                if not valid_confidence(value):
                     del container["confidence"]
         return mapped
 
@@ -414,18 +410,13 @@ class LiveRuntime:
             else {}
         )
         confidence = response.get("confidence", answer.get("confidence"))
-        valid_confidence = (
-            not isinstance(confidence, bool)
-            and isinstance(confidence, (int, float))
-            and 0 <= confidence <= 1
-            and math.isfinite(confidence)
-        )
-
         return {
             "choice": result.choice_id,
             "confidence": confidence,
             "confidence_present": "confidence" in response or "confidence" in answer,
-            "confidence_status": "valid" if valid_confidence else "missing_or_invalid",
+            "confidence_status": "valid"
+            if valid_confidence(confidence)
+            else "missing_or_invalid",
             "request": self.recording.last_request,
             "response": response,
             "tokens": decode_tokens(response),
