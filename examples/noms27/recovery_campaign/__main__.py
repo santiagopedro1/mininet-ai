@@ -1,4 +1,4 @@
-"""Run or validate one declared S1-only recovery incident."""
+"""Run or validate one declared S1-only or direct-S2 recovery incident."""
 
 import argparse
 import asyncio
@@ -18,13 +18,21 @@ def main() -> int:
     args = parser.parse_args()
     config = CampaignConfig.model_validate_json(args.config.read_text())
     if args.check:
+        authority = {"catalogue": CATALOGUE}
+        if config.treatment == "s2_only":
+            from .s2 import PERMISSIONS, Repair
+
+            authority = {
+                "permissions": PERMISSIONS,
+                "repair_schema": Repair.model_json_schema(),
+            }
         print(
             json.dumps(
                 {
                     "config": config.model_dump(mode="json"),
                     "packet_rate": config.packet_rate,
                     "budget_status": config.budget_status,
-                    "catalogue": CATALOGUE,
+                    **authority,
                     "surviving_path": ["h1", "s1", "s3", "s4", "h2"],
                 }
             )

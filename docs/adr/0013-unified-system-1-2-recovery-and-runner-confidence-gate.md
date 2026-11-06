@@ -37,3 +37,18 @@ not the pilot's ping rounds. Policy stays in this runner and uses the existing
 native S1 client; core bounded-decision contracts and older examples are unchanged.
 See [implementation and limitations](../recovery-01-implementation.md). This is
 not a claim that the pilot is compliant or that campaign feasibility is approved.
+
+Ticket 02 adds **direct S2-only** to this separate campaign runner, without
+changing the preserved unified example or core runtime. It starts from the same
+local diagnostic snapshot and a generic operational alarm, not an S1 decision or
+handoff. A separate Ollama-compatible structured-response path receives broader
+switch telemetry and proposes typed, forwarding-only multi-switch repairs. The
+runner permits at most three observe–act–verify attempts within the original
+common deadline; it never enables an interface, changes traffic or sends evaluator
+fault labels. The S1 stage cap is irrelevant to direct S2. Combined invocation and
+confidence gating remain later work; no reusable escalated policy is claimed yet.
+
+The controlled multi-switch fixture establishes the offline mechanism, not an
+extended-diamond live scenario or scientific acceptance. Ticket 01's live blocker
+and all feasibility/approval gates remain. See
+[ticket 02 implementation and limitations](../recovery-02-implementation.md).

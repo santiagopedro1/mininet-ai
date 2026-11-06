@@ -1,1 +1,1 @@
-"""S1-only recovery campaign: configuration in, auditable evidence out."""
+"""S1-only/direct-S2 recovery: configuration in, auditable evidence out."""

@@ -1,7 +1,7 @@
-"""Mininet diamond adapter, reusing the maintained harness and native S1 client.
+"""Mininet diamond adapter with separate native S1 and Ollama S2 inference paths.
 
-Only setup/cleanup own topology state. Incident policy can install one literal
-s1 flow, never call a shell supplied by a model or restore an interface.
+Only setup/cleanup own topology state. Incident policy installs forwarding only,
+never a shell supplied by a model or a resource-restoration command.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import importlib
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -141,6 +142,10 @@ class LiveRuntime:
 
     async def setup(self, config, root):
         self.config, self.root = config, root
+        if config.scenario != "diamond_s1_s2_link":
+            raise ValueError(
+                "the live adapter does not implement controlled fixture scenarios"
+            )
         if os.geteuid() != 0:
             raise PermissionError(
                 "live Mininet campaign requires root; no model contacted"
@@ -183,18 +188,49 @@ class LiveRuntime:
         )
         if "group_id=" in groups:
             raise RuntimeError("automatic_group_forwarding_present")
-        startup_transport = RecordingTransport(root, self.transport)
-        self.client = NativeSystemOneClient(config.endpoint, startup_transport)
-        self.recording = startup_transport
-        verification = await self._thread(
-            self.client.verify_startup,
-            model_name=config.model_name,
-            expected_identity=config.expected_identity,
-            instructions=INSTRUCTIONS,
-            criteria=CRITERIA,
-            choices={key: () for key in CATALOGUE},
-            verify_identity=config.expected_identity is not None,
-        )
+        self.recording = RecordingTransport(root, self.transport)
+        if config.treatment == "s2_only":
+            if config.expected_identity is not None:
+                raise ValueError("S2 immutable identity verification is unavailable")
+            response = await self._thread(
+                self.recording.post_json,
+                config.endpoint.rstrip("/") + "/api/chat",
+                {
+                    "model": config.model_name,
+                    "messages": [{"role": "user", "content": "Reply OK."}],
+                    "stream": False,
+                    "think": False,
+                    "keep_alive": -1,
+                    "options": {"temperature": 0, "num_predict": 2},
+                },
+                headers={"Content-Type": "application/json"},
+                timeout_seconds=120,
+                max_response_bytes=1_048_576,
+            )
+            if (
+                not isinstance(response, dict)
+                or response.get("done") is not True
+                or not isinstance(response.get("message"), dict)
+                or response.get("error")
+            ):
+                raise ValueError("S2 warm-up failed")
+            verification = {
+                "provider": "ollama",
+                "warmup_response": response,
+                "immutable_identity_verified": False,
+                "limitation": "model name is not immutable identity",
+            }
+        else:
+            self.client = NativeSystemOneClient(config.endpoint, self.recording)
+            verification = await self._thread(
+                self.client.verify_startup,
+                model_name=config.model_name,
+                expected_identity=config.expected_identity,
+                instructions=INSTRUCTIONS,
+                criteria=CRITERIA,
+                choices={key: () for key in CATALOGUE},
+                verify_identity=config.expected_identity is not None,
+            )
         write_json(root / "model-startup.json", verification)
         # Warm-up is pre-injection and retained separately from incident inference.
         write_json(
@@ -399,6 +435,152 @@ class LiveRuntime:
             "meaning": "ovs-ofctl exit zero, not service restoration",
             "switch": entry["switch"],
             "flow": entry["flow"],
+        }
+
+    async def observe_network(self):
+        from examples.diamond_recovery import PORTS
+
+        switches = {}
+        for switch, peers in PORTS.items():
+            raw_ports = await self._command(
+                "ovs-ofctl", "-O", "OpenFlow13", "dump-ports-desc", switch
+            )
+            ports = {}
+            for match in re.finditer(
+                r"^\s*(\d+)\([^\n]*\):[^\n]*\n(.*?)(?=^\s*\d+\(|\Z)",
+                raw_ports,
+                re.MULTILINE | re.DOTALL,
+            ):
+                state = re.search(r"^\s*state:\s*(\S+)", match[2], re.MULTILINE)
+                config = re.search(r"^\s*config:\s*(\S+)", match[2], re.MULTILINE)
+                ports[match[1]] = bool(
+                    state and config and state[1] == "0" and config[1] == "0"
+                )
+            switches[switch] = {
+                "ports": ports,
+                "port_descriptions": raw_ports,
+                "peers": peers,
+                "flows": await self._command(
+                    "ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch
+                ),
+            }
+        observation = {"switches": switches, "observed_ns": self.clock.now_ns()}
+        self.s2_observation = observation
+        return observation
+
+    async def decide_s2(self, context, remaining_seconds):
+        from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
+        from .s2 import Repair
+
+        payload = {
+            "model": self.config.model_name,
+            "messages": [
+                {"role": "system", "content": S2_INSTRUCTIONS},
+                {"role": "user", "content": json.dumps(context)},
+            ],
+            "format": Repair.model_json_schema(),
+            "stream": False,
+            "think": False,
+            "keep_alive": -1,
+            "options": {"temperature": 0, "num_predict": 1024},
+        }
+        response = await self._thread(
+            self.recording.post_json,
+            self.config.endpoint.rstrip("/") + "/api/chat",
+            payload,
+            headers={"Content-Type": "application/json"},
+            timeout_seconds=remaining_seconds,
+            max_response_bytes=1_048_576,
+            request_id=self.config.trial_id,
+        )
+        tokens: dict[str, int | None] = {
+            "input": None,
+            "output": None,
+            "reasoning": None,
+        }
+        if isinstance(response, dict):
+            for field, key in (
+                ("input", "prompt_eval_count"),
+                ("output", "eval_count"),
+            ):
+                value = response.get(key)
+                if type(value) is int and value >= 0:
+                    tokens[field] = value
+        repair = None
+        error = None
+        try:
+            if (
+                not isinstance(response, dict)
+                or response.get("done") is not True
+                or response.get("error")
+            ):
+                raise ValueError("incomplete or failed S2 response")
+            repair = json.loads(response["message"]["content"])
+        except (ValueError, KeyError, TypeError) as problem:
+            error = str(problem)
+        return {
+            "repair": repair,
+            "parse_error": error,
+            "request": payload,
+            "response": response,
+            "tokens": tokens,
+            "provider": "ollama",
+            "remote_terminal": "normal_ollama_response"
+            if isinstance(response, dict) and response.get("done") is True
+            else "unconfirmed",
+            "reasoning_tokens_unavailable": "think disabled; separate usage unavailable",
+        }
+
+    async def execute_s2(self, repair):
+        from .s2 import validate_repair
+
+        # Re-observe at execution admission: never authorize using a stale up port.
+        observation = await self.observe_network()
+        permitted = validate_repair(repair, observation)
+        results = []
+
+        def record(**entry):
+            with (self.root / "s2-actions.jsonl").open("a") as stream:
+                stream.write(
+                    json.dumps({"tick_ns": self.clock.now_ns(), **entry}) + "\n"
+                )
+
+        for action in permitted["actions"]:
+            if self.clock.now_ns() >= self.injection_ns + round(
+                self.config.deadline_seconds * NS
+            ):
+                raise TimeoutError("no forwarding-command admission after deadline")
+            flow = (
+                "cookie=0x3201,priority=300,idle_timeout=0,hard_timeout=0,"
+                f"ip,in_port={action['in_port']},nw_src=10.0.0.1,nw_dst=10.0.0.2,"
+                f"actions=output:{action['out_port']}"
+            )
+            record(status="started", action=action, flow=flow)
+            try:
+                await self._command(
+                    "ovs-ofctl", "-O", "OpenFlow13", "add-flow", action["switch"], flow
+                )
+                results.append({**action, "flow": flow, "success": True})
+                record(status="completed", result=results[-1])
+            except asyncio.CancelledError:
+                record(status="cancelled_execution_unknown", action=action, flow=flow)
+                raise
+            except Exception as error:
+                results.append(
+                    {**action, "flow": flow, "success": False, "error": str(error)}
+                )
+                record(status="failed", result=results[-1])
+                return {
+                    "success": False,
+                    "actions": results,
+                    "admission_observation": observation,
+                    "partial_effects_possible": True,
+                }
+        return {
+            "success": True,
+            "actions": results,
+            "admission_observation": observation,
+            "meaning": "ovs-ofctl exit zero, not service restoration",
         }
 
     async def service_signal(self, since_ns):

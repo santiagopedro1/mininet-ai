@@ -23,7 +23,7 @@ diagnostics.
 _Avoid_: local model, edge agent
 
 **System Two**:
-The experiment-wide decision-maker invoked only through escalation.
+The experiment-wide decision-maker invoked directly or through escalation.
 _Avoid_: global model, fallback agent
 
 **Confidence Gate**:

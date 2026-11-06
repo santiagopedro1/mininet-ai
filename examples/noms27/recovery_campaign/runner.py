@@ -1,4 +1,4 @@
-"""One bounded S1 incident; no escalation, fault reversal or automatic failover."""
+"""One bounded S1-only or direct-S2 incident; no automatic failover or reversal."""
 
 from __future__ import annotations
 
@@ -47,8 +47,8 @@ class CampaignConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
     trial_id: str = Field(min_length=1)
-    treatment: Literal["s1_only"]
-    scenario: Literal["diamond_s1_s2_link"]
+    treatment: Literal["s1_only", "s2_only"]
+    scenario: Literal["diamond_s1_s2_link", "controlled_broader_repair"]
     deadline_seconds: float = Field(gt=0)
     s1_cap_seconds: float = Field(gt=0)
     cleanup_budget_seconds: float = Field(default=30, gt=0)
@@ -73,7 +73,13 @@ class CampaignConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_budgets(self):
-        if self.s1_cap_seconds > self.deadline_seconds:
+        if self.scenario == "controlled_broader_repair" and (
+            self.purpose != "mechanism_validation" or self.treatment != "s2_only"
+        ):
+            raise ValueError(
+                "controlled broader repair is an offline S2 mechanism fixture only"
+            )
+        if self.treatment == "s1_only" and self.s1_cap_seconds > self.deadline_seconds:
             raise ValueError("S1 cap cannot exceed the common deadline")
         if self.packet_rate < 100:
             raise ValueError(
@@ -320,6 +326,13 @@ async def run_campaign(
         if config.purpose != "live_feasibility":
             raise ValueError("live runtime requires explicit purpose=live_feasibility")
         runtime = LiveRuntime()
+    if (
+        config.scenario == "controlled_broader_repair"
+        and runtime.evidence_kind != "mechanism_validation"
+    ):
+        raise ValueError(
+            "controlled broader repair requires an offline mechanism runtime"
+        )
     evidence_dir.mkdir(parents=True, exist_ok=False)
     write_json(evidence_dir / "config.json", config.model_dump(mode="json"))
     clock = runtime.clock
@@ -406,7 +419,11 @@ async def run_campaign(
         await clock.sleep_until(traffic_start + 5 * NS)
         injection_start = clock.now_ns()
         deadline = injection_start + round(config.deadline_seconds * NS)
-        stage_limit = injection_start + round(config.s1_cap_seconds * NS)
+        stage_limit = (
+            deadline
+            if config.treatment == "s2_only"
+            else injection_start + round(config.s1_cap_seconds * NS)
+        )
         event("injection_start", deadline_ns=deadline)
         fault = await bounded("injection", runtime.inject(injection_start), deadline)
         if fault.get("both_endpoints_down") is not True:
@@ -421,95 +438,111 @@ async def run_campaign(
                     "telemetry", runtime.diagnose(), stage_limit
                 )
                 event("detection", source="harness-local-s1-diagnostics")
-                inference_start = clock.now_ns()
-                call = {
-                    "started_ns": inference_start,
-                    "request": {"diagnostics": diagnostics},
-                    "response": None,
-                    "tokens": {"input": None, "output": None, "reasoning": None},
-                    "latency_seconds": None,
-                    "late": False,
-                    "status": "pending",
-                    "retry": 0,
-                }
-                model_calls.append(call)
+                if config.treatment == "s2_only":
+                    from .s2 import run_direct
 
-                async def infer():
-                    try:
-                        value = await runtime.decide(
-                            diagnostics, max(0, stage_limit - clock.now_ns()) / NS
-                        )
-                        call.update(value, status="completed")
-                        return value
-                    except asyncio.CancelledError:
-                        call["status"] = "locally_cancelled_remote_unknown"
-                        raise
-                    except Exception as error:
-                        call.update(
-                            status="failed",
-                            error=str(error),
-                            response=getattr(error, "native_response", None),
-                        )
-                        call["tokens"] = decode_tokens(call["response"])
-                        raise
-                    finally:
-                        call["completed_ns"] = clock.now_ns()
-                        call["latency_seconds"] = (
-                            call["completed_ns"] - inference_start
-                        ) / NS
-                        call["late"] = call["completed_ns"] > stage_limit
-
-                decision = await bounded("inference", infer(), stage_limit)
-                choice = decision.get("choice")
-                if choice not in CATALOGUE:
-                    policy = "unusable_decision"
-                elif CATALOGUE[choice] is None:
-                    policy = "explicit_inability" if choice == "unable" else "no_action"
+                    policy = await run_direct(
+                        runtime,
+                        clock,
+                        deadline,
+                        diagnostics,
+                        bounded,
+                        event,
+                        model_calls,
+                        actions,
+                    )
                 else:
-                    action = {
-                        "choice": choice,
-                        "started_ns": clock.now_ns(),
-                        "result": None,
+                    inference_start = clock.now_ns()
+                    call = {
+                        "started_ns": inference_start,
+                        "request": {"diagnostics": diagnostics},
+                        "response": None,
+                        "tokens": {"input": None, "output": None, "reasoning": None},
+                        "latency_seconds": None,
+                        "late": False,
+                        "status": "pending",
+                        "retry": 0,
                     }
-                    actions.append(action)
+                    model_calls.append(call)
 
-                    async def execute():
+                    async def infer():
                         try:
-                            result = await runtime.execute(choice)
+                            value = await runtime.decide(
+                                diagnostics, max(0, stage_limit - clock.now_ns()) / NS
+                            )
+                            call.update(value, status="completed")
+                            return value
+                        except asyncio.CancelledError:
+                            call["status"] = "locally_cancelled_remote_unknown"
+                            raise
+                        except Exception as error:
+                            call.update(
+                                status="failed",
+                                error=str(error),
+                                response=getattr(error, "native_response", None),
+                            )
+                            call["tokens"] = decode_tokens(call["response"])
+                            raise
+                        finally:
+                            call["completed_ns"] = clock.now_ns()
+                            call["latency_seconds"] = (
+                                call["completed_ns"] - inference_start
+                            ) / NS
+                            call["late"] = call["completed_ns"] > stage_limit
+
+                    decision = await bounded("inference", infer(), stage_limit)
+                    choice = decision.get("choice")
+                    if choice not in CATALOGUE:
+                        policy = "unusable_decision"
+                    elif CATALOGUE[choice] is None:
+                        policy = (
+                            "explicit_inability" if choice == "unable" else "no_action"
+                        )
+                    else:
+                        action = {
+                            "choice": choice,
+                            "started_ns": clock.now_ns(),
+                            "result": None,
+                        }
+                        actions.append(action)
+
+                        async def execute():
+                            try:
+                                result = await runtime.execute(choice)
+                            except Exception as error:
+                                result = {"success": False, "error": str(error)}
+                            action.update(
+                                result=result,
+                                completed_ns=clock.now_ns(),
+                                late=clock.now_ns() > stage_limit,
+                            )
+                            return result
+
+                        try:
+                            result = await bounded("action", execute(), stage_limit)
+                        except TimeoutError:
+                            if action["result"] is None:
+                                action["result"] = {
+                                    "success": None,
+                                    "status": "cancelled_execution_unknown",
+                                }
+                            raise
                         except Exception as error:
                             result = {"success": False, "error": str(error)}
-                        action.update(
-                            result=result,
-                            completed_ns=clock.now_ns(),
-                            late=clock.now_ns() > stage_limit,
-                        )
-                        return result
-
-                    try:
-                        result = await bounded("action", execute(), stage_limit)
-                    except TimeoutError:
-                        if action["result"] is None:
-                            action["result"] = {
-                                "success": None,
-                                "status": "cancelled_execution_unknown",
-                            }
-                        raise
-                    except Exception as error:
-                        result = {"success": False, "error": str(error)}
-                    action.update(result=result, completed_ns=clock.now_ns())
-                    if result.get("success") is not True:
-                        policy = "action_failed"
-                    else:
-                        signal = await bounded(
-                            "verification",
-                            runtime.service_signal(action["completed_ns"]),
-                            stage_limit,
-                        )
-                        policy = (
-                            "verified"
-                            if signal.get("recovered") is True
-                            else "verification_failed"
-                        )
+                        action.update(result=result, completed_ns=clock.now_ns())
+                        if result.get("success") is not True:
+                            policy = "action_failed"
+                        else:
+                            signal = await bounded(
+                                "verification",
+                                runtime.service_signal(action["completed_ns"]),
+                                stage_limit,
+                            )
+                            policy = (
+                                "verified"
+                                if signal.get("recovered") is True
+                                else "verification_failed"
+                            )
             except TimeoutError:
                 timed_out, policy = True, "timeout"
             except Exception as error:
@@ -675,6 +708,22 @@ async def run_campaign(
             "reasoning_tokens": "null unless provider supplies separate non-overlapping usage",
         },
     }
+    if config.treatment == "s2_only":
+        from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
+        from .s2 import PERMISSIONS, Repair
+
+        result["schema_version"] = "recovery-s2/v1"
+        result["permissions"] = PERMISSIONS
+        prov["instructions"] = S2_INSTRUCTIONS
+        prov["criteria"] = None
+        prov["catalogue"] = None
+        prov["catalogue_sha256"] = None
+        prov["s2_repair_schema"] = Repair.model_json_schema()
+        prov["s2_model_settings"] = {
+            "think": False,
+            "keep_alive": -1,
+            "options": {"temperature": 0, "num_predict": 1024},
+        }
     # Later task/provider completions append to durable journals, not frozen outcomes.
     snapshot = copy.deepcopy(result)
     write_json(evidence_dir / "evidence.json", snapshot)
