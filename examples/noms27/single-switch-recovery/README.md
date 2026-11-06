@@ -18,12 +18,16 @@ descriptions, and current observations do not identify implementation stubs.
 The evaluator keeps the answer key and implementation details separately.
 
 The native choice descriptions state **applicability conditions**, such as
-"Switch port s1-eth1 is down," rather than action-oriented instructions.
+"Required switch port s1-eth1 is down," rather than action-oriented instructions.
 Choice IDs still map to the same fixed actions. This description set is recorded
-as `applicability-conditions-v1` in the evaluator contract. Development replays
+as `applicability-conditions-v2` in the evaluator contract. Development replays
 with healthy, port-1-down, and port-2-down inputs motivated the change; they are
 not held-out validation or proof of successful live recovery. Earlier failed
 runs remain valid records of the earlier configuration.
+
+The local instruction, observation bindings, expected local configuration and
+descriptions for shared choices match the escalation example; only the local
+choice sets differ.
 
 ## Choices and implementation
 
@@ -55,16 +59,17 @@ deadline enforcement, and completion recording still apply. Existing
 ## Validate without network privileges
 
 ```bash
-uv run mininet-ai validate examples/noms27/experiment.yaml
-uv run mininet-ai plan examples/noms27/experiment.yaml
+uv run mininet-ai validate examples/noms27/single-switch-recovery/experiment.yaml
+uv run mininet-ai plan examples/noms27/single-switch-recovery/experiment.yaml
 uv run pytest tests/examples/test_noms27.py
 ```
 
-The checked-in specification uses the Fake Substrate for offline planning.
-Its model revision and all-zero hash are explicit placeholders, not verified
-identity. The live runner switches the Substrate to Mininet/OVS. Supply actual
-identity declarations or explicitly skip identity verification; do not use
-planning placeholders as if they identified a verified artifact.
+The checked-in specification uses the Mininet/OVS substrate, so validation and
+planning exercise Mininet/OVS constraints without requiring root or deploying a
+topology. Its model revision and all-zero hash are explicit placeholders, not
+verified identity. Supply actual identity declarations or explicitly skip
+identity verification; do not use planning placeholders as if they identified a
+verified artifact.
 
 ## Run on a disposable Linux experiment host
 
@@ -79,7 +84,7 @@ starts nor reconfigures that service; agent invocations remain non-overlapping.
 For an automatic batch without revision/hash declarations:
 
 ```bash
-sudo env PYTHONPATH=. .venv/bin/python -m examples.noms27 \
+sudo env PYTHONPATH=. .venv/bin/python -m examples.noms27.single-switch-recovery \
   --skip-model-verification \
   --runs 10 \
   --warmup-requests 3 \

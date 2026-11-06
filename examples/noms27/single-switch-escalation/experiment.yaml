@@ -1,10 +1,10 @@
 apiVersion: mininet-ai/v1alpha5
 kind: Experiment
 metadata:
-  name: single-switch-recovery
-  description: NOMS 2027 single-switch recovery study with automatic port-down trials.
+  name: single-switch-escalation
+  description: Local System One policy selection with runner-mediated LLM escalation.
 substrate:
-  driver: fake
+  driver: mininet-ovs
   topology:
     resources:
     - {name: network, kind: network}
@@ -43,17 +43,42 @@ blueprints:
     name: h2oai/h2o-lightning-4b
     parameters:
       endpoint: http://10.10.10.152:9931
-      expectedIdentity:
-        repository: h2oai/h2o-lightning-4b-gguf
-        revision: unverified
-        artifact: h2o-lightning-4b-Q8_0.gguf
-        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+      verifyIdentity: false
+- apiVersion: mininet-ai/v1alpha5
+  kind: AgentBlueprint
+  metadata: {name: global-recovery}
+  implementation:
+    type: python
+    entrypoint: mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent
+  model:
+    provider: ollama
+    name: qwen3.5:latest
+    parameters: {host: 'http://10.10.10.152:11434', think: false}
+  reasoning:
+    timeout: 120s
+    instructions: >-
+      You are the experiment-wide escalation recipient, NOT the local agent.
+      You are authorized to enable the declared switch ports through ovs.port.enable.
+      The local agent's inability to enable ports does NOT restrict your authority;
+      that limitation is why the incident has been escalated to you. You propose
+      the repair; the runtime authorizes and executes it. No further administrative
+      approval is required for an authorized port-enable proposal in this experiment.
+      Diagnose the incident using the supplied switch diagnostics and local decision
+      history. The local agent can restore missing flows but cannot enable ports. If diagnostics
+      justify enabling one administratively down switch port, return exactly one
+      proposal with capability ovs.port.enable, target s1, and arguments containing
+      only port (s1-eth1 or s1-eth2). Otherwise return no proposals and explain why.
+      Do not withhold a justified port-enable proposal merely because the local
+      agent lacks that capability: you are the agent assigned that capability.
+      Do not enable an already-up port. Never use shell commands, delegate, or
+      invent observations. Return a structured AgentResponse with message and
+      proposals; each proposal needs a unique id. No shared-state updates.
 capabilityDefinitions:
 - apiVersion: mininet-ai/v1alpha5
   kind: Capability
   metadata: {name: ovs.port.enable}
   targets: [switch]
-  layers: [data]
+  layers: [control]
   effects: [dataplane.write]
   input-schema:
     type: object
@@ -89,26 +114,40 @@ agents:
     targets: {kind: switch, names: [s1]}
     cardinality: per-target
     runtime: device-sidecar
-  capabilities: [openflow.flow.install, ovs.port.enable]
+  capabilities: [openflow.flow.install]
   observe: [openflow.flows, ovs.port-state]
   decisionInputs: {flowState: openflow.flows, portState: ovs.port-state}
   triggers: [{type: interval, name: decision, every: 1s}]
   execution: {maxConcurrency: 1, overflow: coalesce, actionTimeout: 5s}
+- name: global-recovery
+  blueprint: global-recovery
+  placement:
+    layer: control
+    targets: {kind: switch, names: [s1]}
+    cardinality: per-target
+    runtime: process
+  capabilities: [ovs.port.enable]
+  observe: [openflow.flows]
+  triggers: [{type: manual, name: escalation}]
+  execution: {maxConcurrency: 1, queueCapacity: 1, overflow: reject, actionTimeout: 5s}
 decisionScenarios:
 - apiVersion: mininet-ai/v1alpha5
   kind: DecisionScenario
   metadata: {name: local-policy-selection}
   inputMode: current-recovery
   instructions: >-
-    Select one policy from the current switch diagnostics and expected configuration.
-    Match the policy to the observed problem. Compare required flows by cookie,
-    table, priority, match fields and actions; counters and duration do not define
-    correctness. Do not assume unavailable observations. Select no_action only
-    when no intervention is needed; escalate when diagnostics cannot justify a
-    supplied local repair. Select only one policy.
+    Decide from current port states, observed flows and expected configuration.
+    Check ports first: if a required port is down, select the policy that enables
+    that exact port when one is supplied; otherwise escalate. If all ports are
+    up, compare every required flow by cookie, table, priority, match fields and
+    actions, and select the matching local repair when a flow is missing or
+    differs. Select no_action only when all ports are up and every required flow
+    is present and correct. Escalate only if an observation is unavailable, no
+    supplied policy matches, or the repair is outside local authority. Ignore
+    counters, durations, timestamps and identifiers. Select exactly one policy.
   choices:
   - id: restore_reverse_flow
-    description: The required IPv4 forwarding entry from h2 to h1 is missing.
+    description: 'Required flow cookie 0x5102 (h2 to h1: in_port 2, nw_src 10.0.0.2, nw_dst 10.0.0.1, output 1) is missing or differs while all ports are up.'
     proposals:
     - capability: openflow.flow.install
       target: s1
@@ -118,20 +157,8 @@ decisionScenarios:
         priority: 100
         match: {ip: true, in_port: '2', nw_src: 10.0.0.2, nw_dst: 10.0.0.1}
         actions: 'output:1'
-  - id: enable_access_port
-    description: Switch port s1-eth1 is down.
-    proposals:
-    - capability: ovs.port.enable
-      target: s1
-      arguments: {port: s1-eth1}
-  - id: enable_peer_port
-    description: Switch port s1-eth2 is down.
-    proposals:
-    - capability: ovs.port.enable
-      target: s1
-      arguments: {port: s1-eth2}
   - id: restore_forward_flow
-    description: The required IPv4 forwarding entry from h1 to h2 is missing.
+    description: 'Required flow cookie 0x5101 (h1 to h2: in_port 1, nw_src 10.0.0.1, nw_dst 10.0.0.2, output 2) is missing or differs while all ports are up.'
     proposals:
     - capability: openflow.flow.install
       target: s1
@@ -141,14 +168,11 @@ decisionScenarios:
         priority: 100
         match: {ip: true, in_port: '1', nw_src: 10.0.0.1, nw_dst: 10.0.0.2}
         actions: 'output:2'
-  - id: repair_neighbor_entry
-    description: A required host neighbor mapping is missing or incorrect.
-    proposals: []
   - id: no_action
-    description: Both switch ports are up and every required forwarding entry is present and correct.
+    description: All required ports are up and every required flow is present and correct.
     proposals: []
   - id: escalate
-    description: The diagnostics are insufficient or the fault has no matching supplied local repair.
+    description: An observation is unavailable, no supplied local policy matches, or the repair is outside local authority.
     proposals: []
   paths: {}
   observations: {flowState: openflow.flows, portState: ovs.port-state}

@@ -42,6 +42,12 @@ ignore = ["BLE001"]
 [tool.ruff.lint.per-file-ignores]
 # Maintained examples use URL-friendly directory names, not importable packages.
 "examples/iperf-throughput/__init__.py" = ["N999"]
+"examples/noms27/single-switch-recovery/__init__.py" = ["N999"]
+"examples/noms27/single-switch-recovery/__main__.py" = ["N999"]
+"examples/noms27/single-switch-escalation/__init__.py" = ["N999"]
+"examples/noms27/single-switch-escalation/__main__.py" = ["N999"]
+"examples/noms27/unified-system-1-2-recovery/__init__.py" = ["N999"]
+"examples/noms27/unified-system-1-2-recovery/__main__.py" = ["N999"]
 
 [tool.pyright]
 include = ["mininet_ai", "tests"]

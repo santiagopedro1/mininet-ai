@@ -17,6 +17,20 @@ the available policies should be applied.
 Referring an incident to another decision-maker when local evidence or recovery
 capabilities are insufficient.
 
+**System One**:
+The local bounded-decision agent that selects a recovery policy from current
+diagnostics.
+_Avoid_: local model, edge agent
+
+**System Two**:
+The experiment-wide decision-maker invoked only through escalation.
+_Avoid_: global model, fallback agent
+
+**Confidence Gate**:
+A runner-side policy that replaces a post-fault local choice with escalation
+when the reported confidence is below a configured threshold.
+_Avoid_: confidence filter, model fallback
+
 **Post-Fault Check**:
 A completed evaluation of diagnostics observed after a fault, including a failed
 decision attempt. A decision based on observations collected before the fault is
@@ -38,6 +52,19 @@ _Avoid_: test example, mock example
 The component that owns an experiment's topology lifecycle, from construction
 through teardown.
 _Avoid_: driver, backend, platform
+
+**Experiment Cleanup**:
+The release of resources owned by an experiment, distinct from restoring the
+whole machine to an earlier state.
+
+**Cleanup Verification**:
+Evidence-based confirmation that an experiment's cleanup obligations have been
+met, distinct from successful execution of a cleanup procedure.
+
+**VM Recovery**:
+An explicit operator action to remove abandoned experiment resources from a
+disposable VM when normal experiment cleanup is unavailable or insufficient.
+_Avoid_: Recovery Policy
 
 **Provider**:
 The inference service that supplies the model responses an agent reasons with.

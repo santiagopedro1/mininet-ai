@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 from contextlib import closing
+from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event, Lock
@@ -40,6 +41,54 @@ def command(*arguments: str) -> str:
     if result.returncode:
         raise RuntimeError(f"{arguments!r}: {result.stderr.strip()}")
     return result.stdout
+
+
+_VOLATILE_FLOW_FIELDS = frozenset(
+    {"bytes", "durationSeconds", "packets", "idleAgeSeconds", "hardAgeSeconds"}
+)
+_REDUNDANT_PORT_FIELDS = frozenset({"number"})
+
+
+def compact_observation(query: Any, values: dict[str, Any]) -> dict[str, Any]:
+    """Drop diagnostic fields the decision policy explicitly ignores."""
+    name = getattr(query, "name", None)
+    if name == "openflow.flows":
+        return {
+            target: {
+                **payload,
+                "switches": [
+                    {
+                        **switch,
+                        "flows": [
+                            {
+                                key: value
+                                for key, value in flow.items()
+                                if key not in _VOLATILE_FLOW_FIELDS
+                            }
+                            for flow in switch.get("flows", [])
+                        ],
+                    }
+                    for switch in payload.get("switches", [])
+                ],
+            }
+            for target, payload in values.items()
+        }
+    if name == "ovs.port-state":
+        return {
+            target: {
+                **payload,
+                "ports": [
+                    {
+                        key: value
+                        for key, value in port.items()
+                        if key not in _REDUNDANT_PORT_FIELDS
+                    }
+                    for port in payload.get("ports", [])
+                ],
+            }
+            for target, payload in values.items()
+        }
+    return values
 
 
 def require_idle(endpoint: str, evidence: Path) -> None:
@@ -86,12 +135,75 @@ def score_choice(
     }
 
 
+class ConfidenceEscalationGate:
+    """Runner-side safety net: replace a low-confidence local choice with escalate.
+
+    This is deliberately not a core bounded-decision policy. The adapter still
+    maps only the effective choice, and the raw native response is retained
+    separately from the effective, gated response.
+    """
+
+    def __init__(
+        self,
+        *,
+        threshold: float | None = None,
+        choices: set[str] | None = None,
+    ) -> None:
+        self.threshold = threshold
+        self.choices = set(choices or ())
+        self.enabled = False
+        self.last: dict[str, Any] | None = None
+
+    def apply(self, response: Any) -> Any:
+        self.last = None
+        if not self.enabled or self.threshold is None or not isinstance(response, dict):
+            return response
+        answers = response.get("answers")
+        answer = answers.get("next_action") if isinstance(answers, dict) else None
+        if not isinstance(answer, dict) or answer.get("choice") == "escalate":
+            return response
+        probabilities = answer.get("probabilities")
+        declared = self.choices or (
+            set(probabilities) if isinstance(probabilities, dict) else set()
+        )
+        if "escalate" not in declared:
+            return response
+        confidence = answer.get("confidence")
+        if (
+            isinstance(confidence, bool)
+            or not isinstance(confidence, (int, float))
+            or not 0 <= confidence <= 1
+            or confidence >= self.threshold
+        ):
+            return response
+        effective = deepcopy(response)
+        effective["answers"]["next_action"]["choice"] = "escalate"
+        record = {
+            "metric": "confidence",
+            "threshold": self.threshold,
+            "originalChoice": answer.get("choice"),
+            "originalConfidence": float(confidence),
+            "originalProbability": (
+                probabilities.get(answer.get("choice"))
+                if isinstance(probabilities, dict)
+                else None
+            ),
+            "effectiveChoice": "escalate",
+        }
+        effective["gate"] = record
+        self.last = record
+        return effective
+
+
 class RecordingTransport:
     """Retain choices even when execution subsequently refuses the action."""
 
-    def __init__(self, evidence: Path) -> None:
+    def __init__(
+        self, evidence: Path, *, gate: ConfidenceEscalationGate | None = None
+    ) -> None:
         self.transport = HttpxJsonTransport()
         self.evidence = evidence
+        self.gate = gate
         self.response: Any = None
         self.measured_requests = 0
 
@@ -112,10 +224,14 @@ class RecordingTransport:
             request_root.mkdir(parents=True, exist_ok=False)
             write_json(request_root / "request.json", payload)
         response = self.transport.post_json(url, payload, **kwargs)
+        effective = self.gate.apply(response) if measured and self.gate else response
         if measured:
             self.response = response
             write_json(request_root / "response.json", response)
-        return response
+            if effective is not response:
+                write_json(request_root / "effective-response.json", effective)
+                write_json(request_root / "gate.json", self.gate.last)
+        return effective
 
 
 class MonitorTrial:
@@ -354,7 +470,6 @@ def run_trial(args: argparse.Namespace) -> int:
     root.mkdir(parents=True, exist_ok=False)
     require_idle(args.endpoint, root / "remote-before.json")
     document = yaml.safe_load(SOURCE.read_text())
-    document["substrate"]["driver"] = "mininet-ovs"
     model = document["blueprints"][0]["model"]
     model["name"] = args.model_name
     model["parameters"] = model_parameters(args)
@@ -366,7 +481,7 @@ def run_trial(args: argparse.Namespace) -> int:
         {
             "expectedChoiceAfterFault": expected,
             "expectedChoiceBeforeFault": "no_action",
-            "choiceDescriptionVersion": "applicability-conditions-v1",
+            "choiceDescriptionVersion": "applicability-conditions-v2",
             "stubChoices": sorted(STUB_CHOICES),
             "escalationExecuted": False,
             "maxPostFaultChecks": args.max_checks,
@@ -397,7 +512,7 @@ def run_trial(args: argparse.Namespace) -> int:
             # Do not let a port snapshot straddle command/confirmation timestamps.
             # This lock contains no failed-ping probes or model inference.
             with harness.observation_lock:
-                return super().collect(query)
+                return compact_observation(query, super().collect(query))
 
     substrate = MininetOVSRuntime(observation_factory=Observations)
     registries = ProviderRegistries()

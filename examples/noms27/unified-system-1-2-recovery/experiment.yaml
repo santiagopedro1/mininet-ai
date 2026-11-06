@@ -1,0 +1,209 @@
+apiVersion: mininet-ai/v1alpha5
+kind: Experiment
+metadata:
+  name: unified-system-1-2-recovery
+  description: Unified System One local recovery with confidence-gated System Two escalation.
+substrate:
+  driver: mininet-ovs
+  topology:
+    resources:
+    - {name: network, kind: network}
+    - name: h1
+      kind: host
+      parent: network
+      interfaces:
+      - {name: h1-eth0, ipv4: 10.0.0.1/24, mac: '02:00:00:00:00:01'}
+    - name: h2
+      kind: host
+      parent: network
+      interfaces:
+      - {name: h2-eth0, ipv4: 10.0.0.2/24, mac: '02:00:00:00:00:02'}
+    - name: s1
+      kind: switch
+      parent: network
+      failMode: secure
+      datapath: kernel
+      protocols: [OpenFlow13]
+      ports:
+      - {name: s1-eth1, number: 1}
+      - {name: s1-eth2, number: 2}
+    links:
+    - name: h1-s1
+      endpoints: [{node: h1, adapter: h1-eth0}, {node: s1, adapter: s1-eth1}]
+    - name: s1-h2
+      endpoints: [{node: s1, adapter: s1-eth2}, {node: h2, adapter: h2-eth0}]
+blueprints:
+- apiVersion: mininet-ai/v1alpha5
+  kind: AgentBlueprint
+  metadata: {name: local-recovery}
+  implementation: {type: declarative}
+  execution: {kind: bounded-decision, scenario: local-policy-selection}
+  model:
+    provider: llamacpp-systemone
+    name: h2oai/h2o-lightning-4b
+    parameters:
+      endpoint: http://10.10.10.152:9931
+      verifyIdentity: false
+- apiVersion: mininet-ai/v1alpha5
+  kind: AgentBlueprint
+  metadata: {name: global-recovery}
+  implementation:
+    type: python
+    entrypoint: mininet_ai.agents.agno.ollama_factory:create_deterministic_prompt_parsed_agent
+  model:
+    provider: ollama
+    name: qwen3.5:latest
+    parameters: {host: 'http://10.10.10.152:11434', think: false}
+  reasoning:
+    timeout: 120s
+    instructions: >-
+      You are the experiment-wide escalation recipient, NOT the local agent.
+      The local decision was escalated to you. You are authorized to enable the
+      declared switch ports through ovs.port.enable and to install required
+      forwarding flows through openflow.flow.install. You propose the repair; the
+      runtime authorizes and executes it. No further administrative approval is
+      required for an authorized repair proposal in this experiment. Diagnose the
+      incident using the supplied switch diagnostics and local decision history.
+      The `switch.diagnosis` object is observed state. `switch.diagnosis.portState`
+      contains observed port states. `switch.diagnosis.flowState` contains observed
+      flow entries. `switch.expectations` is the required configuration, NOT an
+      observation. Compare required flows with observed flows by cookie: a
+      required cookie absent from the observed flow entries is missing, even
+      though it appears in `switch.expectations`. A required port is down only
+      when its observed state is `down`. Never treat an entry in expectations as
+      present. If diagnostics justify enabling one administratively down switch
+      port, return exactly one proposal with capability ovs.port.enable, target
+      s1, and arguments containing only port (s1-eth1 or s1-eth2). If diagnostics
+      justify restoring one required flow that is absent from the observed flow
+      entries, return exactly one proposal with capability
+      openflow.flow.install, target s1, and arguments containing only cookie,
+      table, priority, match and actions for that required flow. Otherwise return
+      no proposals and explain why. Do not enable a port whose observed state is
+      already `up`. Do not install a flow already present in the observed flow
+      entries. Never use shell commands, delegate, or invent observations. Return
+      a structured AgentResponse with message and proposals; each proposal needs
+      a unique id. No shared-state updates.
+capabilityDefinitions:
+- apiVersion: mininet-ai/v1alpha5
+  kind: Capability
+  metadata: {name: ovs.port.enable}
+  targets: [switch]
+  layers: [data, control]
+  effects: [dataplane.write]
+  input-schema:
+    type: object
+    required: [port]
+    properties:
+      port: {type: string, enum: [s1-eth1, s1-eth2]}
+    additionalProperties: false
+  output-schema: {type: object}
+  provider: substrate.action
+- apiVersion: mininet-ai/v1alpha5
+  kind: Capability
+  metadata: {name: openflow.flow.install}
+  targets: [switch]
+  layers: [data, control]
+  effects: [dataplane.write]
+  input-schema:
+    type: object
+    required: [cookie, table, priority, match, actions]
+    properties:
+      cookie: {type: string}
+      table: {type: integer}
+      priority: {type: integer}
+      match: {type: object}
+      actions: {type: string}
+    additionalProperties: false
+  output-schema: {type: object}
+  provider: substrate.action
+agents:
+- name: recovery
+  blueprint: local-recovery
+  placement:
+    layer: data
+    targets: {kind: switch, names: [s1]}
+    cardinality: per-target
+    runtime: device-sidecar
+  capabilities: [openflow.flow.install, ovs.port.enable]
+  observe: [openflow.flows, ovs.port-state]
+  decisionInputs: {flowState: openflow.flows, portState: ovs.port-state}
+  triggers: [{type: interval, name: decision, every: 1s}]
+  execution: {maxConcurrency: 1, overflow: coalesce, actionTimeout: 5s}
+- name: global-recovery
+  blueprint: global-recovery
+  placement:
+    layer: control
+    targets: {kind: switch, names: [s1]}
+    cardinality: per-target
+    runtime: process
+  capabilities: [ovs.port.enable, openflow.flow.install]
+  observe: [openflow.flows]
+  triggers: [{type: manual, name: escalation}]
+  execution: {maxConcurrency: 1, queueCapacity: 1, overflow: reject, actionTimeout: 5s}
+decisionScenarios:
+- apiVersion: mininet-ai/v1alpha5
+  kind: DecisionScenario
+  metadata: {name: local-policy-selection}
+  inputMode: current-recovery
+  instructions: >-
+    Decide from current port states, observed flows and expected configuration.
+    Check ports first: if a required port is down, select the policy that enables
+    that exact port when one is supplied; otherwise escalate. If all ports are
+    up, compare every required flow by cookie, table, priority, match fields and
+    actions, and select the matching local repair when a flow is missing or
+    differs. Select no_action only when all ports are up and every required flow
+    is present and correct. Escalate only if an observation is unavailable, no
+    supplied policy matches, or the repair is outside local authority. Ignore
+    counters, durations, timestamps and identifiers. Select exactly one policy.
+  choices:
+  - id: restore_reverse_flow
+    description: 'Required flow cookie 0x5102 (h2 to h1: in_port 2, nw_src 10.0.0.2, nw_dst 10.0.0.1, output 1) is missing or differs while all ports are up.'
+    proposals:
+    - capability: openflow.flow.install
+      target: s1
+      arguments: &reverse
+        cookie: '0x5102'
+        table: 0
+        priority: 100
+        match: {ip: true, in_port: '2', nw_src: 10.0.0.2, nw_dst: 10.0.0.1}
+        actions: 'output:1'
+  - id: enable_access_port
+    description: Required switch port s1-eth1 is down.
+    proposals:
+    - capability: ovs.port.enable
+      target: s1
+      arguments: {port: s1-eth1}
+  - id: enable_peer_port
+    description: Required switch port s1-eth2 is down.
+    proposals:
+    - capability: ovs.port.enable
+      target: s1
+      arguments: {port: s1-eth2}
+  - id: restore_forward_flow
+    description: 'Required flow cookie 0x5101 (h1 to h2: in_port 1, nw_src 10.0.0.1, nw_dst 10.0.0.2, output 2) is missing or differs while all ports are up.'
+    proposals:
+    - capability: openflow.flow.install
+      target: s1
+      arguments: &forward
+        cookie: '0x5101'
+        table: 0
+        priority: 100
+        match: {ip: true, in_port: '1', nw_src: 10.0.0.1, nw_dst: 10.0.0.2}
+        actions: 'output:2'
+  - id: no_action
+    description: All required ports are up and every required flow is present and correct.
+    proposals: []
+  - id: escalate
+    description: An observation is unavailable, no supplied local policy matches, or the repair is outside local authority.
+    proposals: []
+  paths: {}
+  observations: {flowState: openflow.flows, portState: ovs.port-state}
+  timing: {cadence: 1s, decisionDeadline: 5s}
+  policy: {}
+  localExpectations:
+    s1:
+      ports: [s1-eth1, s1-eth2]
+      flows:
+      - {cookie: '0x5100', table: 0, priority: 0, match: {}, actions: drop}
+      - *forward
+      - *reverse

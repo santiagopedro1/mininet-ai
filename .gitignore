@@ -13,3 +13,4 @@ wheels/
 
 # Local runtime artifacts
 .mininet-ai/
+run-evidence/

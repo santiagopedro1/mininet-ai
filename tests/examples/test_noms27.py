@@ -1,14 +1,15 @@
+import importlib
 import json
 from copy import deepcopy
 from pathlib import Path
 from threading import Event, Lock
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
-from examples.noms27.runner import EXPECTED_CHOICE, SOURCE, score_choice
 from mininet_ai.agents import register_builtin_providers
 from mininet_ai.compiler import (
     compile_experiment,
@@ -19,6 +20,11 @@ from mininet_ai.experiment import ExperimentRuntime
 from mininet_ai.plugins import ProviderRegistries
 from mininet_ai.specification.models import DecisionScenario
 from mininet_ai.substrates import FakeSubstrateRuntime
+
+runner = importlib.import_module("examples.noms27.single-switch-recovery.runner")
+EXPECTED_CHOICE = runner.EXPECTED_CHOICE
+SOURCE = runner.SOURCE
+score_choice = runner.score_choice
 
 
 def scenario():
@@ -41,16 +47,91 @@ def test_single_switch_example_round_trips(tmp_path):
     )
 
 
+def test_observation_compaction_drops_ignored_fields_without_mutating_input():
+    flows = {
+        "s1": {
+            "switches": [
+                {
+                    "name": "s1",
+                    "flows": [
+                        {
+                            "cookie": "0x5101",
+                            "table": 0,
+                            "priority": 100,
+                            "match": {"ip": True},
+                            "actions": "output:2",
+                            "packets": 4,
+                            "bytes": 392,
+                            "durationSeconds": 3.1,
+                            "idleAgeSeconds": 1,
+                            "hardAgeSeconds": 2,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+
+    compacted = runner.compact_observation(
+        SimpleNamespace(name="openflow.flows"), flows
+    )
+
+    assert compacted == {
+        "s1": {
+            "switches": [
+                {
+                    "name": "s1",
+                    "flows": [
+                        {
+                            "cookie": "0x5101",
+                            "table": 0,
+                            "priority": 100,
+                            "match": {"ip": True},
+                            "actions": "output:2",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    assert flows["s1"]["switches"][0]["flows"][0]["packets"] == 4
+
+    ports = {
+        "s1": {
+            "ports": [
+                {
+                    "name": "s1-eth1",
+                    "number": 1,
+                    "state": "down",
+                    "observedAt": "2026-11-04T00:00:00+00:00",
+                }
+            ]
+        }
+    }
+
+    compacted_ports = runner.compact_observation(
+        SimpleNamespace(name="ovs.port-state"), ports
+    )
+
+    assert compacted_ports["s1"]["ports"] == [
+        {
+            "name": "s1-eth1",
+            "state": "down",
+            "observedAt": "2026-11-04T00:00:00+00:00",
+        }
+    ]
+
+
 def test_monitor_choice_descriptions_use_the_tested_applicability_conditions():
     criteria = {choice["id"]: choice["description"] for choice in scenario()["choices"]}
     assert criteria == {
-        "restore_reverse_flow": "The required IPv4 forwarding entry from h2 to h1 is missing.",
-        "enable_access_port": "Switch port s1-eth1 is down.",
-        "enable_peer_port": "Switch port s1-eth2 is down.",
-        "restore_forward_flow": "The required IPv4 forwarding entry from h1 to h2 is missing.",
-        "repair_neighbor_entry": "A required host neighbor mapping is missing or incorrect.",
-        "no_action": "Both switch ports are up and every required forwarding entry is present and correct.",
-        "escalate": "The diagnostics are insufficient or the fault has no matching supplied local repair.",
+        "restore_reverse_flow": "Required flow cookie 0x5102 (h2 to h1: in_port 2, nw_src 10.0.0.2, nw_dst 10.0.0.1, output 1) is missing or differs while all ports are up.",
+        "enable_access_port": "Required switch port s1-eth1 is down.",
+        "enable_peer_port": "Required switch port s1-eth2 is down.",
+        "restore_forward_flow": "Required flow cookie 0x5101 (h1 to h2: in_port 1, nw_src 10.0.0.1, nw_dst 10.0.0.2, output 2) is missing or differs while all ports are up.",
+        "repair_neighbor_entry": "A required host neighbor mapping is missing or incorrect while all ports are up and required flows are present.",
+        "no_action": "All required ports are up and every required flow is present and correct.",
+        "escalate": "An observation is unavailable, no supplied local policy matches, or the repair is outside local authority.",
     }
 
 
@@ -90,6 +171,8 @@ def test_each_choice_runs_without_fallback_or_answer_leakage(choice, inspection)
             return {"answers": {"next_action": {"type": "choice", "choice": choice}}}
 
     class Substrate(FakeSubstrateRuntime):
+        name = "mininet-ovs"
+
         def __init__(self):
             super().__init__()
             self.mutations = []
@@ -170,8 +253,6 @@ def test_live_runner_starts_healthy_and_never_injects_from_observation_collectio
     tmp_path, monkeypatch
 ):
     """Exercise the runner's actual factory, without root, networking or inference."""
-    from examples.noms27 import runner
-
     events = []
     harness = Mock()
     harness.observation_lock = Lock()
@@ -215,9 +296,7 @@ def test_live_runner_starts_healthy_and_never_injects_from_observation_collectio
 def test_monitor_warms_up_then_counts_three_no_actions():
     from datetime import UTC, datetime, timedelta
 
-    from examples.noms27.runner import MonitorTrial
-
-    trial = MonitorTrial(2, 3, EXPECTED_CHOICE)
+    trial = runner.MonitorTrial(2, 3, EXPECTED_CHOICE)
     now = datetime.now(UTC)
     assert trial.observe("no_action", "succeeded", now)["correct"]
     assert not trial.ready.is_set()
@@ -237,9 +316,7 @@ def test_monitor_warms_up_then_counts_three_no_actions():
 def test_warmup_is_fixed_length_not_retry_until_success():
     from datetime import UTC, datetime
 
-    from examples.noms27.runner import MonitorTrial
-
-    trial = MonitorTrial(3, 3, EXPECTED_CHOICE)
+    trial = runner.MonitorTrial(3, 3, EXPECTED_CHOICE)
     now = datetime.now(UTC)
     for choice in ("no_action", "escalate", "no_action"):
         trial.observe(choice, "succeeded", now)
@@ -251,17 +328,15 @@ def test_warmup_is_fixed_length_not_retry_until_success():
 
 @pytest.mark.parametrize("flag", ["--runs", "--warmup-requests", "--max-checks"])
 def test_batch_counts_must_be_positive(flag):
-    from examples.noms27.runner import parse_args
-
     with pytest.raises(SystemExit):
-        parse_args(["--evidence", "unused", "--skip-model-verification", flag, "0"])
+        runner.parse_args(
+            ["--evidence", "unused", "--skip-model-verification", flag, "0"]
+        )
 
 
 def test_batch_keeps_failed_decisions_and_continues_after_verified_cleanup(
     tmp_path, monkeypatch
 ):
-    from examples.noms27 import runner
-
     monkeypatch.setattr(runner, "os", Mock(geteuid=lambda: 0))
     destinations = []
 
@@ -306,8 +381,6 @@ def test_batch_keeps_failed_decisions_and_continues_after_verified_cleanup(
 def test_batch_stops_instead_of_redeploying_when_unsafe_or_interrupted(
     tmp_path, monkeypatch, failure
 ):
-    from examples.noms27 import runner
-
     monkeypatch.setattr(runner, "os", Mock(geteuid=lambda: 0))
     calls = []
 
@@ -347,8 +420,6 @@ def test_batch_stops_instead_of_redeploying_when_unsafe_or_interrupted(
 
 
 def test_batch_never_overwrites_existing_evidence(tmp_path, monkeypatch):
-    from examples.noms27 import runner
-
     monkeypatch.setattr(runner, "os", Mock(geteuid=lambda: 0))
     trial = Mock()
     monkeypatch.setattr(runner, "run_trial", trial)
@@ -365,9 +436,7 @@ def test_batch_never_overwrites_existing_evidence(tmp_path, monkeypatch):
 def test_monitor_stops_on_first_post_fault_policy_selection(choice):
     from datetime import UTC, datetime
 
-    from examples.noms27.runner import MonitorTrial
-
-    trial = MonitorTrial(2, 3, EXPECTED_CHOICE)
+    trial = runner.MonitorTrial(2, 3, EXPECTED_CHOICE)
     trial.fault_at = datetime.now(UTC)
     evaluation = trial.observe(choice, "succeeded", trial.fault_at)
     assert evaluation["correct"] == (choice == EXPECTED_CHOICE)
@@ -376,11 +445,10 @@ def test_monitor_stops_on_first_post_fault_policy_selection(choice):
 
 
 def test_verification_bypass_is_explicit_and_needs_no_fake_identity():
-    from examples.noms27.runner import model_parameters, parse_args
     from mininet_ai.specification.models import ModelConfiguration
 
-    args = parse_args(["--evidence", "unused", "--skip-model-verification"])
-    parameters = model_parameters(args)
+    args = runner.parse_args(["--evidence", "unused", "--skip-model-verification"])
+    parameters = runner.model_parameters(args)
     assert parameters == {
         "endpoint": "http://10.10.10.152:9931",
         "verifyIdentity": False,
@@ -394,13 +462,11 @@ def test_verification_bypass_is_explicit_and_needs_no_fake_identity():
     )
     assert "expectedIdentity" not in model.parameters
     with pytest.raises(SystemExit):
-        parse_args(["--evidence", "unused"])
+        runner.parse_args(["--evidence", "unused"])
 
 
 def test_runner_defaults_match_the_q8_server_configuration():
-    from examples.noms27.runner import parse_args
-
-    args = parse_args(["--evidence", "unused", "--skip-model-verification"])
+    args = runner.parse_args(["--evidence", "unused", "--skip-model-verification"])
     model = yaml.safe_load(SOURCE.read_text())["blueprints"][0]["model"]
     assert args.endpoint == model["parameters"]["endpoint"] == "http://10.10.10.152:9931"
     assert args.model_name == model["name"] == "h2oai/h2o-lightning-4b"
@@ -408,8 +474,6 @@ def test_runner_defaults_match_the_q8_server_configuration():
 
 
 def test_recording_transport_retains_multiple_monitor_checks(tmp_path, monkeypatch):
-    from examples.noms27 import runner
-
     transport = Mock()
     transport.post_json.return_value = {
         "answers": {"next_action": {"type": "choice", "choice": "no_action"}}
@@ -442,8 +506,6 @@ def test_monitor_runner_completes_full_lifecycle_with_scripted_model(
     from time import monotonic
 
     from jsonschema import Draft202012Validator
-
-    from examples.noms27 import runner
 
     state = {"down": False, "injections": 0, "repairs": 0}
     original_harness = runner.RecoveryHarness
