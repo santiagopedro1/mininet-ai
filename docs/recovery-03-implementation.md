@@ -52,6 +52,9 @@ with nominal remaining time. Stage verification timeout with terminated local
 verification can safely escalate. These distinctions are covered offline and
 must be assessed in authorized feasibility; this is not a claim of cancellation
 support from either provider. Unknown termination still prevents another trial.
+Native S1 and S2 incident requests use distinct transport IDs (`<trial>:s1` and
+`<trial>:s2`). A cancellation request captures the current stage ID before it is
+scheduled, so delayed S1 cancellation cannot target a later S2 request.
 
 ## Configuration and adapters
 

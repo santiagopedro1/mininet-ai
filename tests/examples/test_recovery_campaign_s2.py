@@ -627,6 +627,10 @@ def test_s2_startup_and_separate_stage_adapters_account_incident_separately(
         1 if treatment == "combined_ungated" and warmup_ok else 0
     )
     if warmup_ok:
+        assert wire_requests[1]["request_id"] == "known-success:s2"
+        if treatment == "combined_ungated":
+            assert s1_wire[-1]["request_id"] == "known-success:s1"
+    if warmup_ok:
         assert evidence["validity"]["valid"] is True
         expected_settings = {
             "think": False,

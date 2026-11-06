@@ -395,6 +395,7 @@ class LiveRuntime:
         }
 
     async def decide(self, diagnostics, remaining_seconds):
+        self.inference_request_id = self.config.trial_id + ":s1"
         result = await self._thread(
             self.client.decide,
             state=json.dumps(diagnostics),
@@ -402,7 +403,7 @@ class LiveRuntime:
             criteria=CRITERIA,
             choices={key: () for key in CATALOGUE},
             timeout_seconds=remaining_seconds,
-            request_id=self.config.trial_id,
+            request_id=self.inference_request_id,
         )
         response = self.recording.last_response
         if not isinstance(response, dict):
@@ -491,6 +492,7 @@ class LiveRuntime:
             "stream": False,
             **MODEL_SETTINGS,
         }
+        self.inference_request_id = self.config.trial_id + ":s2"
         response = await self._thread(
             self.recording.post_json,
             (self.config.s2_endpoint or self.config.endpoint).rstrip("/") + "/api/chat",
@@ -498,7 +500,7 @@ class LiveRuntime:
             headers={"Content-Type": "application/json"},
             timeout_seconds=remaining_seconds,
             max_response_bytes=1_048_576,
-            request_id=self.config.trial_id,
+            request_id=self.inference_request_id,
         )
         tokens: dict[str, int | None] = {
             "input": None,
@@ -611,7 +613,10 @@ class LiveRuntime:
         # Closing a local socket is not proof of remote inference termination.
         if phase == "inference":
             asyncio.create_task(
-                asyncio.to_thread(self.transport.cancel_request, self.config.trial_id)
+                asyncio.to_thread(
+                    self.transport.cancel_request,
+                    getattr(self, "inference_request_id", self.config.trial_id),
+                )
             )
         if self.action_process is not None and self.action_process.returncode is None:
             try:
