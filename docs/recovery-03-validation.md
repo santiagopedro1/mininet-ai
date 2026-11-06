@@ -4,6 +4,7 @@
 
 - Worktree: `/tmp/opencode/recovery-03-ungated`.
 - Branch: `feat/recovery-03-ungated`, based on direct-S2 integration `f31d1cc`.
+- Implementation commit: `46f1472`; cancellation-isolation follow-up: `b171cc3`.
 - Pedro authorized offline implementation and tests only. The paper tracker was
   claimed for this slice; prerequisite live acceptance remains blocked.
 - The original execution checkout and direct-S2 integration were not modified.
@@ -41,11 +42,14 @@ and reported missing installed imports. The corrected full check passes.
 - Repository Ruff lint: passed.
 - Focused S1/S2/combined boundary suite: **134 passed** in 53.83 s.
 - Full short-path regression suite: **1,448 passed, 3 skipped, 179 subtests passed**
-  in 148.87 s, with the existing 124 deprecation warnings. A final full rerun also
-  covers stage-specific cancellation IDs added during self-review.
+  in 148.87 s, with the existing 124 deprecation warnings. The final post-review
+  rerun covering stage-specific cancellation IDs also passed: **1,448 passed,
+  3 skipped, 179 subtests passed** in 148.80 s (same existing warnings).
 - Scoped formatting: passed.
 - Full Pyright: zero errors/warnings.
 - Network-free combined CLI configuration validation: passed.
+- Final cancellation-ID adapter checks: **12 passed**; S1-only and direct-S2
+  network-free configuration checks also pass.
 - Whitespace: passed.
 
 Logs, configuration-check output and controlled evidence are retained in
