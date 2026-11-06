@@ -332,7 +332,7 @@ def budget_summary(cells: list[dict], rows: list[dict], config: OfflineConfig) -
                 if successes
                 else None,
                 "adequate": cell["repairable"]
-                and len(eligible) >= 30
+                and len(eligible) >= cell["attempt_floor"]
                 and config.successful_observation_minimum is not None
                 and len(successes) >= config.successful_observation_minimum,
             }
@@ -439,7 +439,9 @@ def report(manifest: Manifest, config: OfflineConfig) -> dict:
         "higher_load_trials": allocation["higher_load_trials"]
         + placements * 3 * config.replication_increase,
         "calibration": calibration,
-        "feasibility_repairable_trials": 30 * sum(c["repairable"] for c in cells),
+        "feasibility_repairable_trials": sum(
+            c["attempt_floor"] for c in cells if c["repairable"]
+        ),
         "feasibility_nonrepairable_trials": config.nonrepairable_attempts_per_cell
         * sum(not c["repairable"] for c in cells),
         "fault_free_baseline_checks": len(baselines),
