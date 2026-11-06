@@ -13,19 +13,22 @@ exercise that boundary; a loopback test additionally runs the real UDP worker
 processes and the existing native S1 protocol with controlled model/network
 responses. These are **mechanism validation**, not Mininet/model campaign trials.
 
-The parent's first VM smoke at `5dede608` restored service with one successful
-action and verified cleanup, but remained **invalid** solely due to
-`fault_monitor_failed:`. The invalid original is preserved; the authorized repeat
-after the [monitor-race correction](recovery-01-monitor-diagnosis.md) is pending.
-Initial discovery found uid 1000, password-required host sudo, denied host OVS
-socket access, and a powered-off VM. Subsequently the user authorized booting
-the VM without provisioning; the parent booted it and confirmed guest Python
-3.14.7 at `/home/vagrant/.venvs/mininet-ai/bin/python` and guest root access.
-The native endpoint `http://10.10.10.152:9931` refused connections at discovery;
-the user intends to start it. The parent owns authorized cleanup of stale guest
-bridges. This implementation session neither changed those resources nor ran a
-live recovery. No physical-failure results or feasibility-derived budgets exist
-from these deterministic checks.
+Implementation and both review axes are complete, but **valid live acceptance is
+blocked**. The first VM smoke at `5dede608` restored service with one action and
+verified cleanup, but remained invalid due to `fault_monitor_failed:`. After the
+[monitor-race correction](recovery-01-monitor-diagnosis.md), the repeat at
+`3deca6bf` stopped before traffic/injection because the native endpoint refused
+connections. Both invalid originals are preserved; neither is campaign evidence.
+The user chose to stop live testing with this blocker. Ticket 01 remains open for
+human validation; merge readiness is not asserted.
+
+The existing VM was booted without provisioning and returned to its original
+powered-off state. Only the inspected stale guest `s1`–`s10` bridges were removed,
+with explicit user permission. Source was deployed separately from `/vagrant`;
+the original checkout's source was not overwritten. Guest Python was 3.14.7.
+See the [validation report](recovery-01-validation.md) for revisions, evidence,
+review/check results, and the remaining operator step. No feasibility-derived
+budgets or campaign-effectiveness results are claimed.
 
 ## Run one incident
 
@@ -234,14 +237,15 @@ is used as primary service evidence.
 
 ## Remaining gates and excluded scope
 
-Live Mininet/native smoke validation is pending, followed by healthy-load validation,
+Valid live Mininet/native smoke validation is blocked by endpoint availability,
+followed by healthy-load validation,
 induced-fault feasibility (at least 30 attempts per applicable repairable
 treatment/class), sufficient successful observations, numerical-budget/resource
 approval and frozen evaluation configuration. Passing tests is not scientific
 acceptance. Higher-load, other placements/topologies, S2, combined policies,
 calibration, matched-block replacements/bootstrap analysis, and the full campaign
-allocation belong to later tickets. Original checkouts and paper tracker were not
-modified. The older examples remain intact; their reversible administrative-port
+allocation belong to later tickets. Original checkout sources were not overwritten;
+the paper tracker records the live blocker. The older examples remain intact; their reversible administrative-port
 faults and ping criteria are not evidence for this campaign contract.
 
 ## Initial integration checks (`57eb2a4`)
@@ -281,6 +285,18 @@ Follow-up checks: **67 targeted tests passed**; full suite **1,381 passed, 3 ski
 179 subtests passed** (existing specification-deprecation warnings retained).
 Repository-wide Ruff lint and full Pyright passed; explicitly scoped campaign/test
 Pyright passed with zero errors or warnings. Added-file formatting and whitespace
-checks are clean. Live VM/model
-validation and independent re-review remain parent-session gates; these changes do
-not approve campaign budgets or implement later tickets.
+checks are clean. Independent re-review subsequently cleared every finding;
+these changes do not approve campaign budgets or implement later tickets.
+
+## Monitor lifecycle correction
+
+The [diagnosis record](recovery-01-monitor-diagnosis.md) documents the deterministic
+red loop, ranked hypotheses, two reproduced lifecycle defects, and their fix.
+Final and periodic inspections are serialized, cancellation drains active checks,
+and inspection failures retain typed phase evidence without weakening invalidity.
+The historical VM assertion cannot be proven without its missing traceback.
+
+Final implementer checks: **71 targeted tests passed; 1,385 full-suite tests passed,
+3 skipped, 179 subtests passed**. Lint, full/scoped Pyright and scoped formatting
+passed. Both review axes also cleared this correction. The corrected VM attempt
+could not reach the incident because the model service was unavailable.
