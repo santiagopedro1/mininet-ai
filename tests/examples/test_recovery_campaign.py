@@ -312,7 +312,7 @@ def test_cli_requires_positive_cleanup_without_changing_trial_validity(
 @pytest.mark.parametrize(
     "overrides",
     [
-        {"treatment": "combined_ungated"},
+        {"treatment": "combined_gated"},
         {"scenario": "cut_link"},
         {"payload_bytes": 1000},
         {"load_fraction": 0.7},

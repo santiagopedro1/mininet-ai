@@ -69,7 +69,9 @@ def validate_repair(value, observation):
     return repair.model_dump()
 
 
-async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, actions):
+async def run_direct(
+    runtime, clock, deadline, initial, bounded, event, calls, actions, *, handoff=None
+):
     history = []
     for attempt in range(1, MAX_ATTEMPTS + 1):
         event("s2_attempt_start", attempt=attempt, deadline_ns=deadline)
@@ -81,6 +83,8 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
             "permissions": PERMISSIONS,
             "history": list(history),
         }
+        if handoff is not None:
+            context["handoff"] = handoff
         call = {
             "stage": "s2",
             "attempt": attempt,

@@ -92,7 +92,7 @@ class RecordingTransport:
                 )
                 + "\n"
             )
-        # Confidence is diagnostic-only for S1-only. Do not widen the core native
+        # Confidence is diagnostic-only in these S1 paths. Do not widen the core native
         # contract: retain invalid values in wire evidence, omit solely for mapping.
         mapped = copy.deepcopy(self.last_response)
         if isinstance(mapped, dict):
@@ -189,14 +189,15 @@ class LiveRuntime:
         if "group_id=" in groups:
             raise RuntimeError("automatic_group_forwarding_present")
         self.recording = RecordingTransport(root, self.transport)
-        if config.treatment == "s2_only":
-            if config.expected_identity is not None:
+        verification = {}
+        if config.treatment != "s1_only":
+            if config.treatment == "s2_only" and config.expected_identity is not None:
                 raise ValueError("S2 immutable identity verification is unavailable")
             response = await self._thread(
                 self.recording.post_json,
-                config.endpoint.rstrip("/") + "/api/chat",
+                (config.s2_endpoint or config.endpoint).rstrip("/") + "/api/chat",
                 {
-                    "model": config.model_name,
+                    "model": config.s2_model_name or config.model_name,
                     "messages": [{"role": "user", "content": "Reply OK."}],
                     "stream": False,
                     "think": False,
@@ -220,9 +221,9 @@ class LiveRuntime:
                 "immutable_identity_verified": False,
                 "limitation": "model name is not immutable identity",
             }
-        else:
+        if config.treatment != "s2_only":
             self.client = NativeSystemOneClient(config.endpoint, self.recording)
-            verification = await self._thread(
+            native_verification = await self._thread(
                 self.client.verify_startup,
                 model_name=config.model_name,
                 expected_identity=config.expected_identity,
@@ -230,6 +231,14 @@ class LiveRuntime:
                 criteria=CRITERIA,
                 choices={key: () for key in CATALOGUE},
                 verify_identity=config.expected_identity is not None,
+            )
+            verification = (
+                native_verification
+                if config.treatment == "s1_only"
+                else {
+                    "s1": native_verification,
+                    "s2": verification,
+                }
             )
         write_json(root / "model-startup.json", verification)
         # Warm-up is pre-injection and retained separately from incident inference.
@@ -473,7 +482,7 @@ class LiveRuntime:
         from .s2 import MODEL_SETTINGS, Repair
 
         payload = {
-            "model": self.config.model_name,
+            "model": self.config.s2_model_name or self.config.model_name,
             "messages": [
                 {"role": "system", "content": S2_INSTRUCTIONS},
                 {"role": "user", "content": json.dumps(context)},
@@ -484,7 +493,7 @@ class LiveRuntime:
         }
         response = await self._thread(
             self.recording.post_json,
-            self.config.endpoint.rstrip("/") + "/api/chat",
+            (self.config.s2_endpoint or self.config.endpoint).rstrip("/") + "/api/chat",
             payload,
             headers={"Content-Type": "application/json"},
             timeout_seconds=remaining_seconds,
