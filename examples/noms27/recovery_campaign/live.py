@@ -288,31 +288,52 @@ class LiveRuntime:
         assert self.harness is not None
         self.injection_ns = start_ns
         await self._thread(self.harness.fault, "s1-s2")
-        check = await self._check_fault()
+        check = await self._check_fault(phase="injection")
         self.monitor = asyncio.create_task(self._monitor_fault())
         return check
 
-    async def _check_fault(self):
+    async def _check_fault(self, *, phase="unspecified"):
         assert self.harness is not None
         link = self.harness.links["s1-s2"]
-        states = await self._thread(lambda: [link.intf1.isUp(), link.intf2.isUp()])
         check = {
-            "tick_ns": self.clock.now_ns(),
-            "both_endpoints_down": states == [False, False],
-            "endpoint_up": states,
+            "phase": phase,
+            "started_ns": self.clock.now_ns(),
+            "both_endpoints_down": None,
+            "endpoint_up": None,
         }
-        self.fault_checks.append(check)
+        try:
+            states = await self._thread(lambda: [link.intf1.isUp(), link.intf2.isUp()])
+            check.update(
+                both_endpoints_down=states == [False, False], endpoint_up=states
+            )
+        except Exception as error:
+            check["error"] = {"type": type(error).__name__, "message": str(error)}
+            raise
+        finally:
+            check["tick_ns"] = self.clock.now_ns()
+            self.fault_checks.append(check)
         return check
 
     async def _monitor_fault(self):
+        monitor = asyncio.current_task()
+        assert monitor is not None
         try:
-            while True:
+            # _thread drains synchronous checks after cancellation to retain
+            # their terminal evidence. Do not then start another monitor cycle.
+            while not monitor.cancelling():
                 await self.clock.sleep_until(self.clock.now_ns() + BIN)
-                await self._check_fault()
+                await self._check_fault(phase="periodic")
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            self.measurement_errors.append("fault_monitor_failed:" + str(error))
+            self.measurement_errors.append(
+                f"fault_monitor_failed:{type(error).__name__}:{error}"
+            )
+
+    async def _stop_fault_monitor(self):
+        if self.monitor is not None:
+            self.monitor.cancel()
+            await asyncio.gather(self.monitor, return_exceptions=True)
 
     async def diagnose(self):
         # Only the affected switch is visible to S1. No evaluator fault labels,
@@ -502,11 +523,18 @@ class LiveRuntime:
         }
 
     async def collect(self, observation_end_ns):
-        await self._check_fault()
         self._cleanup_remaining()
-        if self.monitor is not None:
-            self.monitor.cancel()
-            await asyncio.gather(self.monitor, return_exceptions=True)
+        # Mininet Node.cmd uses one non-thread-safe interactive shell per node.
+        # Drain the periodic check before issuing a final check on those shells.
+        await self._stop_fault_monitor()
+        try:
+            await self._check_fault(phase="final")
+        except Exception as error:
+            # Keep packet evidence while retaining the failed inspection as
+            # experimental invalidity, never as confirmed persistent link-down.
+            self.measurement_errors.append(
+                f"final_fault_check_failed:{type(error).__name__}:{error}"
+            )
         await self._stop_traffic()
         collected = self._packet_records()
         collected["measurement_errors"].extend(self.measurement_errors)
@@ -557,14 +585,13 @@ class LiveRuntime:
             log.close()
 
     async def cleanup(self):
+        self._cleanup_remaining()
+        await self._stop_fault_monitor()
         traffic_error = None
         try:
             await self._stop_traffic()
         except Exception as error:
             traffic_error = str(error)
-        if self.monitor is not None:
-            self.monitor.cancel()
-            await asyncio.gather(self.monitor, return_exceptions=True)
         result = {"status": "not_created"}
         inspections, errors = [], []
         remaining = bridges = None

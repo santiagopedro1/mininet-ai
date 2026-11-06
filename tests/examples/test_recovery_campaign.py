@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import ClassVar
@@ -513,6 +514,220 @@ def test_real_udp_workers_and_native_protocol_emit_mechanism_evidence(tmp_path):
     assert evidence["model_calls"][0]["confidence_status"] == "missing_or_invalid"
     assert "fault" not in json.loads(evidence["model_calls"][0]["request"]["state"])
     assert (tmp_path / "evidence/udp-arrivals.jsonl").stat().st_size > 0
+
+
+@pytest.mark.parametrize(
+    "boundary_state,inspection_fails",
+    [
+        ("sleeping", False),
+        ("in_flight", False),
+        ("sleeping", True),
+        ("in_flight", True),
+    ],
+)
+def test_live_final_collection_drains_periodic_shell_check(
+    tmp_path, monkeypatch, boundary_state, inspection_fails
+):
+    """Real monitor/collection call sites, deterministic non-thread-safe shell."""
+    from types import SimpleNamespace
+
+    from mininet.link import Intf
+    from mininet.node import Node
+
+    from examples.noms27.recovery_campaign.live import LiveRuntime
+
+    class BoundaryClock(FastClock):
+        def __init__(self):
+            super().__init__()
+            self.release_monitor = asyncio.Event()
+            self.monitor_cancelled = asyncio.Event()
+            self.stop_requested = asyncio.Event()
+
+        async def sleep_until(self, tick):
+            if 0 < tick - self.now_ns() <= 100_000_000:
+                if self.stop_requested.is_set():
+                    # A wrongly restarted monitor cannot finish the collection;
+                    # the collection guard below bounds this regression's red.
+                    await asyncio.Future()
+                try:
+                    await self.release_monitor.wait()
+                except asyncio.CancelledError:
+                    self.monitor_cancelled.set()
+                    raise
+            else:
+                await super().sleep_until(tick)
+
+    class SwitchShell(Node):
+        def __init__(self, loop):
+            # No real shell, network or privileges: keep Mininet's cmd/sendCmd
+            # implementation, substituting only command I/O and completion.
+            self.name, self.shell, self.waiting = "s1", True, False
+            self.loop = loop
+            self.entered = asyncio.Event()
+            self.collision = asyncio.Event()
+            self.release = threading.Event()
+            self.arm = False
+            self.calls = []
+
+        def sendCmd(self, *args, **kwargs):
+            if self.waiting:
+                self.calls.append("concurrent_shell_command")
+                self.loop.call_soon_threadsafe(self.collision.set)
+            return super().sendCmd(*args, **kwargs)
+
+        def write(self, data):
+            self.calls.append("check")
+
+        def waitOutput(self, verbose=False):
+            try:
+                if self.arm:
+                    self.arm = False
+                    self.loop.call_soon_threadsafe(self.entered.set)
+                    if not self.release.wait(timeout=2):
+                        raise TimeoutError("fixture shell was not released")
+                    if inspection_fails:
+                        raise AssertionError
+                return "state DOWN"
+            finally:
+                self.waiting = False
+
+        def stop(self):
+            assert not self.waiting, "teardown raced a shell command"
+            self.calls.append("teardown")
+
+    class ShellRuntime(LiveRuntime, ControlledRuntime):
+        evidence_kind = "mechanism_validation"
+
+        async def start_traffic(self):
+            return await ControlledRuntime.start_traffic(self)
+
+        async def diagnose(self):
+            return await ControlledRuntime.diagnose(self)
+
+        async def decide(self, diagnostics, remaining_seconds):
+            return await ControlledRuntime.decide(self, diagnostics, remaining_seconds)
+
+        async def execute(self, choice):
+            return await ControlledRuntime.execute(self, choice)
+
+        async def service_signal(self, since_ns):
+            return await ControlledRuntime.service_signal(self, since_ns)
+
+        def __init__(self):
+            super().__init__()
+            self.clock = BoundaryClock()
+            self.choice, self.good_from, self.action_success = "bypass", 2, True
+            self.calls = []
+
+        async def setup(self, declared, root):
+            self.config, self.root = declared, root
+            self.shell = SwitchShell(asyncio.get_running_loop())
+            endpoint = Intf.__new__(Intf)
+            endpoint.name, endpoint.node = "s1-eth2", self.shell
+            self.harness = SimpleNamespace(
+                links={"s1-s2": SimpleNamespace(intf1=endpoint, intf2=endpoint)},
+                net=SimpleNamespace(stop=self.shell.stop),
+                fault=lambda name: setattr(self, "injection", self.injection_ns),
+            )
+            return await ControlledRuntime.setup(self, declared, root)
+
+        async def collect(self, end):
+            packets = (await ControlledRuntime.collect(self, end))["packets"]
+            sends = [
+                {"kind": "send", **{key: packet[key] for key in ("seq", "send_ns")}}
+                for packet in packets
+            ]
+            arrivals = [
+                {
+                    "kind": "arrival",
+                    "seq": packet["seq"],
+                    "send_ns": packet["send_ns"],
+                    "arrival_ns": tick,
+                    "payload_bytes": 1200,
+                }
+                for packet in packets
+                for tick in packet["arrivals_ns"]
+            ]
+            sends.append(
+                {
+                    "kind": "sender_summary",
+                    "next_sequence": len(sends),
+                    "missed_slots": 0,
+                }
+            )
+            arrivals.append({"kind": "receiver_summary", "received": len(arrivals)})
+            for name, rows in (("sends", sends), ("arrivals", arrivals)):
+                (self.root / f"udp-{name}.jsonl").write_text(
+                    "".join(json.dumps(row) + "\n" for row in rows)
+                )
+
+            async def boundary():
+                await self.shell.entered.wait()
+                self.clock.release_monitor.set()
+
+                async def in_flight_cancelled():
+                    monitor = self.monitor
+                    assert monitor is not None
+                    while not monitor.cancelling():
+                        await asyncio.sleep(0)
+                    self.clock.stop_requested.set()
+
+                tasks: list[asyncio.Task] = [
+                    asyncio.create_task(self.shell.collision.wait()),
+                    asyncio.create_task(self.clock.monitor_cancelled.wait()),
+                ]
+                if boundary_state == "in_flight":
+                    tasks.append(asyncio.create_task(in_flight_cancelled()))
+                try:
+                    await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                finally:
+                    self.shell.release.set()
+                    for task in tasks:
+                        task.cancel()
+                    await asyncio.gather(*tasks, return_exceptions=True)
+
+            self.shell.arm = True
+            trigger = asyncio.create_task(boundary())
+            try:
+                if boundary_state == "in_flight":
+                    self.clock.release_monitor.set()
+                    await self.shell.entered.wait()
+                return await asyncio.wait_for(super().collect(end), timeout=1)
+            finally:
+                await asyncio.wait_for(trigger, timeout=2)
+
+    original_run = subprocess.run
+
+    def inventory(args, **kwargs):
+        if args[0] in {"ip", "ovs-vsctl"}:
+            return subprocess.CompletedProcess(
+                args, 0, "[]" if args[0] == "ip" else "", ""
+            )
+        return original_run(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", inventory)
+    runtime = ShellRuntime()
+    evidence = run(tmp_path, runtime)
+    assert evidence["outcome"]["service_recovery"] is True
+    assert evidence["outcome"]["action_execution_success"] is True
+    assert len(evidence["actions"]) == 1
+    assert evidence["cleanup"]["verified"] is True
+    checks = evidence["packet_evidence"]["fault_checks"]
+    if inspection_fails:
+        assert evidence["validity"]["valid"] is False
+        phase = "periodic" if boundary_state == "in_flight" else "final"
+        failure = next(check for check in checks if "error" in check)
+        assert failure["phase"] == phase
+        assert failure["error"] == {"type": "AssertionError", "message": ""}
+        assert failure["both_endpoints_down"] is None
+        assert any(
+            "AssertionError" in reason for reason in evidence["validity"]["reasons"]
+        )
+    else:
+        assert all(check["both_endpoints_down"] for check in checks)
+        assert evidence["validity"] == {"valid": True, "reasons": []}
+    assert "concurrent_shell_command" not in runtime.shell.calls
+    assert runtime.shell.calls[-1] == "teardown"
 
 
 @pytest.mark.parametrize(
