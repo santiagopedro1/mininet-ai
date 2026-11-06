@@ -28,3 +28,13 @@ the same network-free `--check` command. See
 [handoff semantics and offline limitations](../../../docs/recovery-03-implementation.md).
 Ticket 01 remains blocked on valid live acceptance; none of these paths is approved for
 campaign evaluation. No VM or model-machine access is authorized by this runbook.
+
+## Six-class offline matched blocks
+
+Ticket 05 adds a manifest and controlled rehearsal via
+`python -m examples.noms27.recovery_campaign.blocks --check`.
+It reserves all four primary/three higher-load slots but executes only the three
+available treatments on calibration placements, using explicitly scripted,
+in-process graph/packet evidence. It does not authorize live or held-out runs.
+See [implementation](../../../docs/recovery-05-implementation.md) and
+[validation](../../../docs/recovery-05-validation.md) for commands and limits.

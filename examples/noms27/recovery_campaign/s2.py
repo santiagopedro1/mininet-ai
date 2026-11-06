@@ -51,16 +51,17 @@ class Repair(BaseModel):
     actions: list[ForwardingAction] = Field(max_length=16)
 
 
-def validate_repair(value, observation):
+def validate_repair(value, observation, port_authority=None):
     repair = Repair.model_validate(value)
     if (repair.status == "repair") != bool(repair.actions):
         raise ValueError("repair requires actions; inability/no_action forbids actions")
     switches = observation.get("switches", {})
+    authority = PORTS if port_authority is None else port_authority
     for action in repair.actions:
         ports = switches.get(action.switch, {}).get("ports", {})
-        if action.switch not in PORTS or action.in_port == action.out_port:
+        if action.switch not in authority or action.in_port == action.out_port:
             raise ValueError("unknown switch or non-forwarding action")
-        allowed = set(PORTS[action.switch].values())
+        allowed = set(authority[action.switch].values())
         if any(
             port not in allowed or ports.get(str(port)) is not True
             for port in (action.in_port, action.out_port)
@@ -70,7 +71,17 @@ def validate_repair(value, observation):
 
 
 async def run_direct(
-    runtime, clock, deadline, initial, bounded, event, calls, actions, *, handoff=None
+    runtime,
+    clock,
+    deadline,
+    initial,
+    bounded,
+    event,
+    calls,
+    actions,
+    *,
+    handoff=None,
+    port_authority=None,
 ):
     history = []
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -113,7 +124,9 @@ async def run_direct(
 
         try:
             decision = await bounded("inference", infer(), deadline)
-            repair = validate_repair(decision.get("repair"), observation)
+            repair = validate_repair(
+                decision.get("repair"), observation, port_authority
+            )
         except TimeoutError:
             raise
         except Exception as error:

@@ -35,7 +35,14 @@ def main() -> int:
                     "packet_rate": config.packet_rate,
                     "budget_status": config.budget_status,
                     **authority,
-                    "surviving_path": ["h1", "s1", "s3", "s4", "h2"],
+                    "surviving_path": config.scenario_instance.structural_check()[
+                        "broader_path"
+                    ]
+                    if config.scenario_instance
+                    else ["h1", "s1", "s3", "s4", "h2"],
+                    "structural_check": config.scenario_instance.structural_check()
+                    if config.scenario_instance
+                    else None,
                 }
             )
         )

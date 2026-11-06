@@ -19,6 +19,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .scenarios import Scenario
 from .supervision import record_inference, run_action
 
 NS = 1_000_000_000
@@ -33,8 +34,8 @@ CATALOGUE = {
 }
 INSTRUCTIONS = (
     "Use only current s1 port/flow diagnostics. Choose bypass to redirect active "
-    "h1-to-h2 traffic to port 3 when primary port 2 is down; downstream forwarding "
-    "is preinstalled. Never enable a port, reverse an outage, change traffic, or "
+    "h1-to-h2 traffic to port 3 when primary port 2 is down. Downstream forwarding "
+    "may require broader repair. Never enable a port, reverse an outage, change traffic, or "
     "construct a command. Choose no_action if healthy, unable if no permitted repair. "
     "Confidence is diagnostic only. Select exactly one frozen catalogue entry."
 )
@@ -50,18 +51,22 @@ class CampaignConfig(BaseModel):
 
     trial_id: str = Field(min_length=1)
     treatment: Literal["s1_only", "s2_only", "combined_ungated"]
-    scenario: Literal["diamond_s1_s2_link", "controlled_broader_repair"]
+    scenario: Literal[
+        "diamond_s1_s2_link", "controlled_broader_repair", "matched_scenario"
+    ]
+    scenario_instance: Scenario | None = None
     deadline_seconds: float = Field(gt=0)
     s1_cap_seconds: float = Field(gt=0)
     cleanup_budget_seconds: float = Field(default=30, gt=0)
     bottleneck_mbps: float = Field(gt=0)
     seed: int
+    environment_seed: int | None = None
     purpose: Literal["mechanism_validation", "live_feasibility"] = (
         "mechanism_validation"
     )
     budget_status: Literal["development_unapproved"] = "development_unapproved"
     payload_bytes: Literal[1200] = 1200
-    load_fraction: float = Field(default=0.1, ge=0.1, le=0.1)
+    load_fraction: float = Field(default=0.1, ge=0.1, le=0.7)
     delivery_deadline_ms: Literal[100] = 100
     bin_ms: Literal[100] = 100
     sustained_seconds: Literal[1] = 1
@@ -77,6 +82,23 @@ class CampaignConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_budgets(self):
+        if self.load_fraction not in {0.1, 0.7}:
+            raise ValueError("load must be exactly 0.1 or 0.7")
+        if self.load_fraction == 0.7 and self.scenario != "matched_scenario":
+            raise ValueError(
+                "higher load is restricted to the offline matched rehearsal"
+            )
+        if (self.scenario == "matched_scenario") != (
+            self.scenario_instance is not None
+        ):
+            raise ValueError("matched scenario requires its frozen scenario instance")
+        if (
+            self.scenario == "matched_scenario"
+            and self.purpose != "mechanism_validation"
+        ):
+            raise ValueError(
+                "six-class live feasibility is not implemented or authorized"
+            )
         if self.scenario == "controlled_broader_repair" and (
             self.purpose != "mechanism_validation" or self.treatment == "s1_only"
         ):
@@ -307,6 +329,7 @@ def provenance(config: CampaignConfig) -> dict:
             for path in sorted(Path(__file__).parent.glob("*.py"))
         },
         "seed": config.seed,
+        "environment_seed": config.environment_seed,
         "execution_order": config.execution_order,
         "unavailable": {
             "code_revision": "null when git metadata/tools are absent; retain source archive origin",
@@ -331,7 +354,7 @@ async def run_campaign(
             raise ValueError("live runtime requires explicit purpose=live_feasibility")
         runtime = LiveRuntime()
     if (
-        config.scenario == "controlled_broader_repair"
+        config.scenario in {"controlled_broader_repair", "matched_scenario"}
         and runtime.evidence_kind != "mechanism_validation"
     ):
         raise ValueError(
@@ -457,6 +480,9 @@ async def run_campaign(
                         event,
                         model_calls,
                         actions,
+                        port_authority=config.scenario_instance.ports
+                        if config.scenario_instance
+                        else None,
                     )
                 else:
                     inference_start = clock.now_ns()
@@ -629,6 +655,9 @@ async def run_campaign(
                                 model_calls,
                                 actions,
                                 handoff=handoff,
+                                port_authority=config.scenario_instance.ports
+                                if config.scenario_instance
+                                else None,
                             )
                         except TimeoutError:
                             timed_out, policy = True, "timeout"
@@ -799,6 +828,11 @@ async def run_campaign(
             "reasoning_tokens": "null unless provider supplies separate non-overlapping usage",
         },
     }
+    if config.scenario_instance is not None:
+        result["scenario"] = {
+            "definition": config.scenario_instance.model_dump(mode="json"),
+            "structural_check": config.scenario_instance.structural_check(),
+        }
     if config.treatment != "s1_only":
         from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
         from .s2 import MODEL_SETTINGS, PERMISSIONS, Repair
