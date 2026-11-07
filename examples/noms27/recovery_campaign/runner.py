@@ -92,13 +92,10 @@ class CampaignConfig(BaseModel):
             self.scenario_instance is not None
         ):
             raise ValueError("matched scenario requires its frozen scenario instance")
-        if (
-            self.scenario == "matched_scenario"
-            and self.purpose != "mechanism_validation"
-        ):
-            raise ValueError(
-                "six-class live feasibility is not implemented or authorized"
-            )
+        # Six-class live capability is implemented at this boundary; campaign-
+        # scale execution still requires the later feasibility/budget/calibration
+        # and freeze gates, so no validation here may widen approval beyond a
+        # single feasibility-climate trial.
         if self.scenario == "controlled_broader_repair" and (
             self.purpose != "mechanism_validation" or self.treatment == "s1_only"
         ):
@@ -353,13 +350,22 @@ async def run_campaign(
         if config.purpose != "live_feasibility":
             raise ValueError("live runtime requires explicit purpose=live_feasibility")
         runtime = LiveRuntime()
-    if (
-        config.scenario in {"controlled_broader_repair", "matched_scenario"}
-        and runtime.evidence_kind != "mechanism_validation"
+    if config.scenario == "controlled_broader_repair" and (
+        runtime.evidence_kind != "mechanism_validation"
     ):
         raise ValueError(
             "controlled broader repair requires an offline mechanism runtime"
         )
+    if config.scenario == "matched_scenario":
+        expected = (
+            "mechanism_validation"
+            if config.purpose == "mechanism_validation"
+            else "live_feasibility"
+        )
+        if runtime.evidence_kind != expected:
+            raise ValueError(
+                f"matched scenario requires a {expected} runtime for this purpose"
+            )
     evidence_dir.mkdir(parents=True, exist_ok=False)
     write_json(evidence_dir / "config.json", config.model_dump(mode="json"))
     clock = runtime.clock
@@ -712,6 +718,14 @@ async def run_campaign(
             check.get("both_endpoints_down") is not True for check in checks
         ):
             invalid.append("fault_persistence_unverified_or_reversed")
+        if any(
+            check.get("switch_process_stopped") is True
+            or check.get("state_corruption") is True
+            for check in checks
+        ):
+            # An injected isolation on a switch whose own process failed or whose
+            # flow state corroded is the wrong fault, not a treatment outcome.
+            invalid.append("underlying_switch_failed_during_isolation")
         event(
             "independent_verification",
             start_seconds=measurement["recovery_start_seconds"],
