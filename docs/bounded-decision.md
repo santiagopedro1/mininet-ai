@@ -19,7 +19,11 @@ proposals and runs through Mininet's normal capability authorization, conflict
 arbitration, admission, execution, and completion lifecycle. Native output can
 select a choice only; supplied model action arguments are rejected. Low
 probability/confidence values are retained as diagnostics and never gate a
-valid recovery choice.
+valid recovery choice in the core runtime. The unified NOMS runner may apply an
+explicit runner-side gate before local action preparation; it retains the raw
+response, effective response, and gate record separately. That policy is not
+part of bounded-decision execution. See
+`examples/noms27/unified-system-1-2-recovery/README.md` for the combined example.
 
 The fixed bundle stops at the first rejection or execution failure. Evidence
 retains ordered action outcomes and mutation effects; partial or unknown effects
@@ -136,3 +140,32 @@ Scripted native transport and the Fake Substrate establish the execution
 contract, not candidate-model quality. No live llama.cpp inference, live network
 recovery, latency target, or remote inference termination is established by
 these tests.
+
+## Current-state local recovery
+
+The opt-in `current-recovery` input mode uses the same current local diagnostic
+envelope as `current-only`, but permits two to eight unique choices and a fixed
+repair proposal per actionable choice. Each proposal must exactly match a
+declared expected local flow or enable a declared port of its target switch.
+`ovs.port.enable` has only a fixed `port` argument and does not grant authority
+over host endpoints or other switches. Before normal capability admission, the
+selected resource is inspected; present or unknown state refuses repair. This mode
+does not use historical path-probe eligibility or invent alternate paths.
+
+`no_action` and `escalate`, when declared, must carry no proposals. An escalation
+choice does not itself provide an LLM handoff. Scenario runners must document
+whether empty choices represent no action or stub implementations.
+
+Existing `current-only` diagnosis remains action-free with exactly two choices;
+historical recovery retains its original choice and eligibility contract. See
+`examples/noms27/single-switch-recovery/README.md` for automatic batches of fresh,
+bounded monitoring trials with fixed warm-up requests, including live-validation
+limitations.
+
+Native models can explicitly set `parameters.verifyIdentity: false` instead of
+declaring `expectedIdentity`. The two forms are mutually exclusive. This skips
+model-name and artifact matching, records absent expected identity and
+`identityVerification: skipped` with unverified provenance, and preserves
+health/readiness, native interface, response, deadline, and authorization checks.
+The monitor runner exposes this as `--skip-model-verification`; omission retains
+the original required identity contract.
