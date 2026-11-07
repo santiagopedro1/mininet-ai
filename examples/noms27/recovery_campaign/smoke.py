@@ -70,9 +70,10 @@ def make_model_transport(scenario, model_alias: str) -> httpx.MockTransport:
                             "confidence": 0.9,
                         }
                     },
+                    # The native choice contract uses no generation tokens.
                     "usage": {
                         "input_tokens": FIXTURE_TOKENS["input"],
-                        "output_tokens": FIXTURE_TOKENS["output"],
+                        "output_tokens": 0,
                     },
                 },
             )
