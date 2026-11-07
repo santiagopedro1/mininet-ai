@@ -663,15 +663,26 @@ class ContinuousAgentRuntime:
                 self._supervisor.wait_until_running(agent_id)
             except Exception:
                 with self._condition:
+                    if not self._drain and self.state != ContinuousRuntimeState.RUNNING:
+                        return
                     if not queue:
                         continue
                     item = queue.popleft()
                     self._queued -= 1
                 self._process_item(item)
                 continue
+            # Non-draining stop wakes paused admission workers. Waking is not
+            # permission to admit their pending work after shutdown has begun.
+            with self._condition:
+                if not self._drain and self.state != ContinuousRuntimeState.RUNNING:
+                    return
             self._request_slots.acquire()
             lease = invoker.reserve_invocation(agent_id)
             with self._condition:
+                if not self._drain and self.state != ContinuousRuntimeState.RUNNING:
+                    lease.close()
+                    self._request_slots.release()
+                    return
                 if not queue:
                     lease.close()
                     self._request_slots.release()
