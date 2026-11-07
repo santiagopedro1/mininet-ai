@@ -35,10 +35,21 @@ Neither replay is live service verification. Input reduction alone did not
 recover model route planning after a failed S1 attempt; do not run another
 incident or count the compact projection as an accepted repair until an
 unchanged production-format replay selects a valid model-chosen route.
-Unknown S1 inference/action termination continues to deny S2 admission even
-when time remains. **Pedro decided containment is required**: a requested but
-safety-denied escalation does not satisfy the S1 timeout criterion. Keep the
-criterion open until termination can be confirmed or work safely isolated and
-a contained handoff demonstrated with time remaining. The separate model
-decision blocker also remains. Development budgets, six-class feasibility and
+Unknown S1 inference/action termination no longer denies S2 admission
+unconditionally: the amended campaign ADR 0013 adds bounded, capability-keyed
+containment before admission (local unwind, provider `/slots` confirmation,
+action exit status, settled-state observation), staying fail-closed until the
+2026-11-07 deadline resolution — **Pedro decided containment is required and the
+mechanism satisfies it**: `development-live-combined-005` cancelled S1
+inference mid-flight at the 0.1 s stage cap (`remote_termination: unknown`),
+probe #1 observed the provider still busy, probe #2 confirmed idle, and the
+contained handoff admitted S2 with 9.76 seconds remaining; S2 attempt 1 selected
+h1–s1–s3–s4–h2 and service verification recovered (policy `verified`, exit 0).
+Trials 003 (1.5 s cap, verification-failed path) and 004 (0.5 s cap,
+verification-cancellation path) retained the neighbouring timing cases; all
+three evidence tars are chased in `recovery-03-acceptance/` (005 SHA-256
+`430a25a902980786cb5e79df09a92b971d23354c5d304461511ae840c39a96f1`). Runs at
+`430a25a9…`, `939c136a…`, `b2a1cfd8…` are unapproved development values, not
+scientific acceptance; the mechanism code lives on `feat/recovery-03-containment`
+tips `bb23c8e`/`156f975`. Development budgets, six-class feasibility and
 held-out settings remain unapproved.
