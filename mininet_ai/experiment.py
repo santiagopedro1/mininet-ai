@@ -333,7 +333,8 @@ class ExperimentRuntime:
             try:
                 self._bounded_startup[agent.id] = client.verify_startup(
                     model_name=model.name,
-                    expected_identity=model.parameters["expectedIdentity"],
+                    expected_identity=model.parameters.get("expectedIdentity"),
+                    verify_identity=model.parameters.get("verifyIdentity", True),
                     instructions=scenario["instructions"],
                     criteria={
                         item["id"]: item["description"] for item in scenario["choices"]
