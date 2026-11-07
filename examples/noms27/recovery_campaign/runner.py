@@ -858,9 +858,7 @@ async def run_campaign(
         for call in model_calls
     )
     attempts = [
-        h.get("containment")
-        for h in handoffs
-        if isinstance(h.get("containment"), dict)
+        h.get("containment") for h in handoffs if isinstance(h.get("containment"), dict)
     ]
     result = {
         "schema_version": "recovery-s1/v1",
