@@ -43,14 +43,15 @@ def root_command(arguments: list[str]) -> str:
 
 
 def exists_command(arguments: list[str]) -> bool:
-    """Returncode-only existence probe: 0 means the ovs/ip object is present."""
+    """Exitcode-only existence probe: 0 means present, nonzero means absent.
+
+    Real ovs builds disagree on the absent code (1 historically, 2 on
+    Fedora 43's ovs 3.6), so any nonzero answer means absent; genuine
+    ovs-unavailability is caught by the preceding `ovs-vsctl show` health
+    check before any existence probe runs.
+    """
 
     result = subprocess.run(arguments, capture_output=True, text=True, check=False)
-    if result.returncode not in {0, 1}:
-        raise RuntimeError(
-            f"{arguments!r} could not determine existence ({result.returncode}): "
-            f"{result.stderr.strip()}"
-        )
     return result.returncode == 0
 
 
