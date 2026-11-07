@@ -50,7 +50,11 @@ class CampaignConfig(BaseModel):
 
     trial_id: str = Field(min_length=1)
     treatment: Literal["s1_only", "s2_only"]
-    scenario: Literal["diamond_s1_s2_link", "controlled_broader_repair"]
+    scenario: Literal[
+        "diamond_s1_s2_link",
+        "diamond_s1_s2_link_broader",
+        "controlled_broader_repair",
+    ]
     deadline_seconds: float = Field(gt=0)
     s1_cap_seconds: float = Field(gt=0)
     cleanup_budget_seconds: float = Field(default=30, gt=0)
@@ -81,6 +85,11 @@ class CampaignConfig(BaseModel):
             raise ValueError(
                 "controlled broader repair is an offline S2 mechanism fixture only"
             )
+        if (
+            self.scenario == "diamond_s1_s2_link_broader"
+            and self.treatment != "s2_only"
+        ):
+            raise ValueError("live broader diamond requires direct S2 treatment")
         if self.treatment == "s1_only" and self.s1_cap_seconds > self.deadline_seconds:
             raise ValueError("S1 cap cannot exceed the common deadline")
         if self.packet_rate < 100:

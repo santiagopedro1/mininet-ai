@@ -15,7 +15,7 @@ MAX_ATTEMPTS = 3
 MODEL_SETTINGS = {
     "think": False,
     "keep_alive": -1,
-    "options": {"temperature": 0, "num_predict": 1024},
+    "options": {"temperature": 0.3, "num_predict": 1024},
 }
 PERMISSIONS = {
     "telemetry": "surviving_switches_network_wide",

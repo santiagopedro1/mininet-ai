@@ -56,6 +56,17 @@ def parse_port_liveness(raw_ports):
     return liveness
 
 
+def downstream_rules(scenario):
+    """Return active-service rules installed before the incident, not probe rules."""
+    from examples.diamond_recovery import RECOVERY_RULES
+
+    if scenario == "diamond_s1_s2_link":
+        return (RECOVERY_RULES[0], RECOVERY_RULES[2])
+    if scenario == "diamond_s1_s2_link_broader":
+        return ()
+    raise ValueError(f"unsupported live scenario: {scenario}")
+
+
 class RecordingTransport:
     """Keep original wire JSON, including invalid confidence, before native mapping."""
 
@@ -164,7 +175,10 @@ class LiveRuntime:
 
     async def setup(self, config, root):
         self.config, self.root = config, root
-        if config.scenario != "diamond_s1_s2_link":
+        if config.scenario not in (
+            "diamond_s1_s2_link",
+            "diamond_s1_s2_link_broader",
+        ):
             raise ValueError(
                 "the live adapter does not implement controlled fixture scenarios"
             )
@@ -191,10 +205,10 @@ class LiveRuntime:
         for link in self.harness.links.values():
             for interface in (link.intf1, link.intf2):
                 await self._thread(interface.config, bw=config.bottleneck_mbps)
-        from examples.diamond_recovery import RECOVERY_RULES
-
-        # Preinstall complete downstream active forwarding; s1 still uses primary.
-        for rule in (RECOVERY_RULES[0], RECOVERY_RULES[2]):
+        # Only the local-sufficient diamond has preinstalled downstream backup.
+        # In the controlled broader case, s1, s3 and s4 all need new active rules.
+        downstream = downstream_rules(config.scenario)
+        for rule in downstream:
             flow = (
                 f"cookie={rule['cookie']:#x},priority=200,idle_timeout=0,hard_timeout=0,"
                 f"ip,in_port={rule['match']['in_port']},nw_src=10.0.0.1,nw_dst=10.0.0.2,actions={rule['actions']}"
@@ -262,7 +276,7 @@ class LiveRuntime:
                 "bottleneck_mbps": config.bottleneck_mbps,
                 "direction": "h1-to-h2",
                 "return_traffic": "none required by unidirectional UDP",
-                "preinstalled_downstream": [RECOVERY_RULES[0], RECOVERY_RULES[2]],
+                "preinstalled_downstream": list(downstream),
                 "initial_flows": await self._thread(self.harness.inspect),
             },
         )

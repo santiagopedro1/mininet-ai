@@ -308,6 +308,28 @@ def test_controlled_broader_scenario_cannot_be_selected_for_live_execution():
         )
 
 
+def test_live_broader_diamond_is_direct_s2_only():
+    from examples.noms27.recovery_campaign.live import downstream_rules
+
+    declared = config(
+        treatment="s2_only",
+        scenario="diamond_s1_s2_link_broader",
+        purpose="live_feasibility",
+    )
+    assert declared.scenario == "diamond_s1_s2_link_broader"
+    assert downstream_rules(declared.scenario) == ()
+    assert {rule["switch"] for rule in downstream_rules("diamond_s1_s2_link")} == {
+        "s3",
+        "s4",
+    }
+    with pytest.raises(ValueError, match="requires direct S2"):
+        config(
+            treatment="s1_only",
+            scenario="diamond_s1_s2_link_broader",
+            purpose="live_feasibility",
+        )
+
+
 @pytest.mark.parametrize(
     "action",
     [
@@ -631,7 +653,7 @@ def test_s2_startup_uses_no_s1_request_and_accounts_incident_separately(
         expected_settings = {
             "think": False,
             "keep_alive": -1,
-            "options": {"temperature": 0, "num_predict": 1024},
+            "options": {"temperature": 0.3, "num_predict": 1024},
         }
         assert evidence["provenance"]["s2_model_settings"] == expected_settings
         for row in wire_requests[1:]:
