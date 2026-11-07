@@ -569,8 +569,14 @@ class LiveRuntime:
             ):
                 state = re.search(r"^\s*state:\s*(\S+)", match[2], re.MULTILINE)
                 config = re.search(r"^\s*config:\s*(\S+)", match[2], re.MULTILINE)
+
+                def down(value: str | None) -> bool:
+                    # Older ovs reports numeric flags (0/PORT_DOWN); ovs 3.6
+                    # reports strings (LIVE/LINK_DOWN). Both discriminate.
+                    return value is None or "DOWN" in value.upper()
+
                 ports[match[1]] = bool(
-                    state and config and state[1] == "0" and config[1] == "0"
+                    state and config and not down(state[1]) and not down(config[1])
                 )
             switches[switch] = {
                 "ports": ports,
