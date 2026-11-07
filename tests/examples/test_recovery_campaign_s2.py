@@ -88,6 +88,34 @@ def test_s2_decision_view_keeps_operational_service_flows_not_probe_flows():
     assert raw["switches"]["s1"]["port_descriptions"] == "raw port evidence"
 
 
+def test_s2_history_retains_prior_action_and_verification_without_raw_dump():
+    from examples.noms27.recovery_campaign.s2 import decision_history
+
+    original = [
+        {
+            "attempt": 1,
+            "repair": {"status": "repair", "actions": [{"switch": "s1"}]},
+            "result": {
+                "success": True,
+                "actions": [{"switch": "s1", "success": True}],
+                "admission_observation": {"switches": {"s1": {"flows": "raw"}}},
+            },
+            "verification": {"recovered": False},
+            "status": "verification_failed",
+        }
+    ]
+    projected = decision_history(original)
+    assert projected[0]["result"] == {
+        "success": True,
+        "actions": [{"switch": "s1", "success": True}],
+    }
+    assert projected[0]["verification"] == {"recovered": False}
+    assert (
+        original[0]["result"]["admission_observation"]["switches"]["s1"]["flows"]
+        == "raw"
+    )
+
+
 class DirectRuntime(ControlledRuntime):
     async def observe_network(self):
         return {

@@ -73,6 +73,19 @@ def decision_view(observation):
     return {"switches": switches, "observed_ns": observation.get("observed_ns")}
 
 
+def decision_history(history):
+    """Keep prior outcomes without repeating raw admission telemetry in requests."""
+    entries = []
+    for item in history:
+        entry = dict(item)
+        if isinstance(entry.get("result"), dict):
+            result = dict(entry["result"])
+            result.pop("admission_observation", None)
+            entry["result"] = result
+        entries.append(entry)
+    return entries
+
+
 def validate_repair(value, observation):
     repair = Repair.model_validate(value)
     if (repair.status == "repair") != bool(repair.actions):
@@ -102,7 +115,7 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
             "initial_snapshot": initial,
             "observation": view,
             "permissions": PERMISSIONS,
-            "history": list(history),
+            "history": decision_history(history),
         }
         call = {
             "stage": "s2",
