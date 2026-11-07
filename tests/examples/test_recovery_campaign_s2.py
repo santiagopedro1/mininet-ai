@@ -51,6 +51,43 @@ def test_port_liveness_rejects_link_down_without_config_description():
     assert parse_port_liveness(raw) == {"1": False, "2": False, "3": False}
 
 
+def test_s2_decision_view_keeps_operational_service_flows_not_probe_flows():
+    from examples.noms27.recovery_campaign.s2 import decision_view
+
+    raw = {
+        "switches": {
+            "s1": {
+                "ports": {"1": True, "2": False, "3": True},
+                "peers": {"h1": 1, "s2": 2, "s3": 3},
+                "port_descriptions": "raw port evidence",
+                "flows": (
+                    "OFPST_FLOW reply (OF1.3):\n"
+                    " priority=100,ip,in_port=1,nw_src=10.0.0.1,"
+                    "nw_dst=10.0.0.2 actions=output:2\n"
+                    " priority=100,ip,in_port=1,nw_src=10.0.0.21,"
+                    "nw_dst=10.0.0.22 actions=output:3\n"
+                    " priority=0 actions=drop\n"
+                ),
+            },
+            "s3": {
+                "ports": {"1": True, "2": True},
+                "peers": {"s1": 1, "s4": 2},
+                "flows": "",
+            },
+        },
+        "observed_ns": 123,
+    }
+    view = decision_view(raw)
+    assert view["observed_ns"] == 123
+    assert view["switches"]["s1"]["peers"] == raw["switches"]["s1"]["peers"]
+    assert view["switches"]["s1"]["ports"]["2"] is False
+    assert len(view["switches"]["s1"]["active_service_flows"]) == 1
+    assert "output:2" in view["switches"]["s1"]["active_service_flows"][0]
+    assert view["switches"]["s3"]["active_service_flows"] == []
+    assert "port_descriptions" not in view["switches"]["s1"]
+    assert raw["switches"]["s1"]["port_descriptions"] == "raw port evidence"
+
+
 class DirectRuntime(ControlledRuntime):
     async def observe_network(self):
         return {

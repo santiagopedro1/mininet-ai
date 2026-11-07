@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,7 +30,10 @@ PERMISSIONS = {
 INSTRUCTIONS = (
     "Diagnose the directional h1-to-h2 service alarm using the shared initial local "
     "snapshot and current network-wide observations. Propose forwarding changes on "
-    "surviving switches only. Each action installs a fixed IPv4 h1-to-h2 rule for "
+    "surviving switches only. Trace the observed surviving path from h1 to h2 "
+    "using the peer/port map, then inspect whether the active h1-to-h2 service "
+    "has a forwarding rule at each switch on that path. "
+    "Each action installs a fixed IPv4 h1-to-h2 rule for "
     "10.0.0.1 -> 10.0.0.2, matching in_port and outputting out_port. "
     "Never enable ports, revive resources, reverse outages, change traffic, or "
     "construct commands. Use only observed up ports. A repair may span switches. "
@@ -49,6 +53,24 @@ class Repair(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     status: Literal["repair", "unable", "no_action"]
     actions: list[ForwardingAction] = Field(max_length=16)
+
+
+def decision_view(observation):
+    """Project operational telemetry for S2; raw dumps stay in event evidence."""
+    switches = {}
+    for name, record in observation.get("switches", {}).items():
+        flows = record.get("flows", "")
+        switches[name] = {
+            "ports": record.get("ports", {}),
+            "peers": record.get("peers", {}),
+            "active_service_flows": [
+                line.strip()
+                for line in (flows.splitlines() if isinstance(flows, str) else flows)
+                if re.search(r"\bnw_src=10\.0\.0\.1\b", line)
+                and re.search(r"\bnw_dst=10\.0\.0\.2\b", line)
+            ],
+        }
+    return {"switches": switches, "observed_ns": observation.get("observed_ns")}
 
 
 def validate_repair(value, observation):
@@ -74,10 +96,11 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
     for attempt in range(1, MAX_ATTEMPTS + 1):
         event("s2_attempt_start", attempt=attempt, deadline_ns=deadline)
         observation = await bounded("telemetry", runtime.observe_network(), deadline)
+        view = decision_view(observation)
         context = {
             "alarm": "directional_service_disruption",
             "initial_snapshot": initial,
-            "observation": observation,
+            "observation": view,
             "permissions": PERMISSIONS,
             "history": list(history),
         }
@@ -117,7 +140,7 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
             history.append(
                 {
                     "attempt": attempt,
-                    "observation": observation,
+                    "observation": view,
                     "status": "unusable_decision",
                 }
             )
@@ -153,7 +176,7 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
         history.append(
             {
                 "attempt": attempt,
-                "observation": observation,
+                "observation": view,
                 "repair": repair,
                 "result": result,
                 "verification": signal,
