@@ -27,6 +27,8 @@ effectiveness evidence or proof of a model's deterministic behavior.
 | 005 port-map-thinking | Reasoning on with explicit port mapping | Correctly identifies s3 path, but exhausts 1,024 output tokens without JSON; 12.65 s |
 | 006 port-map-thinking-long | Raise output cap to 2,048 | Again exhausts cap without JSON; 24.81 s |
 | 007 algorithm | Generic path/flow procedure, port map, think off | Invalid repair (down s1 port and nonexistent s2 port); 2.33 s |
+| 008 route-choice | Model chooses a route, not low-level actions, from the observed graph | Selected broken h1→s1→s2→s4→h2 primary path; validator rejected; 1.29 s |
+| 009 route-choice-compact-initial | Same route-choice interface, initial diagnostic snapshot projected to typed facts | `unable` on a repairable graph; 0.77 s |
 
 No variant has yielded a valid model-chosen complete three-switch repair. The
 scripted check narrows the blocker to model decisions under the current S2
@@ -41,3 +43,24 @@ acceptance, extend the numerical deadline without feasibility/approval, or retry
 until a favorable sample appears. A different model or an algorithmically supplied
 repair candidate would change the evaluated decision-maker and requires Pedro's
 scientific decision. Ticket 02 and dependent live tickets remain open.
+
+## Route-choice interface design checkpoint
+
+Pedro selected an S2 decision-interface redesign. A first offline prototype
+asked the designated model for an ordered h1→h2 path rather than per-switch
+actions. The harness could compile a **model-chosen** path into typed forwarding
+rules after validating reciprocal observed live links; the harness would not
+choose the path. Replay 008 still selected a failed link. Replacing duplicated
+raw initial diagnostics with a typed view (same measured port and active-flow
+facts) reduced input size but led to explicit inability in replay 009. Both
+original request/response pairs are retained. No production interface or live
+run was changed by these probes.
+
+The remaining alternative is for the harness to enumerate surviving path
+candidates and ask S2 to choose one. This is **not** a presentation-only change:
+in a topology with exactly one surviving path the deterministic enumerator
+effectively chooses the repair, making the model's role trivial. It may be a
+valid *different* evaluated treatment with scientific approval, but cannot be
+silently treated as the approved agentic direct-S2 baseline. Until Pedro chooses
+whether to accept that changed decision role or retain open-ended model planning,
+do not implement candidate enumeration in the live policy.
