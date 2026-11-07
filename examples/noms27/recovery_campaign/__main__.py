@@ -1,4 +1,4 @@
-"""Run or validate one declared S1-only or direct-S2 recovery incident."""
+"""Run or validate one declared bounded recovery incident."""
 
 import argparse
 import asyncio
@@ -19,7 +19,7 @@ def main() -> int:
     config = CampaignConfig.model_validate_json(args.config.read_text())
     if args.check:
         authority = {"catalogue": CATALOGUE}
-        if config.treatment == "s2_only":
+        if config.treatment != "s1_only":
             from .s2 import PERMISSIONS, Repair, RouteDecision
 
             authority = {
@@ -30,6 +30,8 @@ def main() -> int:
                     else Repair.model_json_schema()
                 ),
             }
+            if config.treatment == "combined_ungated":
+                authority["catalogue"] = CATALOGUE
         print(
             json.dumps(
                 {

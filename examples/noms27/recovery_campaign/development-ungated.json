@@ -1,0 +1,13 @@
+{
+  "trial_id": "development-ungated-not-live-evidence",
+  "treatment": "combined_ungated",
+  "scenario": "diamond_s1_s2_link",
+  "deadline_seconds": 60,
+  "s1_cap_seconds": 20,
+  "bottleneck_mbps": 96,
+  "seed": 7,
+  "purpose": "mechanism_validation",
+  "model_name": "unconfigured",
+  "s2_endpoint": "http://127.0.0.1:11434",
+  "s2_model_name": "unconfigured"
+}

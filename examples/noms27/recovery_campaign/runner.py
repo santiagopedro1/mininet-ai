@@ -1,4 +1,4 @@
-"""One bounded S1-only or direct-S2 incident; no automatic failover or reversal."""
+"""One bounded recovery incident; no automatic failover or outage reversal."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ class CampaignConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
     trial_id: str = Field(min_length=1)
-    treatment: Literal["s1_only", "s2_only"]
+    treatment: Literal["s1_only", "s2_only", "combined_ungated"]
     s2_decision_interface: Literal["actions-v1", "route-v2"] = "actions-v1"
     scenario: Literal[
         "diamond_s1_s2_link",
@@ -75,6 +75,8 @@ class CampaignConfig(BaseModel):
     post_deadline_seconds: Literal[5] = 5
     endpoint: str = "http://127.0.0.1:8080"
     model_name: str = "unconfigured"
+    s2_endpoint: str | None = None
+    s2_model_name: str | None = None
     expected_identity: dict[str, Any] | None = None
     execution_order: int = Field(default=1, ge=1)
 
@@ -83,17 +85,17 @@ class CampaignConfig(BaseModel):
         if self.treatment == "s1_only" and self.s2_decision_interface != "actions-v1":
             raise ValueError("S1-only cannot configure an S2 decision interface")
         if self.scenario == "controlled_broader_repair" and (
-            self.purpose != "mechanism_validation" or self.treatment != "s2_only"
+            self.purpose != "mechanism_validation" or self.treatment == "s1_only"
         ):
             raise ValueError(
                 "controlled broader repair is an offline S2 mechanism fixture only"
             )
         if (
             self.scenario == "diamond_s1_s2_link_broader"
-            and self.treatment != "s2_only"
+            and self.treatment == "s1_only"
         ):
-            raise ValueError("live broader diamond requires direct S2 treatment")
-        if self.treatment == "s1_only" and self.s1_cap_seconds > self.deadline_seconds:
+            raise ValueError("broader diamond requires an S2-capable treatment")
+        if self.treatment != "s2_only" and self.s1_cap_seconds > self.deadline_seconds:
             raise ValueError("S1 cap cannot exceed the common deadline")
         if self.packet_rate < 100:
             raise ValueError(
@@ -354,6 +356,8 @@ async def run_campaign(
     pending: list[asyncio.Task] = []
     model_calls = []
     actions = []
+    handoffs = []
+    s1_status = None
     invalid = []
     policy = "not_started"
     injection_start = None
@@ -447,6 +451,7 @@ async def run_campaign(
             # can be slow while the pre-fault service remains healthy.
             fault_confirmed_ns = clock.now_ns()
             event("fault_confirmed", confirmed_ns=fault_confirmed_ns)
+            diagnostics = {}
             try:
                 diagnostics = await bounded(
                     "telemetry", runtime.diagnose(), stage_limit
@@ -469,6 +474,7 @@ async def run_campaign(
                 else:
                     inference_start = clock.now_ns()
                     call = {
+                        "stage": "s1",
                         "started_ns": inference_start,
                         "request": {"diagnostics": diagnostics},
                         "response": None,
@@ -482,7 +488,7 @@ async def run_campaign(
 
                     async def infer():
                         try:
-                            return await record_inference(
+                            value = await record_inference(
                                 lambda: runtime.decide(
                                     diagnostics,
                                     max(0, stage_limit - clock.now_ns()) / NS,
@@ -491,6 +497,9 @@ async def run_campaign(
                                 clock,
                                 stage_limit,
                             )
+                            if value.get("remote_terminal") == "unconfirmed":
+                                call["status"] = "remote_terminal_unknown"
+                            return value
                         except Exception:
                             call["tokens"] = decode_tokens(call["response"])
                             raise
@@ -503,8 +512,23 @@ async def run_campaign(
                         policy = (
                             "explicit_inability" if choice == "unable" else "no_action"
                         )
+                        if (
+                            choice == "no_action"
+                            and config.treatment == "combined_ungated"
+                        ):
+                            signal = await bounded(
+                                "verification",
+                                runtime.service_signal(clock.now_ns()),
+                                stage_limit,
+                            )
+                            policy = (
+                                "verified"
+                                if signal.get("recovered") is True
+                                else "verification_failed"
+                            )
                     else:
                         action = {
+                            "stage": "s1",
                             "choice": choice,
                             "started_ns": clock.now_ns(),
                             "result": None,
@@ -543,6 +567,88 @@ async def run_campaign(
                 # Malformed decisions, failed inference/actions are treatment outcomes.
                 policy = "treatment_error"
                 event("treatment_error", error=str(error))
+            if config.treatment == "combined_ungated":
+                from .s2 import run_direct
+
+                s1_status = policy
+                event("s1_terminated", status=s1_status)
+                if s1_status != "verified":
+                    # A cancelled local await is not remote termination. Never
+                    # overlap S2 with an uncontained provider or unknown action.
+                    await asyncio.sleep(0)
+                    unsafe = (
+                        any(not task.done() for task in pending)
+                        or any(
+                            call["response"] is None
+                            or call["status"] not in {"completed", "failed"}
+                            for call in model_calls
+                        )
+                        or any(
+                            action["result"] is None
+                            or action["result"].get("success") is None
+                            for action in actions
+                        )
+                    )
+                    cause = "s1_stage_timeout" if s1_status == "timeout" else s1_status
+                    event("escalation_requested", cause=cause, deadline_ns=deadline)
+                    if clock.now_ns() >= deadline:
+                        event("escalation_denied", reason="deadline_exhausted")
+                    elif unsafe:
+                        policy = "escalation_uncontained"
+                        event("escalation_denied", reason="s1_work_uncontained")
+                    else:
+                        handoff = {
+                            "cause": cause,
+                            "initial_snapshot": copy.deepcopy(diagnostics),
+                            "s1_status": s1_status,
+                            "s1_decisions": copy.deepcopy(model_calls),
+                            "s1_actions": copy.deepcopy(actions),
+                            "s1_events": copy.deepcopy(
+                                [
+                                    item
+                                    for item in events
+                                    if item["kind"].startswith(
+                                        (
+                                            "telemetry_",
+                                            "inference_",
+                                            "action_",
+                                            "verification_",
+                                        )
+                                    )
+                                    or item["kind"]
+                                    in {
+                                        "treatment_error",
+                                        "cancellation",
+                                        "s1_terminated",
+                                    }
+                                ]
+                            ),
+                            "deadline_ns": deadline,
+                            "remaining_seconds": (deadline - clock.now_ns()) / NS,
+                        }
+                        handoffs.append(handoff)
+                        event("handoff", record=handoff)
+                        # A contained S1 stage expiry is not exhaustion of the
+                        # inherited end-to-end budget.
+                        timed_out = False
+                        try:
+                            policy = await run_direct(
+                                runtime,
+                                clock,
+                                deadline,
+                                diagnostics,
+                                bounded,
+                                event,
+                                model_calls,
+                                actions,
+                                config.s2_decision_interface,
+                                handoff=handoff,
+                            )
+                        except TimeoutError:
+                            timed_out, policy = True, "timeout"
+                        except Exception as error:
+                            policy = "treatment_error"
+                            event("treatment_error", stage="s2", error=str(error))
         event("policy_terminated", status=policy)
     except TimeoutError:
         invalid.append("injection_deadline_or_missing_confirmation")
@@ -610,6 +716,8 @@ async def run_campaign(
             if item["kind"] == "telemetry_complete"
             else "action"
             if item["kind"] in {"action_start", "action_complete"}
+            else "handoff"
+            if item["kind"] == "handoff"
             else None
         )
         if category:
@@ -669,6 +777,7 @@ async def run_campaign(
         "events": events,
         "model_calls": model_calls,
         "actions": actions,
+        "handoffs": handoffs,
         "packet_evidence": packet_evidence,
         "tokens": tokens,
         "artifacts": artifacts,
@@ -677,8 +786,10 @@ async def run_campaign(
         "provenance": prov,
         "messages": {
             "records": messages,
-            "handoff_count": 0,
-            "handoff_bytes": 0,
+            "handoff_count": len(handoffs),
+            "handoff_bytes": sum(
+                item["bytes"] for item in messages if item["category"] == "handoff"
+            ),
             "wire_bytes": None,
             "unavailable_reason": "wire accounting not instrumented",
         },
@@ -702,7 +813,7 @@ async def run_campaign(
             "reasoning_tokens": "null unless provider supplies separate non-overlapping usage",
         },
     }
-    if config.treatment == "s2_only":
+    if config.treatment != "s1_only":
         from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
         from .s2 import (
             MODEL_SETTINGS,
@@ -712,16 +823,27 @@ async def run_campaign(
             RouteDecision,
         )
 
-        result["schema_version"] = "recovery-s2/v1"
+        result["schema_version"] = (
+            "recovery-s2/v1"
+            if config.treatment == "s2_only"
+            else "recovery-combined/v1"
+        )
         result["permissions"] = PERMISSIONS
-        prov["instructions"] = (
+        s2_instructions = (
             ROUTE_INSTRUCTIONS
             if config.s2_decision_interface == "route-v2"
             else S2_INSTRUCTIONS
         )
-        prov["criteria"] = None
-        prov["catalogue"] = None
-        prov["catalogue_sha256"] = None
+        if config.treatment == "s2_only":
+            prov["instructions"] = s2_instructions
+            prov["criteria"] = None
+            prov["catalogue"] = None
+            prov["catalogue_sha256"] = None
+        else:
+            result["outcome"]["s1_status"] = s1_status
+            prov["s2_instructions"] = s2_instructions
+        prov["s2_endpoint"] = config.s2_endpoint or config.endpoint
+        prov["s2_model_name"] = config.s2_model_name or config.model_name
         prov["s2_repair_schema"] = (
             RouteDecision.model_json_schema()
             if config.s2_decision_interface == "route-v2"

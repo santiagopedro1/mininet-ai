@@ -214,6 +214,8 @@ async def run_direct(
     calls,
     actions,
     interface="actions-v1",
+    *,
+    handoff=None,
 ):
     history = []
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -234,6 +236,8 @@ async def run_direct(
             "history": decision_history(history),
             "s2_decision_interface": interface,
         }
+        if handoff is not None:
+            context["handoff"] = handoff
         call = {
             "stage": "s2",
             "attempt": attempt,

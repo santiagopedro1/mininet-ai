@@ -373,7 +373,7 @@ def test_controlled_broader_scenario_cannot_be_selected_for_live_execution():
         )
 
 
-def test_live_broader_diamond_is_direct_s2_only():
+def test_live_broader_diamond_requires_an_s2_capable_treatment():
     from examples.noms27.recovery_campaign.live import downstream_rules
 
     declared = config(
@@ -387,7 +387,15 @@ def test_live_broader_diamond_is_direct_s2_only():
         "s3",
         "s4",
     }
-    with pytest.raises(ValueError, match="requires direct S2"):
+    assert (
+        config(
+            treatment="combined_ungated",
+            scenario="diamond_s1_s2_link_broader",
+            purpose="live_feasibility",
+        ).scenario
+        == "diamond_s1_s2_link_broader"
+    )
+    with pytest.raises(ValueError, match="requires an S2-capable treatment"):
         config(
             treatment="s1_only",
             scenario="diamond_s1_s2_link_broader",
@@ -560,8 +568,9 @@ def test_s2_rejects_fault_reversal_traffic_changes_and_unobserved_resources(
 
 
 @pytest.mark.parametrize("mode", ["success", "action_failure", "stale_port"])
+@pytest.mark.parametrize("treatment", ["s2_only", "combined_ungated"])
 def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
-    tmp_path, mode
+    tmp_path, mode, treatment
 ):
     """Controlled forwarding graph, not a live extended-diamond campaign class."""
     import json
@@ -662,6 +671,8 @@ def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
                 incoming = PORTS[node][previous]
                 outgoing = self.installed.get((node, incoming))
                 snapshot = await DirectRuntime.observe_network(self)
+                if mode == "stale_port" and self.requests:
+                    snapshot["switches"]["s1"]["ports"]["3"] = False
                 if not snapshot["switches"][node]["ports"].get(str(outgoing)):
                     break
                 following = next(
@@ -684,6 +695,9 @@ def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
         async def diagnose(self):
             return await ControlledRuntime.diagnose(self)
 
+        async def decide(self, diagnostics, remaining_seconds):
+            return await ControlledRuntime.decide(self, diagnostics, remaining_seconds)
+
         async def service_signal(self, since_ns):
             return await ControlledRuntime.service_signal(self, since_ns)
 
@@ -697,25 +711,30 @@ def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
     evidence = run(
         tmp_path,
         runtime,
-        treatment="s2_only",
+        treatment=treatment,
         scenario="controlled_broader_repair",
         deadline_seconds=6,
-        s1_cap_seconds=0.01,
+        s1_cap_seconds=2,
     )
     assert evidence["validity"]["valid"] is True
     assert evidence["outcome"]["service_recovery"] is (mode == "success")
     attempts = 2 if mode == "success" else 3
-    assert len(evidence["actions"]) == attempts
-    assert evidence["model_calls"][1]["request"]["messages"]
-    assert evidence["tokens"]["input"] == 41 * attempts
+    s2_actions = [action for action in evidence["actions"] if action["stage"] == "s2"]
+    s2_calls = [call for call in evidence["model_calls"] if call["stage"] == "s2"]
+    assert len(s2_actions) == attempts
+    assert s2_calls[1]["request"]["messages"]
+    assert evidence["tokens"]["input"] == 41 * attempts + (
+        12 if treatment == "combined_ungated" else 0
+    )
     assert evidence["tokens"]["output"] == 23 * attempts
     assert evidence["measurement"]["disruption_seconds"] >= 1.1
-    assert {
-        action["switch"] for action in evidence["actions"][1]["repair"]["actions"]
-    } == {"s3", "s4"}
+    assert {action["switch"] for action in s2_actions[1]["repair"]["actions"]} == {
+        "s3",
+        "s4",
+    }
     assert all(
         "fault" not in json.loads(call["request"]["messages"][1]["content"])
-        for call in evidence["model_calls"]
+        for call in s2_calls
     )
     action_journal = [
         json.loads(line)
@@ -723,6 +742,13 @@ def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
     ]
     if mode == "success":
         assert [row["status"] for row in action_journal] == ["started", "completed"] * 3
+        if treatment == "combined_ungated":
+            assert evidence["handoffs"][0]["cause"] == "verification_failed"
+            assert evidence["handoffs"][0]["s1_actions"][0]["result"]["success"] is True
+            assert (
+                json.loads(s2_calls[0]["request"]["messages"][1]["content"])["handoff"]
+                == evidence["handoffs"][0]
+            )
     elif mode == "action_failure":
         assert evidence["actions"][-1]["result"]["success"] is False
         assert [
@@ -730,7 +756,7 @@ def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
         ] == [True, False]
         assert sum(row["status"] == "failed" for row in action_journal) == 2
     else:
-        assert evidence["actions"][0]["result"]["success"] is False
+        assert s2_actions[0]["result"]["success"] is False
         assert not any(
             row.get("action", {}).get("switch") == "s1" for row in action_journal
         )
@@ -749,8 +775,9 @@ def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
 
 @pytest.mark.parametrize("warmup_ok", [True, False])
 @pytest.mark.parametrize("reply", ["unable", "malformed", "incomplete"])
-def test_s2_startup_uses_no_s1_request_and_accounts_incident_separately(
-    tmp_path, monkeypatch, warmup_ok, reply
+@pytest.mark.parametrize("treatment", ["s2_only", "combined_ungated"])
+def test_s2_startup_and_separate_stage_adapters_account_incident_separately(
+    tmp_path, monkeypatch, warmup_ok, reply, treatment
 ):
     import json
     from types import SimpleNamespace
@@ -763,23 +790,34 @@ def test_s2_startup_uses_no_s1_request_and_accounts_incident_separately(
     requests = []
 
     def respond(request):
+        if request.method == "GET":
+            return httpx.Response(200, json={"status": "ok"})
         payload = json.loads(request.content)
         requests.append((str(request.url), payload))
+        if not request.url.path.endswith("/api/chat"):
+            return httpx.Response(
+                200,
+                json={
+                    "answers": {"next_action": {"type": "choice", "choice": "unable"}},
+                    "usage": {"input_tokens": 11, "output_tokens": 0},
+                },
+            )
+        s2_count = sum(url.endswith("/api/chat") for url, _ in requests)
         return httpx.Response(
             200,
             json={
-                "done": warmup_ok and (len(requests) == 1 or reply != "incomplete"),
+                "done": warmup_ok and (s2_count == 1 or reply != "incomplete"),
                 "message": {
                     "content": "OK"
-                    if len(requests) == 1
+                    if s2_count == 1
                     else (
                         '{"status":"unable","actions":[]}'
                         if reply == "unable"
                         else "not JSON"
                     )
                 },
-                "prompt_eval_count": 1000 if len(requests) == 1 else 7,
-                "eval_count": 1000 if len(requests) == 1 else 5,
+                "prompt_eval_count": 1000 if s2_count == 1 else 7,
+                "eval_count": 1000 if s2_count == 1 else 5,
             },
         )
 
@@ -836,7 +874,12 @@ def test_s2_startup_uses_no_s1_request_and_accounts_incident_separately(
             return {"verified": True}
 
     evidence = run(
-        tmp_path, StartupRuntime(), treatment="s2_only", model_name="offline-test"
+        tmp_path,
+        StartupRuntime(),
+        treatment=treatment,
+        model_name="offline-test",
+        s2_endpoint="http://s2.invalid:11434",
+        s2_model_name="offline-s2",
     )
     wire_requests = [
         row
@@ -848,8 +891,21 @@ def test_s2_startup_uses_no_s1_request_and_accounts_incident_separately(
         ]
         if row["kind"] == "request"
     ]
-    assert all(row["url"].endswith("/api/chat") for row in wire_requests)
-    assert evidence["messages"]["handoff_count"] == 0
+    s1_wire = [row for row in wire_requests if not row["url"].endswith("/api/chat")]
+    wire_requests = [row for row in wire_requests if row["url"].endswith("/api/chat")]
+    assert all(
+        row["url"] == "http://s2.invalid:11434/api/chat"
+        and row["payload"]["model"] == "offline-s2"
+        for row in wire_requests
+    )
+    assert len(s1_wire) == (2 if treatment == "combined_ungated" and warmup_ok else 0)
+    assert evidence["messages"]["handoff_count"] == (
+        1 if treatment == "combined_ungated" and warmup_ok else 0
+    )
+    if warmup_ok:
+        assert wire_requests[1]["request_id"] == "known-success:s2"
+        if treatment == "combined_ungated":
+            assert s1_wire[-1]["request_id"] == "known-success:s1"
     if warmup_ok:
         assert evidence["validity"]["valid"] is True
         expected_settings = {
@@ -872,12 +928,15 @@ def test_s2_startup_uses_no_s1_request_and_accounts_incident_separately(
             if reply == "incomplete"
             else "attempts_exhausted"
         )
-        assert evidence["tokens"]["input"] == 7 * attempts
+        assert evidence["tokens"]["input"] == 7 * attempts + (
+            11 if treatment == "combined_ungated" else 0
+        )
         assert evidence["tokens"]["output"] == 5 * attempts
         assert evidence["containment"]["provider_contained"] is (reply != "incomplete")
-        assert (
-            evidence["reset"]["model_startup"]["immutable_identity_verified"] is False
-        )
+        startup = evidence["reset"]["model_startup"]
+        assert (startup["s2"] if treatment == "combined_ungated" else startup)[
+            "immutable_identity_verified"
+        ] is False
         assert (
             json.loads(wire_requests[1]["payload"]["messages"][1]["content"])[
                 "initial_snapshot"

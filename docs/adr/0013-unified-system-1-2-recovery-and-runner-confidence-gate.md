@@ -52,3 +52,24 @@ The controlled multi-switch fixture establishes the offline mechanism, not an
 extended-diamond live scenario or scientific acceptance. Ticket 01's live blocker
 and all feasibility/approval gates remain. See
 [ticket 02 implementation and limitations](../recovery-02-implementation.md).
+
+Ticket 03 adds **combined ungated** to the campaign runner. One local attempt
+precedes the same bounded S2 policy used by direct invocation; unsuccessful local
+execution or service verification now requests escalation, rather than preserving
+the pilot's terminal-failure behavior. Explicit inability, unusable decisions and
+S1 stage expiry also request escalation. The original deadline never resets, and
+successful local recovery does not invoke S2. Confidence alone is not a trigger;
+native prompts, criteria and output fields remain unchanged.
+
+The runner retains local observations, decisions, attempted actions, operational
+verification and the escalation cause in a handoff. Only operational S1 events,
+not evaluator injection/reset metadata, enter S2 context. It refuses handoff when
+prior work is still outstanding or provider/action termination is unknown, even
+if nominal time remains: local cancellation alone cannot justify overlapping
+inference or conflicting repairs. This safety boundary can leave an incident
+unsuccessful; it must not be disguised as successful escalation. Independent
+observation continues to the common deadline plus five seconds in either case.
+
+This is offline mechanism coverage, not live acceptance or calibrated confidence
+gating. Preserved examples and core runtime contracts remain unchanged. See
+[ticket 03 implementation and limitations](../recovery-03-implementation.md).
