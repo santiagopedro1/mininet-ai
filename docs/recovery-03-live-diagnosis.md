@@ -36,8 +36,9 @@ recover model route planning after a failed S1 attempt; do not run another
 incident or count the compact projection as an accepted repair until an
 unchanged production-format replay selects a valid model-chosen route.
 Unknown S1 inference/action termination continues to deny S2 admission even
-when time remains. The ticket's S1 timeout criterion needs Pedro's decision:
-whether a requested but safety-denied escalation counts, or a containment
-mechanism must first establish remote terminal state. Do not waive this rule
-silently. Development budgets, six-class feasibility and held-out settings
-remain unapproved.
+when time remains. **Pedro decided containment is required**: a requested but
+safety-denied escalation does not satisfy the S1 timeout criterion. Keep the
+criterion open until termination can be confirmed or work safely isolated and
+a contained handoff demonstrated with time remaining. The separate model
+decision blocker also remains. Development budgets, six-class feasibility and
+held-out settings remain unapproved.
