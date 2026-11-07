@@ -362,7 +362,7 @@ def test_confirmed_cancelled_work_hands_off_with_containment_evidence(tmp_path, 
     )
     assert evidence["outstanding_local_tasks"] == 0
     assert evidence["containment"]["remote_termination_after_cancel"] == (
-        "confirmed_via_containment_probes" if phase == "inference" else "not_requested"
+        "confirmed_via_containment_probes"
     )
 
 

@@ -790,8 +790,17 @@ async def run_campaign(
     cancelled_calls = any(
         call["status"]
         in {"locally_cancelled_remote_unknown", "locally_cancelled_remote_confirmed"}
+        or (
+            call.get("termination_confirmation", {}).get("confirmed") is True
+            and call.get("response") is None
+        )
         for call in model_calls
     )
+    attempts = [
+        h.get("containment")
+        for h in handoffs
+        if isinstance(h.get("containment"), dict)
+    ]
     result = {
         "schema_version": "recovery-s1/v1",
         "trial_id": config.trial_id,
@@ -840,12 +849,8 @@ async def run_campaign(
                 if timed_out
                 else (
                     "confirmed_via_containment_probes"
-                    if cancelled_calls
-                    and any(
-                        h.get("containment", {}).get("contained") is True
-                        for h in handoffs
-                    )
-                    else ("unknown" if cancelled_calls else "not_requested")
+                    if any(a.get("contained") is True for a in attempts)
+                    else ("unknown" if attempts or cancelled_calls else "not_requested")
                 )
             ),
         },
