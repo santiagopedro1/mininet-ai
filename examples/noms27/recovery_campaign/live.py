@@ -657,7 +657,10 @@ class LiveRuntime:
 
         # Re-observe at execution admission: never authorize using a stale up port.
         observation = await self.observe_network()
-        permitted = validate_repair(repair, observation)
+        admission_authority = (
+            self.config.scenario_instance.ports if self._has_scenario() else None
+        )
+        permitted = validate_repair(repair, observation, admission_authority)
         results = []
 
         def record(**entry):
