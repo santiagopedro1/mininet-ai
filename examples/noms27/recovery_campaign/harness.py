@@ -228,6 +228,16 @@ class ScenarioLiveHarness:
         for flow in self.plan["flows"]["initial"] + self.plan["flows"]["backup"]:
             self._install_flow(flow["switch"], flow["flow"])
 
+    def inspect_flows(self) -> dict[str, str]:
+        if self.net is None:
+            raise RuntimeError("network is not set up")
+        return {
+            switch: self._root_command(
+                ["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", switch]
+            )
+            for switch in self.plan["topology"]["switches"]
+        }
+
     def verify_ports(self) -> dict[str, Any]:
         if self.net is None:
             raise RuntimeError("network is not set up")
