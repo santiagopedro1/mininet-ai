@@ -408,13 +408,18 @@ class LiveRuntime:
     async def inject(self, start_ns):
         assert self.harness is not None
         self.injection_ns = start_ns
-        if self.plan is not None:
+        if self._has_scenario():
             await self._thread(self.harness.fault)
         else:
             await self._thread(self.harness.fault, "s1-s2")
         check = await self._check_fault(phase="injection")
         self.monitor = asyncio.create_task(self._monitor_fault())
         return check
+
+    def _has_scenario(self) -> bool:
+        # Fixture runtimes may subclass without LiveRuntime.__init__; every
+        # scenario dispatch therefore probes the attribute defensively.
+        return getattr(self, "plan", None) is not None
 
     async def _check_fault(self, *, phase="unspecified"):
         assert self.harness is not None
@@ -424,7 +429,7 @@ class LiveRuntime:
             "both_endpoints_down": None,
             "tick_ns": None,
         }
-        if self.plan is not None:
+        if self._has_scenario():
             try:
                 check.update(await self._thread(self.harness.check_fault))
             except Exception as error:
@@ -542,7 +547,7 @@ class LiveRuntime:
         }
 
     async def observe_network(self):
-        if self.plan is not None:
+        if self._has_scenario():
             peers: Any = {
                 switch: dict(ports)
                 for switch, ports in self.config.scenario_instance.ports.items()
@@ -903,11 +908,12 @@ class LiveRuntime:
                 result = {"status": "failed", "error": str(error)}
             # A successful inventory can prove absence. A nonzero per-device
             # probe cannot distinguish absence from an inspection failure.
-            if self.plan is not None:
-                owned_names = set(
-                    cleanup_inventory(self.config.scenario_instance)["interfaces"]
-                )
-                owned_bridges = set(self.plan["topology"]["switches"])
+            if self._has_scenario():
+                scenario = self.config.scenario_instance
+                owned_names = set(cleanup_inventory(scenario)["interfaces"])
+                plan = self.plan
+                assert plan is not None
+                owned_bridges = set(plan["topology"]["switches"])
             else:
                 from examples.diamond_recovery import PORTS
 
