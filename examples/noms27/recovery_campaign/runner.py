@@ -19,6 +19,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .containment import contain_cancelled_stage, unsafe_reasons
 from .supervision import record_inference, run_action
 
 NS = 1_000_000_000
@@ -573,82 +574,103 @@ async def run_campaign(
                 s1_status = policy
                 event("s1_terminated", status=s1_status)
                 if s1_status != "verified":
-                    # A cancelled local await is not remote termination. Never
-                    # overlap S2 with an uncontained provider or unknown action.
+                    # A cancelled local await is not remote termination. Confirm
+                    # or safely isolate cancelled work before any S2 admission.
                     await asyncio.sleep(0)
-                    unsafe = (
-                        any(not task.done() for task in pending)
-                        or any(
-                            call["response"] is None
-                            or call["status"] not in {"completed", "failed"}
-                            for call in model_calls
-                        )
-                        or any(
-                            action["result"] is None
-                            or action["result"].get("success") is None
-                            for action in actions
-                        )
-                    )
+                    unsafe = unsafe_reasons(pending, model_calls, actions)
                     cause = "s1_stage_timeout" if s1_status == "timeout" else s1_status
                     event("escalation_requested", cause=cause, deadline_ns=deadline)
                     if clock.now_ns() >= deadline:
                         event("escalation_denied", reason="deadline_exhausted")
-                    elif unsafe:
-                        policy = "escalation_uncontained"
-                        event("escalation_denied", reason="s1_work_uncontained")
                     else:
-                        handoff = {
-                            "cause": cause,
-                            "initial_snapshot": copy.deepcopy(diagnostics),
-                            "s1_status": s1_status,
-                            "s1_decisions": copy.deepcopy(model_calls),
-                            "s1_actions": copy.deepcopy(actions),
-                            "s1_events": copy.deepcopy(
-                                [
-                                    item
-                                    for item in events
-                                    if item["kind"].startswith(
-                                        (
-                                            "telemetry_",
-                                            "inference_",
-                                            "action_",
-                                            "verification_",
-                                        )
-                                    )
-                                    or item["kind"]
-                                    in {
-                                        "treatment_error",
-                                        "cancellation",
-                                        "s1_terminated",
-                                    }
-                                ]
-                            ),
-                            "deadline_ns": deadline,
-                            "remaining_seconds": (deadline - clock.now_ns()) / NS,
-                        }
-                        handoffs.append(handoff)
-                        event("handoff", record=handoff)
-                        # A contained S1 stage expiry is not exhaustion of the
-                        # inherited end-to-end budget.
-                        timed_out = False
-                        try:
-                            policy = await run_direct(
+                        containment = None
+                        if unsafe:
+                            containment = await contain_cancelled_stage(
                                 runtime,
                                 clock,
-                                deadline,
-                                diagnostics,
-                                bounded,
                                 event,
+                                deadline,
+                                pending,
                                 model_calls,
                                 actions,
-                                config.s2_decision_interface,
-                                handoff=handoff,
+                                unsafe,
                             )
-                        except TimeoutError:
-                            timed_out, policy = True, "timeout"
-                        except Exception as error:
-                            policy = "treatment_error"
-                            event("treatment_error", stage="s2", error=str(error))
+                        if unsafe and (
+                            containment is None or containment["contained"] is not True
+                        ):
+                            policy = "escalation_uncontained"
+                            event(
+                                "escalation_denied",
+                                reason="s1_work_uncontained",
+                                containment=containment["phases"]
+                                if containment is not None
+                                else {"attempted": False},
+                            )
+                        else:
+                            observation = (
+                                containment["observation"]
+                                if containment is not None and containment["contained"]
+                                else None
+                            )
+                            handoff = {
+                                "cause": cause,
+                                "initial_snapshot": copy.deepcopy(diagnostics),
+                                "s1_status": s1_status,
+                                "s1_decisions": copy.deepcopy(model_calls),
+                                "s1_actions": copy.deepcopy(actions),
+                                "s1_events": copy.deepcopy(
+                                    [
+                                        item
+                                        for item in events
+                                        if item["kind"].startswith(
+                                            (
+                                                "telemetry_",
+                                                "inference_",
+                                                "action_",
+                                                "verification_",
+                                                "containment_",
+                                            )
+                                        )
+                                        or item["kind"]
+                                        in {
+                                            "treatment_error",
+                                            "cancellation",
+                                            "s1_terminated",
+                                            "escalation_requested",
+                                            "escalation_contained",
+                                        }
+                                    ]
+                                ),
+                                "deadline_ns": deadline,
+                                "remaining_seconds": (deadline - clock.now_ns()) / NS,
+                            }
+                            if containment is not None and containment["contained"]:
+                                handoff["containment"] = containment
+                            handoffs.append(handoff)
+                            event("handoff", record=handoff)
+                            # A contained S1 stage expiry is not exhaustion of the
+                            # inherited end-to-end budget.
+                            timed_out = False
+                            try:
+                                policy = await run_direct(
+                                    runtime,
+                                    clock,
+                                    deadline,
+                                    observation
+                                    if observation is not None
+                                    else diagnostics,
+                                    bounded,
+                                    event,
+                                    model_calls,
+                                    actions,
+                                    config.s2_decision_interface,
+                                    handoff=handoff,
+                                )
+                            except TimeoutError:
+                                timed_out, policy = True, "timeout"
+                            except Exception as error:
+                                policy = "treatment_error"
+                                event("treatment_error", stage="s2", error=str(error))
         event("policy_terminated", status=policy)
     except TimeoutError:
         invalid.append("injection_deadline_or_missing_confirmation")
@@ -753,10 +775,22 @@ async def run_campaign(
         reset is not None
         and reset.get("fresh_context") is True
         and all(
-            call["status"] in {"completed", "failed"}
-            and call.get("response") is not None
+            call.get("termination_confirmation", {}).get("confirmed") is True
+            or (
+                call["status"]
+                in {"completed", "failed", "locally_cancelled_remote_confirmed"}
+                and (
+                    call.get("response") is not None
+                    or call["status"] == "locally_cancelled_remote_confirmed"
+                )
+            )
             for call in model_calls
         )
+    )
+    cancelled_calls = any(
+        call["status"]
+        in {"locally_cancelled_remote_unknown", "locally_cancelled_remote_confirmed"}
+        for call in model_calls
     )
     result = {
         "schema_version": "recovery-s1/v1",
@@ -801,15 +835,28 @@ async def run_campaign(
             and provider_contained
             and not timed_out
             and all(task.done() for task in pending),
-            "remote_termination_after_cancel": "unknown"
-            if timed_out
-            else "not_requested",
+            "remote_termination_after_cancel": (
+                "unknown"
+                if timed_out
+                else (
+                    "confirmed_via_containment_probes"
+                    if cancelled_calls
+                    and any(
+                        h.get("containment", {}).get("contained") is True
+                        for h in handoffs
+                    )
+                    else ("unknown" if cancelled_calls else "not_requested")
+                )
+            ),
         },
         "journal_snapshot_tick_ns": clock.now_ns(),
         "artifacts_scope": "snapshot_at_export; events/model-wire journals may retain later terminal evidence",
         "unavailable": {
             "energy": "not measured",
-            "remote_cancellation": "no authoritative provider termination API",
+            "remote_cancellation": (
+                "terminal only via runtime containment probes; "
+                "capabilityless runtimes stay unconfirmed"
+            ),
             "reasoning_tokens": "null unless provider supplies separate non-overlapping usage",
         },
     }

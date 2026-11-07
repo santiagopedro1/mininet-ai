@@ -157,6 +157,7 @@ class LiveRuntime:
         self.processes: list[Any] = []
         self.process_logs: list[Any] = []
         self.action_process = None
+        self.action_processes: list[Any] = []
         self.transport = HttpxJsonTransport()
         self.fault_checks = []
         self.monitor = None
@@ -302,6 +303,7 @@ class LiveRuntime:
             *parts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         self.action_process = process
+        self.action_processes.append(process)
         try:
             out, err = await process.communicate()
             if process.returncode:
@@ -659,6 +661,67 @@ class LiveRuntime:
             except ProcessLookupError:
                 pass
         return {"local_cancel_requested": True, "remote_termination": "unknown"}
+
+    async def confirm_inference_termination(self):
+        """Probe llama.cpp /slots: every slot reporting not-processing proves the
+        single-slot server is no longer executing the cancelled request. Any
+        parse or availability failure stays fail-closed (terminated None)."""
+        endpoint = (getattr(self.config, "endpoint", "") or "").rstrip("/")
+        if not endpoint:
+            return {"terminated": None, "reason": "no_s1_endpoint"}
+        try:
+            body = await self._thread(
+                self.transport.get_json,
+                endpoint + "/slots",
+                headers={},
+                timeout_seconds=2.0,
+                max_response_bytes=1_048_576,
+            )
+        except Exception as error:
+            return {
+                "terminated": None,
+                "reason": "provider_probe_failed",
+                "error": str(error),
+            }
+        slots = body.get("slots") if isinstance(body, dict) else body
+        if not isinstance(slots, list) or not slots:
+            return {"terminated": None, "reason": "provider_slots_unavailable"}
+        if not all(isinstance(slot, dict) for slot in slots):
+            return {"terminated": None, "reason": "provider_slots_malformed"}
+        busy = [slot for slot in slots if slot.get("is_processing") is not False]
+        if busy:
+            return {
+                "terminated": False,
+                "probed_slots": len(slots),
+                "busy_slots": len(busy),
+            }
+        return {"terminated": True, "probed_slots": len(slots), "busy_slots": 0}
+
+    async def confirm_action_termination(self):
+        """A terminated process must have an exit status; a process still
+        running after the bounded reap stays unconfirmed (fail closed)."""
+        processes = list(getattr(self, "action_processes", []) or [])
+        unreaped = [p for p in processes if p.returncode is None]
+        for process in unreaped:
+            try:
+                await asyncio.wait_for(process.wait(), 2.0)
+            except TimeoutError:
+                return {
+                    "terminated": None,
+                    "reason": "action_process_stuck",
+                    "probed_processes": len(processes),
+                }
+            except Exception as error:  # pragma: no cover - watcher failure
+                return {
+                    "terminated": None,
+                    "reason": "action_reap_failed",
+                    "error": str(error),
+                }
+        return {
+            "terminated": True,
+            "returncodes": [p.returncode for p in processes],
+            "probed_processes": len(processes),
+        }
 
     def _packet_records(self, *, partial=False):
         errors = []

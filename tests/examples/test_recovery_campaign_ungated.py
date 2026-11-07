@@ -296,6 +296,118 @@ def test_unknown_cancelled_work_denies_unsafe_handoff(tmp_path, phase):
     assert evidence["containment"]["next_trial_allowed"] is False
 
 
+class ConfirmableRuntime(DirectRuntime):
+    """DirectRuntime whose cancelled S1 work reports confirmable termination."""
+
+    provider_probes = 0
+    action_probes = 0
+
+    async def confirm_inference_termination(self):
+        self.provider_probes += 1
+        # Two consecutive stable idle probes confirm the provider abort.
+        if self.provider_probes >= 2:
+            return {
+                "terminated": True,
+                "probed_slots": 1,
+                "busy_slots": 0,
+                "detail": "llamacpp slots idle",
+            }
+        return {"terminated": False, "probed_slots": 1, "busy_slots": 1}
+
+    async def confirm_action_termination(self):
+        self.action_probes += 1
+        if self.action_probes >= 1:
+            return {"terminated": True, "returncodes": [-15], "detail": "reaped"}
+        return {"terminated": False, "returncodes": None}
+
+
+@pytest.mark.parametrize("phase", ["inference", "action"])
+def test_confirmed_cancelled_work_hands_off_with_containment_evidence(tmp_path, phase):
+    class Confirmable(ConfirmableRuntime):
+        async def decide(self, diagnostics, remaining_seconds):
+            if phase == "inference":
+                await asyncio.Future()
+            return await super().decide(diagnostics, remaining_seconds)
+
+        async def execute(self, choice):
+            if phase == "action":
+                await asyncio.Future()
+            return await super().execute(choice)
+
+    evidence = combined(tmp_path, Confirmable(), s1_cap_seconds=0.5)
+    assert evidence["validity"]["valid"] is True
+    assert evidence["outcome"]["policy_status"] == "verified"
+    assert evidence["outcome"]["s1_status"] == "timeout"
+    handoff = evidence["handoffs"][0]
+    assert handoff["cause"] == "s1_stage_timeout"
+    assert 0 < handoff["remaining_seconds"] < 3
+    containment = handoff["containment"]
+    assert containment["contained"] is True
+    reasons = containment["reasons"]
+    assert ("provider_terminal_evidence" in reasons) == (phase == "inference")
+    assert ("action_terminal_evidence" in reasons) == (phase == "action")
+    phases = containment["phases"]
+    assert phases["local"]["ok"] is True
+    if phase == "inference":
+        assert phases["provider"]["confirmed"] is True
+        assert phases["provider"]["probes"] >= 2
+    assert phases["actions"]["ok"] is True
+    assert containment["observation"] is not None
+    assert any(e["kind"] == "escalation_contained" for e in evidence["events"])
+    assert not any(e["kind"] == "escalation_denied" for e in evidence["events"])
+    # S2 ran after the contained handoff within the shared deadline.
+    assert evidence["model_calls"][0]["stage"] == "s1"
+    assert evidence["model_calls"][0]["status"] == (
+        "locally_cancelled_remote_confirmed" if phase == "inference" else "completed"
+    )
+    assert evidence["outstanding_local_tasks"] == 0
+    assert evidence["containment"]["remote_termination_after_cancel"] == (
+        "confirmed_via_containment_probes" if phase == "inference" else "not_requested"
+    )
+
+
+def test_unconfirmed_cancelled_work_never_admits_s2(tmp_path):
+    class NeverConfirmed(ConfirmableRuntime):
+        async def confirm_inference_termination(self):
+            self.provider_probes += 1
+            return {"terminated": False, "probed_slots": 1, "busy_slots": 1}
+
+        async def decide(self, diagnostics, remaining_seconds):
+            await asyncio.Future()
+            return await super().decide(diagnostics, remaining_seconds)
+
+    evidence = combined(tmp_path, NeverConfirmed(), s1_cap_seconds=0.5)
+    assert evidence["outcome"]["policy_status"] == "escalation_uncontained"
+    assert evidence["handoffs"] == []
+    assert any(
+        e["kind"] == "escalation_denied" and e["reason"] == "s1_work_uncontained"
+        for e in evidence["events"]
+    )
+    assert any(
+        e["kind"] == "containment_probe" and e["phase"] == "provider"
+        for e in evidence["events"]
+    )
+
+
+def test_capabilityless_runtime_still_denies_without_polling(tmp_path):
+    class Unaware(DirectRuntime):
+        async def decide(self, diagnostics, remaining_seconds):
+            await asyncio.Future()
+            return await super().decide(diagnostics, remaining_seconds)
+
+    evidence = combined(tmp_path, Unaware(), s1_cap_seconds=0.5)
+    assert evidence["outcome"]["policy_status"] == "escalation_uncontained"
+    assert not any(
+        e["kind"] in {"containment_probe", "escalation_contained"}
+        for e in evidence["events"]
+    )
+    assert all(
+        e["reason"] != "deadline_before_confirmation"
+        for e in evidence["events"]
+        if e["kind"] == "escalation_denied"
+    )
+
+
 def test_expired_deadline_never_starts_s2(tmp_path):
     evidence = combined(
         tmp_path, DirectRuntime(), deadline_seconds=0.5, s1_cap_seconds=0.5

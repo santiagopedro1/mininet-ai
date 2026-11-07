@@ -73,3 +73,34 @@ observation continues to the common deadline plus five seconds in either case.
 This is offline mechanism coverage, not live acceptance or calibrated confidence
 gating. Preserved examples and core runtime contracts remain unchanged. See
 [ticket 03 implementation and limitations](../recovery-03-implementation.md).
+
+Ticket 03, amended 2026-11-07, replaces the runner's unconditional refusal of
+cancelled S1 work with **bounded containment** before any S2 admission. The
+refusal semantics deemed every cancelled local await remote-unknown, which left
+no path to demonstrate a stage-timeout handoff even when termination was in fact
+establishable. Containment is now a bounded, capability-keyed admission phase
+sharing the inherited end-to-end deadline:
+
+1. **Local termination** — every locally cancelled task must finish unwinding;
+   `late_completion` evidence still records delayed results.
+2. **Provider termination** — inference with an unobserved terminal response
+   (locally cancelled or connection-failed) is remotely unknown until a runtime
+   capability confirms the provider is no longer processing the request. The
+   live adapter probes llama.cpp `/slots` and admits only when every slot
+   reports not-processing; consecutive polls bound the confirmation cadence.
+3. **Action termination** — a cancelled action process must report an exit
+   status before the network is considered quiescent.
+4. **Settled-state observation** — a fresh bounded `diagnose()` snapshot is
+   captured into the handoff record; the S2 attempt still observes the network
+   independently.
+
+Confirmation is fail-closed: a runtime without the confirmation capabilities —
+or a probe that reports unavailable, malformed or still-busy until the deadline
+— keeps the previous `escalation_uncontained` denial, and containment must
+complete before the deadline or the incident stays dead (`deadline_exhausted`).
+Runs remain valid evidence either way. Confirmed calls carry
+`termination_confirmation` evidence (cancelled ones are marked
+`locally_cancelled_remote_confirmed`), so the run-level
+`provider_contained`/`remote_termination_after_cancel` summary reflects
+confirmed aborts as contained rather than unknown. Capabilityless runtimes,
+offline fixtures and the core runtime contract are unchanged.
