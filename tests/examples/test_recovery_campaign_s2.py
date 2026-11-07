@@ -7,6 +7,50 @@ import pytest
 from tests.examples.test_recovery_campaign import ControlledRuntime, config, run
 
 
+def test_port_liveness_parses_realistic_ovs_descriptions():
+    from examples.noms27.recovery_campaign.live import parse_port_liveness
+
+    raw = (
+        " 1(s1-eth1): addr:6a:33:50:41:fb:64\n"
+        "     config:     0\n"
+        "     state:      LIVE\n"
+        "     current:    10GB-FD COPPER\n"
+        "     speed: 10000 Mbps now, 0 Mbps max\n"
+        " 2(s1-eth2): addr:22:fe:82:59:3f:f9\n"
+        "     config:     PORT_DOWN\n"
+        "     state:      LINK_DOWN\n"
+        "     current:    10GB-FD COPPER\n"
+        "     speed: 10000 Mbps now, 0 Mbps max\n"
+        " 3(s1-eth3): addr:d2:bf:2a:8f:24:a5\n"
+        "     config:     0\n"
+        "     state:      LIVE\n"
+        "     current:    10GB-FD COPPER\n"
+        "     speed: 10000 Mbps now, 0 Mbps max\n"
+        " LOCAL(s1): addr:ce:89:22:40:6d:42\n"
+        "     config:     PORT_DOWN\n"
+        "     state:      LINK_DOWN\n"
+        "     speed: 0 Mbps now, 0 Mbps max\n"
+    )
+    assert parse_port_liveness(raw) == {"1": True, "2": False, "3": True}
+
+
+def test_port_liveness_rejects_link_down_without_config_description():
+    from examples.noms27.recovery_campaign.live import parse_port_liveness
+
+    raw = (
+        " 1(s1-eth1): addr:00:00:00:00:00:00\n"
+        "     config:     0\n"
+        "     state:      LINK_DOWN\n"
+        " 2(s1-eth2): addr:00:00:00:00:00:00\n"
+        "     config:     PORT_DOWN,FOO\n"
+        "     state:      LIVE,LINK_DOWN\n"
+        " 3(s1-eth3): addr:00:00:00:00:00:00\n"
+        "     config:     0\n"
+        "     state:      0\n"
+    )
+    assert parse_port_liveness(raw) == {"1": False, "2": False, "3": False}
+
+
 class DirectRuntime(ControlledRuntime):
     async def observe_network(self):
         return {
@@ -367,7 +411,7 @@ def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
                 if mode == "stale_port" and self.requests:
                     snapshot["switches"]["s1"]["ports"]["3"] = False
                 return "\n".join(
-                    f" {port}({switch}-eth{port}): addr:00:00:00:00:00:00\n     config: 0\n     state: {'0' if up else 'LINK_DOWN'}"
+                    f" {port}({switch}-eth{port}): addr:00:00:00:00:00:00\n     config: {'0' if up else 'PORT_DOWN'}\n     state: {'LIVE' if up else 'LINK_DOWN'}"
                     for port, up in snapshot["switches"][switch]["ports"].items()
                 )
             if parts[3] == "dump-flows":

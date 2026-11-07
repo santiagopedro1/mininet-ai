@@ -34,6 +34,28 @@ from .runner import (
 )
 
 
+def parse_port_liveness(raw_ports):
+    """Extract numeric-port liveness from real `ovs-ofctl dump-ports-desc` output.
+
+    A port is observed up when OpenFlow reports no `config`-level `PORT_DOWN`
+    and its `state` reports `LIVE` (bitfield tokens split on commas). Real
+    `config`/`state` strings such as `config: 0`/`state: LIVE` describe healthy
+    links; `state: 0` is not a real `dump-ports-desc` value.
+    """
+    liveness = {}
+    for match in re.finditer(
+        r"^\s*(\d+)\([^\n]*\):[^\n]*\n(.*?)(?=^\s*\d+\(|\Z)",
+        raw_ports,
+        re.MULTILINE | re.DOTALL,
+    ):
+        state = re.search(r"^\s*state:\s*(\S+)", match[2], re.MULTILINE)
+        config = re.search(r"^\s*config:\s*(\S+)", match[2], re.MULTILINE)
+        state_tokens = {t.strip() for t in state[1].split(",")} if state else set()
+        config_tokens = {t.strip() for t in config[1].split(",")} if config else set()
+        liveness[match[1]] = "LIVE" in state_tokens and "PORT_DOWN" not in config_tokens
+    return liveness
+
+
 class RecordingTransport:
     """Keep original wire JSON, including invalid confidence, before native mapping."""
 
@@ -445,17 +467,7 @@ class LiveRuntime:
             raw_ports = await self._command(
                 "ovs-ofctl", "-O", "OpenFlow13", "dump-ports-desc", switch
             )
-            ports = {}
-            for match in re.finditer(
-                r"^\s*(\d+)\([^\n]*\):[^\n]*\n(.*?)(?=^\s*\d+\(|\Z)",
-                raw_ports,
-                re.MULTILINE | re.DOTALL,
-            ):
-                state = re.search(r"^\s*state:\s*(\S+)", match[2], re.MULTILINE)
-                config = re.search(r"^\s*config:\s*(\S+)", match[2], re.MULTILINE)
-                ports[match[1]] = bool(
-                    state and config and state[1] == "0" and config[1] == "0"
-                )
+            ports = parse_port_liveness(raw_ports)
             switches[switch] = {
                 "ports": ports,
                 "port_descriptions": raw_ports,
