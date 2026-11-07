@@ -137,7 +137,16 @@ def test_escalated_route_v2_uses_same_route_authority_as_direct_s2(tmp_path):
     assert [call["stage"] for call in evidence["model_calls"]] == ["s1", "s2"]
     assert evidence["handoffs"][0]["initial_snapshot"]["switch"] == "s1"
     request = evidence["model_calls"][1]["request"]
-    assert request["handoff"] == evidence["handoffs"][0]
+    handoff = evidence["handoffs"][0]
+    assert request["handoff"] == {
+        "cause": "explicit_inability",
+        "s1_status": "explicit_inability",
+        "s1_decision": {"choice": "unable", "status": "completed"},
+        "s1_attempted_action": None,
+        "remaining_seconds_at_handoff": handoff["remaining_seconds"],
+    }
+    assert handoff["initial_snapshot"]["switch"] == "s1"
+    assert handoff["s1_decisions"] and handoff["s1_events"]
     assert request["initial_snapshot"]["ports"]["2"] is False
     assert request["s2_decision_interface"] == "route-v2"
     assert evidence["actions"][0]["selected_route"] == ["h1", "s1", "s3", "s4", "h2"]
@@ -147,6 +156,52 @@ def test_escalated_route_v2_uses_same_route_authority_as_direct_s2(tmp_path):
         "s4",
     }
     assert "path" in evidence["provenance"]["s2_repair_schema"]["properties"]
+
+
+@pytest.mark.parametrize(
+    "choice,action_success,cause",
+    [
+        ("bypass", True, "verification_failed"),
+        ("bypass", False, "action_failed"),
+        ("unable", True, "explicit_inability"),
+    ],
+)
+def test_route_v2_handoff_projects_attempt_and_outcome_without_erasing_evidence(
+    tmp_path, choice, action_success, cause
+):
+    from examples.noms27.recovery_campaign.s2 import route_handoff_view
+
+    evidence = combined(
+        tmp_path,
+        DirectRuntime(choice=choice, action_success=action_success, good_from=None),
+        deadline_seconds=10,
+    )
+    assert evidence["outcome"]["s1_status"] == cause
+    full = evidence["handoffs"][0]
+    compact = route_handoff_view(full)
+    assert compact["cause"] == compact["s1_status"] == full["cause"] == cause
+    assert compact["s1_decision"] == {
+        "choice": choice,
+        "status": full["s1_decisions"][0]["status"],
+    }
+    assert compact["remaining_seconds_at_handoff"] == full["remaining_seconds"]
+    assert "s1_events" not in compact and "s1_decisions" not in compact
+    assert full["s1_events"] and full["s1_decisions"] and full["initial_snapshot"]
+    if choice == "unable":
+        assert compact["s1_attempted_action"] is None
+        assert full["s1_actions"] == []
+    else:
+        action = full["s1_actions"][0]
+        assert compact["s1_attempted_action"] == {
+            "choice": choice,
+            "result": {
+                "success": action["result"]["success"],
+                "switch": action["result"].get("switch"),
+                "flow": action["result"].get("flow"),
+            },
+        }
+        assert action["result"]["success"] is action_success
+    assert evidence["validity"]["valid"] is True
 
 
 def test_s1_execution_exception_escalates(tmp_path):

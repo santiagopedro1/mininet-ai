@@ -133,6 +133,37 @@ def initial_route_view(initial):
     return {"switch": switch, **projected}
 
 
+def route_handoff_view(handoff):
+    """Present S1's decision and outcome without duplicating the raw evidence."""
+    decision = handoff["s1_decisions"][-1] if handoff["s1_decisions"] else None
+    action = handoff["s1_actions"][-1] if handoff["s1_actions"] else None
+    result = action.get("result") if action else None
+    return {
+        "cause": handoff["cause"],
+        "s1_status": handoff["s1_status"],
+        "s1_decision": (
+            {"choice": decision.get("choice"), "status": decision.get("status")}
+            if decision
+            else None
+        ),
+        "s1_attempted_action": (
+            {
+                "choice": action.get("choice"),
+                "result": {
+                    "success": result.get("success"),
+                    "switch": result.get("switch"),
+                    "flow": result.get("flow"),
+                }
+                if isinstance(result, dict)
+                else None,
+            }
+            if action
+            else None
+        ),
+        "remaining_seconds_at_handoff": handoff["remaining_seconds"],
+    }
+
+
 def compile_route(value, observation):
     """Validate the model-selected path and compile only that path into actions."""
     decision = RouteDecision.model_validate(value)
@@ -237,7 +268,9 @@ async def run_direct(
             "s2_decision_interface": interface,
         }
         if handoff is not None:
-            context["handoff"] = handoff
+            context["handoff"] = (
+                route_handoff_view(handoff) if interface == "route-v2" else handoff
+            )
         call = {
             "stage": "s2",
             "attempt": attempt,
