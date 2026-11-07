@@ -199,12 +199,16 @@ def cleanup_inventory(scenario: Scenario) -> dict[str, Any]:
     hosts, switches = _hosts_and_switches(scenario)
     return {
         "bridges": switches,
-        "interfaces": {
-            f"{switch}-eth{number}"
-            for switch, ports in scenario.ports.items()
-            for number in ports.values()
-        }
-        | {f"{host}-eth0" for host in hosts},
+        "interfaces": tuple(
+            sorted(
+                {
+                    f"{switch}-eth{number}"
+                    for switch, ports in scenario.ports.items()
+                    for number in ports.values()
+                }
+                | {f"{host}-eth0" for host in hosts}
+            )
+        ),
         "drops": [
             {
                 "switch": switch,

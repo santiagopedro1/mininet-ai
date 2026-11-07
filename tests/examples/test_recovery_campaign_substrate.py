@@ -185,7 +185,7 @@ def test_every_class_and_placement_yields_a_complete_frozen_plan():
             assert fault["process_owner_probes"] == ["ovs-vsctl", "--timeout=3", "show"]
 
         assert inventory["bridges"] == tuple(topology["switches"])
-        assert inventory["interfaces"] == {
+        assert set(inventory["interfaces"]) == {
             f"{switch}-eth{number}"
             for switch, ports in scenario.ports.items()
             for number in ports.values()
