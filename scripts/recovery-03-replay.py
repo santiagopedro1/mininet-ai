@@ -1,8 +1,14 @@
-"""Non-incident replay of a retained combined S2 request; never executes actions."""
+"""Non-incident replay of a retained combined S2 request; never executes actions.
+
+Applies the production observation filtering (removes S1's installed flows) and
+the simplified handoff view (cause + remaining time only). The strengthened system
+prompt is inherited from the production ROUTE_INSTRUCTIONS.
+"""
 
 import argparse
 import copy
 import json
+import re
 import time
 import urllib.request
 from pathlib import Path
@@ -10,16 +16,36 @@ from pathlib import Path
 from examples.noms27.recovery_campaign.s2 import compile_route, route_handoff_view
 
 
+def _extract_s1_cookies(handoff):
+    """Extract cookie values from S1's attempted action flows."""
+    cookies = set()
+    for action in handoff.get("s1_actions", []):
+        result = action.get("result")
+        if isinstance(result, dict):
+            flow = result.get("flow", "")
+            match = re.search(r"cookie=(0x[0-9a-fA-F]+)", flow)
+            if match:
+                cookies.add(match.group(1))
+    return cookies
+
+
+def _filter_observation(context, cookies):
+    """Remove flows matching the given cookies from the observation."""
+    if not cookies:
+        return
+    for switch_data in context.get("observation", {}).get("switches", {}).values():
+        flows = switch_data.get("active_service_flows", [])
+        filtered = [
+            flow for flow in flows if not any(cookie in flow for cookie in cookies)
+        ]
+        switch_data["active_service_flows"] = filtered
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--run", action="store_true", help="send one inference only")
-    parser.add_argument(
-        "--clarify-handoff",
-        action="store_true",
-        help="probe whether S1 failure is being confused with missing network-wide routes",
-    )
     args = parser.parse_args()
     evidence = json.loads((args.evidence / "evidence.json").read_text())
     if evidence["config"]["treatment"] != "combined_ungated":
@@ -31,14 +57,16 @@ def main():
         raise ValueError("expected a route-v2 request")
     if context["handoff"] != evidence["handoffs"][0]:
         raise ValueError("retained wire request does not match full handoff")
-    context["handoff"] = route_handoff_view(evidence["handoffs"][0])
+    # Apply production changes: simplified handoff, filtered observation, strengthened prompt
+    handoff = evidence["handoffs"][0]
+    context["handoff"] = route_handoff_view(handoff)
+    s1_cookies = _extract_s1_cookies(handoff)
+    _filter_observation(context, s1_cookies)
+    # Also apply the strengthened system prompt from production
+    from examples.noms27.recovery_campaign.s2 import ROUTE_INSTRUCTIONS
+
+    payload["messages"][0]["content"] = ROUTE_INSTRUCTIONS
     payload["messages"][1]["content"] = json.dumps(context)
-    if args.clarify_handoff:
-        payload["messages"][0]["content"] += (
-            " S1's failed local verification does not mean no network-wide route "
-            "exists. Decide whether a route exists from the current "
-            "observation.surviving_links, not from S1's outcome."
-        )
     if not args.run:
         print(
             json.dumps(

@@ -140,9 +140,6 @@ def test_escalated_route_v2_uses_same_route_authority_as_direct_s2(tmp_path):
     handoff = evidence["handoffs"][0]
     assert request["handoff"] == {
         "cause": "explicit_inability",
-        "s1_status": "explicit_inability",
-        "s1_decision": {"choice": "unable", "status": "completed"},
-        "s1_attempted_action": None,
         "remaining_seconds_at_handoff": handoff["remaining_seconds"],
     }
     assert handoff["initial_snapshot"]["switch"] == "s1"
@@ -166,7 +163,7 @@ def test_escalated_route_v2_uses_same_route_authority_as_direct_s2(tmp_path):
         ("unable", True, "explicit_inability"),
     ],
 )
-def test_route_v2_handoff_projects_attempt_and_outcome_without_erasing_evidence(
+def test_route_v2_handoff_omits_s1_details_and_filters_observation(
     tmp_path, choice, action_success, cause
 ):
     from examples.noms27.recovery_campaign.s2 import route_handoff_view
@@ -179,28 +176,24 @@ def test_route_v2_handoff_projects_attempt_and_outcome_without_erasing_evidence(
     assert evidence["outcome"]["s1_status"] == cause
     full = evidence["handoffs"][0]
     compact = route_handoff_view(full)
-    assert compact["cause"] == compact["s1_status"] == full["cause"] == cause
-    assert compact["s1_decision"] == {
-        "choice": choice,
-        "status": full["s1_decisions"][0]["status"],
-    }
+    # Simplified handoff: only cause and remaining time
+    assert compact["cause"] == full["cause"] == cause
     assert compact["remaining_seconds_at_handoff"] == full["remaining_seconds"]
+    # S1 details are omitted from the model-facing view
+    assert "s1_status" not in compact
+    assert "s1_decision" not in compact
+    assert "s1_attempted_action" not in compact
     assert "s1_events" not in compact and "s1_decisions" not in compact
+    # But the full handoff record retains everything for evidence
     assert full["s1_events"] and full["s1_decisions"] and full["initial_snapshot"]
-    if choice == "unable":
-        assert compact["s1_attempted_action"] is None
-        assert full["s1_actions"] == []
-    else:
-        action = full["s1_actions"][0]
-        assert compact["s1_attempted_action"] == {
-            "choice": choice,
-            "result": {
-                "success": action["result"]["success"],
-                "switch": action["result"].get("switch"),
-                "flow": action["result"].get("flow"),
-            },
-        }
-        assert action["result"]["success"] is action_success
+    # S1's installed flows are filtered from the observation passed to S2
+    if choice == "bypass" and action_success:
+        s2_request = evidence["model_calls"][1]["request"]
+        s2_observation_flows = []
+        for switch_flows in s2_request["observation"]["switches"].values():
+            s2_observation_flows.extend(switch_flows.get("active_service_flows", []))
+        # The S1 bypass flow (cookie=0x3101) should not appear in S2's observation
+        assert not any("cookie=0x3101" in flow for flow in s2_observation_flows)
     assert evidence["validity"]["valid"] is True
 
 

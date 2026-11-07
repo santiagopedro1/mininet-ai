@@ -46,6 +46,9 @@ ROUTE_INSTRUCTIONS = (
     "switch endpoints both have observed live ports; it is NOT a route. "
     "Select an ordered route from h1 to h2 using these links, without repeating "
     "nodes. Do not copy the old forwarding path: its links may be down. "
+    "S1's local attempt was insufficient; its outcome does not determine "
+    "whether a network-wide route exists. Decide from the current "
+    "observation, specifically surviving_links and port states. "
     "The bounded executor will validate your route and install forwarding "
     "rules; you do not provide actions or port numbers. Return JSON with "
     'status "repair" and path as the list of node names if a route exists, '
@@ -72,27 +75,51 @@ class RouteDecision(BaseModel):
     path: list[str] = Field(max_length=8)
 
 
-def decision_view(observation):
-    """Project operational telemetry for S2; raw dumps stay in event evidence."""
+def _s1_flow_cookies(handoff):
+    """Extract cookie values from S1's attempted action flows for observation filtering."""
+    cookies = set()
+    for action in handoff.get("s1_actions", []):
+        result = action.get("result")
+        if isinstance(result, dict):
+            flow = result.get("flow", "")
+            match = re.search(r"cookie=(0x[0-9a-fA-F]+)", flow)
+            if match:
+                cookies.add(match.group(1))
+    return cookies
+
+
+def decision_view(observation, exclude_cookies=None):
+    """Project operational telemetry for S2; raw dumps stay in event evidence.
+
+    When exclude_cookies is provided, filter out flows matching those cookies.
+    This is used to hide S1's local attempt from S2's observation.
+    """
     switches = {}
     for name, record in observation.get("switches", {}).items():
         flows = record.get("flows", "")
+        lines = [
+            line.strip()
+            for line in (flows.splitlines() if isinstance(flows, str) else flows)
+            if re.search(r"\bnw_src=10\.0\.0\.1\b", line)
+            and re.search(r"\bnw_dst=10\.0\.0\.2\b", line)
+        ]
+        if exclude_cookies:
+            lines = [
+                line
+                for line in lines
+                if not any(cookie in line for cookie in exclude_cookies)
+            ]
         switches[name] = {
             "ports": record.get("ports", {}),
             "peers": record.get("peers", {}),
-            "active_service_flows": [
-                line.strip()
-                for line in (flows.splitlines() if isinstance(flows, str) else flows)
-                if re.search(r"\bnw_src=10\.0\.0\.1\b", line)
-                and re.search(r"\bnw_dst=10\.0\.0\.2\b", line)
-            ],
+            "active_service_flows": lines,
         }
     return {"switches": switches, "observed_ns": observation.get("observed_ns")}
 
 
-def route_view(observation):
+def route_view(observation, exclude_cookies=None):
     """Expose observed links, never candidate paths or evaluator fault labels."""
-    view = decision_view(observation)
+    view = decision_view(observation, exclude_cookies=exclude_cookies)
     switches = view["switches"]
     links = set()
     for node, record in switches.items():
@@ -134,32 +161,9 @@ def initial_route_view(initial):
 
 
 def route_handoff_view(handoff):
-    """Present S1's decision and outcome without duplicating the raw evidence."""
-    decision = handoff["s1_decisions"][-1] if handoff["s1_decisions"] else None
-    action = handoff["s1_actions"][-1] if handoff["s1_actions"] else None
-    result = action.get("result") if action else None
+    """Present only the escalation cause and remaining budget; omit S1 specifics."""
     return {
         "cause": handoff["cause"],
-        "s1_status": handoff["s1_status"],
-        "s1_decision": (
-            {"choice": decision.get("choice"), "status": decision.get("status")}
-            if decision
-            else None
-        ),
-        "s1_attempted_action": (
-            {
-                "choice": action.get("choice"),
-                "result": {
-                    "success": result.get("success"),
-                    "switch": result.get("switch"),
-                    "flow": result.get("flow"),
-                }
-                if isinstance(result, dict)
-                else None,
-            }
-            if action
-            else None
-        ),
         "remaining_seconds_at_handoff": handoff["remaining_seconds"],
     }
 
@@ -249,11 +253,12 @@ async def run_direct(
     handoff=None,
 ):
     history = []
+    exclude_cookies = _s1_flow_cookies(handoff) if handoff else None
     for attempt in range(1, MAX_ATTEMPTS + 1):
         event("s2_attempt_start", attempt=attempt, deadline_ns=deadline)
         observation = await bounded("telemetry", runtime.observe_network(), deadline)
         view = (
-            route_view(observation)
+            route_view(observation, exclude_cookies=exclude_cookies)
             if interface == "route-v2"
             else decision_view(observation)
         )
