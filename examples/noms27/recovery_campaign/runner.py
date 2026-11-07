@@ -94,8 +94,8 @@ class CampaignConfig(BaseModel):
             raise ValueError("matched scenario requires its frozen scenario instance")
         # Six-class live capability is implemented at this boundary; campaign-
         # scale execution still requires the later feasibility/budget/calibration
-        # and freeze gates, so no validation here may widen approval beyond a
-        # single feasibility-climate trial.
+        # and freeze gates. No validation here authorizes held-out or campaign
+        # treatment evaluation; it only admits per-incident feasibility inputs.
         if self.scenario == "controlled_broader_repair" and (
             self.purpose != "mechanism_validation" or self.treatment == "s1_only"
         ):
