@@ -299,6 +299,35 @@ def test_inject_uses_the_scenario_fault_target(tmp_path):
     asyncio.run(asyncio.gather(live.monitor, return_exceptions=True))
 
 
+def test_observe_network_reports_scenario_switches(tmp_path, monkeypatch):
+    scenario = all_placements()[1]
+    live = live_module.LiveRuntime()
+    live.plan = substrate_plan(scenario)
+    live.config = scenario_config(scenario)
+    observed = []
+
+    async def fake_command(*parts):
+        observed.append(parts)
+        if "dump-ports-desc" in parts:
+            return (
+                " 1(s3-eth1): addr:00:00:00:00:00:01\n"
+                "     config:     0\n     state:      0\n"
+                " 2(s4-eth1): addr:00:00:00:00:00:02\n"
+                "     config:     0\n     state:      0\n"
+            )
+        return "cookie=0x1100,priority=0,actions=drop"
+
+    monkeypatch.setattr(live, "_command", fake_command)
+    observation = asyncio.run(live.observe_network())
+    dumped_switches = {parts[-1] for parts in observed if "dump-ports-desc" in parts}
+    assert dumped_switches == set(scenario.ports)
+    for switch, ports in scenario.ports.items():
+        assert set(observation["switches"][switch]["ports"]) <= {
+            str(number) for number in ports.values()
+        }
+        assert all(observation["switches"][switch]["ports"].values())
+
+
 def test_live_cleanup_verifies_scenario_owned_absence(tmp_path, monkeypatch):
     scenario = all_placements()[1]
     live = live_module.LiveRuntime()

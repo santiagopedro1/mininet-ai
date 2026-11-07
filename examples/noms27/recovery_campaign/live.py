@@ -548,16 +548,16 @@ class LiveRuntime:
 
     async def observe_network(self):
         if self._has_scenario():
-            peers: Any = {
+            peers_map: Any = {
                 switch: dict(ports)
                 for switch, ports in self.config.scenario_instance.ports.items()
             }
         else:
             from examples.diamond_recovery import PORTS
 
-            peers = PORTS
+            peers_map = PORTS
         switches = {}
-        for switch, peers in PORTS.items():
+        for switch, peers in peers_map.items():
             raw_ports = await self._command(
                 "ovs-ofctl", "-O", "OpenFlow13", "dump-ports-desc", switch
             )
