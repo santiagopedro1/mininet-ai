@@ -51,12 +51,28 @@ python -m examples.noms27.recovery_campaign \
   --config examples/noms27/recovery_campaign/development-s2-route.json --check
 ```
 
-For a future authorized live trial, copy the sample config to a fresh ID,
-`purpose: live_feasibility`, Ollama model/endpoint and a previously nonexistent
-evidence directory. Use the isolated guest source archive procedure in the
-ticket-01 runbook. Inspect validity, service outcome, cleanup and containment
-independently before any following run. A controlled success or a non-incident
-replay cannot check ticket 02's live acceptance box. Development deadline,
-workload, decoding and resource settings remain unapproved; later six-class
-feasibility, numerical budget approval and held-out configuration freeze are
-still required.
+## Live mechanism acceptance
+
+The fresh direct-S2 run `development-live-s2-route-001`, from commit `b81e4aa`,
+was **valid and independently recovered** on the controlled broader diamond.
+The designated Ollama `qwen3.5:latest` model selected
+`h1→s1→s3→s4→h2`; the compiler installed three typed rules on s1/s3/s4.
+The observed sustained packet recovery began at 1.3 s and verification
+completed at 2.4 s under the unapproved 10 s deadline. All 148 recorded fault
+checks retained the persistent outage; no downstream active backup was
+preinstalled. The 15-second observation had 1,500 sends and 123 failed timely
+deliveries (1.23 s disruption); no relapse, late restoration or censoring.
+Cleanup and provider containment were positive. Raw evidence and checksum-
+receipted source/evidence archives are under
+`/home/pedro/projects/mininet-ai/live-acceptance/`, with full trial details and
+limitations in the paper tracker ticket 02. Evidence archive SHA-256:
+`4a35e2d2718e2da511b39fb6a646d7cf73cac4ff371832e2cca388e529167d9a`.
+Source archive SHA-256:
+`f203dd64ac835a386e753043f69a5e8b8dd9dc01721305a8375733c2bc5e9a6e`.
+
+This accepts one **live mechanism incident**, not the extended-diamond six-class
+campaign, treatment effectiveness, numerical budgets or a frozen policy.
+Development deadline, workload, decoding and resource settings remain
+unapproved; later feasibility, calibration and held-out approval gates still
+apply. A future run requires a new ID and evidence directory and separate
+validity/outcome/cleanup/containment inspection.
