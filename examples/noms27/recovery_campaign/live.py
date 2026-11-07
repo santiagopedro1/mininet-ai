@@ -496,15 +496,24 @@ class LiveRuntime:
 
     async def decide_s2(self, context, remaining_seconds):
         from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
-        from .s2 import MODEL_SETTINGS, Repair
+        from .s2 import MODEL_SETTINGS, ROUTE_INSTRUCTIONS, Repair, RouteDecision
+
+        route_choice = context.get("s2_decision_interface") == "route-v2"
 
         payload = {
             "model": self.config.model_name,
             "messages": [
-                {"role": "system", "content": S2_INSTRUCTIONS},
+                {
+                    "role": "system",
+                    "content": ROUTE_INSTRUCTIONS if route_choice else S2_INSTRUCTIONS,
+                },
                 {"role": "user", "content": json.dumps(context)},
             ],
-            "format": Repair.model_json_schema(),
+            "format": (
+                RouteDecision.model_json_schema()
+                if route_choice
+                else Repair.model_json_schema()
+            ),
             "stream": False,
             **MODEL_SETTINGS,
         }

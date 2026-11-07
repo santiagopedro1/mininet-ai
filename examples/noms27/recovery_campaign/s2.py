@@ -40,6 +40,17 @@ INSTRUCTIONS = (
     'Return JSON only: {"status":"repair","actions":[{"switch":"s1",'
     '"in_port":1,"out_port":3}]} or {"status":"unable","actions":[]}.'
 )
+ROUTE_INSTRUCTIONS = (
+    "You choose an ordered h1-to-h2 route for directional IPv4 service. "
+    "The observation.surviving_links list contains individual links whose "
+    "switch endpoints both have observed live ports; it is NOT a route. "
+    "Select an ordered route from h1 to h2 using these links, without repeating "
+    "nodes. Do not copy the old forwarding path: its links may be down. "
+    "The bounded executor will validate your route and install forwarding "
+    "rules; you do not provide actions or port numbers. Return JSON with "
+    'status "repair" and path as the list of node names if a route exists, '
+    'or status "unable" with an empty path otherwise.'
+)
 
 
 class ForwardingAction(BaseModel):
@@ -53,6 +64,12 @@ class Repair(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     status: Literal["repair", "unable", "no_action"]
     actions: list[ForwardingAction] = Field(max_length=16)
+
+
+class RouteDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    status: Literal["repair", "unable"]
+    path: list[str] = Field(max_length=8)
 
 
 def decision_view(observation):
@@ -71,6 +88,89 @@ def decision_view(observation):
             ],
         }
     return {"switches": switches, "observed_ns": observation.get("observed_ns")}
+
+
+def route_view(observation):
+    """Expose observed links, never candidate paths or evaluator fault labels."""
+    view = decision_view(observation)
+    switches = view["switches"]
+    links = set()
+    for node, record in switches.items():
+        record["port_to_peer"] = {
+            str(port): peer for peer, port in record.pop("peers").items()
+        }
+        for port, peer in record["port_to_peer"].items():
+            if record["ports"].get(port) is not True:
+                continue
+            if peer in switches:
+                other = observation["switches"][peer]
+                reciprocal = other.get("peers", {}).get(node)
+                if (
+                    reciprocal is None
+                    or other.get("ports", {}).get(str(reciprocal)) is not True
+                ):
+                    continue
+            links.add(tuple(sorted((node, peer))))
+    view["surviving_links"] = [list(link) for link in sorted(links)]
+    return view
+
+
+def initial_route_view(initial):
+    """Project the shared local snapshot without altering the retained raw record."""
+    from .live import parse_port_liveness
+
+    switch = initial["switch"]
+    projected = decision_view(
+        {
+            "switches": {
+                switch: {
+                    "ports": parse_port_liveness(initial["ports"]),
+                    "flows": initial["flows"],
+                }
+            }
+        }
+    )["switches"][switch]
+    return {"switch": switch, **projected}
+
+
+def compile_route(value, observation):
+    """Validate the model-selected path and compile only that path into actions."""
+    decision = RouteDecision.model_validate(value)
+    if decision.status == "unable":
+        if decision.path:
+            raise ValueError("inability forbids a path")
+        return {"status": "unable", "actions": []}
+    path = decision.path
+    if (
+        len(path) < 3
+        or len(path) != len(set(path))
+        or path[0] != "h1"
+        or path[-1] != "h2"
+    ):
+        raise ValueError("repair requires a simple h1-to-h2 path")
+    switches = observation.get("switches", {})
+    actions = []
+    for before, node, after in zip(path, path[1:], path[2:], strict=False):
+        record = switches.get(node, {})
+        peers = record.get("peers", {})
+        if node not in PORTS or before not in peers or after not in peers:
+            raise ValueError("route includes unknown or nonadjacent switch")
+        incoming, outgoing = peers[before], peers[after]
+        if any(
+            record.get("ports", {}).get(str(port)) is not True
+            for port in (incoming, outgoing)
+        ):
+            raise ValueError("route requires surviving observed ports")
+        if after in switches:
+            other = switches[after]
+            reciprocal = other.get("peers", {}).get(node)
+            if (
+                reciprocal is None
+                or other.get("ports", {}).get(str(reciprocal)) is not True
+            ):
+                raise ValueError("route requires a reciprocal surviving link")
+        actions.append({"switch": node, "in_port": incoming, "out_port": outgoing})
+    return validate_repair({"status": "repair", "actions": actions}, observation)
 
 
 def decision_history(history):
@@ -104,18 +204,35 @@ def validate_repair(value, observation):
     return repair.model_dump()
 
 
-async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, actions):
+async def run_direct(
+    runtime,
+    clock,
+    deadline,
+    initial,
+    bounded,
+    event,
+    calls,
+    actions,
+    interface="actions-v1",
+):
     history = []
     for attempt in range(1, MAX_ATTEMPTS + 1):
         event("s2_attempt_start", attempt=attempt, deadline_ns=deadline)
         observation = await bounded("telemetry", runtime.observe_network(), deadline)
-        view = decision_view(observation)
+        view = (
+            route_view(observation)
+            if interface == "route-v2"
+            else decision_view(observation)
+        )
         context = {
             "alarm": "directional_service_disruption",
-            "initial_snapshot": initial,
+            "initial_snapshot": initial_route_view(initial)
+            if interface == "route-v2"
+            else initial,
             "observation": view,
             "permissions": PERMISSIONS,
             "history": decision_history(history),
+            "s2_decision_interface": interface,
         }
         call = {
             "stage": "s2",
@@ -145,7 +262,11 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
 
         try:
             decision = await bounded("inference", infer(), deadline)
-            repair = validate_repair(decision.get("repair"), observation)
+            repair = (
+                compile_route(decision.get("repair"), observation)
+                if interface == "route-v2"
+                else validate_repair(decision.get("repair"), observation)
+            )
         except TimeoutError:
             raise
         except Exception as error:
@@ -164,10 +285,18 @@ async def run_direct(runtime, clock, deadline, initial, bounded, event, calls, a
             continue
         if repair["status"] != "repair":
             return "explicit_inability" if repair["status"] == "unable" else "no_action"
+        selected_route = decision["repair"]["path"] if interface == "route-v2" else None
+        if selected_route is not None:
+            event(
+                "s2_route_selected",
+                path=selected_route,
+                compiled_actions=repair["actions"],
+            )
         action = {
             "stage": "s2",
             "attempt": attempt,
             "repair": repair,
+            "selected_route": selected_route,
             "started_ns": clock.now_ns(),
             "result": None,
         }

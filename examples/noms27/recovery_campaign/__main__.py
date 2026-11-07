@@ -20,11 +20,15 @@ def main() -> int:
     if args.check:
         authority = {"catalogue": CATALOGUE}
         if config.treatment == "s2_only":
-            from .s2 import PERMISSIONS, Repair
+            from .s2 import PERMISSIONS, Repair, RouteDecision
 
             authority = {
                 "permissions": PERMISSIONS,
-                "repair_schema": Repair.model_json_schema(),
+                "repair_schema": (
+                    RouteDecision.model_json_schema()
+                    if config.s2_decision_interface == "route-v2"
+                    else Repair.model_json_schema()
+                ),
             }
         print(
             json.dumps(

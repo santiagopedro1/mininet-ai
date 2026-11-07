@@ -8,7 +8,17 @@ import urllib.request
 from pathlib import Path
 
 from examples.noms27.recovery_campaign.live import parse_port_liveness
-from examples.noms27.recovery_campaign.s2 import decision_view, validate_repair
+from examples.noms27.recovery_campaign.s2 import (
+    ROUTE_INSTRUCTIONS as PRODUCTION_ROUTE_INSTRUCTIONS,
+)
+from examples.noms27.recovery_campaign.s2 import (
+    RouteDecision,
+    compile_route,
+    decision_view,
+    initial_route_view,
+    route_view,
+    validate_repair,
+)
 
 NEUTRAL_INSTRUCTIONS = (
     "Diagnose directional h1-to-h2 service using the shared initial snapshot and "
@@ -50,6 +60,17 @@ ROUTE_INSTRUCTIONS = (
     "surviving ports only. Do not return actions or port numbers. Return JSON "
     'with status "repair" and path as the ordered list of node names if such '
     'a route exists; otherwise status "unable" with an empty path.'
+)
+ROUTE_LINK_INSTRUCTIONS = (
+    "You choose an ordered h1-to-h2 route for directional IPv4 service. "
+    "The observation.surviving_links list contains individual links whose "
+    "switch endpoints both have observed live ports; it is NOT a route. "
+    "Select an ordered route from h1 to h2 using these links, without repeating "
+    "nodes. Do not copy the old forwarding path: its links may be down. "
+    "The bounded executor will validate your route and install forwarding "
+    "rules; you do not provide actions or port numbers. Return JSON with "
+    'status "repair" and path as the list of node names if a route exists, '
+    'or status "unable" with an empty path otherwise.'
 )
 ROUTE_SCHEMA = {
     "type": "object",
@@ -113,6 +134,8 @@ def main():
             "algorithm",
             "route-choice",
             "route-choice-compact-initial",
+            "route-choice-links",
+            "route-v2-production",
         ),
         required=True,
     )
@@ -136,17 +159,28 @@ def main():
     if args.mode.startswith("route-choice"):
         payload["messages"][0]["content"] = ROUTE_INSTRUCTIONS
         payload["format"] = ROUTE_SCHEMA
+    if args.mode == "route-choice-links":
+        payload["messages"][0]["content"] = ROUTE_LINK_INSTRUCTIONS
+    if args.mode == "route-v2-production":
+        payload["messages"][0]["content"] = PRODUCTION_ROUTE_INSTRUCTIONS
+        payload["format"] = RouteDecision.model_json_schema()
+        context = json.loads(payload["messages"][1]["content"])
+        context["observation"] = route_view(observation)
+        context["initial_snapshot"] = initial_route_view(context["initial_snapshot"])
+        context["s2_decision_interface"] = "route-v2"
+        payload["messages"][1]["content"] = json.dumps(context)
     if args.mode.startswith("port-map") or args.mode in (
         "algorithm",
         "route-choice",
         "route-choice-compact-initial",
+        "route-choice-links",
     ):
         context = json.loads(payload["messages"][1]["content"])
         for switch in context["observation"]["switches"].values():
             switch["port_to_peer"] = {
                 str(port): neighbor for neighbor, port in switch.pop("peers").items()
             }
-        if args.mode == "route-choice-compact-initial":
+        if args.mode in ("route-choice-compact-initial", "route-choice-links"):
             initial = context["initial_snapshot"]
             projected = decision_view(
                 {
@@ -159,6 +193,32 @@ def main():
                 }
             )["switches"][initial["switch"]]
             context["initial_snapshot"] = {"switch": initial["switch"], **projected}
+        if args.mode == "route-choice-links":
+            switches = context["observation"]["switches"]
+            links = set()
+            for node, record in switches.items():
+                for port, peer in record["port_to_peer"].items():
+                    if record["ports"].get(port) is not True:
+                        continue
+                    if peer in switches:
+                        other = switches[peer]
+                        reciprocal = next(
+                            (
+                                p
+                                for p, neighbor in other["port_to_peer"].items()
+                                if neighbor == node
+                            ),
+                            None,
+                        )
+                        if (
+                            reciprocal is None
+                            or other["ports"].get(reciprocal) is not True
+                        ):
+                            continue
+                    links.add(tuple(sorted((node, peer))))
+            context["observation"]["surviving_links"] = [
+                list(link) for link in sorted(links)
+            ]
         payload["messages"][1]["content"] = json.dumps(context)
     if args.mode in ("neutral-thinking", "port-map-thinking", "port-map-thinking-long"):
         payload["think"] = True
@@ -190,7 +250,12 @@ def main():
         elapsed = time.monotonic() - started
         (args.output / "response.json").write_text(json.dumps(result, indent=2) + "\n")
         repair = json.loads(result["message"]["content"])
-        if args.mode.startswith("route-choice"):
+        if args.mode == "route-v2-production":
+            compiled = compile_route(repair, observation)
+            path = repair["path"]
+            switches = {action["switch"] for action in compiled["actions"]}
+            status = compiled["status"]
+        elif args.mode.startswith("route-choice"):
             path = validate_route(repair, observation)
             switches = set(path[1:-1])
             status = repair["status"]
@@ -205,7 +270,10 @@ def main():
             "output_tokens": result.get("eval_count"),
             "status": status,
             "switches": sorted(switches),
-            "route": path if args.mode.startswith("route-choice") else None,
+            "route": path
+            if args.mode.startswith("route-choice")
+            or args.mode == "route-v2-production"
+            else None,
             "three_switch_candidate": {"s1", "s3", "s4"} <= switches,
             "not_service_verification": True,
         }

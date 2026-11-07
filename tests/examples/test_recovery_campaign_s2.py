@@ -396,6 +396,143 @@ def test_live_broader_diamond_is_direct_s2_only():
 
 
 @pytest.mark.parametrize(
+    "path,accepted",
+    [
+        (["h1", "s1", "s3", "s4", "h2"], True),
+        (["h1", "s1", "s2", "s4", "h2"], False),
+        (["h1", "s1", "s3", "s1", "s3", "s4", "h2"], False),
+        (["h1", "s1", "s3", "s4", "h9"], False),
+    ],
+)
+def test_route_v2_compiles_only_model_chosen_surviving_path(tmp_path, path, accepted):
+    from examples.diamond_recovery import PORTS
+    from examples.noms27.recovery_campaign.live import parse_port_liveness
+
+    assert parse_port_liveness(" 1(s1-eth1): addr:00\n config: 0\n state: LIVE\n") == {
+        "1": True
+    }
+
+    class RouteRuntime(DirectRuntime):
+        async def diagnose(self):
+            return {
+                "switch": "s1",
+                "ports": (
+                    " 1(s1-eth1): addr:00:00:00:00:00:00\n"
+                    "     config: 0\n     state: LIVE\n"
+                    " 2(s1-eth2): addr:00:00:00:00:00:00\n"
+                    "     config: PORT_DOWN\n     state: LINK_DOWN\n"
+                    " 3(s1-eth3): addr:00:00:00:00:00:00\n"
+                    "     config: 0\n     state: LIVE\n"
+                ),
+                "flows": " priority=100,ip,in_port=1,nw_src=10.0.0.1,nw_dst=10.0.0.2 actions=output:2",
+            }
+
+        async def observe_network(self):
+            observed = await super().observe_network()
+            for name, record in observed["switches"].items():
+                record["peers"] = PORTS[name]
+                record["flows"] = ""
+            return observed
+
+        async def decide_s2(self, context, remaining_seconds):
+            return {
+                "repair": {"status": "repair", "path": path},
+                "request": context,
+                "response": {"done": True},
+                "tokens": {"input": 15, "output": 10, "reasoning": None},
+            }
+
+    runtime = RouteRuntime(good_from=2 if accepted else None)
+    evidence = run(
+        tmp_path,
+        runtime,
+        treatment="s2_only",
+        scenario="diamond_s1_s2_link_broader",
+        s2_decision_interface="route-v2",
+        deadline_seconds=6,
+    )
+    assert evidence["validity"]["valid"] is True
+    assert evidence["outcome"]["service_recovery"] is accepted
+    request = evidence["model_calls"][0]["request"]
+    assert request["s2_decision_interface"] == "route-v2"
+    assert ["s1", "s2"] not in request["observation"]["surviving_links"]
+    assert ["s1", "s3"] in request["observation"]["surviving_links"]
+    assert request["initial_snapshot"]["ports"]["2"] is False
+    assert "s1-s2" not in str(request)
+    assert "path" in evidence["provenance"]["s2_repair_schema"]["properties"]
+    if accepted:
+        assert evidence["outcome"]["policy_status"] == "verified"
+        assert len(evidence["actions"]) == 1
+        assert evidence["actions"][0]["selected_route"] == path
+        assert evidence["actions"][0]["repair"]["actions"] == [
+            {"switch": "s1", "in_port": 1, "out_port": 3},
+            {"switch": "s3", "in_port": 1, "out_port": 2},
+            {"switch": "s4", "in_port": 3, "out_port": 1},
+        ]
+        assert any(event["kind"] == "s2_route_selected" for event in evidence["events"])
+    else:
+        assert evidence["actions"] == []
+        assert all(call["response"] is not None for call in evidence["model_calls"])
+        assert all(event["kind"] != "s2_route_selected" for event in evidence["events"])
+
+
+def test_route_v2_real_ollama_adapter_uses_route_schema_and_records_wire(tmp_path):
+    import json
+
+    import httpx
+
+    from examples.noms27.recovery_campaign.live import LiveRuntime, RecordingTransport
+    from mininet_ai.transports.http import HttpxJsonTransport
+
+    requests = []
+
+    def respond(request):
+        payload = json.loads(request.content)
+        requests.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "done": True,
+                "message": {
+                    "content": json.dumps(
+                        {"status": "repair", "path": ["h1", "s1", "s3", "s4", "h2"]}
+                    )
+                },
+                "prompt_eval_count": 23,
+                "eval_count": 12,
+            },
+        )
+
+    runtime = LiveRuntime()
+    runtime.config = config(
+        treatment="s2_only",
+        scenario="diamond_s1_s2_link_broader",
+        s2_decision_interface="route-v2",
+        model_name="offline-test",
+        endpoint="http://offline.invalid",
+    )
+    runtime.root = tmp_path
+    runtime.recording = RecordingTransport(
+        tmp_path, HttpxJsonTransport(httpx.MockTransport(respond))
+    )
+    result = asyncio.run(
+        runtime.decide_s2({"s2_decision_interface": "route-v2", "observation": {}}, 4)
+    )
+    assert result["repair"]["path"] == ["h1", "s1", "s3", "s4", "h2"]
+    assert result["tokens"] == {"input": 23, "output": 12, "reasoning": None}
+    assert requests[0]["format"]["properties"]["path"]["type"] == "array"
+    assert "actions" not in requests[0]["format"]["properties"]
+    assert "surviving_links" in requests[0]["messages"][0]["content"]
+    assert [
+        json.loads(row)["kind"]
+        for row in (tmp_path / "model-wire.jsonl").read_text().splitlines()
+    ] == [
+        "request",
+        "response",
+    ]
+
+
+@pytest.mark.parametrize(
     "action",
     [
         {"switch": "s1", "in_port": 1, "out_port": 2},

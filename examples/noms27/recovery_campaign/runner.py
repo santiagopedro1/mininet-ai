@@ -50,6 +50,7 @@ class CampaignConfig(BaseModel):
 
     trial_id: str = Field(min_length=1)
     treatment: Literal["s1_only", "s2_only"]
+    s2_decision_interface: Literal["actions-v1", "route-v2"] = "actions-v1"
     scenario: Literal[
         "diamond_s1_s2_link",
         "diamond_s1_s2_link_broader",
@@ -79,6 +80,8 @@ class CampaignConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_budgets(self):
+        if self.treatment == "s1_only" and self.s2_decision_interface != "actions-v1":
+            raise ValueError("S1-only cannot configure an S2 decision interface")
         if self.scenario == "controlled_broader_repair" and (
             self.purpose != "mechanism_validation" or self.treatment != "s2_only"
         ):
@@ -461,6 +464,7 @@ async def run_campaign(
                         event,
                         model_calls,
                         actions,
+                        config.s2_decision_interface,
                     )
                 else:
                     inference_start = clock.now_ns()
@@ -700,15 +704,29 @@ async def run_campaign(
     }
     if config.treatment == "s2_only":
         from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
-        from .s2 import MODEL_SETTINGS, PERMISSIONS, Repair
+        from .s2 import (
+            MODEL_SETTINGS,
+            PERMISSIONS,
+            ROUTE_INSTRUCTIONS,
+            Repair,
+            RouteDecision,
+        )
 
         result["schema_version"] = "recovery-s2/v1"
         result["permissions"] = PERMISSIONS
-        prov["instructions"] = S2_INSTRUCTIONS
+        prov["instructions"] = (
+            ROUTE_INSTRUCTIONS
+            if config.s2_decision_interface == "route-v2"
+            else S2_INSTRUCTIONS
+        )
         prov["criteria"] = None
         prov["catalogue"] = None
         prov["catalogue_sha256"] = None
-        prov["s2_repair_schema"] = Repair.model_json_schema()
+        prov["s2_repair_schema"] = (
+            RouteDecision.model_json_schema()
+            if config.s2_decision_interface == "route-v2"
+            else Repair.model_json_schema()
+        )
         prov["s2_model_settings"] = MODEL_SETTINGS
     # Later task/provider completions append to durable journals, not frozen outcomes.
     snapshot = copy.deepcopy(result)
