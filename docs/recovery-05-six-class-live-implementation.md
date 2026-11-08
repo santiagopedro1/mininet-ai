@@ -80,10 +80,12 @@ Scripted models; every smoke trial runs a full 5 s baseline + 6 s deadline
 Retained failures are kept as originals (`-002` contract probes, first
 `br-exists` exit-code discovery, pre-fix authority and observation runs under
 `extended-switch-combined..003`), demonstrating live originals-being-retained
-semantics. Evidence is preserved under the worktree's ignored
-`run-evidence/recovery-05-smoke/` and the tarball
-`/tmp/opencode/recovery-05-smoke-evidence.tgz`
-(SHA-256 `8a5bbd2d93b9231d68063194d22d66a3d8b9e1604f5b09b7a22a6916f0c613fb`).
+semantics. Evidence is preserved both under this branch's ignored
+`run-evidence/recovery-05-smoke/` and durably outside any worktree at
+`/home/pedro/projects/mininet-ai/recovery-evidence/recovery-05-smoke/` with
+the tarball and SHA-256
+`8a5bbd2d93b9231d68063194d22d66a3d8b9e1604f5b09b7a22a6916f0c613fb` (re-pulled
+unused from the VM disk after a session restart; hash verified unchanged).
 The VM's synced checkout at `/vagrant` was not written except removing a
 misplaced `recovery-05-work/` directory extracted there by mistake (which
 never overwrote tracked/state-changed files; the host checkout's pre-existing
