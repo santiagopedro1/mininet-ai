@@ -4,7 +4,9 @@ Mininet AI is a declarative experiment compiler and runtime for agentic networki
 research. Define a topology, choose where agents attach, and specify what they
 can observe and change.
 
-Agno handles agent execution, models, sessions, and memory. Mininet AI owns the
+Agno handles deliberative agent execution, models, sessions, and memory;
+explicit bounded-decision execution handles native structured decisions.
+Mininet AI owns the
 network lifecycle, scheduling, coordination, capability authorization, shared
 operational state, and experiment ledger. Agents propose actions; authorized
 capabilities execute them.
@@ -31,8 +33,24 @@ The current specification contract is `mininet-ai/v1alpha4`. Compatible
 
 Placement currently describes logical scope, not enforced process or namespace
 isolation. Python agent factories run as trusted code in the orchestrator.
-Legacy generic agent/model providers remain deprecated; Agno is the active
-runtime.
+Legacy generic agent/model providers remain deprecated; Agno is the default
+execution kind, with bounded-decision execution explicitly selectable.
+
+## System One and System Two
+
+**System One** means direct, bounded decision-making; **System Two** means
+deliberative reasoning through intermediate steps. They describe approaches,
+not network placement or action authority. System One decision models are
+assumed to provide native typed outputs and calibrated probabilities.
+
+An agent uses a model through an execution mechanism: these are distinct
+concepts. The current bounded-decision path consumes native choices, while Agno
+supports deliberative agents. Escalation between agents is a workflow policy,
+not part of either term's definition.
+
+See the [glossary](GLOSSARY.md) for definitions and
+[decision-making approaches](docs/decision-making.md) for model assumptions,
+execution mechanisms, and their use in experiments.
 
 ## Installation and quick start
 

@@ -1,6 +1,6 @@
 # Diamond switch diagnosis (exploratory Maintained Example)
 
-**Primary Goal:** demonstrate one native System 1 diagnosis agent per switch.
+**Primary Goal:** demonstrate one native System One diagnosis agent per switch.
 Planning uses the `fake` Substrate; the opt-in Mininet/OVS harness provides a
 real four-switch topology. Each agent is scoped to one switch and receives only
 its current local flow and operational port-state observations. No observation history,
@@ -42,7 +42,7 @@ mapping, table-miss drop, and absence of `NORMAL` forwarding. The `fake`
 Substrate plan itself does not deploy these settings.
 
 The network harness still configures the diamond and records its probe rounds
-for topology diagnostics, but those rounds are not sent to System 1. A switch
+for topology diagnostics, but those rounds are not sent to the System One agents. A switch
 agent request is current-only: its target switch identity, latest local port
 operational state, and latest local flow state. Missing or unavailable fields stay
 explicit; agents must not infer the condition of other switches.

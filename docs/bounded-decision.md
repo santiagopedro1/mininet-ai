@@ -6,6 +6,14 @@ scenario-owned choice IDs to fixed proposals. They do not use chat completion,
 token generation, Agno, or hidden conversation memory. Mininet remains responsible
 for capability authorization and all network mutation.
 
+System One names the direct, bounded decision-making approach; this execution
+kind is the mechanism that consumes its model outputs. We assume System One
+decision models provide native typed outputs and calibrated probabilities.
+Response validation does not establish calibration, and optional diagnostic
+fields in the current response contract do not verify that model assumption.
+See [decision-making approaches](decision-making.md) for the distinction between
+models, agents, and execution mechanisms.
+
 **Initial slice (amended #116):** one current-only local diagnosis agent per
 switch, `healthy` / `degraded` choices, and no action proposals. The Maintained
 Example declares a 5-second operational deadline, not a universal model-latency

@@ -18,12 +18,15 @@ Referring an incident to another decision-maker when local evidence or recovery
 capabilities are insufficient.
 
 **System One**:
-The local bounded-decision agent that selects a recovery policy from current
-diagnostics.
+Direct, bounded decision-making, independent of placement, authority, or task.
+System One decision models are assumed to provide native typed outputs and
+calibrated probabilities.
 _Avoid_: local model, edge agent
 
 **System Two**:
-The experiment-wide decision-maker invoked only through escalation.
+Deliberative reasoning through intermediate steps, potentially including
+investigation, planning, and revision, independent of placement, authority, or
+invocation through escalation.
 _Avoid_: global model, fallback agent
 
 **Confidence Gate**:

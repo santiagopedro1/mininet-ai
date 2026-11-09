@@ -14,6 +14,10 @@ future reader can distinguish a model choice from a runner replacement. A failed
 local repair does not automatically trigger System Two; escalation happens only
 through an explicit `escalate` choice or the gate.
 
+These invocation rules belong to this workflow. System One and System Two name
+decision-making approaches, not placement or authority; both agents in this
+example are scoped to `s1`. See [decision-making approaches](../decision-making.md).
+
 Rejected alternatives were a core runtime threshold (larger contract and evidence
 change), a transport-only response rewrite (would hide the original model choice),
 and automatic escalation after failed local repair (would obscure a wrong System
