@@ -5,6 +5,18 @@ networking research. This glossary defines project-specific terms.
 
 ## Language
 
+**System One**:
+Direct, bounded decision-making, independent of placement, authority, or task.
+System One decision models are assumed to provide native typed outputs and
+calibrated probabilities.
+_Avoid_: local model, edge agent
+
+**System Two**:
+Deliberative reasoning through intermediate steps, potentially including
+investigation, planning, and revision, independent of placement, authority, or
+invocation through escalation.
+_Avoid_: global model, fallback agent
+
 **Maintained Example**:
 A user-facing scenario in `examples/` with a README, validated and planned as
 part of the test suite. Each maintained example demonstrates a coherent
