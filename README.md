@@ -269,6 +269,7 @@ See [run storage and export](docs/run-logs.md) for coordination and format detai
 | [Autonomous Network Operation](examples/autonomous-operation/README.md) | Shared model + shallow override, event triggers, detectors, rollback | `fake` | `mock` |
 | [Hierarchical Routing Coordination](examples/hierarchical-routing/README.md) | Three-tier routing with hierarchical coordination | `mininet-ovs` | `ollama` |
 | [iperf Throughput](examples/iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` |
+| [Unified System One/Two Recovery](examples/noms27/unified-system-1-2-recovery/README.md) | Random link/flow faults with local repair and confidence-gated escalation | `mininet-ovs` | `llamacpp-systemone` + `ollama` |
 
 See the [examples index](examples/README.md) for a feature matrix and progression guide.
 

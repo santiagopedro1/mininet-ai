@@ -637,7 +637,7 @@ def _compile_instances(
                 raise CompilationError(
                     "decision scenario paths reference undeclared topology nodes"
                 )
-            current_only = scenario.input_mode == "current-only"
+            current_only = scenario.input_mode in {"current-only", "current-recovery"}
             required_inputs = (
                 set(scenario.observations)
                 if current_only

@@ -452,12 +452,12 @@ class MininetOVSRuntime:
         *,
         timeout_seconds: float | None = None,
     ) -> tuple[str, ...]:
-        """Read exact scenario-owned flow state from each affected switch."""
+        """Read exact fixed-repair state from each affected switch."""
         run = self._require_running(run_id)
         inspector = getattr(run.actions, "inspect_scenario_actions", None)
         if not callable(inspector):
             raise RuntimeOperationError(
-                "Mininet/OVS action provider has no trusted flow inspection",
+                "Mininet/OVS action provider has no trusted repair inspection",
                 code="runtime.reconciliation.unsupported",
                 run_id=run_id,
             )
@@ -468,7 +468,7 @@ class MininetOVSRuntime:
             )
         except Exception as error:
             raise RuntimeOperationError(
-                f"could not inspect scenario-owned OpenFlow rules: {error}",
+                f"could not inspect scenario-owned repairs: {error}",
                 code="runtime.reconciliation.unreadable",
                 run_id=run_id,
             ) from error

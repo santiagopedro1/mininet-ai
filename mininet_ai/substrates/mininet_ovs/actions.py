@@ -105,6 +105,7 @@ class MininetOVSActions:
 
     def execute(self, request: ActionRequest) -> ActionOutcome:
         handlers = {
+            "ovs.port.enable": lambda: self._enable_switch_port(request),
             "link.enable": lambda: self._set_link_state(request, up=True),
             "link.disable": lambda: self._set_link_state(request, up=False),
             "link.configure": lambda: self._configure_link(request),
@@ -128,9 +129,11 @@ class MininetOVSActions:
         *,
         timeout_seconds: float | None = None,
     ) -> tuple[str, ...]:
-        """Compare compiled scenario flows with a read-only OVS flow dump."""
+        """Inspect exact compiled flow rules or administrative switch-port state."""
         dumps: dict[str, tuple[dict[str, Any], ...]] = {}
         for request in expected:
+            if request.name == "ovs.port.enable":
+                continue
             if request.name != "openflow.flow.install":
                 raise ActionExecutionError(
                     "scenario reconciliation only supports installed OpenFlow rules",
@@ -160,6 +163,15 @@ class MininetOVSActions:
                     ) from error
         states = []
         for request in expected:
+            if request.name == "ovs.port.enable":
+                port = self._require_switch_port(request)
+                up = self._interface_is_up(
+                    port.name,
+                    self._node(request.target),
+                    timeout_seconds=timeout_seconds,
+                )
+                states.append("present" if up else "missing")
+                continue
             expected_rule = self._parse_flow_expression(
                 self._flow_expression(request.parameters, require_actions=True)
             )
@@ -277,6 +289,45 @@ class MininetOVSActions:
             if managed.process.poll() is None:
                 self._terminate(managed.process, timeout_seconds=2)
             del self._processes[process_id]
+
+    def _require_switch_port(self, request: ActionRequest):
+        self._require_kind(request.target, ResourceKind.SWITCH)
+        if set(request.parameters) != {"port"} or not isinstance(
+            request.parameters["port"], str
+        ):
+            self._reject("ovs.port.enable requires exactly one string port argument")
+        port = self._resources.get(request.parameters["port"])
+        if (
+            port is None
+            or port.kind != ResourceKind.PORT
+            or port.parent != request.target
+            or getattr(port, "role", None) != "switch-port"
+        ):
+            self._reject(
+                "port must be a declared switch port owned by the target switch"
+            )
+        return port
+
+    def _enable_switch_port(self, request: ActionRequest) -> ActionOutcome:
+        port = self._require_switch_port(request)
+        node = self._node(request.target)
+        up = self._interface_is_up(
+            port.name, node, timeout_seconds=request.timeout_seconds
+        )
+        if not up:
+            self._run(
+                ["ip", "link", "set", "dev", port.name, "up"],
+                node=node,
+                timeout_seconds=request.timeout_seconds,
+            )
+        return ActionOutcome(
+            changed=not up,
+            output={
+                "switch": request.target,
+                "port": port.name,
+                "administrativeState": "up",
+            },
+        )
 
     def _set_link_state(self, request: ActionRequest, *, up: bool) -> ActionOutcome:
         self._require_no_parameters(request)
@@ -702,12 +753,22 @@ class MininetOVSActions:
             result.append((port_name, self._node(port.parent or ""), interface))
         return result
 
-    def _interface_is_up(self, name: str, node: Any) -> bool:
-        result = self._run(["ip", "-j", "link", "show", "dev", name], node=node)
+    def _interface_is_up(
+        self, name: str, node: Any, *, timeout_seconds: float | None = None
+    ) -> bool:
+        result = self._run(
+            ["ip", "-j", "link", "show", "dev", name],
+            node=node,
+            timeout_seconds=timeout_seconds,
+        )
         try:
             value = json.loads(result.stdout)
             flags = value[0]["flags"]
-        except (json.JSONDecodeError, IndexError, KeyError, TypeError) as error:
+            if not isinstance(flags, list) or any(
+                not isinstance(flag, str) for flag in flags
+            ):
+                raise ValueError("interface flags must be a list of strings")
+        except (ValueError, IndexError, KeyError, TypeError) as error:
             raise ActionExecutionError(
                 f"could not parse state for interface {name!r}",
                 code="runtime.action.invalid-output",

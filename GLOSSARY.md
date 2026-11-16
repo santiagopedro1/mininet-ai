@@ -5,6 +5,18 @@ networking research. This glossary defines project-specific terms.
 
 ## Language
 
+**Recovery Policy**:
+A predefined action or set of actions intended to restore required network
+communication when its applicability conditions are satisfied.
+
+**Recovery Policy Selection**:
+Choosing a recovery policy from diagnostic evidence, or deciding that none of
+the available policies should be applied.
+
+**Escalation**:
+Referring an incident to another decision-maker when local evidence or recovery
+capabilities are insufficient.
+
 **System One**:
 Direct, bounded decision-making, independent of placement, authority, or task.
 System One decision models are assumed to provide native typed outputs and
@@ -16,6 +28,16 @@ Deliberative reasoning through intermediate steps, potentially including
 investigation, planning, and revision, independent of placement, authority, or
 invocation through escalation.
 _Avoid_: global model, fallback agent
+
+**Confidence Gate**:
+A runner-side policy that replaces a post-fault local choice with escalation
+when the reported confidence is below a configured threshold.
+_Avoid_: confidence filter, model fallback
+
+**Post-Fault Check**:
+A completed evaluation of diagnostics observed after a fault, including a failed
+decision attempt. A decision based on observations collected before the fault is
+not a post-fault check.
 
 **Maintained Example**:
 A user-facing scenario in `examples/` with a README, validated and planned as
@@ -33,6 +55,19 @@ _Avoid_: test example, mock example
 The component that owns an experiment's topology lifecycle, from construction
 through teardown.
 _Avoid_: driver, backend, platform
+
+**Experiment Cleanup**:
+The release of resources owned by an experiment, distinct from restoring the
+whole machine to an earlier state.
+
+**Cleanup Verification**:
+Evidence-based confirmation that an experiment's cleanup obligations have been
+met, distinct from successful execution of a cleanup procedure.
+
+**VM Recovery**:
+An explicit operator action to remove abandoned experiment resources from a
+disposable VM when normal experiment cleanup is unavailable or insufficient.
+_Avoid_: Recovery Policy
 
 **Provider**:
 The inference service that supplies the model responses an agent reasons with.

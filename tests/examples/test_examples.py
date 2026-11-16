@@ -27,6 +27,8 @@ from mininet_ai.substrates.runtime import ObservationQuery, ObservationResult
 EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 EXAMPLE_NAMES = [
+    "noms27/single-switch-recovery",
+    "noms27/unified-system-1-2-recovery",
     "diamond-recovery",
     "getting-started",
     "autonomous-operation",

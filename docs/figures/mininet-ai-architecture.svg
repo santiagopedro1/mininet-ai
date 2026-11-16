@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1470" viewBox="0 0 1200 1470" role="img" aria-labelledby="title description">
+  <title id="title">Current Mininet AI architecture</title>
+  <desc id="description">A declarative experiment is compiled into a deployment plan and run by Mininet AI. The runtime supplies observations to either embedded Agno agents or explicitly selected bounded-decision inference. Mininet AI authorizes proposed actions through its capability engine before its Mininet/OVS substrate changes the emulated network. Agno and bounded-decision call external model services; Mininet/OVS runs on Linux.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="26" markerHeight="26" refX="23" refY="13" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L25 13 L1 25 Z" fill="#242424"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #111; }
+      .title { font-size: 39px; font-weight: 700; }
+      .section { font-size: 29px; font-weight: 700; }
+      .heading { font-size: 28px; font-weight: 700; }
+      .body { font-size: 25px; font-weight: 600; }
+      .label { font-size: 26px; font-weight: 700; }
+      .box { fill: #fff; stroke: #111; stroke-width: 2.5; }
+      .flow { fill: none; stroke: #242424; stroke-width: 8; marker-end: url(#arrow); }
+      .return { fill: none; stroke: #555; stroke-width: 6; stroke-dasharray: 12 9; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="1470" fill="#fff"/>
+  <rect x="46" y="48" width="1108" height="1075" rx="70" fill="#f4f4f4" stroke="#686868" stroke-width="4"/>
+  <text x="104" y="100" class="title">Mininet-AI</text>
+
+  <!-- Declarative input: the green band replaces the older, unsupported global-intentions layer. -->
+  <rect x="80" y="126" width="1040" height="185" rx="42" fill="#d9ead7" stroke="#86b366" stroke-width="4"/>
+  <text x="122" y="168" class="section">Experiment definition</text>
+  <rect x="112" y="185" width="300" height="99" rx="19" fill="#a8d98c" stroke="#111" stroke-width="2.5"/>
+  <text x="262" y="244" class="heading" text-anchor="middle">Experiment spec</text>
+  <rect x="432" y="185" width="301" height="99" rx="19" fill="#a8d98c" stroke="#111" stroke-width="2.5"/>
+  <text x="582" y="244" class="heading" text-anchor="middle">Topology + agents</text>
+  <rect x="753" y="185" width="334" height="99" rx="19" fill="#a8d98c" stroke="#111" stroke-width="2.5"/>
+  <text x="920" y="244" class="heading" text-anchor="middle">Triggers + scenarios</text>
+
+  <path class="flow" d="M260 310 V389"/>
+  <text x="277" y="357" class="label">COMPILE</text>
+
+  <!-- Mininet AI orchestrator: three-stage lifecycle above two execution alternatives. -->
+  <rect x="80" y="390" width="1040" height="698" rx="65" fill="#f6d1cf" stroke="#bc5b58" stroke-width="4"/>
+  <text x="122" y="438" class="section">Mininet AI core</text>
+
+  <rect x="111" y="466" width="258" height="155" rx="30" fill="#f2a09f" stroke="#111" stroke-width="2.5"/>
+  <text x="240" y="553" class="heading" text-anchor="middle">Compiler</text>
+
+  <rect x="402" y="466" width="296" height="155" rx="30" fill="#f2a09f" stroke="#111" stroke-width="2.5"/>
+  <text x="550" y="553" class="heading" text-anchor="middle">Experiment runtime</text>
+
+  <rect x="732" y="466" width="356" height="155" rx="30" fill="#f2a09f" stroke="#111" stroke-width="2.5"/>
+  <text x="910" y="553" class="heading" text-anchor="middle">Mininet/OVS substrate</text>
+
+  <path class="flow" d="M369 544 H397"/>
+  <path class="flow" d="M698 544 H727"/>
+
+  <g transform="translate(0 70)">
+  <rect x="111" y="680" width="587" height="289" rx="35" fill="#f2a09f" stroke="#111" stroke-width="2.5"/>
+  <text x="145" y="720" class="heading">Agent execution</text>
+  <rect x="133" y="765" width="258" height="174" rx="20" class="box"/>
+  <text x="262" y="816" class="heading" text-anchor="middle">Reasoning</text>
+  <text x="262" y="851" class="heading" text-anchor="middle">agents</text>
+  <text x="262" y="900" class="body" text-anchor="middle">(System Two)</text>
+  <rect x="412" y="765" width="264" height="174" rx="20" class="box"/>
+  <text x="544" y="816" class="heading" text-anchor="middle">Choice-based</text>
+  <text x="544" y="851" class="heading" text-anchor="middle">agents</text>
+  <text x="544" y="900" class="body" text-anchor="middle">(System One)</text>
+
+  <rect x="732" y="680" width="356" height="289" rx="35" fill="#f2a09f" stroke="#111" stroke-width="2.5"/>
+  <text x="910" y="721" class="heading" text-anchor="middle">Capability engine</text>
+  <rect x="755" y="747" width="310" height="101" rx="17" class="box"/>
+  <text x="910" y="806" class="body" text-anchor="middle">Authorize proposals</text>
+  <rect x="755" y="864" width="310" height="79" rx="17" class="box"/>
+  <text x="910" y="913" class="body" text-anchor="middle">Execute + verify</text>
+  </g>
+
+  <path class="flow" d="M440 621 V744"/>
+  <text x="460" y="706" class="label">Context</text>
+  <path class="flow" d="M698 891 H727"/>
+  <path class="flow" d="M910 750 V627"/>
+  <text x="936" y="706" class="label">Apply</text>
+  <!-- Observations return to the orchestrator, which assembles agent context. -->
+  <path class="return" d="M910 466 V430 H550 V460"/>
+  <text x="730" y="418" class="label" text-anchor="middle">Telemetry</text>
+  <!-- Capability outcomes return to the runtime, not directly to an agent. -->
+  <path class="return" d="M780 750 V695 H650 V627"/>
+  <text x="748" y="679" class="label" text-anchor="middle">Outcomes</text>
+
+  <!-- Runtime dependencies outside the orchestrator, without speculative hardware. -->
+  <g transform="translate(0 70)">
+  <rect x="46" y="1098" width="737" height="244" rx="52" fill="#dbe8fb" stroke="#6e90bf" stroke-width="4"/>
+  <text x="94" y="1144" class="section">Target emulation platform</text>
+  <rect x="80" y="1164" width="668" height="147" rx="28" fill="#9dcdfa" stroke="#111" stroke-width="2.5"/>
+  <rect x="104" y="1183" width="296" height="48" rx="12" class="box"/>
+  <text x="252" y="1214" class="body" text-anchor="middle">Network namespaces</text>
+  <rect x="414" y="1183" width="310" height="48" rx="12" class="box"/>
+  <text x="569" y="1214" class="body" text-anchor="middle">Virtual Ethernet + tc</text>
+  <rect x="104" y="1244" width="296" height="48" rx="12" class="box"/>
+  <text x="252" y="1275" class="body" text-anchor="middle">Open vSwitch</text>
+  <rect x="414" y="1244" width="310" height="48" rx="12" class="box"/>
+  <text x="569" y="1275" class="body" text-anchor="middle">Linux kernel</text>
+
+  <rect x="811" y="1098" width="343" height="244" rx="52" fill="#dbe8fb" stroke="#6e90bf" stroke-width="4"/>
+  <text x="982" y="1144" class="heading" text-anchor="middle">Model services</text>
+  <rect x="838" y="1164" width="289" height="147" rx="27" fill="#9dcdfa" stroke="#111" stroke-width="2.5"/>
+  <rect x="856" y="1183" width="253" height="48" rx="12" class="box"/>
+  <text x="982" y="1214" class="body" text-anchor="middle">Model providers</text>
+  <rect x="856" y="1244" width="253" height="48" rx="12" class="box"/>
+  <text x="982" y="1275" class="body" text-anchor="middle">llama.cpp</text>
+
+  <path class="flow" d="M735 1053 V1093"/>
+  <text x="711" y="1084" class="label" text-anchor="end">Network control</text>
+  <path class="flow" d="M1010 1053 V1093"/>
+  <text x="986" y="1084" class="label" text-anchor="end">Model calls</text>
+  </g>
+</svg>

@@ -724,6 +724,7 @@
     },
     "DecisionScenario": {
       "additionalProperties": false,
+      "allOf": [{"if": {"required": ["inputMode"], "properties": {"inputMode": {"const": "current-recovery"}}}, "else": {"properties": {"choices": {"maxItems": 2}}}}],
       "properties": {
         "apiVersion": {
           "const": "mininet-ai/v1alpha5"
@@ -732,7 +733,7 @@
           "items": {
             "$ref": "#/$defs/DecisionChoice"
           },
-          "maxItems": 2,
+          "maxItems": 8,
           "minItems": 2,
           "title": "Choices",
           "type": "array"
@@ -744,7 +745,7 @@
         },
         "inputMode": {
           "default": "recovery-history",
-          "enum": ["recovery-history", "current-only"],
+          "enum": ["recovery-history", "current-only", "current-recovery"],
           "type": "string"
         },
         "diagnosticContext": {
