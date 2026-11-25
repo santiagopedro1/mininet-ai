@@ -2,7 +2,7 @@
 
 Primary goal: **both** (feature demonstration and realistic scenario).
 
-This maintained campaign runner implements the offline paths for tickets 01–03 of the four-treatment
+This maintained campaign runner implements the offline paths for tickets 01–04 of the four-treatment
 study, not a replacement for the older compiler-backed recovery examples.
 Its declared JSON campaign configuration is validated separately from an
 `Experiment` specification. The approved test boundary is configuration →
@@ -26,6 +26,10 @@ same command, substituting that filename. See
 Combined ungated uses [development-ungated.json](development-ungated.json), with
 the same network-free `--check` command. See
 [handoff semantics and offline limitations](../../../docs/recovery-03-implementation.md).
+The fourth slot uses [development-gated.json](development-gated.json). Its gate is
+explicitly enabled with an **uncalibrated development-only** threshold. Setting
+`confidence_gate_enabled` to `false` retains the slot without a distinct policy.
+See [gate semantics and evidence](../../../docs/recovery-04-implementation.md).
 Ticket 01 remains blocked on valid live acceptance; none of these paths is approved for
 campaign evaluation. No VM or model-machine access is authorized by this runbook.
 

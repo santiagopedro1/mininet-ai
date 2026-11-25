@@ -7,6 +7,115 @@ import pytest
 from tests.examples.test_recovery_campaign import ControlledRuntime, config, run
 
 
+def test_port_liveness_parses_realistic_ovs_descriptions():
+    from examples.noms27.recovery_campaign.live import parse_port_liveness
+
+    raw = (
+        " 1(s1-eth1): addr:6a:33:50:41:fb:64\n"
+        "     config:     0\n"
+        "     state:      LIVE\n"
+        "     current:    10GB-FD COPPER\n"
+        "     speed: 10000 Mbps now, 0 Mbps max\n"
+        " 2(s1-eth2): addr:22:fe:82:59:3f:f9\n"
+        "     config:     PORT_DOWN\n"
+        "     state:      LINK_DOWN\n"
+        "     current:    10GB-FD COPPER\n"
+        "     speed: 10000 Mbps now, 0 Mbps max\n"
+        " 3(s1-eth3): addr:d2:bf:2a:8f:24:a5\n"
+        "     config:     0\n"
+        "     state:      LIVE\n"
+        "     current:    10GB-FD COPPER\n"
+        "     speed: 10000 Mbps now, 0 Mbps max\n"
+        " LOCAL(s1): addr:ce:89:22:40:6d:42\n"
+        "     config:     PORT_DOWN\n"
+        "     state:      LINK_DOWN\n"
+        "     speed: 0 Mbps now, 0 Mbps max\n"
+    )
+    assert parse_port_liveness(raw) == {"1": True, "2": False, "3": True}
+
+
+def test_port_liveness_rejects_link_down_without_config_description():
+    from examples.noms27.recovery_campaign.live import parse_port_liveness
+
+    raw = (
+        " 1(s1-eth1): addr:00:00:00:00:00:00\n"
+        "     config:     0\n"
+        "     state:      LINK_DOWN\n"
+        " 2(s1-eth2): addr:00:00:00:00:00:00\n"
+        "     config:     PORT_DOWN,FOO\n"
+        "     state:      LIVE,LINK_DOWN\n"
+        " 3(s1-eth3): addr:00:00:00:00:00:00\n"
+        "     config:     0\n"
+        "     state:      0\n"
+    )
+    assert parse_port_liveness(raw) == {"1": False, "2": False, "3": False}
+
+
+def test_s2_decision_view_keeps_operational_service_flows_not_probe_flows():
+    from examples.noms27.recovery_campaign.s2 import decision_view
+
+    raw = {
+        "switches": {
+            "s1": {
+                "ports": {"1": True, "2": False, "3": True},
+                "peers": {"h1": 1, "s2": 2, "s3": 3},
+                "port_descriptions": "raw port evidence",
+                "flows": (
+                    "OFPST_FLOW reply (OF1.3):\n"
+                    " priority=100,ip,in_port=1,nw_src=10.0.0.1,"
+                    "nw_dst=10.0.0.2 actions=output:2\n"
+                    " priority=100,ip,in_port=1,nw_src=10.0.0.21,"
+                    "nw_dst=10.0.0.22 actions=output:3\n"
+                    " priority=0 actions=drop\n"
+                ),
+            },
+            "s3": {
+                "ports": {"1": True, "2": True},
+                "peers": {"s1": 1, "s4": 2},
+                "flows": "",
+            },
+        },
+        "observed_ns": 123,
+    }
+    view = decision_view(raw)
+    assert view["observed_ns"] == 123
+    assert view["switches"]["s1"]["peers"] == raw["switches"]["s1"]["peers"]
+    assert view["switches"]["s1"]["ports"]["2"] is False
+    assert len(view["switches"]["s1"]["active_service_flows"]) == 1
+    assert "output:2" in view["switches"]["s1"]["active_service_flows"][0]
+    assert view["switches"]["s3"]["active_service_flows"] == []
+    assert "port_descriptions" not in view["switches"]["s1"]
+    assert raw["switches"]["s1"]["port_descriptions"] == "raw port evidence"
+
+
+def test_s2_history_retains_prior_action_and_verification_without_raw_dump():
+    from examples.noms27.recovery_campaign.s2 import decision_history
+
+    original = [
+        {
+            "attempt": 1,
+            "repair": {"status": "repair", "actions": [{"switch": "s1"}]},
+            "result": {
+                "success": True,
+                "actions": [{"switch": "s1", "success": True}],
+                "admission_observation": {"switches": {"s1": {"flows": "raw"}}},
+            },
+            "verification": {"recovered": False},
+            "status": "verification_failed",
+        }
+    ]
+    projected = decision_history(original)
+    assert projected[0]["result"] == {
+        "success": True,
+        "actions": [{"switch": "s1", "success": True}],
+    }
+    assert projected[0]["verification"] == {"recovered": False}
+    assert (
+        original[0]["result"]["admission_observation"]["switches"]["s1"]["flows"]
+        == "raw"
+    )
+
+
 class DirectRuntime(ControlledRuntime):
     async def observe_network(self):
         return {
@@ -264,6 +373,173 @@ def test_controlled_broader_scenario_cannot_be_selected_for_live_execution():
         )
 
 
+def test_live_broader_diamond_requires_an_s2_capable_treatment():
+    from examples.noms27.recovery_campaign.live import downstream_rules
+
+    declared = config(
+        treatment="s2_only",
+        scenario="diamond_s1_s2_link_broader",
+        purpose="live_feasibility",
+    )
+    assert declared.scenario == "diamond_s1_s2_link_broader"
+    assert downstream_rules(declared.scenario) == ()
+    assert {rule["switch"] for rule in downstream_rules("diamond_s1_s2_link")} == {
+        "s3",
+        "s4",
+    }
+    assert (
+        config(
+            treatment="combined_ungated",
+            scenario="diamond_s1_s2_link_broader",
+            purpose="live_feasibility",
+        ).scenario
+        == "diamond_s1_s2_link_broader"
+    )
+    with pytest.raises(ValueError, match="requires an S2-capable treatment"):
+        config(
+            treatment="s1_only",
+            scenario="diamond_s1_s2_link_broader",
+            purpose="live_feasibility",
+        )
+
+
+@pytest.mark.parametrize(
+    "path,accepted",
+    [
+        (["h1", "s1", "s3", "s4", "h2"], True),
+        (["h1", "s1", "s2", "s4", "h2"], False),
+        (["h1", "s1", "s3", "s1", "s3", "s4", "h2"], False),
+        (["h1", "s1", "s3", "s4", "h9"], False),
+    ],
+)
+def test_route_v2_compiles_only_model_chosen_surviving_path(tmp_path, path, accepted):
+    from examples.diamond_recovery import PORTS
+    from examples.noms27.recovery_campaign.live import parse_port_liveness
+
+    assert parse_port_liveness(" 1(s1-eth1): addr:00\n config: 0\n state: LIVE\n") == {
+        "1": True
+    }
+
+    class RouteRuntime(DirectRuntime):
+        async def diagnose(self):
+            return {
+                "switch": "s1",
+                "ports": (
+                    " 1(s1-eth1): addr:00:00:00:00:00:00\n"
+                    "     config: 0\n     state: LIVE\n"
+                    " 2(s1-eth2): addr:00:00:00:00:00:00\n"
+                    "     config: PORT_DOWN\n     state: LINK_DOWN\n"
+                    " 3(s1-eth3): addr:00:00:00:00:00:00\n"
+                    "     config: 0\n     state: LIVE\n"
+                ),
+                "flows": " priority=100,ip,in_port=1,nw_src=10.0.0.1,nw_dst=10.0.0.2 actions=output:2",
+            }
+
+        async def observe_network(self):
+            observed = await super().observe_network()
+            for name, record in observed["switches"].items():
+                record["peers"] = PORTS[name]
+                record["flows"] = ""
+            return observed
+
+        async def decide_s2(self, context, remaining_seconds):
+            return {
+                "repair": {"status": "repair", "path": path},
+                "request": context,
+                "response": {"done": True},
+                "tokens": {"input": 15, "output": 10, "reasoning": None},
+            }
+
+    runtime = RouteRuntime(good_from=2 if accepted else None)
+    evidence = run(
+        tmp_path,
+        runtime,
+        treatment="s2_only",
+        scenario="diamond_s1_s2_link_broader",
+        s2_decision_interface="route-v2",
+        deadline_seconds=6,
+    )
+    assert evidence["validity"]["valid"] is True
+    assert evidence["outcome"]["service_recovery"] is accepted
+    request = evidence["model_calls"][0]["request"]
+    assert request["s2_decision_interface"] == "route-v2"
+    assert ["s1", "s2"] not in request["observation"]["surviving_links"]
+    assert ["s1", "s3"] in request["observation"]["surviving_links"]
+    assert request["initial_snapshot"]["ports"]["2"] is False
+    assert "s1-s2" not in str(request)
+    assert "path" in evidence["provenance"]["s2_repair_schema"]["properties"]
+    if accepted:
+        assert evidence["outcome"]["policy_status"] == "verified"
+        assert len(evidence["actions"]) == 1
+        assert evidence["actions"][0]["selected_route"] == path
+        assert evidence["actions"][0]["repair"]["actions"] == [
+            {"switch": "s1", "in_port": 1, "out_port": 3},
+            {"switch": "s3", "in_port": 1, "out_port": 2},
+            {"switch": "s4", "in_port": 3, "out_port": 1},
+        ]
+        assert any(event["kind"] == "s2_route_selected" for event in evidence["events"])
+    else:
+        assert evidence["actions"] == []
+        assert all(call["response"] is not None for call in evidence["model_calls"])
+        assert all(event["kind"] != "s2_route_selected" for event in evidence["events"])
+
+
+def test_route_v2_real_ollama_adapter_uses_route_schema_and_records_wire(tmp_path):
+    import json
+
+    import httpx
+
+    from examples.noms27.recovery_campaign.live import LiveRuntime, RecordingTransport
+    from mininet_ai.transports.http import HttpxJsonTransport
+
+    requests = []
+
+    def respond(request):
+        payload = json.loads(request.content)
+        requests.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "done": True,
+                "message": {
+                    "content": json.dumps(
+                        {"status": "repair", "path": ["h1", "s1", "s3", "s4", "h2"]}
+                    )
+                },
+                "prompt_eval_count": 23,
+                "eval_count": 12,
+            },
+        )
+
+    runtime = LiveRuntime()
+    runtime.config = config(
+        treatment="s2_only",
+        scenario="diamond_s1_s2_link_broader",
+        s2_decision_interface="route-v2",
+        model_name="offline-test",
+        endpoint="http://offline.invalid",
+    )
+    runtime.root = tmp_path
+    runtime.recording = RecordingTransport(
+        tmp_path, HttpxJsonTransport(httpx.MockTransport(respond))
+    )
+    result = asyncio.run(
+        runtime.decide_s2({"s2_decision_interface": "route-v2", "observation": {}}, 4)
+    )
+    assert result["repair"]["path"] == ["h1", "s1", "s3", "s4", "h2"]
+    assert result["tokens"] == {"input": 23, "output": 12, "reasoning": None}
+    assert requests[0]["format"]["properties"]["path"]["type"] == "array"
+    assert "actions" not in requests[0]["format"]["properties"]
+    assert "surviving_links" in requests[0]["messages"][0]["content"]
+    assert [
+        json.loads(row)["kind"]
+        for row in (tmp_path / "model-wire.jsonl").read_text().splitlines()
+    ] == [
+        "request",
+        "response",
+    ]
+
+
 @pytest.mark.parametrize(
     "action",
     [
@@ -368,7 +644,7 @@ def test_offline_broader_repair_uses_real_s2_adapter_and_independent_packets(
                 if mode == "stale_port" and self.requests:
                     snapshot["switches"]["s1"]["ports"]["3"] = False
                 return "\n".join(
-                    f" {port}({switch}-eth{port}): addr:00:00:00:00:00:00\n     config: 0\n     state: {'0' if up else 'LINK_DOWN'}"
+                    f" {port}({switch}-eth{port}): addr:00:00:00:00:00:00\n     config: {'0' if up else 'PORT_DOWN'}\n     state: {'LIVE' if up else 'LINK_DOWN'}"
                     for port, up in snapshot["switches"][switch]["ports"].items()
                 )
             if parts[3] == "dump-flows":
@@ -635,7 +911,7 @@ def test_s2_startup_and_separate_stage_adapters_account_incident_separately(
         expected_settings = {
             "think": False,
             "keep_alive": -1,
-            "options": {"temperature": 0, "num_predict": 1024},
+            "options": {"temperature": 0.3, "num_predict": 1024},
         }
         assert evidence["provenance"]["s2_model_settings"] == expected_settings
         for row in wire_requests[1:]:

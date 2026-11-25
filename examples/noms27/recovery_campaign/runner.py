@@ -19,8 +19,10 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .confidence import valid_confidence
+from .containment import contain_cancelled_stage, unsafe_reasons
 from .scenarios import Scenario
-from .supervision import record_inference, run_action
+from .supervision import evidence_value, record_inference, run_action
 
 NS = 1_000_000_000
 BIN = NS // 10
@@ -50,9 +52,15 @@ class CampaignConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
     trial_id: str = Field(min_length=1)
-    treatment: Literal["s1_only", "s2_only", "combined_ungated"]
+    treatment: Literal["s1_only", "s2_only", "combined_ungated", "combined_gated"]
+    s2_decision_interface: Literal["actions-v1", "route-v2"] = "actions-v1"
+    confidence_gate_enabled: bool = Field(default=False, strict=True)
+    confidence_threshold: float | None = Field(default=None, ge=0, le=1, strict=True)
     scenario: Literal[
-        "diamond_s1_s2_link", "controlled_broader_repair", "matched_scenario"
+        "diamond_s1_s2_link",
+        "diamond_s1_s2_link_broader",
+        "controlled_broader_repair",
+        "matched_scenario",
     ]
     scenario_instance: Scenario | None = None
     deadline_seconds: float = Field(gt=0)
@@ -82,6 +90,14 @@ class CampaignConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_budgets(self):
+        if self.treatment == "s1_only" and self.s2_decision_interface != "actions-v1":
+            raise ValueError("S1-only cannot configure an S2 decision interface")
+        if self.confidence_gate_enabled and (
+            self.treatment != "combined_gated" or self.confidence_threshold is None
+        ):
+            raise ValueError(
+                "enabled confidence gate requires combined_gated and a threshold"
+            )
         if self.load_fraction not in {0.1, 0.7}:
             raise ValueError("load must be exactly 0.1 or 0.7")
         if self.load_fraction == 0.7 and self.scenario != "matched_scenario":
@@ -105,6 +121,11 @@ class CampaignConfig(BaseModel):
             raise ValueError(
                 "controlled broader repair is an offline S2 mechanism fixture only"
             )
+        if (
+            self.scenario == "diamond_s1_s2_link_broader"
+            and self.treatment == "s1_only"
+        ):
+            raise ValueError("broader diamond requires an S2-capable treatment")
         if self.treatment != "s2_only" and self.s1_cap_seconds > self.deadline_seconds:
             raise ValueError("S1 cap cannot exceed the common deadline")
         if self.packet_rate < 100:
@@ -112,6 +133,21 @@ class CampaignConfig(BaseModel):
                 "at least 10 packets per 100ms bin required for this slice"
             )
         return self
+
+    @property
+    def combined(self) -> bool:
+        return self.treatment in {"combined_ungated", "combined_gated"}
+
+    @property
+    def confidence_gate(self) -> dict:
+        return {
+            "enabled": self.confidence_gate_enabled,
+            "threshold": self.confidence_threshold,
+            "comparison": "strictly_below",
+            "valid_confidence": "finite numeric [0,1], excluding booleans",
+            "invalid_confidence": "escalate_only_when_enabled",
+            "shared_failure_precedence": True,
+        }
 
     @property
     def packet_rate(self) -> float:
@@ -318,6 +354,7 @@ def provenance(config: CampaignConfig) -> dict:
             "model_name": config.model_name,
         },
         "instructions": INSTRUCTIONS,
+        "confidence_gate": config.confidence_gate,
         "criteria": CRITERIA,
         "catalogue": CATALOGUE,
         "catalogue_sha256": hashlib.sha256(
@@ -383,7 +420,7 @@ async def run_campaign(
             "trial_id": config.trial_id,
             "tick_ns": clock.now_ns(),
             "kind": kind,
-            **data,
+            **evidence_value(data),
         }
         events.append(record)
         with (evidence_dir / "events.jsonl").open("a") as stream:
@@ -480,6 +517,7 @@ async def run_campaign(
                         event,
                         model_calls,
                         actions,
+                        config.s2_decision_interface,
                         port_authority=config.scenario_instance.ports
                         if config.scenario_instance
                         else None,
@@ -519,16 +557,51 @@ async def run_campaign(
 
                     decision = await bounded("inference", infer(), stage_limit)
                     choice = decision.get("choice")
+                    gate_cause = None
+                    if config.combined:
+                        confidence = decision.get("confidence")
+                        valid = valid_confidence(confidence)
+                        call["confidence_status"] = (
+                            "valid" if valid else "missing_or_invalid"
+                        )
+                        # Shared unusable/inability handling takes precedence over
+                        # confidence; disabling the gate never bypasses it.
+                        usable = choice in CATALOGUE and choice != "unable"
+                        if config.confidence_gate_enabled and usable:
+                            if not valid:
+                                gate_cause = "confidence_missing_or_invalid"
+                            elif confidence < config.confidence_threshold:
+                                gate_cause = "confidence_below_threshold"
+                        event(
+                            "confidence_gate",
+                            selected_choice=choice,
+                            confidence=confidence,
+                            confidence_present=decision.get(
+                                "confidence_present", "confidence" in decision
+                            ),
+                            enabled=config.confidence_gate_enabled,
+                            threshold=config.confidence_threshold,
+                            confidence_status="valid"
+                            if valid
+                            else "missing_or_invalid",
+                            decision="escalate"
+                            if gate_cause
+                            else "proceed"
+                            if usable
+                            else "shared_failure",
+                            cause=gate_cause,
+                            local_execution_skipped=bool(gate_cause),
+                            remaining_seconds=max(0, deadline - clock.now_ns()) / NS,
+                        )
                     if choice not in CATALOGUE:
                         policy = "unusable_decision"
+                    elif gate_cause:
+                        policy = gate_cause
                     elif CATALOGUE[choice] is None:
                         policy = (
                             "explicit_inability" if choice == "unable" else "no_action"
                         )
-                        if (
-                            choice == "no_action"
-                            and config.treatment == "combined_ungated"
-                        ):
+                        if choice == "no_action" and config.combined:
                             signal = await bounded(
                                 "verification",
                                 runtime.service_signal(clock.now_ns()),
@@ -580,90 +653,113 @@ async def run_campaign(
                 # Malformed decisions, failed inference/actions are treatment outcomes.
                 policy = "treatment_error"
                 event("treatment_error", error=str(error))
-            if config.treatment == "combined_ungated":
+            if config.combined:
                 from .s2 import run_direct
 
                 s1_status = policy
                 event("s1_terminated", status=s1_status)
                 if s1_status != "verified":
-                    # A cancelled local await is not remote termination. Never
-                    # overlap S2 with an uncontained provider or unknown action.
+                    # A cancelled local await is not remote termination. Confirm
+                    # or safely isolate cancelled work before any S2 admission.
                     await asyncio.sleep(0)
-                    unsafe = (
-                        any(not task.done() for task in pending)
-                        or any(
-                            call["response"] is None
-                            or call["status"] not in {"completed", "failed"}
-                            for call in model_calls
-                        )
-                        or any(
-                            action["result"] is None
-                            or action["result"].get("success") is None
-                            for action in actions
-                        )
-                    )
+                    unsafe = unsafe_reasons(pending, model_calls, actions)
                     cause = "s1_stage_timeout" if s1_status == "timeout" else s1_status
                     event("escalation_requested", cause=cause, deadline_ns=deadline)
                     if clock.now_ns() >= deadline:
                         event("escalation_denied", reason="deadline_exhausted")
-                    elif unsafe:
-                        policy = "escalation_uncontained"
-                        event("escalation_denied", reason="s1_work_uncontained")
                     else:
-                        handoff = {
-                            "cause": cause,
-                            "initial_snapshot": copy.deepcopy(diagnostics),
-                            "s1_status": s1_status,
-                            "s1_decisions": copy.deepcopy(model_calls),
-                            "s1_actions": copy.deepcopy(actions),
-                            "s1_events": copy.deepcopy(
-                                [
-                                    item
-                                    for item in events
-                                    if item["kind"].startswith(
-                                        (
-                                            "telemetry_",
-                                            "inference_",
-                                            "action_",
-                                            "verification_",
-                                        )
-                                    )
-                                    or item["kind"]
-                                    in {
-                                        "treatment_error",
-                                        "cancellation",
-                                        "s1_terminated",
-                                    }
-                                ]
-                            ),
-                            "deadline_ns": deadline,
-                            "remaining_seconds": (deadline - clock.now_ns()) / NS,
-                        }
-                        handoffs.append(handoff)
-                        event("handoff", record=handoff)
-                        # A contained S1 stage expiry is not exhaustion of the
-                        # inherited end-to-end budget.
-                        timed_out = False
-                        try:
-                            policy = await run_direct(
+                        containment = None
+                        if unsafe:
+                            containment = await contain_cancelled_stage(
                                 runtime,
                                 clock,
-                                deadline,
-                                diagnostics,
-                                bounded,
                                 event,
+                                deadline,
+                                pending,
                                 model_calls,
                                 actions,
-                                handoff=handoff,
-                                port_authority=config.scenario_instance.ports
-                                if config.scenario_instance
-                                else None,
+                                unsafe,
                             )
-                        except TimeoutError:
-                            timed_out, policy = True, "timeout"
-                        except Exception as error:
-                            policy = "treatment_error"
-                            event("treatment_error", stage="s2", error=str(error))
+                        if unsafe and (
+                            containment is None or containment["contained"] is not True
+                        ):
+                            policy = "escalation_uncontained"
+                            event(
+                                "escalation_denied",
+                                reason="s1_work_uncontained",
+                                containment=containment["phases"]
+                                if containment is not None
+                                else {"attempted": False},
+                            )
+                        else:
+                            observation = (
+                                containment["observation"]
+                                if containment is not None and containment["contained"]
+                                else None
+                            )
+                            handoff = {
+                                "cause": cause,
+                                "initial_snapshot": copy.deepcopy(diagnostics),
+                                "s1_status": s1_status,
+                                "s1_decisions": copy.deepcopy(model_calls),
+                                "s1_actions": copy.deepcopy(actions),
+                                "s1_events": copy.deepcopy(
+                                    [
+                                        item
+                                        for item in events
+                                        if item["kind"].startswith(
+                                            (
+                                                "telemetry_",
+                                                "inference_",
+                                                "action_",
+                                                "verification_",
+                                                "containment_",
+                                            )
+                                        )
+                                        or item["kind"]
+                                        in {
+                                            "treatment_error",
+                                            "cancellation",
+                                            "s1_terminated",
+                                            "confidence_gate",
+                                            "escalation_requested",
+                                            "escalation_contained",
+                                        }
+                                    ]
+                                ),
+                                "deadline_ns": deadline,
+                                "remaining_seconds": (deadline - clock.now_ns()) / NS,
+                            }
+                            if containment is not None and containment["contained"]:
+                                handoff["containment"] = containment
+                            handoffs.append(handoff)
+                            event("handoff", record=handoff)
+                            # A contained S1 stage expiry is not exhaustion of the
+                            # inherited end-to-end budget.
+                            timed_out = False
+                            try:
+                                policy = await run_direct(
+                                    runtime,
+                                    clock,
+                                    deadline,
+                                    observation
+                                    if observation is not None
+                                    else diagnostics,
+                                    bounded,
+                                    event,
+                                    model_calls,
+                                    actions,
+                                    config.s2_decision_interface,
+                                    handoff=handoff,
+                                    port_authority=config.scenario_instance.ports
+                                    if config.scenario_instance
+                                    else None,
+                                )
+                            except TimeoutError:
+                                timed_out, policy = True, "timeout"
+                            except Exception as error:
+                                policy = "treatment_error"
+                                event("treatment_error", stage="s2", error=str(error))
         event("policy_terminated", status=policy)
     except TimeoutError:
         invalid.append("injection_deadline_or_missing_confirmation")
@@ -768,11 +864,30 @@ async def run_campaign(
         reset is not None
         and reset.get("fresh_context") is True
         and all(
-            call["status"] in {"completed", "failed"}
-            and call.get("response") is not None
+            call.get("termination_confirmation", {}).get("confirmed") is True
+            or (
+                call["status"]
+                in {"completed", "failed", "locally_cancelled_remote_confirmed"}
+                and (
+                    call.get("response") is not None
+                    or call["status"] == "locally_cancelled_remote_confirmed"
+                )
+            )
             for call in model_calls
         )
     )
+    cancelled_calls = any(
+        call["status"]
+        in {"locally_cancelled_remote_unknown", "locally_cancelled_remote_confirmed"}
+        or (
+            call.get("termination_confirmation", {}).get("confirmed") is True
+            and call.get("response") is None
+        )
+        for call in model_calls
+    )
+    attempts = [
+        h.get("containment") for h in handoffs if isinstance(h.get("containment"), dict)
+    ]
     result = {
         "schema_version": "recovery-s1/v1",
         "trial_id": config.trial_id,
@@ -816,15 +931,24 @@ async def run_campaign(
             and provider_contained
             and not timed_out
             and all(task.done() for task in pending),
-            "remote_termination_after_cancel": "unknown"
-            if timed_out
-            else "not_requested",
+            "remote_termination_after_cancel": (
+                "unknown"
+                if timed_out
+                else (
+                    "confirmed_via_containment_probes"
+                    if any(a.get("contained") is True for a in attempts)
+                    else ("unknown" if attempts or cancelled_calls else "not_requested")
+                )
+            ),
         },
         "journal_snapshot_tick_ns": clock.now_ns(),
         "artifacts_scope": "snapshot_at_export; events/model-wire journals may retain later terminal evidence",
         "unavailable": {
             "energy": "not measured",
-            "remote_cancellation": "no authoritative provider termination API",
+            "remote_cancellation": (
+                "terminal only via runtime containment probes; "
+                "capabilityless runtimes stay unconfirmed"
+            ),
             "reasoning_tokens": "null unless provider supplies separate non-overlapping usage",
         },
     }
@@ -835,7 +959,13 @@ async def run_campaign(
         }
     if config.treatment != "s1_only":
         from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
-        from .s2 import MODEL_SETTINGS, PERMISSIONS, Repair
+        from .s2 import (
+            MODEL_SETTINGS,
+            PERMISSIONS,
+            ROUTE_INSTRUCTIONS,
+            Repair,
+            RouteDecision,
+        )
 
         result["schema_version"] = (
             "recovery-s2/v1"
@@ -843,17 +973,26 @@ async def run_campaign(
             else "recovery-combined/v1"
         )
         result["permissions"] = PERMISSIONS
+        s2_instructions = (
+            ROUTE_INSTRUCTIONS
+            if config.s2_decision_interface == "route-v2"
+            else S2_INSTRUCTIONS
+        )
         if config.treatment == "s2_only":
-            prov["instructions"] = S2_INSTRUCTIONS
+            prov["instructions"] = s2_instructions
             prov["criteria"] = None
             prov["catalogue"] = None
             prov["catalogue_sha256"] = None
         else:
             result["outcome"]["s1_status"] = s1_status
-            prov["s2_instructions"] = S2_INSTRUCTIONS
+            prov["s2_instructions"] = s2_instructions
         prov["s2_endpoint"] = config.s2_endpoint or config.endpoint
         prov["s2_model_name"] = config.s2_model_name or config.model_name
-        prov["s2_repair_schema"] = Repair.model_json_schema()
+        prov["s2_repair_schema"] = (
+            RouteDecision.model_json_schema()
+            if config.s2_decision_interface == "route-v2"
+            else Repair.model_json_schema()
+        )
         prov["s2_model_settings"] = MODEL_SETTINGS
     # Later task/provider completions append to durable journals, not frozen outcomes.
     snapshot = copy.deepcopy(result)

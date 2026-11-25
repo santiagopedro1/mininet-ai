@@ -21,6 +21,7 @@ from typing import Any
 from mininet_ai.agents.bounded import NativeSystemOneClient
 from mininet_ai.transports.http import HttpxJsonTransport
 
+from .confidence import valid_confidence
 from .runner import (
     BIN,
     CATALOGUE,
@@ -32,6 +33,39 @@ from .runner import (
     measure,
     write_json,
 )
+
+
+def parse_port_liveness(raw_ports):
+    """Extract numeric-port liveness from real `ovs-ofctl dump-ports-desc` output.
+
+    A port is observed up when OpenFlow reports no `config`-level `PORT_DOWN`
+    and its `state` reports `LIVE` (bitfield tokens split on commas). Real
+    `config`/`state` strings such as `config: 0`/`state: LIVE` describe healthy
+    links; `state: 0` is not a real `dump-ports-desc` value.
+    """
+    liveness = {}
+    for match in re.finditer(
+        r"^\s*(\d+)\([^\n]*\):[^\n]*\n(.*?)(?=^\s*\d+\(|\Z)",
+        raw_ports,
+        re.MULTILINE | re.DOTALL,
+    ):
+        state = re.search(r"^\s*state:\s*(\S+)", match[2], re.MULTILINE)
+        config = re.search(r"^\s*config:\s*(\S+)", match[2], re.MULTILINE)
+        state_tokens = {t.strip() for t in state[1].split(",")} if state else set()
+        config_tokens = {t.strip() for t in config[1].split(",")} if config else set()
+        liveness[match[1]] = "LIVE" in state_tokens and "PORT_DOWN" not in config_tokens
+    return liveness
+
+
+def downstream_rules(scenario):
+    """Return active-service rules installed before the incident, not probe rules."""
+    from examples.diamond_recovery import RECOVERY_RULES
+
+    if scenario == "diamond_s1_s2_link":
+        return (RECOVERY_RULES[0], RECOVERY_RULES[2])
+    if scenario == "diamond_s1_s2_link_broader":
+        return ()
+    raise ValueError(f"unsupported live scenario: {scenario}")
 
 
 class RecordingTransport:
@@ -92,8 +126,8 @@ class RecordingTransport:
                 )
                 + "\n"
             )
-        # Confidence is diagnostic-only in these S1 paths. Do not widen the core native
-        # contract: retain invalid values in wire evidence, omit solely for mapping.
+        # Keep the native decision contract identical for every S1 path. Retain
+        # invalid confidence for runner-side policy, omitting solely for mapping.
         mapped = copy.deepcopy(self.last_response)
         if isinstance(mapped, dict):
             answer = (
@@ -105,12 +139,7 @@ class RecordingTransport:
                 if not isinstance(container, dict) or "confidence" not in container:
                     continue
                 value = container["confidence"]
-                if (
-                    isinstance(value, bool)
-                    or not isinstance(value, (int, float))
-                    or not math.isfinite(value)
-                    or not 0 <= value <= 1
-                ):
+                if not valid_confidence(value):
                     del container["confidence"]
         return mapped
 
@@ -124,6 +153,7 @@ class LiveRuntime:
         self.processes: list[Any] = []
         self.process_logs: list[Any] = []
         self.action_process = None
+        self.action_processes: list[Any] = []
         self.transport = HttpxJsonTransport()
         self.fault_checks = []
         self.monitor = None
@@ -142,7 +172,10 @@ class LiveRuntime:
 
     async def setup(self, config, root):
         self.config, self.root = config, root
-        if config.scenario != "diamond_s1_s2_link":
+        if config.scenario not in (
+            "diamond_s1_s2_link",
+            "diamond_s1_s2_link_broader",
+        ):
             raise ValueError(
                 "the live adapter does not implement controlled fixture scenarios"
             )
@@ -169,10 +202,10 @@ class LiveRuntime:
         for link in self.harness.links.values():
             for interface in (link.intf1, link.intf2):
                 await self._thread(interface.config, bw=config.bottleneck_mbps)
-        from examples.diamond_recovery import RECOVERY_RULES
-
-        # Preinstall complete downstream active forwarding; s1 still uses primary.
-        for rule in (RECOVERY_RULES[0], RECOVERY_RULES[2]):
+        # Only the local-sufficient diamond has preinstalled downstream backup.
+        # In the controlled broader case, s1, s3 and s4 all need new active rules.
+        downstream = downstream_rules(config.scenario)
+        for rule in downstream:
             flow = (
                 f"cookie={rule['cookie']:#x},priority=200,idle_timeout=0,hard_timeout=0,"
                 f"ip,in_port={rule['match']['in_port']},nw_src=10.0.0.1,nw_dst=10.0.0.2,actions={rule['actions']}"
@@ -249,7 +282,7 @@ class LiveRuntime:
                 "bottleneck_mbps": config.bottleneck_mbps,
                 "direction": "h1-to-h2",
                 "return_traffic": "none required by unidirectional UDP",
-                "preinstalled_downstream": [RECOVERY_RULES[0], RECOVERY_RULES[2]],
+                "preinstalled_downstream": list(downstream),
                 "initial_flows": await self._thread(self.harness.inspect),
             },
         )
@@ -266,6 +299,7 @@ class LiveRuntime:
             *parts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         self.action_process = process
+        self.action_processes.append(process)
         try:
             out, err = await process.communicate()
             if process.returncode:
@@ -414,17 +448,13 @@ class LiveRuntime:
             else {}
         )
         confidence = response.get("confidence", answer.get("confidence"))
-        valid_confidence = (
-            not isinstance(confidence, bool)
-            and isinstance(confidence, (int, float))
-            and math.isfinite(confidence)
-            and 0 <= confidence <= 1
-        )
-
         return {
             "choice": result.choice_id,
             "confidence": confidence,
-            "confidence_status": "valid" if valid_confidence else "missing_or_invalid",
+            "confidence_present": "confidence" in response or "confidence" in answer,
+            "confidence_status": "valid"
+            if valid_confidence(confidence)
+            else "missing_or_invalid",
             "request": self.recording.last_request,
             "response": response,
             "tokens": decode_tokens(response),
@@ -455,17 +485,7 @@ class LiveRuntime:
             raw_ports = await self._command(
                 "ovs-ofctl", "-O", "OpenFlow13", "dump-ports-desc", switch
             )
-            ports = {}
-            for match in re.finditer(
-                r"^\s*(\d+)\([^\n]*\):[^\n]*\n(.*?)(?=^\s*\d+\(|\Z)",
-                raw_ports,
-                re.MULTILINE | re.DOTALL,
-            ):
-                state = re.search(r"^\s*state:\s*(\S+)", match[2], re.MULTILINE)
-                config = re.search(r"^\s*config:\s*(\S+)", match[2], re.MULTILINE)
-                ports[match[1]] = bool(
-                    state and config and state[1] == "0" and config[1] == "0"
-                )
+            ports = parse_port_liveness(raw_ports)
             switches[switch] = {
                 "ports": ports,
                 "port_descriptions": raw_ports,
@@ -480,15 +500,24 @@ class LiveRuntime:
 
     async def decide_s2(self, context, remaining_seconds):
         from .s2 import INSTRUCTIONS as S2_INSTRUCTIONS
-        from .s2 import MODEL_SETTINGS, Repair
+        from .s2 import MODEL_SETTINGS, ROUTE_INSTRUCTIONS, Repair, RouteDecision
+
+        route_choice = context.get("s2_decision_interface") == "route-v2"
 
         payload = {
             "model": self.config.s2_model_name or self.config.model_name,
             "messages": [
-                {"role": "system", "content": S2_INSTRUCTIONS},
+                {
+                    "role": "system",
+                    "content": ROUTE_INSTRUCTIONS if route_choice else S2_INSTRUCTIONS,
+                },
                 {"role": "user", "content": json.dumps(context)},
             ],
-            "format": Repair.model_json_schema(),
+            "format": (
+                RouteDecision.model_json_schema()
+                if route_choice
+                else Repair.model_json_schema()
+            ),
             "stream": False,
             **MODEL_SETTINGS,
         }
@@ -624,6 +653,67 @@ class LiveRuntime:
             except ProcessLookupError:
                 pass
         return {"local_cancel_requested": True, "remote_termination": "unknown"}
+
+    async def confirm_inference_termination(self):
+        """Probe llama.cpp /slots: every slot reporting not-processing proves the
+        single-slot server is no longer executing the cancelled request. Any
+        parse or availability failure stays fail-closed (terminated None)."""
+        endpoint = (getattr(self.config, "endpoint", "") or "").rstrip("/")
+        if not endpoint:
+            return {"terminated": None, "reason": "no_s1_endpoint"}
+        try:
+            body = await self._thread(
+                self.transport.get_json,
+                endpoint + "/slots",
+                headers={},
+                timeout_seconds=2.0,
+                max_response_bytes=1_048_576,
+            )
+        except Exception as error:
+            return {
+                "terminated": None,
+                "reason": "provider_probe_failed",
+                "error": str(error),
+            }
+        slots = body.get("slots") if isinstance(body, dict) else body
+        if not isinstance(slots, list) or not slots:
+            return {"terminated": None, "reason": "provider_slots_unavailable"}
+        if not all(isinstance(slot, dict) for slot in slots):
+            return {"terminated": None, "reason": "provider_slots_malformed"}
+        busy = [slot for slot in slots if slot.get("is_processing") is not False]
+        if busy:
+            return {
+                "terminated": False,
+                "probed_slots": len(slots),
+                "busy_slots": len(busy),
+            }
+        return {"terminated": True, "probed_slots": len(slots), "busy_slots": 0}
+
+    async def confirm_action_termination(self):
+        """A terminated process must have an exit status; a process still
+        running after the bounded reap stays unconfirmed (fail closed)."""
+        processes = list(getattr(self, "action_processes", []) or [])
+        unreaped = [p for p in processes if p.returncode is None]
+        for process in unreaped:
+            try:
+                await asyncio.wait_for(process.wait(), 2.0)
+            except TimeoutError:
+                return {
+                    "terminated": None,
+                    "reason": "action_process_stuck",
+                    "probed_processes": len(processes),
+                }
+            except Exception as error:  # pragma: no cover - watcher failure
+                return {
+                    "terminated": None,
+                    "reason": "action_reap_failed",
+                    "error": str(error),
+                }
+        return {
+            "terminated": True,
+            "returncodes": [p.returncode for p in processes],
+            "probed_processes": len(processes),
+        }
 
     def _packet_records(self, *, partial=False):
         errors = []

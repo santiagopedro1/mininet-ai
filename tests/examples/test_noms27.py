@@ -468,9 +468,14 @@ def test_verification_bypass_is_explicit_and_needs_no_fake_identity():
 def test_runner_defaults_match_the_q8_server_configuration():
     args = runner.parse_args(["--evidence", "unused", "--skip-model-verification"])
     model = yaml.safe_load(SOURCE.read_text())["blueprints"][0]["model"]
-    assert args.endpoint == model["parameters"]["endpoint"] == "http://10.10.10.152:9931"
+    assert (
+        args.endpoint == model["parameters"]["endpoint"] == "http://10.10.10.152:9931"
+    )
     assert args.model_name == model["name"] == "h2oai/h2o-lightning-4b"
-    assert model["parameters"]["expectedIdentity"]["artifact"] == "h2o-lightning-4b-Q8_0.gguf"
+    assert (
+        model["parameters"]["expectedIdentity"]["artifact"]
+        == "h2o-lightning-4b-Q8_0.gguf"
+    )
 
 
 def test_recording_transport_retains_multiple_monitor_checks(tmp_path, monkeypatch):
