@@ -97,21 +97,39 @@ def decision_view(observation, exclude_cookies=None):
     switches = {}
     for name, record in observation.get("switches", {}).items():
         flows = record.get("flows", "")
+        if isinstance(flows, str):
+            entries = flows.splitlines()
+        elif isinstance(flows, list):
+            entries = flows
+        else:
+            entries = []
+        # Text OVS dumps are filtered to h1-to-h2 service traffic; structured
+        # entries (controlled/offline fixtures) are already scoped and pass
+        # through unchanged.
         lines = [
-            line.strip()
-            for line in (flows.splitlines() if isinstance(flows, str) else flows)
-            if re.search(r"\bnw_src=10\.0\.0\.1\b", line)
-            and re.search(r"\bnw_dst=10\.0\.0\.2\b", line)
+            entry.strip()
+            if isinstance(entry, str)
+            else entry
+            for entry in entries
+            if not isinstance(entry, str)
+            or (
+                re.search(r"\bnw_src=10\.0\.0\.1\b", entry)
+                and re.search(r"\bnw_dst=10\.0\.0\.2\b", entry)
+            )
         ]
         if exclude_cookies:
             lines = [
                 line
                 for line in lines
-                if not any(cookie in line for cookie in exclude_cookies)
+                if not isinstance(line, str)
+                or not any(cookie in line for cookie in exclude_cookies)
             ]
         switches[name] = {
             "ports": record.get("ports", {}),
             "peers": record.get("peers", {}),
+            # Raw per-switch flows are retained for the actions-v1 contract; the
+            # filtered projection is what route-v2 consumes.
+            "flows": flows,
             "active_service_flows": lines,
         }
     return {"switches": switches, "observed_ns": observation.get("observed_ns")}

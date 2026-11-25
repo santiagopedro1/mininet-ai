@@ -45,7 +45,6 @@ def test_port_liveness_rejects_link_down_without_config_description():
         "     config:     PORT_DOWN,FOO\n"
         "     state:      LIVE,LINK_DOWN\n"
         " 3(s1-eth3): addr:00:00:00:00:00:00\n"
-        "     config:     0\n"
         "     state:      0\n"
     )
     assert parse_port_liveness(raw) == {"1": False, "2": False, "3": False}

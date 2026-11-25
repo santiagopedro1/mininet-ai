@@ -37,19 +37,27 @@ from .runner import (
 from .substrate import cleanup_inventory, substrate_plan
 
 
-def _port_down(value: str | None) -> bool:
+def _port_up(state: str | None, config: str | None) -> bool:
     # Older ovs reports numeric flags (0/PORT_DOWN); ovs 3.6 reports strings
-    # (LIVE/LINK_DOWN). Both discriminate.
-    return value is None or "DOWN" in value.upper()
+    # (LIVE/LINK_DOWN). A port is up when both fields are described, no token
+    # reports DOWN, and either state reports LIVE or both fields are a clean
+    # numeric flag set (all zeros).
+    if state is None or config is None:
+        return False
+    state_tokens = {t.strip().upper() for t in state.split(",") if t.strip()}
+    config_tokens = {t.strip().upper() for t in config.split(",") if t.strip()}
+    if any("DOWN" in token for token in state_tokens | config_tokens):
+        return False
+    if "LIVE" in state_tokens:
+        return True
+    numeric = state_tokens | config_tokens
+    return bool(numeric) and all(
+        token.isdigit() and int(token) == 0 for token in numeric
+    )
 
 
 def parse_port_liveness(raw_ports):
-    """Extract numeric-port liveness from `ovs-ofctl dump-ports-desc` output.
-
-    A port is observed up when neither its state nor its config reports a DOWN
-    flag. The check is format-agnostic: numeric flag sets such as `config: 0`
-    and string sets such as `state: LINK_DOWN` are both understood.
-    """
+    """Extract numeric-port liveness from `ovs-ofctl dump-ports-desc` output."""
     liveness = {}
     for match in re.finditer(
         r"^\s*(\d+)\([^\n]*\):[^\n]*\n(.*?)(?=^\s*\d+\(|\Z)",
@@ -58,8 +66,8 @@ def parse_port_liveness(raw_ports):
     ):
         state = re.search(r"^\s*state:\s*(\S+)", match[2], re.MULTILINE)
         config = re.search(r"^\s*config:\s*(\S+)", match[2], re.MULTILINE)
-        liveness[match[1]] = bool(
-            state and config and not _port_down(state[1]) and not _port_down(config[1])
+        liveness[match[1]] = _port_up(
+            state[1] if state else None, config[1] if config else None
         )
     return liveness
 
@@ -240,7 +248,7 @@ class LiveRuntime:
                 "bottleneck_mbps": config.bottleneck_mbps,
                 "direction": "h1-to-h2",
                 "return_traffic": "none required by unidirectional UDP",
-                "preinstalled_downstream": [RECOVERY_RULES[0], RECOVERY_RULES[2]],
+                "preinstalled_downstream": list(downstream),
                 "initial_flows": await self._thread(self.harness.inspect),
             },
         )
@@ -372,27 +380,8 @@ class LiveRuntime:
                     "s2": verification,
                 }
             )
-        write_json(root / "model-startup.json", verification)
-        # Warm-up is pre-injection and retained separately from incident inference.
-        write_json(
-            root / "network-manifest.json",
-            {
-                "readiness": ready,
-                "bottleneck_mbps": config.bottleneck_mbps,
-                "direction": "h1-to-h2",
-                "return_traffic": "none required by unidirectional UDP",
-                "preinstalled_downstream": list(downstream),
-                "initial_flows": await self._thread(self.harness.inspect),
-            },
-        )
-        return {
-            "initial_state": True,
-            "fresh_context": True,
-            "automatic_backup": False,
-            "model_startup": verification,
-            "workload_feasibility": "not yet approved",
-        }
-
+        write_json(self.root / "model-startup.json", verification)
+        return verification
 
     async def _command(self, *parts):
         process = await asyncio.create_subprocess_exec(
