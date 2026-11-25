@@ -375,7 +375,17 @@ def test_matched_s2_cannot_expand_authority_or_use_isolated_switch_ports(
     assert evidence["outcome"]["recovery_failure"] is True
 
 
-def test_six_class_configuration_refuses_live_purpose_and_cli_reports_no_path(tmp_path):
+def test_six_class_live_capability_boundary_and_cli_reports_no_path(tmp_path):
+    """Six-class live capability exists pre-feasibility; scale approval holds later.
+
+    Ticket five's prior boundary (six-class configs reject live purpose because
+    the live adapter only accepted the original diamond incident) is replaced
+    by the implemented capability: a live-purpose config is constructable only
+    with its frozen scenario instance. Campaign-scale execution still requires
+    the later feasibility/budget/calibration/freeze gates, and the blocks
+    rehearsal keeps rejecting non-mechanism runtimes.
+    """
+
     from examples.noms27.recovery_campaign.runner import CampaignConfig
 
     scenario = next(s for s in build_manifest().scenarios if s.class_id == "tail_link")
@@ -389,8 +399,14 @@ def test_six_class_configuration_refuses_live_purpose_and_cli_reports_no_path(tm
         "s1_cap_seconds": 3,
         "bottleneck_mbps": 9.6,
     }
-    with pytest.raises(ValueError, match="live feasibility is not implemented"):
-        CampaignConfig.model_validate({**settings, "purpose": "live_feasibility"})
+    live = CampaignConfig.model_validate({**settings, "purpose": "live_feasibility"})
+    assert live.scenario_instance == scenario
+    with pytest.raises(
+        ValueError, match="matched scenario requires its frozen scenario instance"
+    ):
+        CampaignConfig.model_validate(
+            {**settings, "purpose": "live_feasibility", "scenario_instance": None}
+        )
     config_file = tmp_path / "config.json"
     config_file.write_text(CampaignConfig.model_validate(settings).model_dump_json())
     result = subprocess.run(

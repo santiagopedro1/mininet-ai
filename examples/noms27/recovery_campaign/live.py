@@ -22,6 +22,7 @@ from mininet_ai.agents.bounded import NativeSystemOneClient
 from mininet_ai.transports.http import HttpxJsonTransport
 
 from .confidence import valid_confidence
+from .harness import ScenarioLiveHarness
 from .runner import (
     BIN,
     CATALOGUE,
@@ -33,15 +34,21 @@ from .runner import (
     measure,
     write_json,
 )
+from .substrate import cleanup_inventory, substrate_plan
+
+
+def _port_down(value: str | None) -> bool:
+    # Older ovs reports numeric flags (0/PORT_DOWN); ovs 3.6 reports strings
+    # (LIVE/LINK_DOWN). Both discriminate.
+    return value is None or "DOWN" in value.upper()
 
 
 def parse_port_liveness(raw_ports):
-    """Extract numeric-port liveness from real `ovs-ofctl dump-ports-desc` output.
+    """Extract numeric-port liveness from `ovs-ofctl dump-ports-desc` output.
 
-    A port is observed up when OpenFlow reports no `config`-level `PORT_DOWN`
-    and its `state` reports `LIVE` (bitfield tokens split on commas). Real
-    `config`/`state` strings such as `config: 0`/`state: LIVE` describe healthy
-    links; `state: 0` is not a real `dump-ports-desc` value.
+    A port is observed up when neither its state nor its config reports a DOWN
+    flag. The check is format-agnostic: numeric flag sets such as `config: 0`
+    and string sets such as `state: LINK_DOWN` are both understood.
     """
     liveness = {}
     for match in re.finditer(
@@ -51,9 +58,9 @@ def parse_port_liveness(raw_ports):
     ):
         state = re.search(r"^\s*state:\s*(\S+)", match[2], re.MULTILINE)
         config = re.search(r"^\s*config:\s*(\S+)", match[2], re.MULTILINE)
-        state_tokens = {t.strip() for t in state[1].split(",")} if state else set()
-        config_tokens = {t.strip() for t in config[1].split(",")} if config else set()
-        liveness[match[1]] = "LIVE" in state_tokens and "PORT_DOWN" not in config_tokens
+        liveness[match[1]] = bool(
+            state and config and not _port_down(state[1]) and not _port_down(config[1])
+        )
     return liveness
 
 
@@ -160,6 +167,7 @@ class LiveRuntime:
         self.measurement_errors = []
         self.cleanup_started_ns: int | None = None
         self.cleanup_budget_seconds = 30.0
+        self.plan: dict[str, Any] | None = None
 
     async def _thread(self, function, *args, **kwargs):
         # Do not lose the terminal result of a blocking provider/harness operation
@@ -172,6 +180,8 @@ class LiveRuntime:
 
     async def setup(self, config, root):
         self.config, self.root = config, root
+        if config.scenario_instance is not None:
+            return await self._setup_scenario(config)
         if config.scenario not in (
             "diamond_s1_s2_link",
             "diamond_s1_s2_link_broader",
@@ -221,16 +231,105 @@ class LiveRuntime:
         )
         if "group_id=" in groups:
             raise RuntimeError("automatic_group_forwarding_present")
-        self.recording = RecordingTransport(root, self.transport)
+        verification = await self._warm_up_models()
+        # Warm-up is pre-injection and retained separately from incident inference.
+        write_json(
+            root / "network-manifest.json",
+            {
+                "readiness": ready,
+                "bottleneck_mbps": config.bottleneck_mbps,
+                "direction": "h1-to-h2",
+                "return_traffic": "none required by unidirectional UDP",
+                "preinstalled_downstream": [RECOVERY_RULES[0], RECOVERY_RULES[2]],
+                "initial_flows": await self._thread(self.harness.inspect),
+            },
+        )
+        return {
+            "initial_state": True,
+            "fresh_context": True,
+            "automatic_backup": False,
+            "model_startup": verification,
+            "workload_feasibility": "not yet approved",
+        }
+
+    async def _setup_scenario(self, config) -> dict[str, Any]:
+        """Six-class substrate from the frozen scenario; diamond path untouched."""
+
+        scenario = config.scenario_instance
+        self.plan = substrate_plan(scenario)
+        if os.geteuid() != 0:
+            raise PermissionError(
+                "live Mininet campaign requires root; no model contacted"
+            )
+        if config.model_name == "unconfigured":
+            raise ValueError("configure the local model before live feasibility")
+        await self._thread(
+            subprocess.run,
+            ["ovs-vsctl", "--timeout=3", "show"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=4,
+        )
+        self.harness = ScenarioLiveHarness(scenario, self.root / "substrate")
+        await self._thread(self.harness.setup)
+        assert self.harness.net is not None
+        # Freeze actual bottleneck capacity on every owned link, both directions.
+        for link in self.harness.links.values():
+            for interface in (link.intf1, link.intf2):
+                await self._thread(interface.config, bw=config.bottleneck_mbps)
+        ready = await self._thread(self.harness.readiness)
+        if ready["normalFallback"] or any(ready["controllers"].values()):
+            raise RuntimeError("automatic_backup_or_controller_present")
+        for switch in self.plan["topology"]["switches"]:
+            groups = await self._command(
+                "ovs-ofctl", "-O", "OpenFlow13", "dump-groups", switch
+            )
+            if "group_id=" in groups:
+                raise RuntimeError("automatic_group_forwarding_present")
+        verification = await self._warm_up_models()
+        flows = self.plan["flows"]
+        write_json(
+            self.root / "network-manifest.json",
+            {
+                "readiness": ready,
+                "bottleneck_mbps": config.bottleneck_mbps,
+                "direction": "h1-to-h2",
+                "return_traffic": "none required by unidirectional UDP",
+                "scenario_placement": scenario.placement_id,
+                "structural_check": scenario.structural_check(),
+                "preinstalled_downstream": [
+                    flow for flow in flows["initial"] + flows["backup"]
+                ],
+                "initial_flows": await self._thread(self.harness.inspect_flows),
+            },
+        )
+        return {
+            "initial_state": True,
+            "fresh_context": True,
+            "automatic_backup": False,
+            "model_startup": verification,
+            "scenario_placement": scenario.placement_id,
+            "workload_feasibility": "not yet approved",
+        }
+
+    async def _warm_up_models(self) -> dict[str, Any]:
+        """Pre-injection startup verification, identical across substrates."""
+
+        self.recording = RecordingTransport(self.root, self.transport)
         verification = {}
-        if config.treatment != "s1_only":
-            if config.treatment == "s2_only" and config.expected_identity is not None:
+        if self.config.treatment != "s1_only":
+            if (
+                self.config.treatment == "s2_only"
+                and self.config.expected_identity is not None
+            ):
                 raise ValueError("S2 immutable identity verification is unavailable")
             response = await self._thread(
                 self.recording.post_json,
-                (config.s2_endpoint or config.endpoint).rstrip("/") + "/api/chat",
+                (self.config.s2_endpoint or self.config.endpoint).rstrip("/")
+                + "/api/chat",
                 {
-                    "model": config.s2_model_name or config.model_name,
+                    "model": self.config.s2_model_name or self.config.model_name,
                     "messages": [{"role": "user", "content": "Reply OK."}],
                     "stream": False,
                     "think": False,
@@ -254,20 +353,20 @@ class LiveRuntime:
                 "immutable_identity_verified": False,
                 "limitation": "model name is not immutable identity",
             }
-        if config.treatment != "s2_only":
-            self.client = NativeSystemOneClient(config.endpoint, self.recording)
+        if self.config.treatment != "s2_only":
+            self.client = NativeSystemOneClient(self.config.endpoint, self.recording)
             native_verification = await self._thread(
                 self.client.verify_startup,
-                model_name=config.model_name,
-                expected_identity=config.expected_identity,
+                model_name=self.config.model_name,
+                expected_identity=self.config.expected_identity,
                 instructions=INSTRUCTIONS,
                 criteria=CRITERIA,
                 choices={key: () for key in CATALOGUE},
-                verify_identity=config.expected_identity is not None,
+                verify_identity=self.config.expected_identity is not None,
             )
             verification = (
                 native_verification
-                if config.treatment == "s1_only"
+                if self.config.treatment == "s1_only"
                 else {
                     "s1": native_verification,
                     "s2": verification,
@@ -293,6 +392,7 @@ class LiveRuntime:
             "model_startup": verification,
             "workload_feasibility": "not yet approved",
         }
+
 
     async def _command(self, *parts):
         process = await asyncio.create_subprocess_exec(
@@ -366,31 +466,54 @@ class LiveRuntime:
     async def inject(self, start_ns):
         assert self.harness is not None
         self.injection_ns = start_ns
-        await self._thread(self.harness.fault, "s1-s2")
+        if self._has_scenario():
+            await self._thread(self.harness.fault)
+        else:
+            await self._thread(self.harness.fault, "s1-s2")
         check = await self._check_fault(phase="injection")
         self.monitor = asyncio.create_task(self._monitor_fault())
         return check
 
+    def _has_scenario(self) -> bool:
+        # Fixture runtimes may subclass without LiveRuntime.__init__; every
+        # scenario dispatch therefore probes the attribute defensively.
+        return getattr(self, "plan", None) is not None
+
     async def _check_fault(self, *, phase="unspecified"):
         assert self.harness is not None
-        link = self.harness.links["s1-s2"]
-        check = {
+        check: dict[str, Any] = {
             "phase": phase,
             "started_ns": self.clock.now_ns(),
             "both_endpoints_down": None,
-            "endpoint_up": None,
+            "tick_ns": None,
         }
-        try:
-            states = await self._thread(lambda: [link.intf1.isUp(), link.intf2.isUp()])
-            check.update(
-                both_endpoints_down=states == [False, False], endpoint_up=states
-            )
-        except Exception as error:
-            check["error"] = {"type": type(error).__name__, "message": str(error)}
-            raise
-        finally:
-            check["tick_ns"] = self.clock.now_ns()
-            self.fault_checks.append(check)
+        if self._has_scenario():
+            try:
+                check.update(await self._thread(self.harness.check_fault))
+            except Exception as error:
+                check["error"] = {"type": type(error).__name__, "message": str(error)}
+                check["tick_ns"] = self.clock.now_ns()
+                self.fault_checks.append(check)
+                raise
+        else:
+            link = self.harness.links["s1-s2"]
+            check.update({"endpoint_up": None})
+            try:
+                states = await self._thread(
+                    lambda: [link.intf1.isUp(), link.intf2.isUp()]
+                )
+                check.update(
+                    both_endpoints_down=states == [False, False], endpoint_up=states
+                )
+            except Exception as error:
+                check["error"] = {"type": type(error).__name__, "message": str(error)}
+                raise
+            finally:
+                check["tick_ns"] = self.clock.now_ns()
+                self.fault_checks.append(check)
+            return check
+        check["tick_ns"] = self.clock.now_ns()
+        self.fault_checks.append(check)
         return check
 
     async def _monitor_fault(self):
@@ -478,10 +601,17 @@ class LiveRuntime:
         }
 
     async def observe_network(self):
-        from examples.diamond_recovery import PORTS
+        if self._has_scenario():
+            peers_map: Any = {
+                switch: dict(ports)
+                for switch, ports in self.config.scenario_instance.ports.items()
+            }
+        else:
+            from examples.diamond_recovery import PORTS
 
+            peers_map = PORTS
         switches = {}
-        for switch, peers in PORTS.items():
+        for switch, peers in peers_map.items():
             raw_ports = await self._command(
                 "ovs-ofctl", "-O", "OpenFlow13", "dump-ports-desc", switch
             )
@@ -574,7 +704,10 @@ class LiveRuntime:
 
         # Re-observe at execution admission: never authorize using a stale up port.
         observation = await self.observe_network()
-        permitted = validate_repair(repair, observation)
+        admission_authority = (
+            self.config.scenario_instance.ports if self._has_scenario() else None
+        )
+        permitted = validate_repair(repair, observation, admission_authority)
         results = []
 
         def record(**entry):
@@ -892,13 +1025,21 @@ class LiveRuntime:
                 result = {"status": "failed", "error": str(error)}
             # A successful inventory can prove absence. A nonzero per-device
             # probe cannot distinguish absence from an inspection failure.
-            from examples.diamond_recovery import PORTS
+            if self._has_scenario():
+                scenario = self.config.scenario_instance
+                owned_names = set(cleanup_inventory(scenario)["interfaces"])
+                plan = self.plan
+                assert plan is not None
+                owned_bridges = set(plan["topology"]["switches"])
+            else:
+                from examples.diamond_recovery import PORTS
 
-            owned_names = {
-                f"{switch}-eth{port}"
-                for switch, peers in PORTS.items()
-                for port in range(1, len(peers) + 1)
-            } | {"h1-eth0", "h2-eth0"}
+                owned_names = {
+                    f"{switch}-eth{port}"
+                    for switch, peers in PORTS.items()
+                    for port in range(1, len(peers) + 1)
+                } | {"h1-eth0", "h2-eth0"}
+                owned_bridges = set(PORTS)
             for command in (["ip", "-j", "link", "show"], ["ovs-vsctl", "list-br"]):
                 try:
                     timeout = self._cleanup_remaining()
@@ -934,7 +1075,7 @@ class LiveRuntime:
                             owned_names & {row["ifname"] for row in inventory}
                         )
                     else:
-                        bridges = sorted(set(PORTS) & set(check.stdout.splitlines()))
+                        bridges = sorted(owned_bridges & set(check.stdout.splitlines()))
                 except Exception as error:
                     errors.append(f"{command[0]}:{error}")
         exhausted = self._cleanup_remaining() <= 0
