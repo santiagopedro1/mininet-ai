@@ -70,3 +70,14 @@ The existing `examples/link-failure-latency/run.py` harness uses supplied recove
 policies and currently accepts one successful ping with a failed-link down check.
 That is weaker than the agreed three-round confirmation criterion. This decision
 does not change the harness or settle probe scheduling, timeout, or clock details.
+
+## Four-treatment campaign scope (2026-11-06)
+
+The separate `examples/noms27/recovery_campaign/` path follows the subsequently
+approved campaign service criterion: directional 1,200-byte sequenced UDP,
+100ms delivery deadlines, ten consecutive 100ms send bins each at least 99%
+timely, with a full delivery allowance before verification. The older reachability
+experiment and its three-round contract remain unchanged. Both contracts exclude
+automatic backup and reversal of the persistent outage, and separate command
+execution from independently observed service restoration. See the
+[ticket-01 implementation](../recovery-01-implementation.md) for pending live gates.

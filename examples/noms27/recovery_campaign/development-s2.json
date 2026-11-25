@@ -1,0 +1,14 @@
+{
+  "trial_id": "direct-s2-development-unapproved-001",
+  "treatment": "s2_only",
+  "scenario": "diamond_s1_s2_link",
+  "deadline_seconds": 10,
+  "s1_cap_seconds": 10,
+  "bottleneck_mbps": 9.6,
+  "seed": 7,
+  "purpose": "mechanism_validation",
+  "budget_status": "development_unapproved",
+  "endpoint": "http://127.0.0.1:11434",
+  "model_name": "unconfigured",
+  "expected_identity": null
+}

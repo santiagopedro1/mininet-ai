@@ -1,0 +1,18 @@
+{
+  "successful_observation_minimum": null,
+  "handoff_seconds": null,
+  "verification_seconds": 1.1,
+  "replication_increase": 0,
+  "calibration_loads": [0.1],
+  "share_ungated_comparator": false,
+  "nonrepairable_attempts_per_cell": 30,
+  "replacement_trials": null,
+  "local_model_identity": null,
+  "input_tokens_per_trial": null,
+  "output_tokens_per_trial": null,
+  "reasoning_tokens_per_trial": null,
+  "inference_seconds_per_trial": null,
+  "runtime_seconds_per_trial": null,
+  "runtime_assumptions": null,
+  "evidence_paths": []
+}

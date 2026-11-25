@@ -23,3 +23,109 @@ change), a transport-only response rewrite (would hide the original model choice
 and automatic escalation after failed local repair (would obscure a wrong System
 One decision). The unified example is additive; the focused recovery and
 escalation examples remain separate maintained examples.
+
+## Four-treatment campaign amendment (2026-11-06)
+
+The paper's approved four-treatment recovery specification supersedes the pilot's
+terminal-local-failure choice **for the new campaign**, not for these preserved
+examples. Combined campaign treatments must escalate on inability, unsuccessful
+action/service verification or S1 timeout, sharing a common deadline; the gated
+variant additionally gates before local action. Direct S2 must not wait for S1.
+Those combined/S2 extensions are not implemented by ticket 01.
+
+Ticket 01 adds a separately maintained configuration-to-evidence campaign runner
+at `examples/noms27/recovery_campaign/` for **S1-only**, one persistent `s1-s2`
+outage and one frozen local bypass attempt. It has no confidence gate, escalation,
+port-enable repair or retries. Service verification is independent sequenced UDP,
+not the pilot's ping rounds. Policy stays in this runner and uses the existing
+native S1 client; core bounded-decision contracts and older examples are unchanged.
+See [implementation and limitations](../recovery-01-implementation.md). This is
+not a claim that the pilot is compliant or that campaign feasibility is approved.
+
+Ticket 02 adds **direct S2-only** to this separate campaign runner, without
+changing the preserved unified example or core runtime. It starts from the same
+local diagnostic snapshot and a generic operational alarm, not an S1 decision or
+handoff. A separate Ollama-compatible structured-response path receives broader
+switch telemetry and proposes typed, forwarding-only multi-switch repairs. The
+runner permits at most three observe–act–verify attempts within the original
+common deadline; it never enables an interface, changes traffic or sends evaluator
+fault labels. The S1 stage cap is irrelevant to direct S2. Combined invocation and
+confidence gating remain later work; no reusable escalated policy is claimed yet.
+
+The controlled multi-switch fixture establishes the offline mechanism, not an
+extended-diamond live scenario or scientific acceptance. Ticket 01's live blocker
+and all feasibility/approval gates remain. See
+[ticket 02 implementation and limitations](../recovery-02-implementation.md).
+
+Ticket 03 adds **combined ungated** to the campaign runner. One local attempt
+precedes the same bounded S2 policy used by direct invocation; unsuccessful local
+execution or service verification now requests escalation, rather than preserving
+the pilot's terminal-failure behavior. Explicit inability, unusable decisions and
+S1 stage expiry also request escalation. The original deadline never resets, and
+successful local recovery does not invoke S2. Confidence alone is not a trigger;
+native prompts, criteria and output fields remain unchanged.
+
+The runner retains local observations, decisions, attempted actions, operational
+verification and the escalation cause in a handoff. Only operational S1 events,
+not evaluator injection/reset metadata, enter S2 context. It refuses handoff when
+prior work is still outstanding or provider/action termination is unknown, even
+if nominal time remains: local cancellation alone cannot justify overlapping
+inference or conflicting repairs. This safety boundary can leave an incident
+unsuccessful; it must not be disguised as successful escalation. Independent
+observation continues to the common deadline plus five seconds in either case.
+
+This is offline mechanism coverage, not live acceptance or calibrated confidence
+gating. Preserved examples and core runtime contracts remain unchanged. See
+[ticket 03 implementation and limitations](../recovery-03-implementation.md).
+
+Ticket 03, amended 2026-11-07, replaces the runner's unconditional refusal of
+cancelled S1 work with **bounded containment** before any S2 admission. The
+refusal semantics deemed every cancelled local await remote-unknown, which left
+no path to demonstrate a stage-timeout handoff even when termination was in fact
+establishable. Containment is now a bounded, capability-keyed admission phase
+sharing the inherited end-to-end deadline:
+
+1. **Local termination** — every locally cancelled task must finish unwinding;
+   `late_completion` evidence still records delayed results.
+2. **Provider termination** — inference with an unobserved terminal response
+   (locally cancelled or connection-failed) is remotely unknown until a runtime
+   capability confirms the provider is no longer processing the request. The
+   live adapter probes llama.cpp `/slots` and admits only when every slot
+   reports not-processing; consecutive polls bound the confirmation cadence.
+3. **Action termination** — a cancelled action process must report an exit
+   status before the network is considered quiescent.
+4. **Settled-state observation** — a fresh bounded `diagnose()` snapshot is
+   captured into the handoff record; the S2 attempt still observes the network
+   independently.
+
+Confirmation is fail-closed: a runtime without the confirmation capabilities —
+or a probe that reports unavailable, malformed or still-busy until the deadline
+— keeps the previous `escalation_uncontained` denial, and containment must
+complete before the deadline or the incident stays dead (`deadline_exhausted`).
+Runs remain valid evidence either way. Confirmed calls carry
+`termination_confirmation` evidence (cancelled ones are marked
+`locally_cancelled_remote_confirmed`), so the run-level
+`provider_contained`/`remote_termination_after_cancel` summary reflects
+confirmed aborts as contained rather than unknown. Capabilityless runtimes,
+offline fixtures and the core runtime contract are unchanged.
+
+Ticket 04 adds the fourth **combined gated** campaign slot. Gate enablement and
+threshold are explicit configuration, not a different S1 prompt or native schema.
+Both combined slots use the same native adapter, instructions, criteria and
+catalogue. Gate-disabled is supported in the fourth slot, including when no
+calibrated threshold qualifies; the slot itself never enables hidden behavior.
+An enabled gate requires a finite threshold in [0,1]. It hands off before local
+execution for confidence strictly below the threshold (equality proceeds), or
+missing/invalid confidence. Valid confidence is finite numeric [0,1], excluding
+booleans; numeric strings are not coerced. Unusable decisions and explicit
+inability retain shared failure handling regardless of confidence. Confident
+failed execution or service verification still requests escalation.
+
+Unlike the pilot, the campaign does not rewrite the S1 response into an effective
+choice. It retains the original decision plus an explicit pre-action gate event,
+skipped-execution flag and handoff cause. Nonfinite values received at the adapter
+boundary are tagged in JSON evidence rather than lost or emitted as invalid JSON.
+Invalid wire JSON still follows shared native parsing/failure rules, not a relaxed
+gate-specific parser. The ticket 03 containment refusal and all live/scientific
+acceptance blockers remain unchanged. See
+[ticket 04 implementation and limitations](../recovery-04-implementation.md).
