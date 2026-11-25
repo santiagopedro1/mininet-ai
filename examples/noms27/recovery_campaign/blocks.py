@@ -11,6 +11,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .confidence import valid_confidence
 from .runner import CampaignConfig, CampaignRuntime, run_campaign, write_json
 from .scenarios import CLASSES, Scenario, make_scenario
 
@@ -162,6 +163,7 @@ async def run_blocks(
     order_seed: int = 505,
     invalid_first: str | None = None,
     max_replacements: int = 1,
+    confidence_threshold: float | None = None,
     runtime_factory: Callable[..., CampaignRuntime] | None = None,
 ) -> dict:
     """Small controlled calibration-placement rehearsal, not a campaign executor.
@@ -177,6 +179,13 @@ async def run_blocks(
         raise ValueError("invalid controlled repetition/replacement bound")
     if load_fraction not in manifest.loads:
         raise ValueError("load must be 0.1 or 0.7")
+    if confidence_threshold is not None and not valid_confidence(confidence_threshold):
+        raise ValueError(
+            "development confidence threshold must be finite numeric [0,1]"
+        )
+    treatments = PRIMARY if confidence_threshold is not None else AVAILABLE
+    if load_fraction == 0.7:
+        treatments = treatments[1:]
     if invalid_first not in {
         None,
         "injection",
@@ -214,14 +223,14 @@ async def run_blocks(
         "budgets": "development_only_not_feasibility_derived_or_approved",
         "heldout_execution": False,
         "blocks": [],
-        "available_treatments": list(
-            AVAILABLE if load_fraction == 0.1 else AVAILABLE[1:]
-        ),
-        "reserved_unavailable_treatments": ["combined_gated"],
+        "available_treatments": list(treatments),
+        "reserved_unavailable_treatments": ["combined_gated"]
+        if confidence_threshold is None
+        else [],
+        "development_confidence_threshold": confidence_threshold,
     }
     rng = random.Random(order_seed)
     trials_started = 0
-    treatments = AVAILABLE if load_fraction == 0.1 else AVAILABLE[1:]
     scenarios = {s.placement_id: s for s in manifest.scenarios}
 
     def persist():
@@ -260,6 +269,8 @@ async def run_blocks(
                 config = CampaignConfig(
                     trial_id=trial_id,
                     treatment=treatment,
+                    confidence_gate_enabled=treatment == "combined_gated",
+                    confidence_threshold=confidence_threshold,
                     scenario="matched_scenario",
                     scenario_instance=scenarios[matching["placement_id"]],
                     deadline_seconds=6,
@@ -318,6 +329,11 @@ def main() -> int:
     parser.add_argument("--repetitions", type=int, default=2)
     parser.add_argument("--load", type=float, choices=(0.1, 0.7), default=0.1)
     parser.add_argument(
+        "--development-confidence-threshold",
+        type=float,
+        help="opt in to the gated offline slot; not a calibrated or approved threshold",
+    )
+    parser.add_argument(
         "--invalid-first",
         choices=("injection", "initial_state", "essential_measurement"),
     )
@@ -351,6 +367,7 @@ def main() -> int:
             args.evidence,
             repetitions=args.repetitions,
             load_fraction=args.load,
+            confidence_threshold=args.development_confidence_threshold,
             invalid_first=args.invalid_first,
         )
     )

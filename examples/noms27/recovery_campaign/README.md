@@ -2,7 +2,7 @@
 
 Primary goal: **both** (feature demonstration and realistic scenario).
 
-This maintained campaign runner implements the offline paths for tickets 01–04 of the four-treatment
+This maintained campaign runner implements the offline paths for tickets 01–07 of the four-treatment
 study, not a replacement for the older compiler-backed recovery examples.
 Its declared JSON campaign configuration is validated separately from an
 `Experiment` specification. The approved test boundary is configuration →
@@ -37,8 +37,34 @@ campaign evaluation. No VM or model-machine access is authorized by this runbook
 
 Ticket 05 adds a manifest and controlled rehearsal via
 `python -m examples.noms27.recovery_campaign.blocks --check`.
-It reserves all four primary/three higher-load slots but executes only the three
-available treatments on calibration placements, using explicitly scripted,
-in-process graph/packet evidence. It does not authorize live or held-out runs.
+It reserves all four primary/three higher-load slots. By default the rehearsal
+executes only the three ungated treatments on calibration placements, using
+explicitly scripted, in-process graph/packet evidence. Ticket 06 integrates the
+gated slot as an explicit offline opt-in:
+
+```bash
+python -m examples.noms27.recovery_campaign.blocks --controlled \
+  --repetitions 1 --development-confidence-threshold 0.5 \
+  --evidence run-evidence/recovery-06-development
+```
+
+The threshold is development-only, not calibrated or approved. Omit the threshold
+to preserve the previous rehearsal; add `--load 0.7` to rehearse all three
+higher-load slots. Neither mode authorizes live or held-out runs.
 See [implementation](../../../docs/recovery-05-implementation.md) and
 [validation](../../../docs/recovery-05-validation.md) for commands and limits.
+See [integration notes](../../../docs/recovery-06-integration.md) for merge scope.
+## Offline calibration draft tooling
+
+Preregistration snapshots candidates/allocation; reporting audits complete
+synthetic matched records and emits a **non-executable, unapproved** evaluation draft:
+
+```bash
+python -m examples.noms27.recovery_campaign.calibration preregister --output registration.json
+python -m examples.noms27.recovery_campaign.calibration report \
+  --registration registration.json --evidence synthetic-evidence.json --output draft-report.json
+```
+
+No scientific freeze or approval is possible. See
+[ticket 07 implementation](../../../docs/recovery-07-implementation.md) and
+[validation](../../../docs/recovery-07-validation.md).

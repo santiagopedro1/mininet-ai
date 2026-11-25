@@ -23,8 +23,6 @@ change), a transport-only response rewrite (would hide the original model choice
 and automatic escalation after failed local repair (would obscure a wrong System
 One decision). The unified example is additive; the focused recovery and
 escalation examples remain separate maintained examples.
-<<<<<<< HEAD
-=======
 
 ## Four-treatment campaign amendment (2026-11-06)
 
@@ -131,4 +129,3 @@ Invalid wire JSON still follows shared native parsing/failure rules, not a relax
 gate-specific parser. The ticket 03 containment refusal and all live/scientific
 acceptance blockers remain unchanged. See
 [ticket 04 implementation and limitations](../recovery-04-implementation.md).
->>>>>>> feat/recovery-04-live
