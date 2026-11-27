@@ -384,14 +384,22 @@ terminal `status` also exits nonzero without verified cleanup. All three support
 `--format json`, including typed runtime errors. Saved `run.json` and managed
 export manifests retain operation and cleanup alongside the overall outcome.
 
-The legacy Mininet adapter does not comprehensively verify owned network and
-descendant absence: successful teardown/recovery therefore remains unknown,
-including repeated stop and owner exit. Lifecycle `stopped` means the legacy
-cleanup procedure ended, not that the host is clean. Missing state is a typed
-unknown-run error without a valid stopped record. This intentionally changes
-legacy live-command exit status and prevents unverified repeated trials.
-Inspect `status RUN_ID` and seek administrator help for unresolved resources;
-do not use global cleanup as a substitute for run-owned evidence.
+Healthy owner-led Mininet/OVS teardown verifies the declared local resource set
+after stopping it: planned switch bridges and port interfaces are absent,
+tracked controller/switch/host/action process identities have stopped, built-in
+controller artifacts are removed, and active runtime state is released. The
+per-run control endpoint is closed by its own lifecycle owner before owner
+teardown, and continuous runtime workers must stop before substrate teardown
+runs; the verification receipt itself covers substrate-owned obligations. The
+receipt is retained with the stopped run and is reused by repeated stop/status
+calls. This is a scoped claim, not whole-host cleanliness, arbitrary
+descendant containment, remote Provider termination, or owner-crash recovery.
+Unknown or incomplete verification still produces a nonzero result.
+Deployment rollback, interrupted startup, orphan recovery, and other failure
+paths may remain unknown until their own verification slices land; missing state
+is a typed unknown-run error without a valid stopped record. Inspect
+`status RUN_ID` and seek administrator help for unresolved resources; do not use
+global cleanup as a substitute for run-owned evidence.
 
 The fake adapter verifies only its in-memory model, not host security. This
 slice adds no helper, trusted recovery authority, non-root live execution,
