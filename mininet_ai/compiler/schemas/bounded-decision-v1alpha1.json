@@ -137,9 +137,16 @@
       }},
       "effectiveConfiguration": {"required": ["model", "provider", "parameters"], "properties": {
         "model": {"type": "string", "minLength": 1},
-        "provider": {"const": "llamacpp-systemone"},
-        "parameters": {"type": "object", "required": ["endpoint"], "anyOf": [{"required": ["expectedIdentity"]}, {"required": ["verifyIdentity"], "properties": {"verifyIdentity": {"const": false}}}]}
-      }},
+        "provider": {"enum": ["llamacpp-systemone", "ollama-systemone"]},
+        "parameters": {"type": "object"}
+      }, "allOf": [
+        {"if": {"properties": {"provider": {"const": "llamacpp-systemone"}}}, "then": {"properties": {
+          "parameters": {"required": ["endpoint"], "anyOf": [{"required": ["expectedIdentity"]}, {"required": ["verifyIdentity"], "properties": {"verifyIdentity": {"const": false}}}]}
+        }}},
+        {"if": {"properties": {"provider": {"const": "ollama-systemone"}}}, "then": {"properties": {
+          "parameters": {"required": ["host"], "properties": {"startupTimeout": {"type": "string", "minLength": 1, "pattern": "^[0-9]+(\\.[0-9]+)?(us|ms|s)$"}, "expectedIdentity": {"type": "object", "required": ["digest"], "additionalProperties": false, "properties": {"digest": {"type": "string", "pattern": "^(sha256:)?[0-9a-fA-F]{64}$"}}}, "verifyIdentity": {"type": "boolean"}}}
+        }}}
+      ]},
       "request": {"required": ["url", "state", "instructions", "criteria"], "properties": {
         "url": {"type": "string", "minLength": 1},
         "state": {"type": "string"},
@@ -147,7 +154,7 @@
         "criteria": {"type": "object", "minProperties": 2, "additionalProperties": {"type": "string", "minLength": 1}}
       }},
       "modelProvenance": {"required": ["startup", "expectedIdentity", "verification"], "properties": {
-        "startup": {"type": "object"}, "expectedIdentity": {"anyOf": [{"type": "object", "required": ["repository", "revision", "artifact", "sha256"]}, {"type": "null"}]},
+        "startup": {"type": "object"}, "expectedIdentity": {"anyOf": [{"type": "object", "required": ["repository", "revision", "artifact", "sha256"]}, {"type": "object", "required": ["digest"]}, {"type": "null"}]},
         "verification": {"enum": ["verified", "unverified", "mismatched"]}
       }},
       "timings": {"required": ["startedTick", "completedTick", "deadlineTick", "clockDomain", "invokedAt", "phaseTransitions"], "properties": {
@@ -160,7 +167,7 @@
       "admission": {"required": ["status"], "properties": {"status": {"type": "string", "minLength": 1}}}
     }},
     {"properties": {"scenario": {"if": {"required": ["inputMode"], "properties": {"inputMode": {"const": "current-recovery"}}}, "else": {"properties": {"choices": {"maxItems": 2}}}}}},
-    {"if": {"properties": {"modelProvenance": {"required": ["expectedIdentity"], "properties": {"expectedIdentity": {"type": "null"}}}}},
+    {"if": {"properties": {"modelProvenance": {"required": ["startup"], "properties": {"startup": {"required": ["identityVerification"], "properties": {"identityVerification": {"const": "skipped"}}}}}}},
      "then": {"properties": {
        "effectiveConfiguration": {"properties": {"parameters": {"required": ["verifyIdentity"], "properties": {"verifyIdentity": {"const": false}}}}},
        "modelProvenance": {"properties": {"verification": {"const": "unverified"}, "startup": {"required": ["identityVerification"], "properties": {"identityVerification": {"const": "skipped"}}}}}

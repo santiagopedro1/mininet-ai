@@ -542,6 +542,11 @@ model-construction semantics. Compilation never imports or calls their entrypoin
 or replaces factory-owned models. Shared structural checks, including explicit
 Ollama host validation, still apply.
 
+Native System One decision models are a separate execution path, not an Agno
+Ollama model. Configure `provider: ollama-systemone` on a `bounded-decision`
+blueprint; see
+[bounded-decision authoring](bounded-decision.md#authoring-and-saved-plans).
+
 Keep credentials in the runtime environment, not YAML or URL user-info. There
 are no project-defined credential-selector fields. Agno/Ollama performs its
 existing `OLLAMA_API_KEY` lookup at runtime; a blank key remains valid for an

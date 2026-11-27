@@ -71,20 +71,34 @@ def validate_model_configuration(
         fail("", "a model configuration is required")
         return
     if execution_kind == "bounded-decision":
-        if configuration.provider != "llamacpp-systemone":
-            fail(".provider", "bounded-decision requires llamacpp-systemone")
-        if "endpoint" not in configuration.parameters or set(
-            configuration.parameters
-        ) - {"endpoint", "expectedIdentity", "verifyIdentity"}:
+        if configuration.provider not in {"llamacpp-systemone", "ollama-systemone"}:
+            fail(
+                ".provider",
+                "bounded-decision requires llamacpp-systemone or ollama-systemone",
+            )
+        if configuration.provider == "llamacpp-systemone":
+            if "endpoint" not in configuration.parameters or set(
+                configuration.parameters
+            ) - {"endpoint", "expectedIdentity", "verifyIdentity"}:
+                fail(
+                    ".parameters",
+                    "llamacpp-systemone requires native endpoint and explicit identity settings",
+                )
+        elif "host" not in configuration.parameters or set(configuration.parameters) - {
+            "host",
+            "expectedIdentity",
+            "verifyIdentity",
+            "startupTimeout",
+        }:
             fail(
                 ".parameters",
-                "bounded-decision requires native endpoint and explicit identity settings",
+                "ollama-systemone requires host and only native identity/startup settings",
             )
         return
-    if configuration.provider == "llamacpp-systemone":
+    if configuration.provider in {"llamacpp-systemone", "ollama-systemone"}:
         fail(
             ".provider",
-            "llamacpp-systemone requires explicit bounded-decision execution",
+            f"{configuration.provider} requires explicit bounded-decision execution",
         )
     if bundled and configuration.provider != "ollama":
         fail(".provider", "the bundled factory requires an Ollama model")

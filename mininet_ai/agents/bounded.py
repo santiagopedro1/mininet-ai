@@ -145,8 +145,16 @@ def _eligibility_signals(value: Any) -> tuple[list[bool], bool]:
 def map_choice(
     payload: str | bytes | Mapping[str, Any],
     choices: Mapping[str, Sequence[dict[str, Any]]],
+    *,
+    require_zero_output_tokens: bool = True,
 ) -> ChoiceResult:
-    """Map only an exact native choice ID to its fixed, scenario-owned bundle."""
+    """Map only an exact native choice ID to its fixed, scenario-owned bundle.
+
+    The llama.cpp native decision contract reports no generated output tokens.
+    Ollama's System One API may report internally generated scoring tokens, so
+    that provider disables the zero-token requirement while retaining every
+    choice, probability, confidence and usage validation.
+    """
     response = parse_response(payload)
     answers = response.get("answers")
     if not isinstance(answers, Mapping) or set(answers) != {"next_action"}:
@@ -174,7 +182,7 @@ def map_choice(
             "native response generated-token usage is invalid",
             code="agent.bounded-decision.invalid-output",
         )
-    if output_tokens != 0:
+    if require_zero_output_tokens and output_tokens != 0:
         raise AgentRuntimeError(
             "native choice contract must not generate output tokens",
             code="agent.bounded-decision.native-contract-violation",
@@ -283,12 +291,58 @@ class DecisionTransport(Protocol):
     def get_json(self, url: str, **kwargs: Any) -> Any: ...
 
 
+class SystemOneClient(Protocol):
+    """Provider-neutral native System One client surface."""
+
+    provider: str
+    endpoint: str
+
+    @property
+    def request_url(self) -> str: ...
+
+    @property
+    def request_metadata(self) -> Mapping[str, Any]: ...
+
+    def decide(
+        self,
+        *,
+        state: str,
+        instructions: str,
+        criteria: Mapping[str, str],
+        choices: Mapping[str, Sequence[dict[str, Any]]],
+        timeout_seconds: float,
+        request_id: str | None = None,
+    ) -> ChoiceResult: ...
+
+    def verify_startup(
+        self,
+        *,
+        model_name: str,
+        expected_identity: Mapping[str, Any] | None,
+        instructions: str,
+        criteria: Mapping[str, str],
+        choices: Mapping[str, Sequence[dict[str, Any]]],
+        interface_timeout_seconds: float = 2.0,
+        verify_identity: bool = True,
+    ) -> dict[str, Any]: ...
+
+
 class NativeSystemOneClient:
-    """Issue the single native choice request; no chat/generation fallback exists."""
+    """Issue the single llama.cpp native choice request; no chat fallback exists."""
+
+    provider = "llamacpp-systemone"
 
     def __init__(self, endpoint: str, transport: DecisionTransport) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.transport = transport
+
+    @property
+    def request_url(self) -> str:
+        return f"{self.endpoint}/v1/systemone"
+
+    @property
+    def request_metadata(self) -> Mapping[str, Any]:
+        return {}
 
     def decide(
         self,
@@ -320,7 +374,7 @@ class NativeSystemOneClient:
         }
         try:
             response = self.transport.post_json(
-                f"{self.endpoint}/v1/systemone",
+                self.request_url,
                 payload,
                 headers={"Content-Type": "application/json"},
                 timeout_seconds=timeout_seconds,
@@ -480,6 +534,299 @@ class NativeSystemOneClient:
         }
 
 
+def _ollama_model_names_match(expected: str, observed: str) -> bool:
+    if expected == observed:
+        return True
+    if ":" not in expected:
+        return observed == f"{expected}:latest"
+    if ":" not in observed:
+        return expected == f"{observed}:latest"
+    return False
+
+
+def _normalized_ollama_digest(value: Any) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    return value.removeprefix("sha256:").lower()
+
+
+class OllamaSystemOneClient:
+    """Use a local Ollama decision model through its native System One API."""
+
+    provider = "ollama-systemone"
+
+    def __init__(
+        self,
+        endpoint: str,
+        model_name: str,
+        transport: DecisionTransport,
+        *,
+        startup_timeout_seconds: float = 300.0,
+    ) -> None:
+        self.endpoint = endpoint.rstrip("/")
+        self.model_name = model_name
+        self.transport = transport
+        self.startup_timeout_seconds = startup_timeout_seconds
+
+    @property
+    def request_url(self) -> str:
+        return f"{self.endpoint}/v1/systemone"
+
+    @property
+    def request_metadata(self) -> Mapping[str, Any]:
+        return {"model": self.model_name}
+
+    def decide(
+        self,
+        *,
+        state: str,
+        instructions: str,
+        criteria: Mapping[str, str],
+        choices: Mapping[str, Sequence[dict[str, Any]]],
+        timeout_seconds: float,
+        request_id: str | None = None,
+    ) -> ChoiceResult:
+        if tuple(choices) != tuple(criteria) or not all(
+            isinstance(key, str) and isinstance(value, str) and value
+            for key, value in criteria.items()
+        ):
+            raise AgentRuntimeError(
+                "scenario choice IDs and native criteria must have identical stable order",
+                code="agent.bounded-decision.configuration-invalid",
+            )
+        payload = {
+            "model": self.model_name,
+            "state": state,
+            "questions": {
+                "next_action": {
+                    "type": "choice",
+                    "instructions": instructions,
+                    "criteria": dict(criteria),
+                }
+            },
+        }
+        try:
+            response = self.transport.post_json(
+                self.request_url,
+                payload,
+                headers={"Content-Type": "application/json"},
+                timeout_seconds=timeout_seconds,
+                max_response_bytes=1_048_576,
+                **({"request_id": request_id} if request_id is not None else {}),
+            )
+        except Exception as error:
+            if isinstance(error, TimeoutError):
+                raise AgentRuntimeError(
+                    f"native Ollama System One decision request timed out: {error}",
+                    code="agent.bounded-decision.timeout",
+                ) from error
+            if getattr(error, "code", None) in {"invalid-json", "response-too-large"}:
+                raise AgentRuntimeError(
+                    f"native Ollama System One response is malformed: {error}",
+                    code="agent.bounded-decision.invalid-output",
+                ) from error
+            status = getattr(error, "status_code", None)
+            if (
+                isinstance(status, int)
+                and 400 <= status < 500
+                and status not in {408, 429}
+            ):
+                raise AgentRuntimeError(
+                    f"native Ollama System One rejected the decision request (HTTP {status})",
+                    code="agent.bounded-decision.request-rejected",
+                ) from error
+            raise AgentRuntimeError(
+                f"native Ollama System One decision request failed: {error}",
+                code="agent.bounded-decision.service-unavailable",
+            ) from error
+        try:
+            if isinstance(response, Mapping):
+                observed_model = response.get("model")
+                if isinstance(observed_model, str) and not _ollama_model_names_match(
+                    self.model_name, observed_model
+                ):
+                    raise AgentRuntimeError(
+                        f"Ollama decision response model {observed_model!r} does not match requested {self.model_name!r}",
+                        code="agent.bounded-decision.invalid-output",
+                    )
+            return map_choice(
+                response,
+                choices,
+                require_zero_output_tokens=False,
+            )
+        except AgentRuntimeError as error:
+            raise NativeResponseError(error, response) from error
+
+    def verify_startup(
+        self,
+        *,
+        model_name: str,
+        expected_identity: Mapping[str, Any] | None,
+        instructions: str,
+        criteria: Mapping[str, str],
+        choices: Mapping[str, Sequence[dict[str, Any]]],
+        interface_timeout_seconds: float = 2.0,
+        verify_identity: bool = True,
+    ) -> dict[str, Any]:
+        """Verify Ollama, the model tag, optional digest and native decision interface."""
+        if model_name != self.model_name:
+            raise AgentRuntimeError(
+                f"bounded decision startup model {model_name!r} does not match configured {self.model_name!r}",
+                code="agent.bounded-decision.startup-configuration-invalid",
+            )
+        try:
+            version_document = self.transport.get_json(
+                f"{self.endpoint}/api/version",
+                headers={"Accept": "application/json"},
+                timeout_seconds=2.0,
+                max_response_bytes=65536,
+            )
+            tags = self.transport.get_json(
+                f"{self.endpoint}/api/tags",
+                headers={"Accept": "application/json"},
+                timeout_seconds=2.0,
+                max_response_bytes=1_048_576,
+            )
+        except Exception as error:
+            raise AgentRuntimeError(
+                f"bounded decision startup Ollama service check failed: {error}",
+                code="agent.bounded-decision.startup-unavailable",
+            ) from error
+        if not isinstance(version_document, Mapping) or not isinstance(tags, Mapping):
+            raise AgentRuntimeError(
+                "bounded decision startup Ollama endpoints returned invalid documents",
+                code="agent.bounded-decision.startup-interface-invalid",
+            )
+        version = version_document.get("version")
+        if not isinstance(version, str) or not version:
+            raise AgentRuntimeError(
+                "bounded decision startup Ollama version is unavailable",
+                code="agent.bounded-decision.startup-interface-invalid",
+            )
+        models = tags.get("models")
+        if not isinstance(models, list):
+            raise AgentRuntimeError(
+                "bounded decision startup Ollama model list is invalid",
+                code="agent.bounded-decision.startup-interface-invalid",
+            )
+        matching = [
+            entry
+            for entry in models
+            if isinstance(entry, Mapping)
+            and any(
+                isinstance(entry.get(key), str)
+                and _ollama_model_names_match(model_name, entry[key])
+                for key in ("name", "model")
+            )
+        ]
+        if verify_identity and not matching:
+            raise AgentRuntimeError(
+                f"bounded decision Ollama model {model_name!r} is not available",
+                code="agent.bounded-decision.startup-identity-mismatch",
+            )
+        entry = matching[0] if matching else {}
+        observed_name = entry.get("name") or entry.get("model")
+        capabilities = entry.get("capabilities")
+        if isinstance(capabilities, list) and "decision" not in capabilities:
+            raise AgentRuntimeError(
+                f"bounded decision Ollama model {model_name!r} does not advertise decision capability",
+                code="agent.bounded-decision.startup-interface-invalid",
+            )
+        if verify_identity and expected_identity is None:
+            expected_digest = None
+        else:
+            expected_digest = _normalized_ollama_digest(
+                (expected_identity or {}).get("digest")
+            )
+        observed_digest = _normalized_ollama_digest(entry.get("digest"))
+        if (
+            verify_identity
+            and expected_digest is not None
+            and (observed_digest is None or observed_digest != expected_digest)
+        ):
+            raise AgentRuntimeError(
+                "bounded decision startup identity mismatch for digest",
+                code="agent.bounded-decision.startup-identity-mismatch",
+            )
+        observed_identity: dict[str, Any] = {}
+        if observed_name is not None:
+            observed_identity["model"] = observed_name
+        if entry.get("digest") is not None:
+            observed_identity["digest"] = entry["digest"]
+        observed_identity["serverVersion"] = version
+        probe_timeout = max(interface_timeout_seconds, self.startup_timeout_seconds)
+        try:
+            probe = self.decide(
+                state="{}",
+                instructions=instructions,
+                criteria=criteria,
+                choices={key: () for key in criteria},
+                timeout_seconds=probe_timeout,
+            )
+        except AgentRuntimeError as error:
+            raise AgentRuntimeError(
+                f"bounded decision native interface check failed: {error}",
+                code="agent.bounded-decision.startup-timeout"
+                if error.code == "agent.bounded-decision.timeout"
+                else "agent.bounded-decision.startup-interface-invalid",
+            ) from error
+        return {
+            "status": "verified"
+            if verify_identity and expected_digest is not None
+            else "unverified",
+            "expectedModel": model_name,
+            "observedModel": observed_name,
+            "expectedIdentity": dict(expected_identity) if expected_identity else None,
+            "identityVerification": "checked" if verify_identity else "skipped",
+            "observedIdentity": observed_identity,
+            "interface": "verified",
+            "interfaceProbe": {
+                "request": {
+                    "model": self.model_name,
+                    "state": "{}",
+                    "questions": {
+                        "next_action": {
+                            "type": "choice",
+                            "instructions": instructions,
+                            "criteria": dict(criteria),
+                        }
+                    },
+                },
+                "response": probe.native_response,
+                "timeoutSeconds": probe_timeout,
+            },
+            "health": {"status": "ok", "version": version},
+        }
+
+
+def create_systemone_client(
+    model: Any,
+    transport: DecisionTransport,
+) -> SystemOneClient:
+    """Construct the native client for a resolved bounded-decision model."""
+    if not hasattr(model, "parameters"):
+        raise AgentRuntimeError(
+            "bounded execution requires a resolved System One model",
+            code="agent.bounded-decision.configuration-invalid",
+        )
+    if model.provider == "llamacpp-systemone":
+        return NativeSystemOneClient(model.parameters["endpoint"], transport)
+    if model.provider == "ollama-systemone":
+        startup_timeout = duration_seconds(
+            model.parameters.get("startupTimeout", "300s")
+        )
+        return OllamaSystemOneClient(
+            model.parameters["host"],
+            model.name,
+            transport,
+            startup_timeout_seconds=startup_timeout,
+        )
+    raise AgentRuntimeError(
+        f"bounded execution does not support model provider {model.provider!r}",
+        code="agent.bounded-decision.configuration-invalid",
+    )
+
+
 @dataclass(frozen=True)
 class BoundedExecutionResult:
     response: Any
@@ -586,14 +933,17 @@ class BoundedDecisionAdapter:
             for index, proposal in enumerate(action_choice["proposals"])
         )
         model = definition.blueprint.model
-        if not hasattr(model, "parameters") or model.provider != "llamacpp-systemone":
+        if not hasattr(model, "parameters") or model.provider not in {
+            "llamacpp-systemone",
+            "ollama-systemone",
+        }:
             raise AgentRuntimeError(
-                "bounded execution requires a resolved llamacpp-systemone model",
+                "bounded execution requires a resolved System One model provider",
                 code="agent.bounded-decision.configuration-invalid",
             )
         self.model = model
         self.scenario = dict(scenario)
-        self.client = NativeSystemOneClient(model.parameters["endpoint"], transport)
+        self.client = create_systemone_client(model, transport)
         self.authority: DecisionAuthority | None = None
         self._failure_execution_record: dict[str, Any] | None = None
         self._active_context: Any = None
@@ -735,7 +1085,8 @@ class BoundedDecisionAdapter:
             separators=(",", ":"),
         )
         self._active_request = {
-            "url": f"{self.client.endpoint}/v1/systemone",
+            "url": self.client.request_url,
+            **self.client.request_metadata,
             "state": state,
             "instructions": self.scenario["instructions"],
             "criteria": criteria,
@@ -951,7 +1302,8 @@ class BoundedDecisionAdapter:
                 "parameters": self.model.parameters,
             },
             request={
-                "url": f"{self.client.endpoint}/v1/systemone",
+                "url": self.client.request_url,
+                **self.client.request_metadata,
                 "state": state,
                 "instructions": self.scenario["instructions"],
                 "criteria": criteria,

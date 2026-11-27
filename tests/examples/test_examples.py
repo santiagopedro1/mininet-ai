@@ -30,6 +30,7 @@ EXAMPLE_NAMES = [
     "noms27/single-switch-recovery",
     "noms27/unified-system-1-2-recovery",
     "diamond-recovery",
+    "ollama-system-one",
     "getting-started",
     "autonomous-operation",
     "hierarchical-routing",

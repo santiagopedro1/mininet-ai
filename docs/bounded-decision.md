@@ -1,10 +1,16 @@
 # Bounded-decision execution (incremental)
 
 Bounded decisions are a distinct execution kind, not a model-provider alias.
-They use native llama.cpp `POST /v1/systemone` choice inference and map exact
-scenario-owned choice IDs to fixed proposals. They do not use chat completion,
-token generation, Agno, or hidden conversation memory. Mininet remains responsible
-for capability authorization and all network mutation.
+They use a native System One `POST /v1/systemone` choice request and map exact
+scenario-owned choice IDs to fixed proposals. Two providers are supported:
+
+- `llamacpp-systemone` for a llama.cpp server with native decision models.
+- `ollama-systemone` for a local Ollama server (v0.35.0 or later) serving a
+  decision model such as `nimble` or `clef-flash`.
+
+They do not use chat completion, token generation, Agno, or hidden conversation
+memory. Mininet remains responsible for capability authorization and all network
+mutation.
 
 System One names the direct, bounded decision-making approach; this execution
 kind is the mechanism that consumes its model outputs. We assume System One
@@ -83,7 +89,8 @@ network lookup. Historical saved plans/evidence are not rewritten by validation.
 ## Authoring and saved plans
 
 Use `mininet-ai/v1alpha5` for the experiment and blueprint. Select the execution
-kind on the blueprint; a `llamacpp-systemone` model alone does not select it:
+kind on the blueprint; a System One model alone does not select it. A llama.cpp
+server keeps its model loaded, so identity is declared explicitly:
 
 ```yaml
 apiVersion: mininet-ai/v1alpha5
@@ -102,6 +109,36 @@ model:
       artifact: Kev-4B-Q8_0.gguf
       sha256: 7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da
 ```
+
+A local Ollama decision model uses the same execution kind and native request
+shape. Ollama selects the model per request, so its tag is sent explicitly:
+
+```yaml
+model:
+  provider: ollama-systemone
+  name: clef-flash:9b
+  parameters:
+    host: http://10.10.10.152:11434
+    startupTimeout: 300s
+    expectedIdentity:
+      digest: 73e026ff389b28464bb26f8978f3164851a76832f0d339032747e2c56f98ea29
+```
+
+`ollama-systemone` parameters allow `host`, `expectedIdentity`,
+`verifyIdentity`, and `startupTimeout`. `host` is required, must be an
+HTTP/HTTPS base URL without credentials, query, or fragment, and there is no
+implicit endpoint. The startup check verifies `GET /api/version`, finds the
+configured model tag in `GET /api/tags`, and rejects a model that advertises a
+capability list without `decision`. `expectedIdentity.digest` is optional; when
+present, the observed Ollama digest must match either with or without the
+`sha256:` prefix. Without a digest, the model tag is checked but provenance is
+recorded as unverified. `startupTimeout` (default `300s`) bounds only the
+startup interface probe, which may load the model; the scenario deadline still
+bounds each later decision. Ollama's `usage.output_tokens` is retained because
+the provider may report internally generated scoring tokens; llama.cpp's native
+contract still requires zero generated output tokens. This provider targets a
+local Ollama server; cloud API-key authentication and image inputs are not
+supported by the bounded client.
 
 The named `DecisionScenario` can be inline under `decisionScenarios` or
 referenced from a separate versioned document. Current-only diagnosis uses
@@ -170,10 +207,13 @@ historical recovery retains its original choice and eligibility contract. See
 bounded monitoring trials with fixed warm-up requests, including live-validation
 limitations.
 
-Native models can explicitly set `parameters.verifyIdentity: false` instead of
+Both providers can explicitly set `parameters.verifyIdentity: false` instead of
 declaring `expectedIdentity`. The two forms are mutually exclusive. This skips
 model-name and artifact matching, records absent expected identity and
 `identityVerification: skipped` with unverified provenance, and preserves
-health/readiness, native interface, response, deadline, and authorization checks.
-The monitor runner exposes this as `--skip-model-verification`; omission retains
-the original required identity contract.
+health/readiness, native interface, capability, response, deadline, and
+authorization checks. The llama.cpp monitor runner exposes this as
+`--skip-model-verification`; omission retains the original required identity
+contract. For `ollama-systemone`, `expectedIdentity.digest` is optional even
+when verification is enabled: the model tag is still checked, but provenance is
+recorded as unverified unless a pinned digest is supplied.
