@@ -13,7 +13,13 @@ from mininet_ai.outcomes import (
 from mininet_ai.substrates.builtin_runtimes import register_builtin_runtimes
 from mininet_ai.substrates.fake import FakeSubstrateDriver
 from mininet_ai.substrates.fake_runtime import FakeSubstrateRuntime
-from mininet_ai.substrates.mininet_ovs import MininetOVSDriver, MininetOVSRuntime
+from mininet_ai.substrates.mininet_ovs import (
+    CleanupTarget,
+    CleanupVerifier,
+    MininetOVSCleanupVerifier,
+    MininetOVSDriver,
+    MininetOVSRuntime,
+)
 from mininet_ai.substrates.protocol import (
     SUBSTRATE_CONTRACT_VERSION,
     LayerSupport,
@@ -85,12 +91,15 @@ __all__ = [
     "ActionStatus",
     "CleanupOutcome",
     "CleanupStatus",
+    "CleanupTarget",
+    "CleanupVerifier",
     "ExternallyStoppableRuntime",
     "FakeSubstrateDriver",
     "FakeSubstrateRuntime",
     "LayerSupport",
     "LiveResource",
     "ManifestSubstrateDriver",
+    "MininetOVSCleanupVerifier",
     "MininetOVSDriver",
     "MininetOVSRuntime",
     "MutationEffects",

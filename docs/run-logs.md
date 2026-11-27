@@ -193,9 +193,11 @@ cleanup receipt; missing run information alone is never proof of clean rollback.
 `run.json` preserves independent `operation` and structured `cleanup` fields
 alongside overall `outcome`; older records default to unknown cleanup. Managed
 export manifests preserve both fields as well. These are editable user evidence,
-not trusted cleanup authority. Legacy Mininet cleanup cannot certify absence and
-therefore no longer finalizes managed evidence merely because its tools returned
-success; prepare consistent offline snapshots explicitly when needed.
+not trusted cleanup authority. Healthy Mininet/OVS teardown verifies its declared
+local bridges, interfaces, tracked processes, controller artifacts, and active
+runtime state; that receipt can finalize managed evidence. Failed rollback,
+interrupted startup, and orphan recovery retain unknown cleanup until verified;
+prepare consistent offline snapshots explicitly when needed.
 
 Cooperating writers retain shared lifetime locks in the fixed private local
 `/tmp/mininet-ai-locks-<effective-uid>` namespace; export takes nonblocking

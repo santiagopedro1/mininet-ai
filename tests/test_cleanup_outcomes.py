@@ -25,7 +25,12 @@ from mininet_ai.substrates import (
     FakeSubstrateRuntime,
     TeardownResult,
 )
-from tests.substrates.test_mininet_ovs_runtime import mininet_plan, recording_runtime
+from tests.substrates.test_mininet_ovs_runtime import (
+    UNKNOWN_CLEANUP,
+    ScriptedCleanupVerifier,
+    mininet_plan,
+    recording_runtime,
+)
 from tests.test_cli_runtime import fake_plan
 
 VERIFIED = CleanupOutcome(
@@ -337,7 +342,10 @@ def test_missing_run_evidence_is_a_typed_json_error(command):
 def test_legacy_teardown_and_persisted_status_never_certify_tool_success():
     harness = unittest.TestCase()
     try:
-        runtime = recording_runtime(harness)
+        runtime = recording_runtime(
+            harness,
+            cleanup_verifier=ScriptedCleanupVerifier(UNKNOWN_CLEANUP),
+        )
         run = runtime.deploy(mininet_plan())
         first = runtime.teardown(run.id)
         second = runtime.teardown(run.id)
@@ -368,6 +376,26 @@ def test_experiment_repeated_stop_does_not_upgrade_unknown_cleanup():
     assert first.cleanup == second.cleanup == UNKNOWN
     assert first.state == second.state == "failed"
     assert not owner.writers_stopped
+
+
+def test_experiment_healthy_teardown_can_finish_successfully():
+    from mininet_ai.experiment import ExperimentRuntime
+    from mininet_ai.plugins import ProviderRegistries
+
+    harness = unittest.TestCase()
+    runtime = recording_runtime(harness)
+    try:
+        owner = ExperimentRuntime(mininet_plan(), runtime, ProviderRegistries())
+        owner.start()
+        report = owner.stop()
+    finally:
+        harness.doCleanups()
+
+    assert report.operation == OperationOutcome.SUCCEEDED
+    assert report.cleanup.verified
+    assert report.state == "stopped"
+    assert report.issues == ()
+    assert owner.writers_stopped
 
 
 def test_legacy_boolean_failed_deploy_receipt_is_not_verification():

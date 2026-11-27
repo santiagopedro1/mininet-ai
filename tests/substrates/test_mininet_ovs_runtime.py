@@ -11,9 +11,11 @@ from unittest.mock import patch
 from mininet_ai.compiler import compile_experiment
 from mininet_ai.compiler.models import PlannedSwitch
 from mininet_ai.errors import RuntimeOperationError
+from mininet_ai.outcomes import CleanupOutcome, CleanupStatus
 from mininet_ai.substrates import (
     ActionRequest,
     ActionStatus,
+    CleanupTarget,
     LiveResource,
     MininetOVSRuntime,
     ObservationQuery,
@@ -253,6 +255,27 @@ class FailingCloseActions(RecordingActions):
         raise RuntimeError("scripted action cleanup failure")
 
 
+class ScriptedCleanupVerifier:
+    def __init__(self, cleanup: CleanupOutcome) -> None:
+        self.cleanup = cleanup
+        self.targets: list[CleanupTarget] = []
+
+    def verify(self, target: CleanupTarget) -> CleanupOutcome:
+        self.targets.append(target)
+        return self.cleanup
+
+
+VERIFIED_CLEANUP = CleanupOutcome(
+    status=CleanupStatus.VERIFIED,
+    evidence=("scripted local teardown verification",),
+    evidence_gaps=(),
+)
+UNKNOWN_CLEANUP = CleanupOutcome(
+    status=CleanupStatus.UNKNOWN,
+    unknown_resources=("scripted-insufficient-evidence",),
+)
+
+
 def bindings(network_class: type = RecordingNetwork) -> _MininetBindings:
     return _MininetBindings(
         network_class=network_class,
@@ -287,11 +310,14 @@ def recording_runtime(
     observation_factory=RecordingObservations,
     persisted_observation_factory=None,
     action_factory=RecordingActions,
+    cleanup_verifier=None,
 ) -> MininetOVSRuntime:
     if state_store is None:
         state_store = temporary_store(test_case)
     if persisted_observation_factory is None:
         persisted_observation_factory = lambda plan: RecordingObservations(plan, None)
+    if cleanup_verifier is None:
+        cleanup_verifier = ScriptedCleanupVerifier(VERIFIED_CLEANUP)
     return MininetOVSRuntime(
         clock=IncrementingClock(),
         run_id_factory=lambda: "mininet-test-run",
@@ -302,6 +328,7 @@ def recording_runtime(
         observation_factory=observation_factory,
         persisted_observation_factory=persisted_observation_factory,
         action_factory=action_factory,
+        cleanup_verifier=cleanup_verifier,
     )
 
 
@@ -504,14 +531,14 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         repeated = fresh.teardown(run.id)
         snapshot = fresh.inspect(run.id)
 
-        self.assertFalse(repeated.already_stopped)
-        self.assertFalse(repeated.succeeded)
-        self.assertTrue(repeated.cleanup.evidence_gaps)
+        self.assertTrue(repeated.already_stopped)
+        self.assertTrue(repeated.succeeded)
+        self.assertTrue(repeated.cleanup.verified)
         self.assertEqual(repeated.released_resources, ())
         self.assertEqual(snapshot.run.state, RunState.STOPPED)
         self.assertTrue(
             all(
-                resource.state == ResourceOperationalState.UNKNOWN
+                resource.state == ResourceOperationalState.STOPPED
                 for resource in snapshot.resources
             )
         )
@@ -623,8 +650,8 @@ class MininetOVSRuntimeTests(unittest.TestCase):
 
         self.assertEqual(signals, [(ProcessOwner.current().pid, signal.SIGTERM)])
         self.assertEqual(result.run.state, RunState.STOPPED)
-        self.assertFalse(result.succeeded)
-        self.assertEqual(result.cleanup.status.value, "unknown")
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.cleanup.status.value, "verified")
         self.assertFalse(store.state_path.exists())
 
     def test_external_stop_has_typed_timeout(self) -> None:
@@ -727,6 +754,53 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         runtime.teardown(run.id)
 
         self.assertTrue(RecordingActions.instances[-1].closed)
+
+    def test_teardown_verifies_owned_resources_and_persists_the_receipt(self) -> None:
+        store = temporary_store(self)
+        verifier = ScriptedCleanupVerifier(VERIFIED_CLEANUP)
+        runtime = recording_runtime(
+            self,
+            state_store=store,
+            cleanup_verifier=verifier,
+        )
+        run = runtime.deploy(self.plan)
+
+        result = runtime.teardown(run.id)
+
+        self.assertEqual(len(verifier.targets), 1)
+        self.assertEqual(verifier.targets[0].plan, self.plan)
+        self.assertEqual(verifier.targets[0].active_state_path, store.state_path)
+        self.assertTrue(result.succeeded)
+        self.assertTrue(result.cleanup.verified)
+        self.assertEqual(result.released_resources, tuple(r.name for r in self.plan.resources))
+        self.assertTrue(
+            all(
+                resource.state == ResourceOperationalState.STOPPED
+                for resource in runtime.inspect(run.id).resources
+            )
+        )
+        stopped = store.read_stopped()
+        self.assertIsNotNone(stopped)
+        assert stopped is not None
+        self.assertTrue(stopped.run.cleanup.verified)
+
+    def test_teardown_keeps_unknown_verification_visible(self) -> None:
+        runtime = recording_runtime(
+            self,
+            cleanup_verifier=ScriptedCleanupVerifier(UNKNOWN_CLEANUP),
+        )
+        run = runtime.deploy(self.plan)
+
+        result = runtime.teardown(run.id)
+
+        self.assertFalse(result.succeeded)
+        self.assertEqual(result.cleanup.status, CleanupStatus.UNKNOWN)
+        self.assertTrue(
+            all(
+                resource.state == ResourceOperationalState.UNKNOWN
+                for resource in runtime.inspect(run.id).resources
+            )
+        )
 
     def test_teardown_still_stops_network_when_action_cleanup_fails(self) -> None:
         runtime = recording_runtime(self, action_factory=FailingCloseActions)

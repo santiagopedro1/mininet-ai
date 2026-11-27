@@ -45,6 +45,11 @@ from mininet_ai.substrates.mininet_ovs.state import (
     StateLockHeld,
     StateStoreError,
 )
+from mininet_ai.substrates.mininet_ovs.verification import (
+    CleanupTarget,
+    CleanupVerifier,
+    MininetOVSCleanupVerifier,
+)
 from mininet_ai.substrates.runtime import (
     RUNTIME_CONTRACT_VERSION,
     ActionRequest,
@@ -202,6 +207,7 @@ class MininetOVSRuntime:
             _persisted_observation_provider
         ),
         action_factory: ActionFactory = _action_provider,
+        cleanup_verifier: CleanupVerifier | None = None,
     ) -> None:
         if connect_timeout_seconds <= 0:
             raise ValueError("connect_timeout_seconds must be positive")
@@ -215,6 +221,7 @@ class MininetOVSRuntime:
         self._observation_factory = observation_factory
         self._persisted_observation_factory = persisted_observation_factory
         self._action_factory = action_factory
+        self._cleanup_verifier = cleanup_verifier or MininetOVSCleanupVerifier()
         self._runs: dict[str, _MininetRun] = {}
 
     def deploy(self, plan: DeploymentPlan) -> RunInfo:
@@ -486,13 +493,10 @@ class MininetOVSRuntime:
                 already_stopped=run.info.cleanup.verified,
             )
 
+        processes = self._owned_process_groups(run)
         try:
             run.info = run.info.model_copy(update={"state": RunState.STOPPING})
-            self._write_state(
-                run.info,
-                run.plan,
-                self._owned_process_groups(run),
-            )
+            self._write_state(run.info, run.plan, processes)
             cleanup_errors = []
             for operation in (
                 run.actions.close,
@@ -505,11 +509,19 @@ class MininetOVSRuntime:
                     cleanup_errors.append(error)
             if cleanup_errors:
                 raise RuntimeError("; ".join(str(error) for error in cleanup_errors))
+            self._state_store.clear()
+            cleanup = self._cleanup_verifier.verify(
+                CleanupTarget(
+                    plan=run.plan,
+                    processes=processes,
+                    active_state_path=self._state_store.state_path,
+                )
+            )
             stopped_info = run.info.model_copy(
                 update={
                     "state": RunState.STOPPED,
                     "stopped_at": self._clock(),
-                    "cleanup": self._legacy_cleanup(run.plan),
+                    "cleanup": cleanup,
                 }
             )
             self._state_store.write_stopped(
@@ -519,7 +531,6 @@ class MininetOVSRuntime:
                     plan=run.plan.model_dump(mode="json", by_alias=True),
                 )
             )
-            self._state_store.clear()
         except Exception as error:
             failed_info = run.info.model_copy(
                 update={
@@ -554,8 +565,13 @@ class MininetOVSRuntime:
         self._state_store.release()
 
         run.info = stopped_info
+        stopped_state = (
+            ResourceOperationalState.STOPPED
+            if cleanup.verified
+            else ResourceOperationalState.UNKNOWN
+        )
         run.resources = tuple(
-            resource.model_copy(update={"state": ResourceOperationalState.UNKNOWN})
+            resource.model_copy(update={"state": stopped_state})
             for resource in run.resources
         )
         return TeardownResult(
@@ -563,6 +579,11 @@ class MininetOVSRuntime:
             cleanup=run.info.cleanup,
             operation=OperationOutcome.SUCCEEDED,
             effects=MutationEffects.UNKNOWN,
+            released_resources=(
+                tuple(resource.name for resource in run.plan.resources)
+                if cleanup.verified
+                else ()
+            ),
         )
 
     def request_stop(

@@ -145,11 +145,11 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
             }
             self.assertEqual(degraded_resources["s1-eth1"]["state"], "down")
             self.assertEqual(degraded_resources["h1-s1"]["state"], "down")
-            self.assertEqual(stopped.returncode, 1)
-            self.assertIn("Cleanup: unknown", stopped.stdout)
+            self.assertEqual(stopped.returncode, 0)
+            self.assertIn("Cleanup: verified", stopped.stdout)
             output, error = process.communicate(timeout=15)
-            self.assertEqual(process.returncode, 1, f"{output}\n{error}")
-            self.assertIn(f"Unresolved {run_id}", output)
+            self.assertEqual(process.returncode, 0, f"{output}\n{error}")
+            self.assertIn(run_id, output)
             saved_log = log_path.read_text()
             self.assertIn("[Mininet] *** Done", error)
             self.assertIn("[Mininet] *** Done", saved_log)
@@ -176,11 +176,11 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 "json",
                 check=False,
             )
-            self.assertEqual(repeated_stop.returncode, 1)
-            self.assertIn("Cleanup: unknown", repeated_stop.stdout)
-            self.assertEqual(stopped_status.returncode, 1)
+            self.assertEqual(repeated_stop.returncode, 0)
+            self.assertIn("Cleanup: verified", repeated_stop.stdout)
+            self.assertEqual(stopped_status.returncode, 0)
             self.assertEqual(
-                json.loads(stopped_status.stdout)["run"]["cleanup"]["status"], "unknown"
+                json.loads(stopped_status.stdout)["run"]["cleanup"]["status"], "verified"
             )
             self.assertEqual(
                 json.loads(stopped_status.stdout)["run"]["state"],
