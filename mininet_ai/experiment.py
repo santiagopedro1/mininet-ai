@@ -13,7 +13,7 @@ from uuid import uuid4
 from pydantic import Field, JsonValue
 
 from mininet_ai.agents.agno import AgnoAgentFactory
-from mininet_ai.agents.bounded import DecisionTransport, NativeSystemOneClient
+from mininet_ai.agents.bounded import DecisionTransport, create_systemone_client
 from mininet_ai.agents.runtime import OneShotAgentRuntime
 from mininet_ai.audit import AuditRecorder
 from mininet_ai.compiler import DeploymentPlan
@@ -329,7 +329,7 @@ class ExperimentRuntime:
             choices = {
                 item["id"]: tuple(item["proposals"]) for item in scenario["choices"]
             }
-            client = NativeSystemOneClient(model.parameters["endpoint"], transport)
+            client = create_systemone_client(model, transport)
             try:
                 self._bounded_startup[agent.id] = client.verify_startup(
                     model_name=model.name,

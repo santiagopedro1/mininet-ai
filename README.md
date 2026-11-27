@@ -44,9 +44,10 @@ not network placement or action authority. System One decision models are
 assumed to provide native typed outputs and calibrated probabilities.
 
 An agent uses a model through an execution mechanism: these are distinct
-concepts. The current bounded-decision path consumes native choices, while Agno
-supports deliberative agents. Escalation between agents is a workflow policy,
-not part of either term's definition.
+concepts. The current bounded-decision path consumes native choices from
+llama.cpp (`llamacpp-systemone`) or local Ollama (`ollama-systemone`), while
+Agno supports deliberative agents. Escalation between agents is a workflow
+policy, not part of either term's definition.
 
 See the [glossary](GLOSSARY.md) for definitions and
 [decision-making approaches](docs/decision-making.md) for model assumptions,
@@ -269,6 +270,8 @@ See [run storage and export](docs/run-logs.md) for coordination and format detai
 | [Autonomous Network Operation](examples/autonomous-operation/README.md) | Shared model + shallow override, event triggers, detectors, rollback | `fake` | `mock` |
 | [Hierarchical Routing Coordination](examples/hierarchical-routing/README.md) | Three-tier routing with hierarchical coordination | `mininet-ovs` | `ollama` |
 | [iperf Throughput](examples/iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` |
+| [Diamond Recovery](examples/diamond-recovery/README.md) | Four-switch bounded-decision diagnosis contract | `fake` | `llamacpp-systemone` |
+| [Ollama System One](examples/ollama-system-one/README.md) | Single-switch diagnosis with a local Ollama decision model | `fake` | `ollama-systemone` |
 | [Unified System One/Two Recovery](examples/noms27/unified-system-1-2-recovery/README.md) | Random link/flow faults with local repair and confidence-gated escalation | `mininet-ovs` | `llamacpp-systemone` + `ollama` |
 
 See the [examples index](examples/README.md) for a feature matrix and progression guide.

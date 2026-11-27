@@ -370,19 +370,27 @@ class ModelConfiguration(StrictModel):
                         }
                     ],
                 ) from error
-        if info.data.get("provider") == "llamacpp-systemone":
-            unknown = set(parameters) - {
-                "endpoint",
-                "expectedIdentity",
-                "verifyIdentity",
-            }
+        if info.data.get("provider") in {"llamacpp-systemone", "ollama-systemone"}:
+            provider = info.data["provider"]
+            if provider == "llamacpp-systemone":
+                allowed = {"endpoint", "expectedIdentity", "verifyIdentity"}
+                endpoint_key = "endpoint"
+            else:
+                allowed = {
+                    "host",
+                    "expectedIdentity",
+                    "verifyIdentity",
+                    "startupTimeout",
+                }
+                endpoint_key = "host"
+            unknown = set(parameters) - allowed
             if unknown:
                 raise ValueError(
-                    "llamacpp-systemone parameters only allow endpoint, expectedIdentity, and verifyIdentity"
+                    f"{provider} parameters only allow {', '.join(sorted(allowed))}"
                 )
-            endpoint = parameters.get("endpoint")
+            endpoint = parameters.get(endpoint_key)
             if not isinstance(endpoint, str):
-                raise ValueError("llamacpp-systemone requires parameters.endpoint")
+                raise ValueError(f"{provider} requires parameters.{endpoint_key}")
             parsed = urlsplit(endpoint)
             if (
                 parsed.scheme not in {"http", "https"}
@@ -393,7 +401,7 @@ class ModelConfiguration(StrictModel):
                 or parsed.fragment
             ):
                 raise ValueError(
-                    "llamacpp-systemone endpoint must be an HTTP/HTTPS base URL without credentials, query, or fragment"
+                    f"{provider} {endpoint_key} must be an HTTP/HTTPS base URL without credentials, query, or fragment"
                 )
             if (
                 "verifyIdentity" in parameters
@@ -405,6 +413,28 @@ class ModelConfiguration(StrictModel):
                     raise ValueError(
                         "omit expectedIdentity when verifyIdentity is false"
                     )
+                if provider == "llamacpp-systemone":
+                    return parameters
+            if provider == "ollama-systemone":
+                if "startupTimeout" in parameters:
+                    timeout = parameters["startupTimeout"]
+                    if not isinstance(timeout, str) or not timeout:
+                        raise ValueError("startupTimeout must be a duration string")
+                    if duration_seconds(timeout) <= 0:
+                        raise ValueError("startupTimeout must be positive")
+                if "expectedIdentity" in parameters:
+                    identity = parameters["expectedIdentity"]
+                    if not isinstance(identity, dict) or set(identity) != {"digest"}:
+                        raise ValueError(
+                            "ollama-systemone expectedIdentity only allows digest"
+                        )
+                    digest = identity["digest"]
+                    if not isinstance(digest, str) or not re.fullmatch(
+                        r"(sha256:)?[0-9a-fA-F]{64}", digest
+                    ):
+                        raise ValueError(
+                            "expectedIdentity.digest must be a SHA-256 hex digest"
+                        )
                 return parameters
             identity = parameters.get("expectedIdentity")
             required = {"repository", "revision", "artifact", "sha256"}
@@ -840,12 +870,11 @@ class AgentBlueprint(VersionedDocument):
                 raise ValueError(
                     "bounded-decision execution requires declarative implementation"
                 )
-            if (
-                isinstance(self.model, ModelConfiguration)
-                and self.model.provider != "llamacpp-systemone"
-            ):
+            if isinstance(
+                self.model, ModelConfiguration
+            ) and self.model.provider not in {"llamacpp-systemone", "ollama-systemone"}:
                 raise ValueError(
-                    "bounded-decision execution requires llamacpp-systemone model configuration"
+                    "bounded-decision execution requires a llamacpp-systemone or ollama-systemone model configuration"
                 )
             if self.model is None:
                 raise ValueError(

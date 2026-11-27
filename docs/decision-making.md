@@ -21,9 +21,10 @@ are in the [glossary](../GLOSSARY.md).
 
 [Bounded-decision execution](bounded-decision.md) consumes native choices and
 maps them to scenario-owned proposals. It validates responses and enforces
-choice constraints, but does not establish probability calibration. Agno
-supports deliberative agents; selecting Agno alone does not establish that a
-particular invocation performs System Two reasoning.
+choice constraints, but does not establish probability calibration. It supports
+native llama.cpp (`llamacpp-systemone`) and local Ollama (`ollama-systemone`)
+decision endpoints. Agno supports deliberative agents; selecting Agno alone does
+not establish that a particular invocation performs System Two reasoning.
 
 Native typed outputs and calibrated probabilities are our assumed System One
 model contract, not findings established for every configured model by runtime

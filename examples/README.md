@@ -22,6 +22,8 @@ Start with the simplest example and work your way up:
 5. **[Diamond Recovery](diamond-recovery/README.md)** — an exploratory,
    offline bounded-decision topology and planning contract; it does not claim
    live model or network support.
+6. **[Ollama System One](ollama-system-one/README.md)** — local Ollama decision
+   models through the native System One API, using a fake substrate.
 
 ## Index
 
@@ -50,29 +52,32 @@ model assumptions and their relationship to agents and execution mechanisms.
 | [Hierarchical Routing Coordination](hierarchical-routing/README.md) | Three-tier routing system | `mininet-ovs` | `ollama` | Both | Multi-layer placement, hierarchical coordination, declarative + Python factory blueprints, postconditions, shared state |
 | [iperf Throughput](iperf-throughput/README.md) | Ollama-driven TCP throughput test | `mininet-ovs` | `ollama` | Realistic scenario | Host placement, Python factory blueprints, cross-terminal `invoke`, serialized startup intents |
 | [Diamond Recovery](diamond-recovery/README.md) | Four-switch failover decision contract (offline only) | `fake` | `llamacpp-systemone` (placeholder) | Both | Explicit choices, fixed recovery bundle, three-round inputs |
+| [Ollama System One](ollama-system-one/README.md) | Single-switch current-only diagnosis with a local Ollama decision model | `fake` | `ollama-systemone` | Feature demonstration | Native `/v1/systemone`, model tag/digest verification, bounded choices |
 | [Unified System One/Two Recovery](noms27/unified-system-1-2-recovery/README.md) | Combined local recovery and confidence-gated escalation | `mininet-ovs` | `llamacpp-systemone` + `ollama` | Both | Random link/flow faults, local repair, confidence gate, escalation to System Two |
 
 ## Feature Matrix
 
-| Feature | Getting Started | Autonomous Operation | Hierarchical Routing | iperf Throughput | Diamond Recovery |
-| --- | --- | --- | --- | --- |
-| `fake` substrate | ✓ | ✓ | | |
-| `mininet-ovs` substrate | | | ✓ | ✓ |
-| `mock` provider | ✓ | ✓ | | |
-| `ollama` provider | | | ✓ | ✓ |
-| Manual trigger | ✓ | ✓ | ✓ | ✓ |
-| Interval trigger | | ✓ | ✓ | |
-| Event trigger | | ✓ | | |
-| Observation detector | | ✓ | | |
-| Rollback | | ✓ | ✓ | |
-| Postconditions | | ✓ | ✓ | |
-| Shared state | | ✓ | ✓ | |
-| Multi-layer placement | | ✓ | ✓ | |
-| Hierarchical coordination | | | ✓ | |
-| Declarative blueprint | ✓ | ✓ | ✓ | |
-| Python factory blueprint | | | ✓ | ✓ |
-| Shared model + shallow override | | ✓ | | |
-| Bounded decision contract (offline plan only) | | | | | ✓ |
+| Feature | Getting Started | Autonomous Operation | Hierarchical Routing | iperf Throughput | Diamond Recovery | Ollama System One |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fake` substrate | ✓ | ✓ | | | ✓ | ✓ |
+| `mininet-ovs` substrate | | | ✓ | ✓ | | |
+| `mock` provider | ✓ | ✓ | | | | |
+| `ollama` provider | | | ✓ | ✓ | | |
+| `ollama-systemone` provider | | | | | | ✓ |
+| `llamacpp-systemone` provider | | | | | ✓ | |
+| Manual trigger | ✓ | ✓ | ✓ | ✓ | | |
+| Interval trigger | | ✓ | ✓ | | | ✓ |
+| Event trigger | | ✓ | | | | |
+| Observation detector | | ✓ | | | | |
+| Rollback | | ✓ | ✓ | | | |
+| Postconditions | | ✓ | ✓ | | | |
+| Shared state | | ✓ | ✓ | | | |
+| Multi-layer placement | | ✓ | ✓ | | | |
+| Hierarchical coordination | | | ✓ | | | |
+| Declarative blueprint | ✓ | ✓ | ✓ | | ✓ | ✓ |
+| Python factory blueprint | | | ✓ | ✓ | | |
+| Shared model + shallow override | | ✓ | | | | |
+| Bounded decision contract | | | | | ✓ | ✓ |
 
 ## Running the examples
 

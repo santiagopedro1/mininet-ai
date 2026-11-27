@@ -675,12 +675,14 @@ def _compile_instances(
                 raise CompilationError(
                     "bounded-decision requires one 1s interval trigger"
                 )
-            if (
-                not isinstance(blueprint.model, ModelConfiguration)
-                or blueprint.model.provider != "llamacpp-systemone"
-            ):
+            if not isinstance(
+                blueprint.model, ModelConfiguration
+            ) or blueprint.model.provider not in {
+                "llamacpp-systemone",
+                "ollama-systemone",
+            }:
                 raise CompilationError(
-                    "bounded-decision requires resolved llamacpp-systemone settings"
+                    "bounded-decision requires resolved llamacpp-systemone or ollama-systemone settings"
                 )
         policy_observations = [
             policy.observation for policy in deployment.observation_policies
