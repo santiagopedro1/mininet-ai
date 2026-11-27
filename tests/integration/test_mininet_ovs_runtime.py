@@ -145,7 +145,7 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
             }
             self.assertEqual(degraded_resources["s1-eth1"]["state"], "down")
             self.assertEqual(degraded_resources["h1-s1"]["state"], "down")
-            self.assertEqual(stopped.returncode, 0)
+            self.assertEqual(stopped.returncode, 0, stopped.stdout + stopped.stderr)
             self.assertIn("Cleanup: verified", stopped.stdout)
             output, error = process.communicate(timeout=15)
             self.assertEqual(process.returncode, 0, f"{output}\n{error}")
@@ -176,9 +176,17 @@ class LiveMininetOVSRuntimeTests(unittest.TestCase):
                 "json",
                 check=False,
             )
-            self.assertEqual(repeated_stop.returncode, 0)
+            self.assertEqual(
+                repeated_stop.returncode,
+                0,
+                repeated_stop.stdout + repeated_stop.stderr,
+            )
             self.assertIn("Cleanup: verified", repeated_stop.stdout)
-            self.assertEqual(stopped_status.returncode, 0)
+            self.assertEqual(
+                stopped_status.returncode,
+                0,
+                stopped_status.stdout + stopped_status.stderr,
+            )
             self.assertEqual(
                 json.loads(stopped_status.stdout)["run"]["cleanup"]["status"], "verified"
             )

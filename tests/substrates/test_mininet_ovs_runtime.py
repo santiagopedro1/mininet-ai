@@ -654,6 +654,37 @@ class MininetOVSRuntimeTests(unittest.TestCase):
         self.assertEqual(result.cleanup.status.value, "verified")
         self.assertFalse(store.state_path.exists())
 
+    def test_external_stop_waits_for_owner_lock_after_state_clear(self) -> None:
+        store = temporary_store(self)
+        owner = recording_runtime(self, state_store=store)
+        run = owner.deploy(self.plan)
+        record = store.read()
+        self.assertIsNotNone(record)
+        controller = recording_runtime(
+            self,
+            state_store=RunStateStore(store.state_directory, store.lock_path),
+        )
+        sentinel = object()
+        with (
+            patch.object(
+                controller._state_store,
+                "read",
+                side_effect=[record, None, None],
+            ),
+            patch.object(
+                controller._state_store,
+                "is_locked",
+                side_effect=[True, True, False],
+            ) as is_locked,
+            patch("mininet_ai.substrates.mininet_ovs.runtime.os.kill"),
+            patch.object(controller, "teardown", return_value=sentinel) as teardown,
+        ):
+            result = controller.request_stop(run.id, timeout_seconds=1)
+
+        self.assertIs(result, sentinel)
+        teardown.assert_called_once_with(run.id)
+        self.assertEqual(is_locked.call_count, 3)
+
     def test_external_stop_has_typed_timeout(self) -> None:
         store = temporary_store(self)
         owner = recording_runtime(self, state_store=store)

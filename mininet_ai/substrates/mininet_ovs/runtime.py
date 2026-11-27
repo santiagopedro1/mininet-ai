@@ -633,7 +633,12 @@ class MininetOVSRuntime:
                     run_id=run_id,
                 ) from error
             if current is None:
-                # Read a completion record, never manufacture one from absence.
+                # The owner clears the active record before releasing its lock.
+                # Wait for that release so teardown can read the completion
+                # record instead of racing into runtime.run.active. Never
+                # manufacture completion from absence.
+                if self._state_store.is_locked():
+                    continue
                 return self.teardown(run_id)
             if current.run.id != run_id:
                 raise RuntimeOperationError(
